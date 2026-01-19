@@ -4,12 +4,40 @@ A web application for ingesting, normalizing, and exploring detection rules from
 
 ## Features
 
-- **Multi-Vendor Support**: Ingest rules from SigmaHQ, Elastic Detection Rules, and Splunk Security Content
+- **Multi-Vendor Support**: Ingest rules from SigmaHQ, Elastic Detection Rules, Splunk Security Content, Sublime Rules, Elastic Protections, and LOLRMM
 - **Normalization**: Convert vendor-specific formats to a unified schema
-- **Search & Filter**: Full-text search with filters by source, severity, status, MITRE techniques
+- **Search & Filter**: Full-text search with filters by source, severity, status, MITRE tactics/techniques
 - **Cross-Vendor Comparison**: Compare detection coverage by technique or keyword
 - **Coverage Gap Analysis**: Identify techniques covered by one vendor but not another
 - **Export**: Download filtered results as JSON or CSV
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone git@github.com:InfoSecJay/threat-detection-explorer.git
+cd threat-detection-explorer
+
+# Backend setup
+cd backend
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # macOS/Linux
+pip install -r requirements.txt
+
+# Frontend setup (in a new terminal)
+cd frontend
+npm install
+
+# Run (in separate terminals)
+# Terminal 1 - Backend:
+cd backend && python run.py
+
+# Terminal 2 - Frontend:
+cd frontend && npm run dev
+```
+
+The frontend will be available at `http://localhost:5173` and the API at `http://localhost:8000`.
 
 ## Architecture
 
@@ -40,40 +68,6 @@ threat_detection_explorer/
 - Node.js 18+
 - Git
 
-## Setup
-
-### Backend
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the server
-uvicorn app.main:app --reload
-```
-
-The API will be available at `http://localhost:8000`
-
-### Frontend
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-The frontend will be available at `http://localhost:5173`
-
 ## Usage
 
 ### 1. Sync Repositories
@@ -81,7 +75,7 @@ The frontend will be available at `http://localhost:5173`
 On first use, sync the detection rule repositories:
 
 1. Go to the Dashboard
-2. Click "Sync" for each repository (SigmaHQ, Elastic, Splunk)
+2. Click "Sync" for each repository (SigmaHQ, Elastic, Splunk, etc.)
 3. Wait for the clone/pull to complete
 
 ### 2. Ingest Rules
@@ -127,7 +121,7 @@ Each detection is normalized to:
 ```json
 {
   "id": "uuid",
-  "source": "sigma | elastic | splunk",
+  "source": "sigma | elastic | splunk | sublime | elastic_protections | lolrmm",
   "title": "Detection title",
   "description": "Detection description",
   "author": "Author name",
@@ -137,10 +131,14 @@ Each detection is normalized to:
   "data_sources": ["sysmon", "security_event", ...],
   "mitre_tactics": ["TA0002", ...],
   "mitre_techniques": ["T1059", "T1059.001", ...],
-  "detection_logic": "Human-readable summary",
+  "detection_logic": "Human-readable detection logic",
   "tags": ["tag1", "tag2", ...],
+  "false_positives": ["Known false positive scenarios", ...],
+  "references": ["https://...", ...],
   "source_file": "path/to/rule.yml",
-  "source_repo_url": "https://github.com/..."
+  "source_repo_url": "https://github.com/...",
+  "rule_created_date": "2024-01-15",
+  "rule_modified_date": "2024-06-20"
 }
 ```
 
@@ -166,6 +164,9 @@ Environment variables (can be set in `.env`):
 | SigmaHQ | YAML | https://github.com/SigmaHQ/sigma |
 | Elastic Detection Rules | TOML | https://github.com/elastic/detection-rules |
 | Splunk Security Content | YAML | https://github.com/splunk/security_content |
+| Sublime Rules | YAML | https://github.com/sublime-security/sublime-rules |
+| Elastic Protections | TOML | https://github.com/elastic/protections-artifacts |
+| LOLRMM | YAML | https://github.com/magicsword-io/LOLRMM |
 
 ## License
 
