@@ -1,6 +1,7 @@
 """LOLRMM detection rule parser (Sigma-based)."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -34,11 +35,79 @@ class LOLRMMParser(BaseParser):
         excluded = ["tests", "test"]
         return not any(ex in path_str.lower() for ex in excluded)
 
+    def _preprocess_yaml(self, content: str) -> str:
+        """Preprocess YAML content to fix common issues in LOLRMM rules.
+
+        LOLRMM rules often contain unquoted wildcards (*.domain.com) and
+        environment variables (%programdata%) which are invalid YAML.
+        This method quotes these values to make them parseable.
+        """
+        lines = content.split('\n')
+        result = []
+
+        for line in lines:
+            # Skip empty lines and comments
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                result.append(line)
+                continue
+
+            # Check if line contains a value that needs quoting
+            # Pattern: key: value where value starts with * or contains %
+            if ':' in line and not stripped.endswith(':'):
+                # Split on first colon only
+                colon_idx = line.index(':')
+                key_part = line[:colon_idx + 1]
+                value_part = line[colon_idx + 1:]
+
+                # Check if value needs quoting
+                value_stripped = value_part.strip()
+
+                # Skip if already quoted or is a list marker or block scalar
+                if (value_stripped.startswith('"') or
+                    value_stripped.startswith("'") or
+                    value_stripped.startswith('|') or
+                    value_stripped.startswith('>')):
+                    result.append(line)
+                    continue
+
+                # Quote values starting with * (YAML alias) or containing %
+                if value_stripped.startswith('*') or '%' in value_stripped:
+                    # Escape backslashes for JSON/YAML double-quoted strings
+                    escaped_value = value_stripped.replace('\\', '\\\\')
+                    # Preserve original indentation
+                    leading_spaces = len(value_part) - len(value_part.lstrip())
+                    quoted_value = ' ' * leading_spaces + '"' + escaped_value + '"'
+                    result.append(key_part + quoted_value)
+                    continue
+
+            # Handle list items: - *value or - %value%
+            if stripped.startswith('- '):
+                item_value = stripped[2:].strip()
+                # Skip if already quoted
+                if item_value.startswith('"') or item_value.startswith("'"):
+                    result.append(line)
+                    continue
+                # Quote if starts with * or contains %
+                if item_value.startswith('*') or '%' in item_value:
+                    # Escape backslashes for JSON/YAML double-quoted strings
+                    escaped_value = item_value.replace('\\', '\\\\')
+                    indent = len(line) - len(line.lstrip())
+                    result.append(' ' * indent + '- "' + escaped_value + '"')
+                    continue
+
+            result.append(line)
+
+        return '\n'.join(result)
+
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a LOLRMM Sigma-format YAML rule file."""
         try:
+            # Preprocess to fix invalid YAML (unquoted wildcards, env vars)
+            preprocessed = self._preprocess_yaml(content)
+
             # LOLRMM rules can have multiple documents, take the first
-            data = list(yaml.safe_load_all(content))
+            data = list(yaml.safe_load_all(preprocessed))
             if not data:
                 return None
             rule = data[0]
