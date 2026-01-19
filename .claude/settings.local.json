@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"c:\\\\Users\\\\jstym\\\\Documents\\\\Projects\\\\threat_detection_explorer\\\\backend\\\\data\\\\threat_detection.db\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

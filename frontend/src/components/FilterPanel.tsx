@@ -1,0 +1,315 @@
+import { useState } from 'react';
+import { useFilterOptions } from '../hooks/useDetections';
+import type { SearchFilters } from '../types';
+
+interface FilterPanelProps {
+  filters: SearchFilters;
+  onFiltersChange: (filters: SearchFilters) => void;
+}
+
+// MITRE ATT&CK Tactic ID to name mapping
+const tacticOptions = [
+  { value: 'TA0043', label: 'Reconnaissance' },
+  { value: 'TA0042', label: 'Resource Development' },
+  { value: 'TA0001', label: 'Initial Access' },
+  { value: 'TA0002', label: 'Execution' },
+  { value: 'TA0003', label: 'Persistence' },
+  { value: 'TA0004', label: 'Privilege Escalation' },
+  { value: 'TA0005', label: 'Defense Evasion' },
+  { value: 'TA0006', label: 'Credential Access' },
+  { value: 'TA0007', label: 'Discovery' },
+  { value: 'TA0008', label: 'Lateral Movement' },
+  { value: 'TA0009', label: 'Collection' },
+  { value: 'TA0011', label: 'Command and Control' },
+  { value: 'TA0010', label: 'Exfiltration' },
+  { value: 'TA0040', label: 'Impact' },
+];
+
+export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
+  const { data: options } = useFilterOptions();
+  const [searchInput, setSearchInput] = useState(filters.search || '');
+  const [showAllTactics, setShowAllTactics] = useState(false);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onFiltersChange({ ...filters, search: searchInput, offset: 0 });
+  };
+
+  const handleMultiSelect = (
+    field: keyof SearchFilters,
+    value: string,
+    checked: boolean
+  ) => {
+    const current = (filters[field] as string[]) || [];
+    const updated = checked
+      ? [...current, value]
+      : current.filter((v) => v !== value);
+    onFiltersChange({ ...filters, [field]: updated, offset: 0 });
+  };
+
+  const clearFilters = () => {
+    setSearchInput('');
+    onFiltersChange({
+      offset: 0,
+      limit: filters.limit,
+      sort_by: filters.sort_by,
+      sort_order: filters.sort_order,
+    });
+  };
+
+  const hasActiveFilters =
+    filters.search ||
+    (filters.sources?.length || 0) > 0 ||
+    (filters.statuses?.length || 0) > 0 ||
+    (filters.severities?.length || 0) > 0 ||
+    (filters.mitre_tactics?.length || 0) > 0 ||
+    (filters.mitre_techniques?.length || 0) > 0 ||
+    (filters.log_sources?.length || 0) > 0;
+
+  const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold">Filters</h3>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Search */}
+      <form onSubmit={handleSearchSubmit} className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Search
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search title, description, logic..."
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+          />
+          <button
+            type="submit"
+            className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+          >
+            Search
+          </button>
+        </div>
+      </form>
+
+      {/* Source filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Source
+        </label>
+        <div className="space-y-1">
+          {[
+            { value: 'sigma', label: 'Sigma' },
+            { value: 'elastic', label: 'Elastic' },
+            { value: 'splunk', label: 'Splunk' },
+            { value: 'sublime', label: 'Sublime' },
+            { value: 'elastic_protections', label: 'Elastic Protect' },
+            { value: 'lolrmm', label: 'LOLRMM' },
+          ].map((source) => (
+            <label key={source.value} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filters.sources?.includes(source.value) || false}
+                onChange={(e) =>
+                  handleMultiSelect('sources', source.value, e.target.checked)
+                }
+                className="rounded text-blue-600 mr-2"
+              />
+              <span className="text-sm">{source.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Severity filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Severity
+        </label>
+        <div className="space-y-1">
+          {['critical', 'high', 'medium', 'low', 'unknown'].map((severity) => (
+            <label key={severity} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filters.severities?.includes(severity) || false}
+                onChange={(e) =>
+                  handleMultiSelect('severities', severity, e.target.checked)
+                }
+                className="rounded text-blue-600 mr-2"
+              />
+              <span className="text-sm capitalize">{severity}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Status filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Status
+        </label>
+        <div className="space-y-1">
+          {['stable', 'experimental', 'deprecated', 'unknown'].map((status) => (
+            <label key={status} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filters.statuses?.includes(status) || false}
+                onChange={(e) =>
+                  handleMultiSelect('statuses', status, e.target.checked)
+                }
+                className="rounded text-blue-600 mr-2"
+              />
+              <span className="text-sm capitalize">{status}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* MITRE Tactic filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          MITRE Tactics
+        </label>
+        <div className="space-y-1">
+          {visibleTactics.map((tactic) => (
+            <label key={tactic.value} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filters.mitre_tactics?.includes(tactic.value) || false}
+                onChange={(e) =>
+                  handleMultiSelect('mitre_tactics', tactic.value, e.target.checked)
+                }
+                className="rounded text-blue-600 mr-2"
+              />
+              <span className="text-sm" title={tactic.value}>
+                {tactic.label}
+              </span>
+            </label>
+          ))}
+        </div>
+        {tacticOptions.length > 5 && (
+          <button
+            onClick={() => setShowAllTactics(!showAllTactics)}
+            className="text-sm text-blue-600 hover:text-blue-800 mt-1"
+          >
+            {showAllTactics ? 'Show less' : `Show ${tacticOptions.length - 5} more`}
+          </button>
+        )}
+      </div>
+
+      {/* MITRE Technique filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          MITRE Technique
+        </label>
+        <input
+          type="text"
+          placeholder="e.g., T1059 (Enter to add)"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const value = (e.target as HTMLInputElement).value.trim().toUpperCase();
+              if (value && !filters.mitre_techniques?.includes(value)) {
+                onFiltersChange({
+                  ...filters,
+                  mitre_techniques: [...(filters.mitre_techniques || []), value],
+                  offset: 0,
+                });
+                (e.target as HTMLInputElement).value = '';
+              }
+            }
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+        />
+        {filters.mitre_techniques?.length ? (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {filters.mitre_techniques.map((tech) => (
+              <span
+                key={tech}
+                className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
+              >
+                {tech}
+                <button
+                  onClick={() =>
+                    onFiltersChange({
+                      ...filters,
+                      mitre_techniques: filters.mitre_techniques?.filter(
+                        (t) => t !== tech
+                      ),
+                      offset: 0,
+                    })
+                  }
+                  className="ml-1 hover:text-blue-600"
+                >
+                  x
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Log Sources filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Log Sources
+        </label>
+        <input
+          type="text"
+          placeholder="e.g., windows (Enter to add)"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const value = (e.target as HTMLInputElement).value.trim().toLowerCase();
+              if (value && !filters.log_sources?.includes(value)) {
+                onFiltersChange({
+                  ...filters,
+                  log_sources: [...(filters.log_sources || []), value],
+                  offset: 0,
+                });
+                (e.target as HTMLInputElement).value = '';
+              }
+            }
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+        />
+        {filters.log_sources?.length ? (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {filters.log_sources.map((src) => (
+              <span
+                key={src}
+                className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded"
+              >
+                {src}
+                <button
+                  onClick={() =>
+                    onFiltersChange({
+                      ...filters,
+                      log_sources: filters.log_sources?.filter(
+                        (s) => s !== src
+                      ),
+                      offset: 0,
+                    })
+                  }
+                  className="ml-1 hover:text-green-600"
+                >
+                  x
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
