@@ -109,28 +109,43 @@ class SigmaParser(BaseParser):
             return None
 
     # Mapping of MITRE ATT&CK tactic names to IDs
+    # Supports both hyphenated (Sigma style: initial-access) and underscored formats
     TACTIC_MAPPING = {
+        # Hyphenated format (Sigma standard)
         "reconnaissance": "TA0043",
-        "resource_development": "TA0042",
-        "initial_access": "TA0001",
+        "resource-development": "TA0042",
+        "initial-access": "TA0001",
         "execution": "TA0002",
         "persistence": "TA0003",
+        "privilege-escalation": "TA0004",
+        "defense-evasion": "TA0005",
+        "credential-access": "TA0006",
+        "discovery": "TA0007",
+        "lateral-movement": "TA0008",
+        "collection": "TA0009",
+        "command-and-control": "TA0011",
+        "exfiltration": "TA0010",
+        "impact": "TA0040",
+        # Underscored format (alternative)
+        "resource_development": "TA0042",
+        "initial_access": "TA0001",
         "privilege_escalation": "TA0004",
         "defense_evasion": "TA0005",
         "credential_access": "TA0006",
-        "discovery": "TA0007",
         "lateral_movement": "TA0008",
-        "collection": "TA0009",
         "command_and_control": "TA0011",
-        "exfiltration": "TA0010",
-        "impact": "TA0040",
     }
+
+    def _normalize_tactic_name(self, tactic_name: str) -> str:
+        """Normalize tactic name to handle both hyphen and underscore formats."""
+        # Try the name as-is first, then try with hyphens replaced by underscores
+        return tactic_name.replace("_", "-")
 
     def _is_mitre_tag(self, tag: str) -> bool:
         """Check if a tag is a MITRE ATT&CK reference."""
         tag_lower = tag.lower()
 
-        # Check for technique/sub-technique IDs
+        # Check for technique/sub-technique IDs (attack.t1059, attack.t1059.001)
         if tag_lower.startswith("attack.t"):
             return True
 
@@ -142,15 +157,23 @@ class SigmaParser(BaseParser):
         if tag_lower.startswith("attack.g"):
             return True
 
-        # Check for tactic names
+        # Check for tactic names (attack.initial-access, attack.execution, etc.)
         if tag_lower.startswith("attack."):
             tactic_name = tag_lower.replace("attack.", "")
-            return tactic_name in self.TACTIC_MAPPING
+            # Check both original and normalized versions
+            return tactic_name in self.TACTIC_MAPPING or self._normalize_tactic_name(tactic_name) in self.TACTIC_MAPPING
 
         return False
 
     def _extract_mitre_from_tags(self, tags: list[str]) -> dict:
-        """Extract MITRE ATT&CK tactics and techniques from Sigma tags."""
+        """Extract MITRE ATT&CK tactics and techniques from Sigma tags.
+
+        Sigma tags use the format:
+        - attack.t1059 or attack.t1059.001 for techniques
+        - attack.initial-access or attack.execution for tactics
+        - attack.s0001 for software (ignored)
+        - attack.g0001 for groups (ignored)
+        """
         tactics = []
         techniques = []
 
@@ -172,11 +195,20 @@ class SigmaParser(BaseParser):
                 continue
 
             elif tag_lower.startswith("attack."):
-                # Tactic name (e.g., attack.execution)
+                # Tactic name (e.g., attack.execution, attack.initial-access)
                 tactic_name = tag_lower.replace("attack.", "")
+
+                # Try direct lookup first
                 if tactic_name in self.TACTIC_MAPPING:
                     tactic_id = self.TACTIC_MAPPING[tactic_name]
                     if tactic_id not in tactics:
                         tactics.append(tactic_id)
+                # Try normalized version (underscore to hyphen)
+                else:
+                    normalized = self._normalize_tactic_name(tactic_name)
+                    if normalized in self.TACTIC_MAPPING:
+                        tactic_id = self.TACTIC_MAPPING[normalized]
+                        if tactic_id not in tactics:
+                            tactics.append(tactic_id)
 
         return {"tactics": tactics, "techniques": techniques}
