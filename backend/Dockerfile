@@ -25,8 +25,9 @@ RUN mkdir -p /app/data/repos
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
 
-# Expose port
+# Default port (Railway provides PORT env var)
+ENV PORT=8000
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application (shell form for variable expansion)
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
