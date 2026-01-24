@@ -58,6 +58,16 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Convert PostgreSQL URL to async format if needed
+        # Railway provides: postgresql://... but we need: postgresql+asyncpg://...
+        if self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        elif self.database_url.startswith("postgres://"):
+            self.database_url = self.database_url.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            )
         # Add frontend URL to CORS origins if set
         if self.frontend_url and self.frontend_url not in self.cors_origins:
             self.cors_origins.append(self.frontend_url)

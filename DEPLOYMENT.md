@@ -60,6 +60,7 @@ SYNC_SCHEDULE_MINUTE=0
 **Important**:
 - `DATABASE_URL` uses Railway's variable reference syntax `${{Postgres.DATABASE_URL}}`
 - Railway will automatically inject the correct PostgreSQL connection string
+- The app automatically converts the URL to the correct async format
 - Update `FRONTEND_URL` after deploying to Vercel (Step 2)
 
 ### 1.4 Configure Build Settings
