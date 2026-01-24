@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # CORS settings
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # Scheduler settings
+    enable_scheduler: bool = True  # Enable/disable automatic sync
+    sync_schedule_hour: int = 2  # Hour to run daily sync (UTC)
+    sync_schedule_minute: int = 0  # Minute to run daily sync
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
