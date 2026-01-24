@@ -105,7 +105,7 @@ export function RuleList({
   onFiltersChange,
   isLoading,
 }: RuleListProps) {
-  const { getTacticName, getTechniqueName } = useMitre();
+  const { getTacticName } = useMitre();
   const limit = filters.limit || 50;
   const offset = filters.offset || 0;
   const currentPage = Math.floor(offset / limit) + 1;

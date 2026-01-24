@@ -20,7 +20,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     // Sort by tactic ID to maintain consistent order
     return options.sort((a, b) => a.value.localeCompare(b.value));
   }, [tactics]);
-  const { data: options } = useFilterOptions();
+  const { data: _options } = useFilterOptions();
   const [searchInput, setSearchInput] = useState(filters.search || '');
   const [showAllTactics, setShowAllTactics] = useState(false);
 

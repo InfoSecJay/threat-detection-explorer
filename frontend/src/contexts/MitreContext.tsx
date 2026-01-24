@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { mitreApi, MitreData, MitreTactic, MitreTechnique } from '../services/api';
+import { mitreApi, MitreTactic, MitreTechnique } from '../services/api';
 
 interface MitreContextType {
   tactics: Record<string, MitreTactic>;

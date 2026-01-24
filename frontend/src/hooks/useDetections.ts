@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { detectionsApi, exportApi } from '../services/api';
 import type { SearchFilters, ExportRequest } from '../types';
 
