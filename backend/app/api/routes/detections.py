@@ -24,6 +24,7 @@ async def list_detections(
     sources: Optional[str] = Query(None, description="Comma-separated list of sources"),
     statuses: Optional[str] = Query(None, description="Comma-separated list of statuses"),
     severities: Optional[str] = Query(None, description="Comma-separated list of severities"),
+    languages: Optional[str] = Query(None, description="Comma-separated list of rule languages"),
     mitre_tactics: Optional[str] = Query(None, description="Comma-separated list of MITRE tactics"),
     mitre_techniques: Optional[str] = Query(None, description="Comma-separated list of MITRE techniques"),
     tags: Optional[str] = Query(None, description="Comma-separated list of tags"),
@@ -41,6 +42,7 @@ async def list_detections(
         sources=_parse_csv(sources),
         statuses=_parse_csv(statuses),
         severities=_parse_csv(severities),
+        languages=_parse_csv(languages),
         mitre_tactics=_parse_csv(mitre_tactics),
         mitre_techniques=_parse_csv(mitre_techniques),
         tags=_parse_csv(tags),
@@ -73,6 +75,7 @@ async def search_detections(
         sources=params.sources,
         statuses=params.statuses,
         severities=params.severities,
+        languages=params.languages,
         mitre_tactics=params.mitre_tactics,
         mitre_techniques=params.mitre_techniques,
         tags=params.tags,
@@ -111,6 +114,7 @@ async def get_filter_options(db: AsyncSession = Depends(get_db)):
         "sources": await search_service.get_unique_values("source"),
         "statuses": await search_service.get_unique_values("status"),
         "severities": await search_service.get_unique_values("severity"),
+        "languages": await search_service.get_unique_values("language"),
     }
 
 

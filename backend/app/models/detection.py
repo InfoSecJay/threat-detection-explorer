@@ -61,6 +61,14 @@ class Detection(Base):
     # Detection logic - human-readable summary
     detection_logic: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Rule language/format (e.g., sigma, eql, esql, spl, mql)
+    language: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="unknown",
+        index=True,
+    )
+
     # Tags for classification
     tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 

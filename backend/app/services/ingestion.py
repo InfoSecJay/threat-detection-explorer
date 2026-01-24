@@ -252,6 +252,7 @@ class IngestionService:
             mitre_tactics=normalized.mitre_tactics,
             mitre_techniques=normalized.mitre_techniques,
             detection_logic=normalized.detection_logic,
+            language=normalized.language,
             tags=normalized.tags,
             references=normalized.references,
             false_positives=normalized.false_positives,

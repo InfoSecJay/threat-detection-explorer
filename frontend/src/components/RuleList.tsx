@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { Detection, SearchFilters } from '../types';
+import { useMitre } from '../contexts/MitreContext';
 
 interface RuleListProps {
   detections: Detection[];
@@ -40,24 +41,6 @@ const sourceLabels: Record<string, string> = {
   sublime: 'Sublime',
   elastic_protections: 'Elastic Protect',
   lolrmm: 'LOLRMM',
-};
-
-// MITRE ATT&CK Tactic ID to name mapping
-const tacticNames: Record<string, string> = {
-  TA0001: 'Initial Access',
-  TA0002: 'Execution',
-  TA0003: 'Persistence',
-  TA0004: 'Privilege Escalation',
-  TA0005: 'Defense Evasion',
-  TA0006: 'Credential Access',
-  TA0007: 'Discovery',
-  TA0008: 'Lateral Movement',
-  TA0009: 'Collection',
-  TA0010: 'Exfiltration',
-  TA0011: 'Command and Control',
-  TA0040: 'Impact',
-  TA0042: 'Resource Development',
-  TA0043: 'Reconnaissance',
 };
 
 const tacticColors: Record<string, string> = {
@@ -122,6 +105,7 @@ export function RuleList({
   onFiltersChange,
   isLoading,
 }: RuleListProps) {
+  const { getTacticName, getTechniqueName } = useMitre();
   const limit = filters.limit || 50;
   const offset = filters.offset || 0;
   const currentPage = Math.floor(offset / limit) + 1;
@@ -256,6 +240,9 @@ export function RuleList({
                 >
                   Source <SortIndicator field="source" />
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Language
+                </th>
                 <th
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('severity')}
@@ -313,6 +300,11 @@ export function RuleList({
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium uppercase">
+                      {detection.language || 'unknown'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
                         severityColors[detection.severity]
@@ -322,22 +314,22 @@ export function RuleList({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1 max-w-[180px]">
+                    <div className="flex flex-wrap gap-1 max-w-[220px]">
                       {detection.mitre_tactics.slice(0, 2).map((tactic) => (
                         <span
                           key={tactic}
                           className={`px-1.5 py-0.5 text-xs rounded border ${
                             tacticColors[tactic] || 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}
-                          title={`${tactic}: ${tacticNames[tactic] || 'Unknown'}`}
+                          title={tactic}
                         >
-                          {tacticNames[tactic]?.split(' ')[0] || tactic}
+                          {getTacticName(tactic)}
                         </span>
                       ))}
                       {detection.mitre_tactics.length > 2 && (
                         <span
                           className="text-xs text-gray-500"
-                          title={detection.mitre_tactics.map(t => `${t}: ${tacticNames[t] || 'Unknown'}`).join('\n')}
+                          title={detection.mitre_tactics.map(t => `${t}: ${getTacticName(t)}`).join('\n')}
                         >
                           +{detection.mitre_tactics.length - 2}
                         </span>

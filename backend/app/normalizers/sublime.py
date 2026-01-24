@@ -30,6 +30,7 @@ class SublimeNormalizer(BaseNormalizer):
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            language="mql",  # Sublime uses Message Query Language (MQL)
             tags=parsed.tags,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),

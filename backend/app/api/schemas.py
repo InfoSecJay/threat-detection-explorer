@@ -26,6 +26,7 @@ class DetectionBase(BaseModel):
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str
+    language: str = "unknown"
     tags: list[str] = []
     references: list[str] = []
     false_positives: list[str] = []
@@ -146,6 +147,7 @@ class SearchParams(BaseModel):
     sources: list[str] = Field(default_factory=list)
     statuses: list[str] = Field(default_factory=list)
     severities: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
     mitre_tactics: list[str] = Field(default_factory=list)
     mitre_techniques: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)

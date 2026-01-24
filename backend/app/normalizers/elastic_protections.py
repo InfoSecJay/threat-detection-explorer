@@ -30,6 +30,7 @@ class ElasticProtectionsNormalizer(BaseNormalizer):
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            language="eql",  # Elastic Protections uses EQL for behavior rules
             tags=parsed.tags,
             references=[],  # Elastic Protections doesn't have references
             false_positives=self.normalize_false_positives(parsed.false_positives),

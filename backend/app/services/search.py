@@ -23,6 +23,7 @@ class SearchFilters:
     sources: list[str] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
     severities: list[str] = field(default_factory=list)
+    languages: list[str] = field(default_factory=list)
 
     # MITRE filters
     mitre_tactics: list[str] = field(default_factory=list)
@@ -229,6 +230,10 @@ class SearchService:
             result = await self.db.execute(
                 select(Detection.severity).distinct()
             )
+        elif field_name == "language":
+            result = await self.db.execute(
+                select(Detection.language).distinct()
+            )
         else:
             return []
 
@@ -261,6 +266,10 @@ class SearchService:
         # Severity filter
         if filters.severities:
             conditions.append(Detection.severity.in_(filters.severities))
+
+        # Language filter
+        if filters.languages:
+            conditions.append(Detection.language.in_(filters.languages))
 
         # MITRE tactics filter
         if filters.mitre_tactics:

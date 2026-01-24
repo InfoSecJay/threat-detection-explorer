@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFilterOptions } from '../hooks/useDetections';
+import { useMitre } from '../contexts/MitreContext';
 import type { SearchFilters } from '../types';
 
 interface FilterPanelProps {
@@ -7,25 +8,18 @@ interface FilterPanelProps {
   onFiltersChange: (filters: SearchFilters) => void;
 }
 
-// MITRE ATT&CK Tactic ID to name mapping
-const tacticOptions = [
-  { value: 'TA0043', label: 'Reconnaissance' },
-  { value: 'TA0042', label: 'Resource Development' },
-  { value: 'TA0001', label: 'Initial Access' },
-  { value: 'TA0002', label: 'Execution' },
-  { value: 'TA0003', label: 'Persistence' },
-  { value: 'TA0004', label: 'Privilege Escalation' },
-  { value: 'TA0005', label: 'Defense Evasion' },
-  { value: 'TA0006', label: 'Credential Access' },
-  { value: 'TA0007', label: 'Discovery' },
-  { value: 'TA0008', label: 'Lateral Movement' },
-  { value: 'TA0009', label: 'Collection' },
-  { value: 'TA0011', label: 'Command and Control' },
-  { value: 'TA0010', label: 'Exfiltration' },
-  { value: 'TA0040', label: 'Impact' },
-];
-
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
+  const { tactics } = useMitre();
+
+  // Convert tactics from context into sorted options array
+  const tacticOptions = useMemo(() => {
+    const options = Object.values(tactics).map((tactic) => ({
+      value: tactic.id,
+      label: tactic.name,
+    }));
+    // Sort by tactic ID to maintain consistent order
+    return options.sort((a, b) => a.value.localeCompare(b.value));
+  }, [tactics]);
   const { data: options } = useFilterOptions();
   const [searchInput, setSearchInput] = useState(filters.search || '');
   const [showAllTactics, setShowAllTactics] = useState(false);
@@ -62,6 +56,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.sources?.length || 0) > 0 ||
     (filters.statuses?.length || 0) > 0 ||
     (filters.severities?.length || 0) > 0 ||
+    (filters.languages?.length || 0) > 0 ||
     (filters.mitre_tactics?.length || 0) > 0 ||
     (filters.mitre_techniques?.length || 0) > 0 ||
     (filters.log_sources?.length || 0) > 0;
@@ -172,6 +167,38 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 className="rounded text-blue-600 mr-2"
               />
               <span className="text-sm capitalize">{status}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Language filter */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Language
+        </label>
+        <div className="space-y-1">
+          {[
+            { value: 'sigma', label: 'Sigma' },
+            { value: 'spl', label: 'SPL (Splunk)' },
+            { value: 'eql', label: 'EQL (Elastic)' },
+            { value: 'esql', label: 'ES|QL (Elastic)' },
+            { value: 'kql', label: 'KQL (Kibana)' },
+            { value: 'lucene', label: 'Lucene' },
+            { value: 'mql', label: 'MQL (Sublime)' },
+            { value: 'ml', label: 'ML (Machine Learning)' },
+            { value: 'threat_match', label: 'Threat Match' },
+          ].map((lang) => (
+            <label key={lang.value} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={filters.languages?.includes(lang.value) || false}
+                onChange={(e) =>
+                  handleMultiSelect('languages', lang.value, e.target.checked)
+                }
+                className="rounded text-blue-600 mr-2"
+              />
+              <span className="text-sm">{lang.label}</span>
             </label>
           ))}
         </div>

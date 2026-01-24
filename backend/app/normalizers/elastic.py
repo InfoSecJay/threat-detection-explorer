@@ -35,6 +35,7 @@ class ElasticNormalizer(BaseNormalizer):
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            language=self._determine_language(parsed.detection_logic_raw, extra),
             tags=self._normalize_tags(parsed.tags),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
@@ -148,3 +149,48 @@ class ElasticNormalizer(BaseNormalizer):
                 # Convert to lowercase and replace spaces
                 normalized.append(tag.lower().replace(" ", "_"))
         return normalized
+
+    def _determine_language(self, detection: Any, extra: dict) -> str:
+        """Determine the query language used by the Elastic rule.
+
+        Elastic rules can use various query languages:
+        - eql: Event Query Language
+        - esql: Elasticsearch Query Language (ES|QL)
+        - kql: Kibana Query Language (for query type with language: kuery)
+        - lucene: Lucene query syntax (for query type with language: lucene)
+        - ml: Machine Learning rules
+        - threshold: Threshold-based rules (uses KQL/Lucene)
+        - new_terms: New terms rules (uses KQL/Lucene)
+        - threat_match: Indicator match rules
+        """
+        if not isinstance(detection, dict):
+            return "unknown"
+
+        rule_type = detection.get("type", "").lower()
+
+        # Direct language mappings for rule types
+        if rule_type == "eql":
+            return "eql"
+        elif rule_type == "esql":
+            return "esql"
+        elif rule_type == "machine_learning":
+            return "ml"
+        elif rule_type == "threat_match":
+            return "threat_match"
+        elif rule_type in ("query", "threshold", "new_terms"):
+            # These use a language field to specify KQL vs Lucene
+            lang = detection.get("language") or extra.get("language", "")
+            if lang:
+                lang_lower = lang.lower()
+                if lang_lower == "kuery":
+                    return "kql"
+                elif lang_lower == "lucene":
+                    return "lucene"
+                elif lang_lower == "eql":
+                    return "eql"
+                elif lang_lower == "esql":
+                    return "esql"
+            # Default for query type without language specified
+            return "kql"
+
+        return "unknown"

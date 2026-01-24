@@ -60,6 +60,7 @@ export const detectionsApi = {
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
     if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
     if (filters.severities?.length) params.set('severities', filters.severities.join(','));
+    if (filters.languages?.length) params.set('languages', filters.languages.join(','));
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
@@ -92,6 +93,7 @@ export const detectionsApi = {
     sources: string[];
     statuses: string[];
     severities: string[];
+    languages: string[];
   }> => {
     const response = await api.get('/detections/filters');
     return response.data;
@@ -134,6 +136,59 @@ export const exportApi = {
     const response = await api.post('/export', request, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+};
+
+// MITRE ATT&CK types
+export interface MitreTactic {
+  id: string;
+  name: string;
+  short_name: string;
+  url: string;
+  deprecated: boolean;
+}
+
+export interface MitreTechnique {
+  id: string;
+  name: string;
+  tactics: string[];
+  url: string;
+  deprecated: boolean;
+  is_subtechnique: boolean;
+}
+
+export interface MitreData {
+  tactics: Record<string, MitreTactic>;
+  techniques: Record<string, MitreTechnique>;
+  stats: {
+    tactics_count: number;
+    techniques_count: number;
+    subtechniques_count: number;
+    last_fetch: string | null;
+    loaded: boolean;
+  };
+}
+
+// MITRE ATT&CK endpoints
+export const mitreApi = {
+  getData: async (): Promise<MitreData> => {
+    const response = await api.get('/mitre');
+    return response.data;
+  },
+
+  getTactics: async (): Promise<Record<string, MitreTactic>> => {
+    const response = await api.get('/mitre/tactics');
+    return response.data;
+  },
+
+  getTechniques: async (): Promise<Record<string, MitreTechnique>> => {
+    const response = await api.get('/mitre/techniques');
+    return response.data;
+  },
+
+  refresh: async (): Promise<{ success: boolean; stats: MitreData['stats'] }> => {
+    const response = await api.post('/mitre/refresh');
     return response.data;
   },
 };

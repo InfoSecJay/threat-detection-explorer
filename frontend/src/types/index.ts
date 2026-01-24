@@ -16,6 +16,7 @@ export interface Detection {
   mitre_tactics: string[];
   mitre_techniques: string[];
   detection_logic: string;
+  language: string;
   tags: string[];
   references: string[];
   false_positives: string[];
@@ -87,6 +88,7 @@ export interface SearchFilters {
   sources?: string[];
   statuses?: string[];
   severities?: string[];
+  languages?: string[];
   mitre_tactics?: string[];
   mitre_techniques?: string[];
   tags?: string[];

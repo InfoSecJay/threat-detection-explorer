@@ -50,6 +50,9 @@ class NormalizedDetection:
     # Human-readable detection logic summary
     detection_logic: str = ""
 
+    # Rule language/format (e.g., sigma, eql, esql, spl, mql)
+    language: str = "unknown"
+
     # Tags
     tags: list[str] = field(default_factory=list)
 

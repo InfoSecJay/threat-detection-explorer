@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import init_db
 # Import models to register them with SQLAlchemy Base before init_db
 from app.models import Detection, Repository  # noqa: F401
-from app.api.routes import detections, repositories, export, compare, releases
+from app.api.routes import detections, repositories, export, compare, releases, mitre
 
 
 @asynccontextmanager
@@ -53,3 +53,4 @@ app.include_router(detections.router, prefix=settings.api_prefix)
 app.include_router(export.router, prefix=settings.api_prefix)
 app.include_router(compare.router, prefix=settings.api_prefix)
 app.include_router(releases.router, prefix=settings.api_prefix)
+app.include_router(mitre.router, prefix=settings.api_prefix)

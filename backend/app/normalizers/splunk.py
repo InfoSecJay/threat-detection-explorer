@@ -30,6 +30,7 @@ class SplunkNormalizer(BaseNormalizer):
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            language="spl",
             tags=self._normalize_tags(parsed.tags),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),

@@ -4,6 +4,7 @@ import { DetectionList } from './pages/DetectionList';
 import { DetectionDetail } from './pages/DetectionDetail';
 import { Compare } from './pages/Compare';
 import { RuleSources } from './pages/RuleSources';
+import { About } from './pages/About';
 
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const location = useLocation();
@@ -38,6 +39,7 @@ function App() {
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/compare">Compare</NavLink>
               <NavLink to="/sources">Sources</NavLink>
+              <NavLink to="/about">About</NavLink>
             </div>
           </div>
         </div>
@@ -51,6 +53,7 @@ function App() {
           <Route path="/detections/:id" element={<DetectionDetail />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/sources" element={<RuleSources />} />
+          <Route path="/about" element={<About />} />
         </Routes>
       </main>
 
