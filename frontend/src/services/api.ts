@@ -11,8 +11,11 @@ import type {
   ExportRequest,
 } from '../types';
 
+// API base URL - uses environment variable in production, or relative path for local dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

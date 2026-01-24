@@ -1,0 +1,6 @@
+# Nixpacks configuration for Railway
+[phases.setup]
+aptPkgs = ["git"]
+
+[phases.install]
+cmds = ["pip install -e ."]
