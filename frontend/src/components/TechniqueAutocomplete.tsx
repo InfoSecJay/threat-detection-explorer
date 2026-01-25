@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useMitre } from '../contexts/MitreContext';
 
 interface TechniqueAutocompleteProps {
@@ -19,8 +20,32 @@ export function TechniqueAutocomplete({
   const { techniques } = useMitre();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update dropdown position when input changes or on scroll/resize
+  useEffect(() => {
+    const updatePosition = () => {
+      if (inputRef.current) {
+        const rect = inputRef.current.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width,
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
 
   // Convert techniques object to sorted array
   const techniqueList = useMemo(() => {
@@ -132,68 +157,78 @@ export function TechniqueAutocomplete({
         className={`w-full px-4 py-3 bg-void-900 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50 ${className}`}
       />
 
-      {/* Dropdown */}
-      {isOpen && filteredTechniques.length > 0 && (
-        <div
-          ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-void-900 border border-void-600 shadow-xl max-h-80 overflow-y-auto"
-          style={{
-            clipPath:
-              'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-          }}
-        >
-          {filteredTechniques.map((technique, index) => (
-            <button
-              key={technique.id}
-              data-index={index}
-              onClick={() => handleSelect(technique)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                index === highlightedIndex
-                  ? 'bg-matrix-500/20 border-l-2 border-matrix-500'
-                  : 'hover:bg-void-800 border-l-2 border-transparent'
-              }`}
-            >
-              <span
-                className={`font-mono text-sm px-2 py-0.5 rounded ${
+      {/* Dropdown - rendered via portal to escape clipPath containers */}
+      {isOpen && filteredTechniques.length > 0 &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] bg-void-900 border border-void-600 shadow-2xl max-h-80 overflow-y-auto"
+            style={{
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              clipPath:
+                'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+            }}
+          >
+            {filteredTechniques.map((technique, index) => (
+              <button
+                key={technique.id}
+                data-index={index}
+                onClick={() => handleSelect(technique)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
                   index === highlightedIndex
-                    ? 'bg-matrix-500/30 text-matrix-400'
-                    : 'bg-void-800 text-matrix-500'
+                    ? 'bg-matrix-500/20 border-l-2 border-matrix-500'
+                    : 'hover:bg-void-800 border-l-2 border-transparent'
                 }`}
               >
-                {technique.id}
-              </span>
-              <span
-                className={`text-sm truncate ${
-                  index === highlightedIndex ? 'text-white' : 'text-gray-400'
-                }`}
-              >
-                {technique.name}
-              </span>
-              {technique.is_subtechnique && (
-                <span className="text-xs text-gray-600 font-mono ml-auto">
-                  SUB
+                <span
+                  className={`font-mono text-sm px-2 py-0.5 rounded ${
+                    index === highlightedIndex
+                      ? 'bg-matrix-500/30 text-matrix-400'
+                      : 'bg-void-800 text-matrix-500'
+                  }`}
+                >
+                  {technique.id}
                 </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+                <span
+                  className={`text-sm truncate ${
+                    index === highlightedIndex ? 'text-white' : 'text-gray-400'
+                  }`}
+                >
+                  {technique.name}
+                </span>
+                {technique.is_subtechnique && (
+                  <span className="text-xs text-gray-600 font-mono ml-auto">
+                    SUB
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
 
-      {/* No results message */}
-      {isOpen && value.trim() && filteredTechniques.length === 0 && (
-        <div
-          className="absolute z-50 w-full mt-1 bg-void-900 border border-void-600 px-4 py-3"
-          style={{
-            clipPath:
-              'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-          }}
-        >
-          <span className="text-sm text-gray-500 font-mono">
-            NO_MATCHING_TECHNIQUES
-          </span>
-        </div>
-      )}
+      {/* No results message - also via portal */}
+      {isOpen && value.trim() && filteredTechniques.length === 0 &&
+        createPortal(
+          <div
+            className="fixed z-[9999] bg-void-900 border border-void-600 px-4 py-3"
+            style={{
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              clipPath:
+                'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+            }}
+          >
+            <span className="text-sm text-gray-500 font-mono">
+              NO_MATCHING_TECHNIQUES
+            </span>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
