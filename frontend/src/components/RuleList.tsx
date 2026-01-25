@@ -30,13 +30,6 @@ const sourceColors: Record<string, string> = {
   lolrmm: '#22c55e',
 };
 
-const statusColors: Record<string, { bg: string; text: string; border: string }> = {
-  stable: { bg: 'bg-pulse-500/10', text: 'text-pulse-400', border: 'border-pulse-500/30' },
-  experimental: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/30' },
-  deprecated: { bg: 'bg-breach-500/10', text: 'text-breach-400', border: 'border-breach-500/30' },
-  unknown: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/30' },
-};
-
 const sourceLabels: Record<string, string> = {
   sigma: 'SIGMA',
   elastic: 'ELASTIC',
@@ -319,6 +312,9 @@ export function RuleList({
                   Severity <SortIndicator field="severity" />
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
+                  Platform
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
                   Tactics
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
@@ -330,18 +326,11 @@ export function RuleList({
                 >
                   Modified <SortIndicator field="rule_modified_date" />
                 </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('status')}
-                >
-                  Status <SortIndicator field="status" />
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
               {detections.map((detection) => {
                 const sevColors = severityColors[detection.severity] || severityColors.unknown;
-                const statColors = statusColors[detection.status] || statusColors.unknown;
                 const sourceColor = sourceColors[detection.source] || '#6b7280';
 
                 return (
@@ -402,6 +391,15 @@ export function RuleList({
                         {detection.severity.toUpperCase()}
                       </span>
                     </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {detection.platform ? (
+                        <span className="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs font-mono">
+                          {detection.platform.toUpperCase().replace('_', ' ')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-600">-</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1 max-w-[180px]">
                         {detection.mitre_tactics.slice(0, 2).map((tactic) => (
@@ -456,13 +454,6 @@ export function RuleList({
                         title={formatDate(detection.rule_modified_date)}
                       >
                         {formatRelativeDate(detection.rule_modified_date)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-mono font-medium border ${statColors.bg} ${statColors.text} ${statColors.border}`}
-                      >
-                        {detection.status.toUpperCase()}
                       </span>
                     </td>
                   </tr>

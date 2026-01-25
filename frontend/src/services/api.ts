@@ -113,11 +113,13 @@ export const compareApi = {
   compare: async (params: {
     technique?: string;
     keyword?: string;
+    platform?: string;
     sources?: string[];
   }): Promise<CompareResponse> => {
     const searchParams = new URLSearchParams();
     if (params.technique) searchParams.set('technique', params.technique);
     if (params.keyword) searchParams.set('keyword', params.keyword);
+    if (params.platform) searchParams.set('platform', params.platform);
     if (params.sources?.length) searchParams.set('sources', params.sources.join(','));
 
     const response = await api.get(`/compare?${searchParams.toString()}`);

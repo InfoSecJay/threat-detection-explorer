@@ -19,17 +19,18 @@ router = APIRouter(prefix="/compare", tags=["compare"])
 async def compare_detections(
     technique: Optional[str] = Query(None, description="MITRE technique ID (e.g., T1059)"),
     keyword: Optional[str] = Query(None, description="Keyword to search in detection logic"),
+    platform: Optional[str] = Query(None, description="Platform to filter by (e.g., windows, aws, okta)"),
     sources: Optional[str] = Query(None, description="Comma-separated list of sources to include"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Compare detections across vendors by technique or keyword.
+    """Compare detections across vendors by technique, keyword, or platform.
 
-    Either technique or keyword must be provided.
+    At least one of technique, keyword, or platform must be provided.
     """
-    if not technique and not keyword:
+    if not technique and not keyword and not platform:
         raise HTTPException(
             status_code=400,
-            detail="Either 'technique' or 'keyword' parameter is required",
+            detail="One of 'technique', 'keyword', or 'platform' parameter is required",
         )
 
     search_service = SearchService(db)
@@ -40,6 +41,11 @@ async def compare_detections(
         grouped = await search_service.compare_by_technique(technique, source_list)
         query_type = "technique"
         query_value = technique
+    elif platform:
+        # Compare by platform
+        grouped = await search_service.compare_by_platform(platform, source_list)
+        query_type = "platform"
+        query_value = platform
     else:
         # Compare by keyword
         grouped = await search_service.compare_by_keyword(keyword, source_list)
@@ -68,10 +74,10 @@ async def compare_detections_post(
     db: AsyncSession = Depends(get_db),
 ):
     """Compare detections across vendors (POST method for complex queries)."""
-    if not request.technique and not request.keyword:
+    if not request.technique and not request.keyword and not request.platform:
         raise HTTPException(
             status_code=400,
-            detail="Either 'technique' or 'keyword' is required",
+            detail="One of 'technique', 'keyword', or 'platform' is required",
         )
 
     search_service = SearchService(db)
@@ -81,6 +87,10 @@ async def compare_detections_post(
         grouped = await search_service.compare_by_technique(request.technique, source_list)
         query_type = "technique"
         query_value = request.technique
+    elif request.platform:
+        grouped = await search_service.compare_by_platform(request.platform, source_list)
+        query_type = "platform"
+        query_value = request.platform
     else:
         grouped = await search_service.compare_by_keyword(request.keyword, source_list)
         query_type = "keyword"

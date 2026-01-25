@@ -109,7 +109,7 @@ export interface SearchFilters {
 
 // Compare types
 export interface CompareResponse {
-  query_type: 'technique' | 'keyword';
+  query_type: 'technique' | 'keyword' | 'platform';
   query_value: string;
   results: Record<string, Detection[]>;
   total_by_source: Record<string, number>;

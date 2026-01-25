@@ -172,13 +172,14 @@ class CompareRequest(BaseModel):
 
     technique: Optional[str] = None
     keyword: Optional[str] = None
+    platform: Optional[str] = None
     sources: list[str] = Field(default_factory=list)
 
 
 class CompareResponse(BaseModel):
     """Comparison response with grouped detections."""
 
-    query_type: str  # "technique" or "keyword"
+    query_type: str  # "technique", "keyword", or "platform"
     query_value: str
     results: dict[str, list[DetectionListItem]]
     total_by_source: dict[str, int]

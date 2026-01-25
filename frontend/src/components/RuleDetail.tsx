@@ -1,7 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Detection } from '../types';
 import { useMitre } from '../contexts/MitreContext';
+
+// Map detection languages to Prism language identifiers
+const languageMap: Record<string, string> = {
+  sigma: 'yaml',
+  yaml: 'yaml',
+  eql: 'sql',
+  kql: 'sql',
+  esql: 'sql',
+  spl: 'sql',
+  splunk: 'sql',
+  mql: 'javascript',
+  yara: 'c',
+  lucene: 'javascript',
+  json: 'json',
+  unknown: 'yaml',
+};
 
 interface RuleDetailProps {
   detection: Detection;
@@ -190,6 +208,40 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             </div>
           </div>
 
+          {/* Platform & Event Category */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Platform</label>
+              {detection.platform ? (
+                <span className="inline-flex px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium border border-cyan-500/30">
+                  {detection.platform.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              ) : (
+                <span className="text-gray-500 text-sm italic">Not specified</span>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Event Category</label>
+              {detection.event_category ? (
+                <span className="inline-flex px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-sm font-medium border border-orange-500/30">
+                  {detection.event_category.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              ) : (
+                <span className="text-gray-500 text-sm italic">Not specified</span>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Data Source</label>
+              {detection.data_source_normalized ? (
+                <span className="inline-flex px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium border border-emerald-500/30">
+                  {detection.data_source_normalized.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              ) : (
+                <span className="text-gray-500 text-sm italic">Not specified</span>
+              )}
+            </div>
+          </div>
+
           {/* Log Sources & Tags */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -270,34 +322,45 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 {detection.language || 'unknown'}
               </span>
             </div>
-            <pre className="bg-cyber-950 text-gray-100 p-4 rounded-lg overflow-auto text-sm font-mono leading-relaxed border border-cyber-700">
-              {detection.detection_logic}
-            </pre>
+            <div className="rounded-lg overflow-hidden border border-cyber-700">
+              <SyntaxHighlighter
+                language={languageMap[detection.language?.toLowerCase() || 'unknown'] || 'yaml'}
+                style={oneDark}
+                customStyle={{
+                  margin: 0,
+                  padding: '1rem',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.625',
+                  background: 'rgb(17, 24, 39)',
+                }}
+                showLineNumbers
+                lineNumberStyle={{
+                  minWidth: '2.5em',
+                  paddingRight: '1em',
+                  color: '#4b5563',
+                  borderRight: '1px solid #374151',
+                  marginRight: '1em',
+                }}
+              >
+                {detection.detection_logic || 'No detection logic available'}
+              </SyntaxHighlighter>
+            </div>
           </div>
 
-          {/* Compare Button */}
+          {/* Find Related Detections Button */}
           <div className="flex justify-center pt-4">
-            {detection.mitre_techniques.length > 0 ? (
-              <Link
-                to={`/compare?technique=${detection.mitre_techniques[0]}`}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg font-medium transition-all shadow-glow-cyan"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Compare {detection.mitre_techniques[0]} Across Vendors
-              </Link>
-            ) : (
-              <Link
-                to={`/compare?keyword=${encodeURIComponent(detection.title.split(' ').slice(0, 3).join(' '))}`}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg font-medium transition-all shadow-glow-cyan"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Find Similar Rules
-              </Link>
-            )}
+            <Link
+              to={detection.mitre_techniques.length > 0
+                ? `/compare?technique=${detection.mitre_techniques[0]}`
+                : `/compare?keyword=${encodeURIComponent(detection.title.split(' ').slice(0, 3).join(' '))}`
+              }
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg font-medium transition-all shadow-glow-cyan"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Find Related Detections
+            </Link>
           </div>
 
           {/* Footer */}
@@ -310,9 +373,29 @@ export function RuleDetail({ detection }: RuleDetailProps) {
         </div>
       ) : (
         <div className="p-6">
-          <pre className="bg-cyber-950 text-gray-100 p-4 rounded-lg overflow-auto text-sm font-mono leading-relaxed border border-cyber-700">
-            {detection.raw_content}
-          </pre>
+          <div className="rounded-lg overflow-hidden border border-cyber-700">
+            <SyntaxHighlighter
+              language={languageMap[detection.language?.toLowerCase() || 'unknown'] || 'yaml'}
+              style={oneDark}
+              customStyle={{
+                margin: 0,
+                padding: '1rem',
+                fontSize: '0.875rem',
+                lineHeight: '1.625',
+                background: 'rgb(17, 24, 39)',
+              }}
+              showLineNumbers
+              lineNumberStyle={{
+                minWidth: '2.5em',
+                paddingRight: '1em',
+                color: '#4b5563',
+                borderRight: '1px solid #374151',
+                marginRight: '1em',
+              }}
+            >
+              {detection.raw_content || 'No raw content available'}
+            </SyntaxHighlighter>
+          </div>
         </div>
       )}
     </div>

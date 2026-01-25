@@ -196,6 +196,37 @@ class SearchService:
 
         return grouped
 
+    async def compare_by_platform(
+        self,
+        platform: str,
+        sources: Optional[list[str]] = None,
+    ) -> dict[str, list[Detection]]:
+        """Get detections for a specific platform, grouped by source.
+
+        Args:
+            platform: Platform identifier (e.g., "windows", "aws", "okta")
+            sources: Optional list of sources to include
+
+        Returns:
+            Dict mapping source name to list of detections
+        """
+        query = select(Detection).where(Detection.platform == platform.lower())
+
+        if sources:
+            query = query.where(Detection.source.in_(sources))
+
+        result = await self.db.execute(query)
+        detections = result.scalars().all()
+
+        # Group by source
+        grouped: dict[str, list[Detection]] = {}
+        for detection in detections:
+            if detection.source not in grouped:
+                grouped[detection.source] = []
+            grouped[detection.source].append(detection)
+
+        return grouped
+
     async def get_statistics(self) -> dict:
         """Get overall statistics about stored detections.
 

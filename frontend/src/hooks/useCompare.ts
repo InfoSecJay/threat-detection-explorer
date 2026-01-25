@@ -4,12 +4,13 @@ import { compareApi } from '../services/api';
 export function useCompare(params: {
   technique?: string;
   keyword?: string;
+  platform?: string;
   sources?: string[];
 }) {
   return useQuery({
     queryKey: ['compare', params],
     queryFn: () => compareApi.compare(params),
-    enabled: !!(params.technique || params.keyword),
+    enabled: !!(params.technique || params.keyword || params.platform),
   });
 }
 
