@@ -1,9 +1,13 @@
+import { useState, useRef, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { DetectionList } from './pages/DetectionList';
 import { DetectionDetail } from './pages/DetectionDetail';
 import { Compare } from './pages/Compare';
 import { SideBySide } from './pages/SideBySide';
+import { About } from './pages/About';
+import { ChangeLog } from './pages/ChangeLog';
+import { Integrations } from './pages/Integrations';
 
 // Status indicator component
 function StatusIndicator() {
@@ -39,6 +43,89 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
       )}
       {children}
     </Link>
+  );
+}
+
+// Dropdown menu component
+function NavDropdown({ label, items }: { label: string; items: { to: string; label: string }[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+
+  // Check if any child route is active
+  const isActive = items.some(item =>
+    location.pathname === item.to || location.pathname.startsWith(item.to + '/')
+  );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`relative px-4 py-2 font-display text-sm uppercase tracking-wider transition-all duration-300 flex items-center gap-1 ${
+          isActive
+            ? 'text-matrix-500 bg-matrix-500/10 border border-matrix-500/30'
+            : 'text-gray-400 hover:text-matrix-400 hover:bg-void-800 border border-transparent'
+        }`}
+        style={{
+          clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+        }}
+      >
+        {isActive && (
+          <span className="absolute top-0 left-0 w-2 h-2 bg-matrix-500" />
+        )}
+        {label}
+        <svg
+          className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute top-full left-0 mt-1 bg-void-900 border border-void-700 py-1 min-w-[180px] z-50"
+          style={{
+            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+          }}
+        >
+          {items.map((item) => {
+            const itemActive = location.pathname === item.to || location.pathname.startsWith(item.to + '/');
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`block px-4 py-2 text-sm font-display uppercase tracking-wider transition-colors ${
+                  itemActive
+                    ? 'text-matrix-500 bg-matrix-500/10'
+                    : 'text-gray-400 hover:text-matrix-400 hover:bg-void-800'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -123,6 +210,14 @@ function App() {
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/compare">Compare</NavLink>
+              <NavDropdown
+                label="Resources"
+                items={[
+                  { to: '/about', label: 'About' },
+                  { to: '/changelog', label: 'Change Log' },
+                  { to: '/integrations', label: 'Integrations' },
+                ]}
+              />
             </div>
 
             {/* Quick stats badge */}
@@ -144,6 +239,9 @@ function App() {
           <Route path="/detections/:id" element={<DetectionDetail />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/compare/side-by-side" element={<SideBySide />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/changelog" element={<ChangeLog />} />
+          <Route path="/integrations" element={<Integrations />} />
         </Routes>
       </main>
 
