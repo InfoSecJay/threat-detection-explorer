@@ -3,5 +3,34 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-cyber-950 text-gray-100;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-cyber-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-cyber-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-cyber-600;
+}
+
+/* Selection styling */
+::selection {
+  @apply bg-cyan-500/30 text-white;
+}
+
+/* Focus ring styling */
+*:focus-visible {
+  @apply outline-none ring-2 ring-cyan-500/50 ring-offset-2 ring-offset-cyber-900;
 }

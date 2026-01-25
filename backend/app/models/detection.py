@@ -54,6 +54,26 @@ class Detection(Base):
     log_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
+    # Standardized log source taxonomy
+    platform: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="",
+        index=True,
+    )
+    event_category: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="",
+        index=True,
+    )
+    data_source_normalized: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="",
+        index=True,
+    )
+
     # MITRE ATT&CK mapping
     mitre_tactics: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     mitre_techniques: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

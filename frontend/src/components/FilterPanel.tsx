@@ -21,13 +21,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     return options.sort((a, b) => a.value.localeCompare(b.value));
   }, [tactics]);
   const { data: _options } = useFilterOptions();
-  const [searchInput, setSearchInput] = useState(filters.search || '');
   const [showAllTactics, setShowAllTactics] = useState(false);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onFiltersChange({ ...filters, search: searchInput, offset: 0 });
-  };
 
   const handleMultiSelect = (
     field: keyof SearchFilters,
@@ -42,8 +36,8 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   };
 
   const clearFilters = () => {
-    setSearchInput('');
     onFiltersChange({
+      search: filters.search, // Preserve search when clearing filters
       offset: 0,
       limit: filters.limit,
       sort_by: filters.sort_by,
@@ -52,7 +46,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   };
 
   const hasActiveFilters =
-    filters.search ||
     (filters.sources?.length || 0) > 0 ||
     (filters.statuses?.length || 0) > 0 ||
     (filters.severities?.length || 0) > 0 ||
@@ -64,44 +57,22 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-cyber-850 rounded-lg border border-cyber-700 p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold">Filters</h3>
+        <h3 className="font-semibold text-white">Filters</h3>
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="text-sm text-cyan-400 hover:text-cyan-300"
           >
             Clear all
           </button>
         )}
       </div>
 
-      {/* Search */}
-      <form onSubmit={handleSearchSubmit} className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Search
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search title, description, logic..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-          />
-          <button
-            type="submit"
-            className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-          >
-            Search
-          </button>
-        </div>
-      </form>
-
       {/* Source filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
           Source
         </label>
         <div className="space-y-1">
@@ -113,14 +84,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
             { value: 'elastic_protections', label: 'Elastic Protect' },
             { value: 'lolrmm', label: 'LOLRMM' },
           ].map((source) => (
-            <label key={source.value} className="flex items-center">
+            <label key={source.value} className="flex items-center text-gray-300 hover:text-white cursor-pointer">
               <input
                 type="checkbox"
                 checked={filters.sources?.includes(source.value) || false}
                 onChange={(e) =>
                   handleMultiSelect('sources', source.value, e.target.checked)
                 }
-                className="rounded text-blue-600 mr-2"
+                className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 mr-2"
               />
               <span className="text-sm">{source.label}</span>
             </label>
@@ -130,19 +101,19 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* Severity filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
           Severity
         </label>
         <div className="space-y-1">
           {['critical', 'high', 'medium', 'low', 'unknown'].map((severity) => (
-            <label key={severity} className="flex items-center">
+            <label key={severity} className="flex items-center text-gray-300 hover:text-white cursor-pointer">
               <input
                 type="checkbox"
                 checked={filters.severities?.includes(severity) || false}
                 onChange={(e) =>
                   handleMultiSelect('severities', severity, e.target.checked)
                 }
-                className="rounded text-blue-600 mr-2"
+                className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 mr-2"
               />
               <span className="text-sm capitalize">{severity}</span>
             </label>
@@ -152,19 +123,19 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* Status filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
           Status
         </label>
         <div className="space-y-1">
           {['stable', 'experimental', 'deprecated', 'unknown'].map((status) => (
-            <label key={status} className="flex items-center">
+            <label key={status} className="flex items-center text-gray-300 hover:text-white cursor-pointer">
               <input
                 type="checkbox"
                 checked={filters.statuses?.includes(status) || false}
                 onChange={(e) =>
                   handleMultiSelect('statuses', status, e.target.checked)
                 }
-                className="rounded text-blue-600 mr-2"
+                className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 mr-2"
               />
               <span className="text-sm capitalize">{status}</span>
             </label>
@@ -174,7 +145,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* Language filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
           Language
         </label>
         <div className="space-y-1">
@@ -189,14 +160,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
             { value: 'ml', label: 'ML (Machine Learning)' },
             { value: 'threat_match', label: 'Threat Match' },
           ].map((lang) => (
-            <label key={lang.value} className="flex items-center">
+            <label key={lang.value} className="flex items-center text-gray-300 hover:text-white cursor-pointer">
               <input
                 type="checkbox"
                 checked={filters.languages?.includes(lang.value) || false}
                 onChange={(e) =>
                   handleMultiSelect('languages', lang.value, e.target.checked)
                 }
-                className="rounded text-blue-600 mr-2"
+                className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 mr-2"
               />
               <span className="text-sm">{lang.label}</span>
             </label>
@@ -206,19 +177,19 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* MITRE Tactic filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
           MITRE Tactics
         </label>
         <div className="space-y-1">
           {visibleTactics.map((tactic) => (
-            <label key={tactic.value} className="flex items-center">
+            <label key={tactic.value} className="flex items-center text-gray-300 hover:text-white cursor-pointer">
               <input
                 type="checkbox"
                 checked={filters.mitre_tactics?.includes(tactic.value) || false}
                 onChange={(e) =>
                   handleMultiSelect('mitre_tactics', tactic.value, e.target.checked)
                 }
-                className="rounded text-blue-600 mr-2"
+                className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 mr-2"
               />
               <span className="text-sm" title={tactic.value}>
                 {tactic.label}
@@ -229,7 +200,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         {tacticOptions.length > 5 && (
           <button
             onClick={() => setShowAllTactics(!showAllTactics)}
-            className="text-sm text-blue-600 hover:text-blue-800 mt-1"
+            className="text-sm text-cyan-400 hover:text-cyan-300 mt-1"
           >
             {showAllTactics ? 'Show less' : `Show ${tacticOptions.length - 5} more`}
           </button>
@@ -238,7 +209,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* MITRE Technique filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-400 mb-1">
           MITRE Technique
         </label>
         <input
@@ -257,14 +228,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }
             }
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 bg-cyber-900 border border-cyber-700 rounded-md text-sm text-white placeholder-gray-500 focus:ring-cyan-500 focus:border-cyan-500"
         />
         {filters.mitre_techniques?.length ? (
           <div className="flex flex-wrap gap-1 mt-2">
             {filters.mitre_techniques.map((tech) => (
               <span
                 key={tech}
-                className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
+                className="inline-flex items-center px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs rounded border border-cyan-500/30"
               >
                 {tech}
                 <button
@@ -277,7 +248,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                       offset: 0,
                     })
                   }
-                  className="ml-1 hover:text-blue-600"
+                  className="ml-1 hover:text-cyan-200"
                 >
                   x
                 </button>
@@ -289,7 +260,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {/* Log Sources filter */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-400 mb-1">
           Log Sources
         </label>
         <input
@@ -308,14 +279,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }
             }
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 bg-cyber-900 border border-cyber-700 rounded-md text-sm text-white placeholder-gray-500 focus:ring-cyan-500 focus:border-cyan-500"
         />
         {filters.log_sources?.length ? (
           <div className="flex flex-wrap gap-1 mt-2">
             {filters.log_sources.map((src) => (
               <span
                 key={src}
-                className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded"
+                className="inline-flex items-center px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/30"
               >
                 {src}
                 <button
@@ -328,7 +299,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                       offset: 0,
                     })
                   }
-                  className="ml-1 hover:text-green-600"
+                  className="ml-1 hover:text-green-200"
                 >
                   x
                 </button>

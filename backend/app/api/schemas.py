@@ -23,6 +23,10 @@ class DetectionBase(BaseModel):
     severity: str
     log_sources: list[str] = []
     data_sources: list[str] = []
+    # Standardized log source taxonomy
+    platform: str = ""  # windows, linux, macos, cloud, network, email
+    event_category: str = ""  # process, file, network, registry, authentication, etc.
+    data_source_normalized: str = ""  # sysmon, auditd, cloudtrail, etc.
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str
@@ -152,6 +156,10 @@ class SearchParams(BaseModel):
     mitre_techniques: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     log_sources: list[str] = Field(default_factory=list)
+    # Standardized taxonomy filters
+    platforms: list[str] = Field(default_factory=list)
+    event_categories: list[str] = Field(default_factory=list)
+    data_sources_normalized: list[str] = Field(default_factory=list)
     offset: int = 0
     limit: int = Field(default=50, le=200)
     sort_by: str = "title"
@@ -174,6 +182,20 @@ class CompareResponse(BaseModel):
     query_value: str
     results: dict[str, list[DetectionListItem]]
     total_by_source: dict[str, int]
+
+
+# Side-by-side comparison schemas
+class SideBySideRequest(BaseModel):
+    """Request for side-by-side rule comparison."""
+
+    ids: list[str] = Field(..., min_length=2, max_length=6)
+
+
+class SideBySideResponse(BaseModel):
+    """Side-by-side comparison response."""
+
+    detections: list[DetectionListItem]
+    field_comparison: dict[str, list[Optional[str]]]  # field -> values per detection
 
 
 # Export schemas

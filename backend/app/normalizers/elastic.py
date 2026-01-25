@@ -18,6 +18,16 @@ class ElasticNormalizer(BaseNormalizer):
         if isinstance(author, list):
             author = ", ".join(author) if author else None
 
+        # Get log sources and index patterns for taxonomy
+        log_sources_list = self._normalize_log_sources(parsed.log_source)
+        index_patterns = extra.get("index", [])
+
+        # Apply taxonomy standardization
+        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
+            log_sources=log_sources_list,
+            index_patterns=index_patterns
+        )
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -30,8 +40,11 @@ class ElasticNormalizer(BaseNormalizer):
             author=author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=self._normalize_log_sources(parsed.log_source),
+            log_sources=log_sources_list,
             data_sources=self._extract_data_sources(parsed),
+            platform=platform,
+            event_category=event_category,
+            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),

@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.api.schemas import CompareRequest, CompareResponse, DetectionListItem
+from app.api.schemas import (
+    CompareRequest, CompareResponse, DetectionListItem,
+    SideBySideRequest, SideBySideResponse
+)
 from app.services.search import SearchService
 
 router = APIRouter(prefix="/compare", tags=["compare"])
@@ -152,3 +155,50 @@ async def find_coverage_gaps(
         "gaps": sorted(list(gaps)),  # In base but not compare
         "unique_to_compare": sorted(list(unique_to_compare)),  # In compare but not base
     }
+
+
+@router.post("/side-by-side")
+async def compare_side_by_side(
+    request: SideBySideRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare 2-6 specific rules side by side.
+
+    Returns the detections along with a field-by-field comparison.
+    """
+    if len(request.ids) < 2 or len(request.ids) > 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide 2-6 detection IDs for comparison",
+        )
+
+    search_service = SearchService(db)
+    detections = await search_service.get_detections_by_ids(request.ids)
+
+    if len(detections) < 2:
+        raise HTTPException(
+            status_code=404,
+            detail="At least 2 of the provided detection IDs must exist",
+        )
+
+    # Build field comparison
+    field_comparison = {
+        "title": [d.title for d in detections],
+        "source": [d.source for d in detections],
+        "severity": [d.severity for d in detections],
+        "status": [d.status for d in detections],
+        "language": [d.language for d in detections],
+        "platform": [d.platform for d in detections],
+        "event_category": [d.event_category for d in detections],
+        "data_source_normalized": [d.data_source_normalized for d in detections],
+        "mitre_tactics": [", ".join(d.mitre_tactics) if d.mitre_tactics else "" for d in detections],
+        "mitre_techniques": [", ".join(d.mitre_techniques) if d.mitre_techniques else "" for d in detections],
+        "log_sources": [", ".join(d.log_sources) if d.log_sources else "" for d in detections],
+        "description": [d.description or "" for d in detections],
+        "detection_logic": [d.detection_logic or "" for d in detections],
+    }
+
+    return SideBySideResponse(
+        detections=[DetectionListItem.model_validate(d) for d in detections],
+        field_comparison=field_comparison,
+    )

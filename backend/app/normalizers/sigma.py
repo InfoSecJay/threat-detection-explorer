@@ -13,6 +13,23 @@ class SigmaNormalizer(BaseNormalizer):
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:
         """Convert parsed Sigma rule to normalized format."""
         extra = parsed.extra or {}
+        log_source = parsed.log_source or {}
+
+        # Extract Sigma-specific log source fields
+        product = log_source.get("product", "")
+        category = log_source.get("category", "")
+        service = log_source.get("service", "")
+
+        # Get the raw log sources list
+        log_sources_list = self.normalize_log_sources(log_source)
+
+        # Apply taxonomy standardization
+        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
+            log_sources=log_sources_list,
+            product=product,
+            category=category,
+            service=service
+        )
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -26,8 +43,11 @@ class SigmaNormalizer(BaseNormalizer):
             author=parsed.author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=self.normalize_log_sources(parsed.log_source),
+            log_sources=log_sources_list,
             data_sources=self._extract_data_sources(parsed),
+            platform=platform,
+            event_category=event_category,
+            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),

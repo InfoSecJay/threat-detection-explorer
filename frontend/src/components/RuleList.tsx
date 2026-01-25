@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Detection, SearchFilters } from '../types';
 import { useMitre } from '../contexts/MitreContext';
 
@@ -8,30 +9,31 @@ interface RuleListProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
   isLoading?: boolean;
+  enableSelection?: boolean;
 }
 
 const severityColors: Record<string, string> = {
-  critical: 'bg-red-100 text-red-800',
-  high: 'bg-orange-100 text-orange-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  low: 'bg-green-100 text-green-800',
-  unknown: 'bg-gray-100 text-gray-800',
+  critical: 'bg-red-500/20 text-red-400 border-red-500/30',
+  high: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  low: 'bg-green-500/20 text-green-400 border-green-500/30',
+  unknown: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
 const sourceColors: Record<string, string> = {
-  sigma: 'bg-purple-100 text-purple-800',
-  elastic: 'bg-blue-100 text-blue-800',
-  splunk: 'bg-orange-100 text-orange-800',
-  sublime: 'bg-pink-100 text-pink-800',
-  elastic_protections: 'bg-cyan-100 text-cyan-800',
-  lolrmm: 'bg-green-100 text-green-800',
+  sigma: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  elastic: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  splunk: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  sublime: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
+  elastic_protections: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+  lolrmm: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
 
 const statusColors: Record<string, string> = {
-  stable: 'bg-green-100 text-green-800',
-  experimental: 'bg-yellow-100 text-yellow-800',
-  deprecated: 'bg-red-100 text-red-800',
-  unknown: 'bg-gray-100 text-gray-800',
+  stable: 'bg-green-500/20 text-green-400 border-green-500/30',
+  experimental: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  deprecated: 'bg-red-500/20 text-red-400 border-red-500/30',
+  unknown: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
 const sourceLabels: Record<string, string> = {
@@ -44,20 +46,20 @@ const sourceLabels: Record<string, string> = {
 };
 
 const tacticColors: Record<string, string> = {
-  TA0001: 'bg-red-50 text-red-700 border-red-200',
-  TA0002: 'bg-orange-50 text-orange-700 border-orange-200',
-  TA0003: 'bg-amber-50 text-amber-700 border-amber-200',
-  TA0004: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  TA0005: 'bg-lime-50 text-lime-700 border-lime-200',
-  TA0006: 'bg-green-50 text-green-700 border-green-200',
-  TA0007: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  TA0008: 'bg-teal-50 text-teal-700 border-teal-200',
-  TA0009: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  TA0010: 'bg-sky-50 text-sky-700 border-sky-200',
-  TA0011: 'bg-blue-50 text-blue-700 border-blue-200',
-  TA0040: 'bg-violet-50 text-violet-700 border-violet-200',
-  TA0042: 'bg-purple-50 text-purple-700 border-purple-200',
-  TA0043: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  TA0001: 'bg-red-500/20 text-red-400 border-red-500/30',
+  TA0002: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  TA0003: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  TA0004: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  TA0005: 'bg-lime-500/20 text-lime-400 border-lime-500/30',
+  TA0006: 'bg-green-500/20 text-green-400 border-green-500/30',
+  TA0007: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  TA0008: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+  TA0009: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+  TA0010: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+  TA0011: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  TA0040: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+  TA0042: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  TA0043: 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
 };
 
 // Sort options for quick access
@@ -104,12 +106,47 @@ export function RuleList({
   filters,
   onFiltersChange,
   isLoading,
+  enableSelection = true,
 }: RuleListProps) {
   const { getTacticName } = useMitre();
+  const navigate = useNavigate();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const limit = filters.limit || 50;
   const offset = filters.offset || 0;
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.ceil(total / limit);
+
+  // Selection handlers
+  const toggleSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else if (next.size < 6) {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    const allIds = detections.slice(0, 6).map((d) => d.id);
+    setSelectedIds(new Set(allIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleCompareSelected = () => {
+    const ids = Array.from(selectedIds);
+    navigate(`/compare/side-by-side?ids=${ids.join(',')}`);
+  };
+
+  const isSelected = (id: string) => selectedIds.has(id);
+  const canSelect = selectedIds.size < 6;
 
   const handlePageChange = (page: number) => {
     onFiltersChange({ ...filters, offset: (page - 1) * limit });
@@ -131,7 +168,7 @@ export function RuleList({
   const SortIndicator = ({ field }: { field: string }) => {
     if (filters.sort_by !== field) return null;
     return (
-      <span className="ml-1">
+      <span className="ml-1 text-cyan-400">
         {filters.sort_order === 'asc' ? '↑' : '↓'}
       </span>
     );
@@ -165,16 +202,16 @@ export function RuleList({
   if (isLoading) {
     return (
       <div className="text-center py-8">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading detections...</p>
+        <div className="animate-spin h-8 w-8 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto"></div>
+        <p className="mt-2 text-gray-400">Loading detections...</p>
       </div>
     );
   }
 
   if (detections.length === 0) {
     return (
-      <div className="text-center py-8 bg-white rounded-lg shadow">
-        <p className="text-gray-600">No detections found.</p>
+      <div className="text-center py-8 bg-cyber-850 rounded-lg border border-cyber-700">
+        <p className="text-gray-400">No detections found.</p>
         <p className="text-sm text-gray-500 mt-1">
           Try adjusting your filters or syncing repositories first.
         </p>
@@ -186,17 +223,40 @@ export function RuleList({
     <div>
       {/* Header with count and sort */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-600">
-          Showing {offset + 1}-{Math.min(offset + limit, total)} of{' '}
-          {total.toLocaleString()} detections
-        </p>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-gray-400">
+            Showing {offset + 1}-{Math.min(offset + limit, total)} of{' '}
+            {total.toLocaleString()} detections
+          </p>
+          {enableSelection && selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-cyan-400">
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={clearSelection}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Clear
+              </button>
+              {selectedIds.size >= 2 && (
+                <button
+                  onClick={handleCompareSelected}
+                  className="px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs rounded hover:from-cyan-400 hover:to-blue-400 transition-all"
+                >
+                  Compare Selected ({selectedIds.size})
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Sort by:</label>
+            <label className="text-sm text-gray-400">Sort by:</label>
             <select
               value={currentSortValue}
               onChange={(e) => handleQuickSort(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+              className="text-sm bg-cyber-850 border border-cyber-700 text-white rounded px-2 py-1"
             >
               {sortOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -206,13 +266,13 @@ export function RuleList({
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Per page:</label>
+            <label className="text-sm text-gray-400">Per page:</label>
             <select
               value={limit}
               onChange={(e) =>
                 onFiltersChange({ ...filters, limit: parseInt(e.target.value), offset: 0 })
               }
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+              className="text-sm bg-cyber-850 border border-cyber-700 text-white rounded px-2 py-1"
             >
               <option value="25">25</option>
               <option value="50">50</option>
@@ -223,63 +283,97 @@ export function RuleList({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-cyber-850 rounded-lg border border-cyber-700 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-cyber-700">
+            <thead className="bg-cyber-900">
               <tr>
+                {enableSelection && (
+                  <th className="px-2 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === Math.min(6, detections.length) && selectedIds.size > 0}
+                      onChange={() => selectedIds.size > 0 ? clearSelection() : selectAll()}
+                      className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500"
+                      title="Select all (max 6)"
+                    />
+                  </th>
+                )}
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
                   onClick={() => handleSort('title')}
                 >
                   Title <SortIndicator field="title" />
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
                   onClick={() => handleSort('source')}
                 >
                   Source <SortIndicator field="source" />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Language
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
                   onClick={() => handleSort('severity')}
                 >
                   Severity <SortIndicator field="severity" />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   MITRE Tactics
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Techniques
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Log Sources
+                </th>
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
+                  onClick={() => handleSort('rule_created_date')}
+                >
+                  Created <SortIndicator field="rule_created_date" />
+                </th>
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
                   onClick={() => handleSort('rule_modified_date')}
                 >
                   Modified <SortIndicator field="rule_modified_date" />
                 </th>
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400 transition-colors"
                   onClick={() => handleSort('status')}
                 >
                   Status <SortIndicator field="status" />
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-cyber-700">
               {detections.map((detection) => (
                 <tr
                   key={detection.id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className={`hover:bg-cyber-800 cursor-pointer transition-colors ${
+                    isSelected(detection.id) ? 'bg-cyan-500/10' : ''
+                  }`}
                   onClick={() => window.location.href = `/detections/${detection.id}`}
                 >
+                  {enableSelection && (
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected(detection.id)}
+                        onChange={() => {}}
+                        onClick={(e) => toggleSelection(detection.id, e)}
+                        disabled={!isSelected(detection.id) && !canSelect}
+                        className="rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500 disabled:opacity-50"
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3 max-w-md">
                     <Link
                       to={`/detections/${detection.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      className="text-sm font-medium text-cyan-400 hover:text-cyan-300 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {detection.title}
@@ -292,21 +386,21 @@ export function RuleList({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        sourceColors[detection.source] || 'bg-gray-100 text-gray-800'
+                      className={`px-2 py-1 rounded text-xs font-medium border ${
+                        sourceColors[detection.source] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'
                       }`}
                     >
                       {sourceLabels[detection.source] || detection.source}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium uppercase">
+                    <span className="px-2 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-medium uppercase">
                       {detection.language || 'unknown'}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`px-2 py-1 rounded text-xs font-medium border ${
                         severityColors[detection.severity]
                       }`}
                     >
@@ -319,7 +413,7 @@ export function RuleList({
                         <span
                           key={tactic}
                           className={`px-1.5 py-0.5 text-xs rounded border ${
-                            tacticColors[tactic] || 'bg-gray-50 text-gray-700 border-gray-200'
+                            tacticColors[tactic] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'
                           }`}
                           title={tactic}
                         >
@@ -335,7 +429,7 @@ export function RuleList({
                         </span>
                       )}
                       {detection.mitre_tactics.length === 0 && (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-gray-600">-</span>
                       )}
                     </div>
                   </td>
@@ -344,7 +438,7 @@ export function RuleList({
                       {detection.mitre_techniques.slice(0, 2).map((tech) => (
                         <span
                           key={tech}
-                          className="px-1.5 py-0.5 bg-gray-100 text-gray-700 text-xs rounded"
+                          className="px-1.5 py-0.5 bg-cyber-700 text-gray-300 text-xs rounded"
                           title={tech}
                         >
                           {tech}
@@ -359,13 +453,45 @@ export function RuleList({
                         </span>
                       )}
                       {detection.mitre_techniques.length === 0 && (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-gray-600">-</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[160px]">
+                      {detection.log_sources.slice(0, 2).map((source) => (
+                        <span
+                          key={source}
+                          className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs rounded"
+                          title={source}
+                        >
+                          {source}
+                        </span>
+                      ))}
+                      {detection.log_sources.length > 2 && (
+                        <span
+                          className="text-xs text-gray-500"
+                          title={detection.log_sources.join(', ')}
+                        >
+                          +{detection.log_sources.length - 2}
+                        </span>
+                      )}
+                      {detection.log_sources.length === 0 && (
+                        <span className="text-xs text-gray-600">-</span>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className="text-xs text-gray-600"
+                      className="text-xs text-gray-400"
+                      title={formatDate(detection.rule_created_date)}
+                    >
+                      {formatRelativeDate(detection.rule_created_date)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span
+                      className="text-xs text-gray-400"
                       title={formatDate(detection.rule_modified_date)}
                     >
                       {formatRelativeDate(detection.rule_modified_date)}
@@ -373,7 +499,7 @@ export function RuleList({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`px-2 py-1 rounded text-xs font-medium border ${
                         statusColors[detection.status]
                       }`}
                     >
@@ -390,32 +516,32 @@ export function RuleList({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-400">
             Page {currentPage} of {totalPages}
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 border border-cyber-700 rounded text-sm text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-cyber-800 hover:border-cyan-500/30 transition-colors"
             >
-              ← Prev
+              Prev
             </button>
             {getVisiblePages().map((page, idx) => (
               typeof page === 'number' ? (
                 <button
                   key={idx}
                   onClick={() => handlePageChange(page)}
-                  className={`px-3 py-1 border rounded text-sm ${
+                  className={`px-3 py-1 border rounded text-sm transition-colors ${
                     page === currentPage
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'hover:bg-gray-50'
+                      ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                      : 'border-cyber-700 text-gray-300 hover:bg-cyber-800 hover:border-cyan-500/30'
                   }`}
                 >
                   {page}
                 </button>
               ) : (
-                <span key={idx} className="px-2 text-gray-400">
+                <span key={idx} className="px-2 text-gray-500">
                   {page}
                 </span>
               )
@@ -423,9 +549,9 @@ export function RuleList({
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="px-3 py-1 border border-cyber-700 rounded text-sm text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-cyber-800 hover:border-cyan-500/30 transition-colors"
             >
-              Next →
+              Next
             </button>
           </div>
         </div>

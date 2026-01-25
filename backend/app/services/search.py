@@ -35,6 +35,11 @@ class SearchFilters:
     # Log source filter
     log_sources: list[str] = field(default_factory=list)
 
+    # Standardized taxonomy filters
+    platforms: list[str] = field(default_factory=list)
+    event_categories: list[str] = field(default_factory=list)
+    data_sources_normalized: list[str] = field(default_factory=list)
+
     # Pagination
     offset: int = 0
     limit: int = 50
@@ -99,6 +104,27 @@ class SearchService:
             select(Detection).where(Detection.id == detection_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_detections_by_ids(self, detection_ids: list[str]) -> list[Detection]:
+        """Get multiple detections by their IDs.
+
+        Args:
+            detection_ids: List of detection UUIDs
+
+        Returns:
+            List of detections (in the order requested, if found)
+        """
+        if not detection_ids:
+            return []
+
+        result = await self.db.execute(
+            select(Detection).where(Detection.id.in_(detection_ids))
+        )
+        detections = list(result.scalars().all())
+
+        # Preserve the requested order
+        id_to_detection = {d.id: d for d in detections}
+        return [id_to_detection[id] for id in detection_ids if id in id_to_detection]
 
     async def compare_by_technique(
         self,
@@ -309,6 +335,18 @@ class SearchService:
                 )
             if log_source_conditions:
                 conditions.append(or_(*log_source_conditions))
+
+        # Platform filter (standardized taxonomy)
+        if filters.platforms:
+            conditions.append(Detection.platform.in_(filters.platforms))
+
+        # Event category filter (standardized taxonomy)
+        if filters.event_categories:
+            conditions.append(Detection.event_category.in_(filters.event_categories))
+
+        # Data source normalized filter (standardized taxonomy)
+        if filters.data_sources_normalized:
+            conditions.append(Detection.data_source_normalized.in_(filters.data_sources_normalized))
 
         return conditions
 

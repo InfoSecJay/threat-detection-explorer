@@ -13,6 +13,30 @@ class LOLRMMNormalizer(BaseNormalizer):
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:
         """Convert parsed LOLRMM rule to normalized format."""
         extra = parsed.extra or {}
+        log_source = parsed.log_source or {}
+
+        # Extract Sigma-style log source fields for taxonomy
+        product = log_source.get("product", "")
+        category = log_source.get("category", "")
+        service = log_source.get("service", "")
+
+        # Get the raw log sources list
+        log_sources_list = self.normalize_log_sources(log_source)
+
+        # Apply taxonomy standardization
+        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
+            log_sources=log_sources_list,
+            product=product,
+            category=category,
+            service=service
+        )
+
+        # LOLRMM rules are primarily Windows-focused RMM tool detection
+        # Default to Windows/process if not detected
+        if not platform:
+            platform = "windows"
+        if not event_category:
+            event_category = "process"
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -26,8 +50,11 @@ class LOLRMMNormalizer(BaseNormalizer):
             author=parsed.author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=self.normalize_log_sources(parsed.log_source),
+            log_sources=log_sources_list,
             data_sources=self._extract_data_sources(parsed),
+            platform=platform,
+            event_category=event_category,
+            data_source_normalized=data_source_normalized or "sysmon",
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),

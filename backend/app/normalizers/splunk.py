@@ -13,6 +13,22 @@ class SplunkNormalizer(BaseNormalizer):
         """Convert parsed Splunk rule to normalized format."""
         extra = parsed.extra or {}
 
+        # Get log sources and data sources for taxonomy
+        log_sources_list = self._normalize_log_sources(parsed.log_source)
+
+        # Get explicit data sources from Splunk metadata for taxonomy hints
+        splunk_data_sources = extra.get("data_source", [])
+        search_query = parsed.detection_logic_raw.get("search", "") if isinstance(parsed.detection_logic_raw, dict) else ""
+
+        # Apply taxonomy standardization using Splunk's data_source metadata
+        # Combine log sources with data_source info for better detection
+        combined_sources = log_sources_list + [ds.lower() for ds in splunk_data_sources if ds]
+        combined_sources.append(search_query.lower()[:500])  # Add search context (limited)
+
+        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
+            log_sources=combined_sources
+        )
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -25,8 +41,11 @@ class SplunkNormalizer(BaseNormalizer):
             author=parsed.author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=self._normalize_log_sources(parsed.log_source),
+            log_sources=log_sources_list,
             data_sources=self._extract_data_sources(parsed),
+            platform=platform,
+            event_category=event_category,
+            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),

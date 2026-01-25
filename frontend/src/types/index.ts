@@ -13,6 +13,10 @@ export interface Detection {
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   log_sources: string[];
   data_sources: string[];
+  // Standardized log source taxonomy
+  platform: string;  // windows, linux, macos, cloud, network, email
+  event_category: string;  // process, file, network, registry, authentication, etc.
+  data_source_normalized: string;  // sysmon, auditd, cloudtrail, etc.
   mitre_tactics: string[];
   mitre_techniques: string[];
   detection_logic: string;
@@ -93,6 +97,10 @@ export interface SearchFilters {
   mitre_techniques?: string[];
   tags?: string[];
   log_sources?: string[];
+  // Standardized taxonomy filters
+  platforms?: string[];
+  event_categories?: string[];
+  data_sources_normalized?: string[];
   offset?: number;
   limit?: number;
   sort_by?: string;
@@ -105,6 +113,11 @@ export interface CompareResponse {
   query_value: string;
   results: Record<string, Detection[]>;
   total_by_source: Record<string, number>;
+}
+
+export interface SideBySideResponse {
+  detections: Detection[];
+  field_comparison: Record<string, (string | null)[]>;
 }
 
 // Statistics types

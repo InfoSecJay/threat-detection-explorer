@@ -249,6 +249,10 @@ class IngestionService:
             severity=normalized.severity,
             log_sources=normalized.log_sources,
             data_sources=normalized.data_sources,
+            # Standardized taxonomy fields
+            platform=normalized.platform,
+            event_category=normalized.event_category,
+            data_source_normalized=normalized.data_source_normalized,
             mitre_tactics=normalized.mitre_tactics,
             mitre_techniques=normalized.mitre_techniques,
             detection_logic=normalized.detection_logic,

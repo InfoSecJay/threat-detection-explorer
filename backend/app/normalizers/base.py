@@ -7,6 +7,7 @@ from typing import Optional
 import hashlib
 
 from app.parsers.base import ParsedRule
+from app.services.log_source_taxonomy import standardize_log_sources
 
 
 @dataclass
@@ -42,6 +43,11 @@ class NormalizedDetection:
     # Classification
     log_sources: list[str] = field(default_factory=list)
     data_sources: list[str] = field(default_factory=list)
+
+    # Standardized log source taxonomy
+    platform: str = ""  # windows, linux, macos, cloud, network, email
+    event_category: str = ""  # process, file, network, registry, authentication, etc.
+    data_source_normalized: str = ""  # sysmon, auditd, cloudtrail, etc.
 
     # MITRE ATT&CK
     mitre_tactics: list[str] = field(default_factory=list)
@@ -292,6 +298,34 @@ class BaseNormalizer(ABC):
             return result
 
         return []
+
+    def apply_log_source_taxonomy(
+        self,
+        log_sources: list[str],
+        product: Optional[str] = None,
+        category: Optional[str] = None,
+        service: Optional[str] = None,
+        index_patterns: Optional[list[str]] = None
+    ) -> tuple[str, str, str]:
+        """Apply the unified log source taxonomy to get standardized values.
+
+        Args:
+            log_sources: Raw log sources list
+            product: Sigma-style product (e.g., "windows", "linux")
+            category: Sigma-style category (e.g., "process_creation")
+            service: Sigma-style service (e.g., "sysmon")
+            index_patterns: Elastic-style index patterns (e.g., ["winlogbeat-*"])
+
+        Returns:
+            Tuple of (platform, event_category, data_source_normalized)
+        """
+        return standardize_log_sources(
+            log_sources=log_sources,
+            product=product,
+            category=category,
+            service=service,
+            index_patterns=index_patterns
+        )
 
     def normalize_data_sources(self, raw_sources: list[str]) -> list[str]:
         """Normalize data sources to standardized categories.
