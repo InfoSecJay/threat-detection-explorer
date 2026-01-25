@@ -5,196 +5,541 @@ Provides a unified taxonomy for standardizing log sources across different
 detection rule vendors (Sigma, Elastic, Splunk, etc.).
 
 Taxonomy Structure:
-- Platform: The OS or environment (windows, linux, cloud, etc.)
-- Event Category: The type of activity being monitored (process, file, network, etc.)
-- Data Source: The specific log source or tool (sysmon, auditd, cloudtrail, etc.)
+- Platform: Specific products/technologies that generate logs
+- Event Category: The type of telemetry/activity being monitored
+- Data Source: The specific log source or collection method
 """
 
-from typing import Optional, Tuple, List, Set
+from typing import Optional, Tuple, List
 
 
-# Platform mappings - keywords that indicate a specific platform
-PLATFORM_KEYWORDS: dict[str, list[str]] = {
-    "windows": [
-        "windows", "win", "winlogbeat", "sysmon", "microsoft",
-        "powershell", "cmd", "wmi", "defender", "security",
-        "ntlm", "kerberos", "active_directory", "ad", "ldap",
-        "mde", "wdatp", "bits", "msiexec", "certutil"
-    ],
-    "linux": [
-        "linux", "unix", "auditd", "syslog", "systemd",
-        "bash", "shell", "cron", "ssh", "sudo", "apt", "yum",
-        "rpm", "deb", "iptables", "selinux", "apparmor"
-    ],
-    "macos": [
-        "macos", "mac", "osx", "apple", "unified_log",
-        "darwin", "launchd", "spotlight", "gatekeeper"
-    ],
-    "cloud": [
-        "aws", "amazon", "azure", "gcp", "google_cloud",
-        "cloudtrail", "cloudwatch", "s3", "ec2", "iam",
-        "o365", "office365", "m365", "entra", "aad",
-        "okta", "onelogin", "duo", "saml", "oauth",
-        "kubernetes", "k8s", "docker", "container"
-    ],
-    "network": [
-        "firewall", "proxy", "dns", "zeek", "bro", "suricata",
-        "snort", "ids", "ips", "netflow", "pcap", "packet",
-        "paloalto", "fortinet", "checkpoint", "cisco"
-    ],
-    "email": [
-        "email", "mail", "smtp", "exchange", "proofpoint",
-        "mimecast", "o365_email", "phishing", "spam"
-    ],
+# =============================================================================
+# PLATFORM TAXONOMY
+# Organized by technology category - specific products that generate logs
+# =============================================================================
+
+PLATFORMS = {
+    # Endpoint Operating Systems
+    "windows": {
+        "display_name": "Windows",
+        "category": "endpoint",
+        "keywords": [
+            "windows", "win", "winlogbeat", "sysmon", "microsoft-windows",
+            "powershell", "cmd", "wmi", "msiexec", "certutil", "regsvr32",
+            "wscript", "cscript", "mshta", "rundll32", "bits"
+        ]
+    },
+    "linux": {
+        "display_name": "Linux",
+        "category": "endpoint",
+        "keywords": [
+            "linux", "unix", "auditd", "syslog", "systemd", "journald",
+            "bash", "cron", "ssh", "sudo", "apt", "yum", "rpm", "deb",
+            "iptables", "selinux", "apparmor"
+        ]
+    },
+    "macos": {
+        "display_name": "macOS",
+        "category": "endpoint",
+        "keywords": [
+            "macos", "mac", "osx", "apple", "darwin", "unified_log",
+            "launchd", "spotlight", "gatekeeper", "xprotect"
+        ]
+    },
+
+    # Cloud Providers (IaaS/PaaS)
+    "aws": {
+        "display_name": "AWS",
+        "category": "cloud",
+        "keywords": [
+            "aws", "amazon", "cloudtrail", "cloudwatch", "guardduty",
+            "s3", "ec2", "iam", "lambda", "eks", "ecs", "rds", "vpc"
+        ]
+    },
+    "azure": {
+        "display_name": "Azure",
+        "category": "cloud",
+        "keywords": [
+            "azure", "microsoft-azure", "azure_activity", "azure_monitor",
+            "azure_sentinel", "entra", "aad", "azure_ad", "azure_storage",
+            "azure_vm", "azure_keyvault", "azure_network"
+        ]
+    },
+    "gcp": {
+        "display_name": "Google Cloud",
+        "category": "cloud",
+        "keywords": [
+            "gcp", "google_cloud", "google-cloud", "gcp_audit",
+            "gce", "gke", "bigquery", "gcs", "cloud_functions"
+        ]
+    },
+
+    # SaaS - Identity & Access
+    "microsoft_365": {
+        "display_name": "Microsoft 365",
+        "category": "saas",
+        "keywords": [
+            "o365", "office365", "m365", "microsoft_365", "microsoft365",
+            "sharepoint", "onedrive", "teams", "exchange_online",
+            "defender_365", "microsoft_defender"
+        ]
+    },
+    "okta": {
+        "display_name": "Okta",
+        "category": "saas",
+        "keywords": [
+            "okta", "okta_system", "okta_auth", "okta_sso"
+        ]
+    },
+    "google_workspace": {
+        "display_name": "Google Workspace",
+        "category": "saas",
+        "keywords": [
+            "google_workspace", "gsuite", "g_suite", "gmail", "google_drive",
+            "google_admin", "google_meet"
+        ]
+    },
+    "duo": {
+        "display_name": "Cisco Duo",
+        "category": "saas",
+        "keywords": [
+            "duo", "cisco_duo", "duo_security", "duo_mfa"
+        ]
+    },
+    "onelogin": {
+        "display_name": "OneLogin",
+        "category": "saas",
+        "keywords": [
+            "onelogin", "one_login"
+        ]
+    },
+    "auth0": {
+        "display_name": "Auth0",
+        "category": "saas",
+        "keywords": [
+            "auth0"
+        ]
+    },
+
+    # SaaS - Other
+    "github": {
+        "display_name": "GitHub",
+        "category": "saas",
+        "keywords": [
+            "github", "github_audit", "github_actions"
+        ]
+    },
+    "salesforce": {
+        "display_name": "Salesforce",
+        "category": "saas",
+        "keywords": [
+            "salesforce", "sfdc"
+        ]
+    },
+    "slack": {
+        "display_name": "Slack",
+        "category": "saas",
+        "keywords": [
+            "slack", "slack_audit"
+        ]
+    },
+    "zoom": {
+        "display_name": "Zoom",
+        "category": "saas",
+        "keywords": [
+            "zoom", "zoom_meeting"
+        ]
+    },
+
+    # Network Security - Firewalls
+    "palo_alto": {
+        "display_name": "Palo Alto",
+        "category": "network",
+        "keywords": [
+            "paloalto", "palo_alto", "pan", "pan-os", "panw",
+            "palo_alto_networks", "prisma"
+        ]
+    },
+    "fortigate": {
+        "display_name": "FortiGate",
+        "category": "network",
+        "keywords": [
+            "fortinet", "fortigate", "forti", "fortios", "fortianalyzer"
+        ]
+    },
+    "cisco_asa": {
+        "display_name": "Cisco ASA",
+        "category": "network",
+        "keywords": [
+            "cisco_asa", "asa", "cisco_firewall", "cisco_ftd"
+        ]
+    },
+    "checkpoint": {
+        "display_name": "Check Point",
+        "category": "network",
+        "keywords": [
+            "checkpoint", "check_point", "smartconsole"
+        ]
+    },
+
+    # Network Security - Proxy/Web Gateway
+    "zscaler": {
+        "display_name": "Zscaler",
+        "category": "network",
+        "keywords": [
+            "zscaler", "zia", "zpa", "zscaler_internet_access"
+        ]
+    },
+    "cisco_umbrella": {
+        "display_name": "Cisco Umbrella",
+        "category": "network",
+        "keywords": [
+            "umbrella", "cisco_umbrella", "opendns"
+        ]
+    },
+    "bluecoat": {
+        "display_name": "Symantec ProxySG",
+        "category": "network",
+        "keywords": [
+            "bluecoat", "proxysg", "symantec_proxy"
+        ]
+    },
+
+    # Network Security - IDS/IPS
+    "suricata": {
+        "display_name": "Suricata",
+        "category": "network",
+        "keywords": [
+            "suricata", "suricata_ids"
+        ]
+    },
+    "snort": {
+        "display_name": "Snort",
+        "category": "network",
+        "keywords": [
+            "snort", "snort_ids"
+        ]
+    },
+    "zeek": {
+        "display_name": "Zeek",
+        "category": "network",
+        "keywords": [
+            "zeek", "bro", "zeek_logs"
+        ]
+    },
+
+    # Email Security
+    "exchange": {
+        "display_name": "Microsoft Exchange",
+        "category": "email",
+        "keywords": [
+            "exchange", "microsoft_exchange", "exchange_server",
+            "exchange_online", "owa"
+        ]
+    },
+    "proofpoint": {
+        "display_name": "Proofpoint",
+        "category": "email",
+        "keywords": [
+            "proofpoint", "proofpoint_tap", "proofpoint_pod"
+        ]
+    },
+    "mimecast": {
+        "display_name": "Mimecast",
+        "category": "email",
+        "keywords": [
+            "mimecast"
+        ]
+    },
+
+    # EDR/XDR
+    "crowdstrike": {
+        "display_name": "CrowdStrike",
+        "category": "edr",
+        "keywords": [
+            "crowdstrike", "falcon", "cs_falcon", "crowdstrike_falcon"
+        ]
+    },
+    "defender_endpoint": {
+        "display_name": "Defender for Endpoint",
+        "category": "edr",
+        "keywords": [
+            "mde", "wdatp", "defender", "microsoft_defender",
+            "defender_for_endpoint", "microsoft_defender_endpoint"
+        ]
+    },
+    "sentinelone": {
+        "display_name": "SentinelOne",
+        "category": "edr",
+        "keywords": [
+            "sentinelone", "s1", "sentinel_one"
+        ]
+    },
+    "carbon_black": {
+        "display_name": "Carbon Black",
+        "category": "edr",
+        "keywords": [
+            "carbon_black", "carbonblack", "cb", "vmware_carbon_black"
+        ]
+    },
+
+    # Container/Kubernetes
+    "kubernetes": {
+        "display_name": "Kubernetes",
+        "category": "container",
+        "keywords": [
+            "kubernetes", "k8s", "kubectl", "kube", "eks", "aks", "gke"
+        ]
+    },
+    "docker": {
+        "display_name": "Docker",
+        "category": "container",
+        "keywords": [
+            "docker", "container", "containerd"
+        ]
+    },
 }
 
-# Event category mappings - activity types
-EVENT_CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "process": [
-        "process_creation", "process_access", "process_termination",
-        "process_start", "process_stop", "create_process",
-        "image_load", "driver_load", "process_injection"
-    ],
-    "file": [
-        "file_event", "file_creation", "file_modification", "file_delete",
-        "file_access", "file_change", "file_rename", "file_write",
-        "file_read", "file_open", "sysmon_event_11"
-    ],
-    "network": [
-        "network_connection", "dns_query", "dns_event", "firewall",
-        "proxy", "web", "http", "tcp", "udp", "socket",
-        "sysmon_event_3", "sysmon_event_22"
-    ],
-    "registry": [
-        "registry_event", "registry_add", "registry_delete", "registry_set",
-        "registry_value", "registry_key", "sysmon_event_12",
-        "sysmon_event_13", "sysmon_event_14"
-    ],
-    "authentication": [
-        "logon", "logoff", "authentication", "failed_logon", "login",
-        "logout", "credential", "session", "token", "kerberos",
-        "ntlm", "ldap_bind"
-    ],
-    "persistence": [
-        "scheduled_task", "service_install", "autorun", "startup",
-        "registry_run", "cron", "launchd", "systemd_service"
-    ],
-    "execution": [
-        "script_execution", "powershell", "wmi", "command_line",
-        "bash", "python", "javascript", "vbscript", "wscript", "cscript"
-    ],
-    "privilege_escalation": [
-        "privilege", "elevation", "sudo", "runas", "impersonation",
-        "token_manipulation", "setuid"
-    ],
-    "discovery": [
-        "discovery", "enumeration", "reconnaissance", "scanning",
-        "whoami", "systeminfo", "netstat", "ipconfig"
-    ],
-    "lateral_movement": [
-        "lateral", "psexec", "wmic_remote", "rdp", "smb",
-        "winrm", "ssh_lateral", "remote_exec"
-    ],
+# Reverse lookup: keyword -> platform
+PLATFORM_KEYWORD_MAP = {}
+for platform_id, info in PLATFORMS.items():
+    for keyword in info["keywords"]:
+        PLATFORM_KEYWORD_MAP[keyword.lower()] = platform_id
+
+
+# =============================================================================
+# EVENT CATEGORY TAXONOMY
+# Types of telemetry/events - what kind of activity is being monitored
+# These are NOT MITRE tactics - they describe the type of log/telemetry
+# =============================================================================
+
+EVENT_CATEGORIES = {
+    # Endpoint Events
+    "process": {
+        "display_name": "Process Activity",
+        "description": "Process creation, termination, and injection events",
+        "keywords": [
+            "process_creation", "process_access", "process_termination",
+            "process_start", "process_stop", "create_process",
+            "image_load", "driver_load", "process_injection",
+            "create_remote_thread", "sysmon_event_1", "sysmon_event_7",
+            "sysmon_event_8", "eventid_4688"
+        ]
+    },
+    "file": {
+        "display_name": "File Activity",
+        "description": "File creation, modification, deletion, and access events",
+        "keywords": [
+            "file_event", "file_creation", "file_modification", "file_delete",
+            "file_access", "file_change", "file_rename", "file_write",
+            "file_read", "file_open", "sysmon_event_11", "sysmon_event_23",
+            "create_stream_hash", "alternate_data_stream"
+        ]
+    },
+    "network_connection": {
+        "display_name": "Network Connections",
+        "description": "TCP/UDP connections, socket operations",
+        "keywords": [
+            "network_connection", "socket", "tcp", "udp",
+            "sysmon_event_3", "connection_attempt", "established_connection"
+        ]
+    },
+    "dns": {
+        "display_name": "DNS Activity",
+        "description": "DNS queries, responses, and resolution events",
+        "keywords": [
+            "dns_query", "dns_event", "dns_request", "dns_response",
+            "sysmon_event_22", "dns_lookup", "name_resolution"
+        ]
+    },
+    "http": {
+        "display_name": "Web/HTTP Traffic",
+        "description": "HTTP requests, web traffic, proxy logs",
+        "keywords": [
+            "http", "https", "web", "proxy", "web_proxy", "url",
+            "user_agent", "web_request"
+        ]
+    },
+    "firewall": {
+        "display_name": "Firewall Events",
+        "description": "Firewall allow/deny, traffic flow events",
+        "keywords": [
+            "firewall", "fw", "firewall_allow", "firewall_deny",
+            "traffic_flow", "blocked", "permitted"
+        ]
+    },
+    "registry": {
+        "display_name": "Registry Activity",
+        "description": "Windows registry key and value modifications",
+        "keywords": [
+            "registry_event", "registry_add", "registry_delete", "registry_set",
+            "registry_value", "registry_key", "sysmon_event_12",
+            "sysmon_event_13", "sysmon_event_14", "regkey", "regvalue"
+        ]
+    },
+    "authentication": {
+        "display_name": "Authentication",
+        "description": "Login, logout, MFA, and credential events",
+        "keywords": [
+            "logon", "logoff", "authentication", "failed_logon", "login",
+            "logout", "credential", "session", "token", "kerberos",
+            "ntlm", "ldap_bind", "mfa", "password", "eventid_4624",
+            "eventid_4625", "eventid_4648"
+        ]
+    },
+    "api_activity": {
+        "display_name": "API Activity",
+        "description": "Cloud API calls, management operations",
+        "keywords": [
+            "api", "api_call", "management_event", "control_plane",
+            "admin_activity", "cloudtrail", "audit_log"
+        ]
+    },
+    "email": {
+        "display_name": "Email Events",
+        "description": "Email send, receive, attachments, link clicks",
+        "keywords": [
+            "email", "mail", "smtp", "message_trace", "email_received",
+            "email_sent", "attachment", "phishing", "spam"
+        ]
+    },
+    "identity_management": {
+        "display_name": "Identity Management",
+        "description": "User/group creation, role changes, permissions",
+        "keywords": [
+            "user_created", "user_deleted", "group_membership",
+            "role_assignment", "permission_change", "privilege_change",
+            "identity", "iam"
+        ]
+    },
+    "configuration_change": {
+        "display_name": "Configuration Changes",
+        "description": "System, application, and policy configuration changes",
+        "keywords": [
+            "config_change", "policy_change", "setting_change",
+            "configuration", "audit_policy", "system_config"
+        ]
+    },
+    "scheduled_task": {
+        "display_name": "Scheduled Tasks",
+        "description": "Scheduled task and cron job events",
+        "keywords": [
+            "scheduled_task", "cron", "at_job", "task_scheduler",
+            "schtasks", "launchd"
+        ]
+    },
+    "service": {
+        "display_name": "Service Events",
+        "description": "Service installation, start, stop events",
+        "keywords": [
+            "service_install", "service_start", "service_stop",
+            "service_created", "sysmon_event_6", "systemd_service"
+        ]
+    },
+    "pipe": {
+        "display_name": "Named Pipes",
+        "description": "Named pipe creation and connection events",
+        "keywords": [
+            "pipe_created", "pipe_connected", "named_pipe",
+            "sysmon_event_17", "sysmon_event_18"
+        ]
+    },
+    "wmi": {
+        "display_name": "WMI Events",
+        "description": "WMI activity and event subscriptions",
+        "keywords": [
+            "wmi", "wmi_event", "sysmon_event_19", "sysmon_event_20",
+            "sysmon_event_21", "wmi_filter", "wmi_consumer"
+        ]
+    },
 }
 
-# Known data sources with their platform and typical categories
-DATA_SOURCE_INFO: dict[str, dict] = {
-    # Windows sources
+# Reverse lookup: keyword -> event_category
+EVENT_CATEGORY_KEYWORD_MAP = {}
+for category_id, info in EVENT_CATEGORIES.items():
+    for keyword in info["keywords"]:
+        EVENT_CATEGORY_KEYWORD_MAP[keyword.lower()] = category_id
+
+
+# =============================================================================
+# DATA SOURCE MAPPING
+# Specific log sources with known platform and category associations
+# =============================================================================
+
+DATA_SOURCES = {
+    # Windows
     "sysmon": {
         "platform": "windows",
-        "categories": ["process", "file", "network", "registry"],
-        "aliases": ["sysmon", "microsoft-sysmon"]
+        "categories": ["process", "file", "network_connection", "dns", "registry", "pipe", "wmi"],
+        "display_name": "Sysmon"
     },
     "security": {
         "platform": "windows",
-        "categories": ["authentication", "process", "privilege_escalation"],
-        "aliases": ["security", "windows_security", "security_log"]
+        "categories": ["authentication", "process", "identity_management"],
+        "display_name": "Windows Security Log"
     },
     "powershell": {
         "platform": "windows",
-        "categories": ["execution", "process"],
-        "aliases": ["powershell", "microsoft-powershell", "ps"]
-    },
-    "defender": {
-        "platform": "windows",
-        "categories": ["process", "file", "network"],
-        "aliases": ["defender", "microsoft-defender", "mde", "wdatp"]
+        "categories": ["process"],
+        "display_name": "PowerShell"
     },
     "winlogbeat": {
         "platform": "windows",
         "categories": ["process", "authentication", "file"],
-        "aliases": ["winlogbeat", "winlog"]
+        "display_name": "Winlogbeat"
     },
 
-    # Linux sources
+    # Linux
     "auditd": {
         "platform": "linux",
         "categories": ["process", "file", "authentication"],
-        "aliases": ["auditd", "audit", "linux_audit"]
+        "display_name": "Linux Auditd"
     },
     "syslog": {
         "platform": "linux",
-        "categories": ["authentication", "process", "network"],
-        "aliases": ["syslog", "rsyslog", "syslog-ng"]
-    },
-    "systemd": {
-        "platform": "linux",
-        "categories": ["persistence", "process"],
-        "aliases": ["systemd", "journald", "journal"]
+        "categories": ["authentication", "process", "network_connection"],
+        "display_name": "Syslog"
     },
 
-    # Cloud sources
+    # Cloud
     "cloudtrail": {
-        "platform": "cloud",
-        "categories": ["authentication", "discovery", "persistence"],
-        "aliases": ["cloudtrail", "aws_cloudtrail", "aws"]
+        "platform": "aws",
+        "categories": ["api_activity", "authentication", "identity_management"],
+        "display_name": "AWS CloudTrail"
     },
     "azure_activity": {
-        "platform": "cloud",
-        "categories": ["authentication", "discovery"],
-        "aliases": ["azure", "azure_activity", "azure_monitor"]
+        "platform": "azure",
+        "categories": ["api_activity", "authentication", "identity_management"],
+        "display_name": "Azure Activity Log"
     },
     "gcp_audit": {
-        "platform": "cloud",
-        "categories": ["authentication", "discovery"],
-        "aliases": ["gcp", "google_cloud", "gcp_audit"]
-    },
-    "okta": {
-        "platform": "cloud",
-        "categories": ["authentication"],
-        "aliases": ["okta", "okta_system"]
+        "platform": "gcp",
+        "categories": ["api_activity", "authentication"],
+        "display_name": "GCP Audit Logs"
     },
 
-    # Network sources
-    "zeek": {
-        "platform": "network",
-        "categories": ["network", "discovery"],
-        "aliases": ["zeek", "bro", "zeek_logs"]
+    # Network
+    "zeek_conn": {
+        "platform": "zeek",
+        "categories": ["network_connection"],
+        "display_name": "Zeek Connection Logs"
     },
-    "firewall": {
-        "platform": "network",
-        "categories": ["network"],
-        "aliases": ["firewall", "fw", "paloalto", "fortinet"]
+    "zeek_dns": {
+        "platform": "zeek",
+        "categories": ["dns"],
+        "display_name": "Zeek DNS Logs"
     },
-    "proxy": {
-        "platform": "network",
-        "categories": ["network"],
-        "aliases": ["proxy", "web_proxy", "squid", "bluecoat"]
-    },
-
-    # Email sources
-    "exchange": {
-        "platform": "email",
-        "categories": ["email"],
-        "aliases": ["exchange", "o365_email", "microsoft_exchange"]
-    },
-    "proofpoint": {
-        "platform": "email",
-        "categories": ["email"],
-        "aliases": ["proofpoint", "proofpoint_tap"]
+    "zeek_http": {
+        "platform": "zeek",
+        "categories": ["http"],
+        "display_name": "Zeek HTTP Logs"
     },
 }
 
+
+# =============================================================================
+# STANDARDIZATION FUNCTIONS
+# =============================================================================
 
 def standardize_log_sources(
     log_sources: List[str],
@@ -216,46 +561,68 @@ def standardize_log_sources(
     Returns:
         Tuple of (platform, event_category, data_source)
     """
-    platform = ""
-    event_category = ""
-    data_source = ""
-
     # Combine all input into searchable text
-    search_text = " ".join([
+    search_parts = [
         " ".join(log_sources),
         product or "",
         category or "",
         service or "",
         " ".join(index_patterns or [])
-    ]).lower()
+    ]
+    search_text = " ".join(search_parts).lower()
 
-    # Determine platform
-    platform = _detect_platform(search_text, product)
+    # Detect platform
+    platform = _detect_platform(search_text, product, service, index_patterns)
 
-    # Determine event category
+    # Detect event category
     event_category = _detect_event_category(search_text, category)
 
-    # Determine data source
+    # Detect data source
     data_source = _detect_data_source(search_text, service, index_patterns)
 
     return platform, event_category, data_source
 
 
-def _detect_platform(search_text: str, product: Optional[str] = None) -> str:
-    """Detect the platform from search text and product hint."""
-    # Direct product mapping takes priority
-    if product:
-        product_lower = product.lower()
-        for platform, keywords in PLATFORM_KEYWORDS.items():
-            if product_lower in keywords or any(kw in product_lower for kw in keywords):
-                return platform
+def _detect_platform(
+    search_text: str,
+    product: Optional[str] = None,
+    service: Optional[str] = None,
+    index_patterns: Optional[List[str]] = None
+) -> str:
+    """Detect the platform from search text and hints."""
 
-    # Search through keywords
-    scores: dict[str, int] = {}
-    for platform, keywords in PLATFORM_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in search_text)
+    # Check product hint first (most reliable)
+    if product:
+        product_lower = product.lower().replace("-", "_").replace(" ", "_")
+        if product_lower in PLATFORM_KEYWORD_MAP:
+            return PLATFORM_KEYWORD_MAP[product_lower]
+        # Check if product matches a platform key directly
+        if product_lower in PLATFORMS:
+            return product_lower
+
+    # Check service for known data sources
+    if service:
+        service_lower = service.lower()
+        if service_lower in DATA_SOURCES:
+            return DATA_SOURCES[service_lower]["platform"]
+
+    # Check index patterns for clues
+    if index_patterns:
+        for pattern in index_patterns:
+            pattern_lower = pattern.lower()
+            for keyword, platform in PLATFORM_KEYWORD_MAP.items():
+                if keyword in pattern_lower:
+                    return platform
+
+    # Score-based detection from search text
+    scores = {}
+    for platform_id, info in PLATFORMS.items():
+        score = 0
+        for keyword in info["keywords"]:
+            if keyword in search_text:
+                score += 1
         if score > 0:
-            scores[platform] = score
+            scores[platform_id] = score
 
     if scores:
         return max(scores, key=scores.get)
@@ -265,19 +632,25 @@ def _detect_platform(search_text: str, product: Optional[str] = None) -> str:
 
 def _detect_event_category(search_text: str, category: Optional[str] = None) -> str:
     """Detect the event category from search text and category hint."""
-    # Direct category mapping takes priority
-    if category:
-        category_lower = category.lower()
-        for event_cat, keywords in EVENT_CATEGORY_KEYWORDS.items():
-            if category_lower in keywords or any(kw in category_lower for kw in keywords):
-                return event_cat
 
-    # Search through keywords
-    scores: dict[str, int] = {}
-    for event_cat, keywords in EVENT_CATEGORY_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in search_text)
+    # Check category hint first
+    if category:
+        category_lower = category.lower().replace("-", "_").replace(" ", "_")
+        if category_lower in EVENT_CATEGORY_KEYWORD_MAP:
+            return EVENT_CATEGORY_KEYWORD_MAP[category_lower]
+        # Check if category matches a category key directly
+        if category_lower in EVENT_CATEGORIES:
+            return category_lower
+
+    # Score-based detection from search text
+    scores = {}
+    for category_id, info in EVENT_CATEGORIES.items():
+        score = 0
+        for keyword in info["keywords"]:
+            if keyword in search_text:
+                score += 1
         if score > 0:
-            scores[event_cat] = score
+            scores[category_id] = score
 
     if scores:
         return max(scores, key=scores.get)
@@ -291,69 +664,78 @@ def _detect_data_source(
     index_patterns: Optional[List[str]] = None
 ) -> str:
     """Detect the specific data source."""
-    # Direct service mapping takes priority
+
+    # Check service mapping first
     if service:
         service_lower = service.lower()
-        for source_name, info in DATA_SOURCE_INFO.items():
-            if service_lower in info["aliases"]:
-                return source_name
+        if service_lower in DATA_SOURCES:
+            return service_lower
 
-    # Check index patterns for known sources
+    # Check index patterns
     if index_patterns:
         for pattern in index_patterns:
             pattern_lower = pattern.lower()
-            for source_name, info in DATA_SOURCE_INFO.items():
-                if any(alias in pattern_lower for alias in info["aliases"]):
+            for source_name in DATA_SOURCES:
+                if source_name in pattern_lower:
                     return source_name
 
-    # Search through data source aliases
-    for source_name, info in DATA_SOURCE_INFO.items():
-        if any(alias in search_text for alias in info["aliases"]):
+    # Check search text for known data sources
+    for source_name in DATA_SOURCES:
+        if source_name in search_text:
             return source_name
 
     return ""
 
 
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
 def get_platform_display_name(platform: str) -> str:
     """Get display name for a platform."""
-    display_names = {
-        "windows": "Windows",
-        "linux": "Linux",
-        "macos": "macOS",
-        "cloud": "Cloud",
-        "network": "Network",
-        "email": "Email",
-    }
-    return display_names.get(platform, platform.title() if platform else "Unknown")
+    if platform in PLATFORMS:
+        return PLATFORMS[platform]["display_name"]
+    return platform.replace("_", " ").title() if platform else "Unknown"
 
 
-def get_category_display_name(category: str) -> str:
+def get_platform_category(platform: str) -> str:
+    """Get the category for a platform (endpoint, cloud, saas, network, etc.)."""
+    if platform in PLATFORMS:
+        return PLATFORMS[platform]["category"]
+    return ""
+
+
+def get_event_category_display_name(category: str) -> str:
     """Get display name for an event category."""
-    display_names = {
-        "process": "Process Activity",
-        "file": "File Activity",
-        "network": "Network Activity",
-        "registry": "Registry Activity",
-        "authentication": "Authentication",
-        "persistence": "Persistence",
-        "execution": "Execution",
-        "privilege_escalation": "Privilege Escalation",
-        "discovery": "Discovery",
-        "lateral_movement": "Lateral Movement",
-    }
-    return display_names.get(category, category.replace("_", " ").title() if category else "Unknown")
+    if category in EVENT_CATEGORIES:
+        return EVENT_CATEGORIES[category]["display_name"]
+    return category.replace("_", " ").title() if category else "Unknown"
 
 
 def get_all_platforms() -> List[str]:
-    """Get list of all valid platforms."""
-    return list(PLATFORM_KEYWORDS.keys())
+    """Get list of all valid platform IDs."""
+    return list(PLATFORMS.keys())
 
 
-def get_all_categories() -> List[str]:
-    """Get list of all valid event categories."""
-    return list(EVENT_CATEGORY_KEYWORDS.keys())
+def get_all_platform_categories() -> List[str]:
+    """Get list of unique platform categories."""
+    return list(set(p["category"] for p in PLATFORMS.values()))
+
+
+def get_platforms_by_category(category: str) -> List[str]:
+    """Get platforms in a specific category (e.g., 'cloud', 'network')."""
+    return [
+        platform_id
+        for platform_id, info in PLATFORMS.items()
+        if info["category"] == category
+    ]
+
+
+def get_all_event_categories() -> List[str]:
+    """Get list of all valid event category IDs."""
+    return list(EVENT_CATEGORIES.keys())
 
 
 def get_all_data_sources() -> List[str]:
-    """Get list of all known data sources."""
-    return list(DATA_SOURCE_INFO.keys())
+    """Get list of all known data source IDs."""
+    return list(DATA_SOURCES.keys())

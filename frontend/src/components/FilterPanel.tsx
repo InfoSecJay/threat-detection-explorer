@@ -367,56 +367,163 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* Platform filter */}
+      {/* Platform filter - Organized by category */}
       <div className="mb-3">
         <SectionHeader title="Platform" section="platform" count={filters.platforms?.length} />
         {expandedSections.has('platform') && (
-          <div className="space-y-1 mt-2">
-            {[
-              { value: 'windows', label: 'Windows', color: '#3b82f6' },
-              { value: 'linux', label: 'Linux', color: '#f97316' },
-              { value: 'macos', label: 'macOS', color: '#a855f7' },
-              { value: 'cloud', label: 'Cloud', color: '#06b6d4' },
-              { value: 'network', label: 'Network', color: '#22c55e' },
-              { value: 'email', label: 'Email', color: '#ec4899' },
-            ].map((platform) => (
-              <label
-                key={platform.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.platforms?.includes(platform.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('platforms', platform.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: platform.color }}
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
-                  {platform.label}
-                </span>
-              </label>
-            ))}
+          <div className="mt-2 space-y-3">
+            {/* Endpoint */}
+            <div>
+              <div className="text-[10px] font-mono text-gray-600 uppercase mb-1 px-2">Endpoint</div>
+              <div className="space-y-1">
+                {[
+                  { value: 'windows', label: 'Windows', color: '#3b82f6' },
+                  { value: 'linux', label: 'Linux', color: '#f97316' },
+                  { value: 'macos', label: 'macOS', color: '#a855f7' },
+                ].map((platform) => (
+                  <label
+                    key={platform.value}
+                    className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.platforms?.includes(platform.value) || false}
+                      onChange={(e) => handleMultiSelect('platforms', platform.value, e.target.checked)}
+                      className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                    />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
+                    <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{platform.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Cloud */}
+            <div>
+              <div className="text-[10px] font-mono text-gray-600 uppercase mb-1 px-2">Cloud</div>
+              <div className="space-y-1">
+                {[
+                  { value: 'aws', label: 'AWS', color: '#ff9900' },
+                  { value: 'azure', label: 'Azure', color: '#0078d4' },
+                  { value: 'gcp', label: 'Google Cloud', color: '#4285f4' },
+                ].map((platform) => (
+                  <label
+                    key={platform.value}
+                    className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.platforms?.includes(platform.value) || false}
+                      onChange={(e) => handleMultiSelect('platforms', platform.value, e.target.checked)}
+                      className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                    />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
+                    <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{platform.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* SaaS */}
+            <div>
+              <div className="text-[10px] font-mono text-gray-600 uppercase mb-1 px-2">SaaS / Identity</div>
+              <div className="space-y-1">
+                {[
+                  { value: 'microsoft_365', label: 'Microsoft 365', color: '#dc3e15' },
+                  { value: 'okta', label: 'Okta', color: '#007dc1' },
+                  { value: 'google_workspace', label: 'Google Workspace', color: '#34a853' },
+                  { value: 'duo', label: 'Cisco Duo', color: '#6db33f' },
+                  { value: 'github', label: 'GitHub', color: '#6e5494' },
+                ].map((platform) => (
+                  <label
+                    key={platform.value}
+                    className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.platforms?.includes(platform.value) || false}
+                      onChange={(e) => handleMultiSelect('platforms', platform.value, e.target.checked)}
+                      className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                    />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
+                    <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{platform.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Network */}
+            <div>
+              <div className="text-[10px] font-mono text-gray-600 uppercase mb-1 px-2">Network Security</div>
+              <div className="space-y-1">
+                {[
+                  { value: 'palo_alto', label: 'Palo Alto', color: '#fa582d' },
+                  { value: 'fortigate', label: 'FortiGate', color: '#ee3124' },
+                  { value: 'cisco_asa', label: 'Cisco ASA', color: '#049fd9' },
+                  { value: 'zscaler', label: 'Zscaler', color: '#0090d9' },
+                  { value: 'zeek', label: 'Zeek', color: '#22c55e' },
+                ].map((platform) => (
+                  <label
+                    key={platform.value}
+                    className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.platforms?.includes(platform.value) || false}
+                      onChange={(e) => handleMultiSelect('platforms', platform.value, e.target.checked)}
+                      className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                    />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
+                    <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{platform.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Email */}
+            <div>
+              <div className="text-[10px] font-mono text-gray-600 uppercase mb-1 px-2">Email Security</div>
+              <div className="space-y-1">
+                {[
+                  { value: 'exchange', label: 'Microsoft Exchange', color: '#0078d4' },
+                  { value: 'proofpoint', label: 'Proofpoint', color: '#f5821f' },
+                  { value: 'mimecast', label: 'Mimecast', color: '#00a4e4' },
+                ].map((platform) => (
+                  <label
+                    key={platform.value}
+                    className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.platforms?.includes(platform.value) || false}
+                      onChange={(e) => handleMultiSelect('platforms', platform.value, e.target.checked)}
+                      className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                    />
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: platform.color }} />
+                    <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{platform.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Event Category filter */}
+      {/* Event Category filter - Telemetry types */}
       <div className="mb-3">
         <SectionHeader title="Event Category" section="eventcategory" count={filters.event_categories?.length} />
         {expandedSections.has('eventcategory') && (
           <div className="space-y-1 mt-2">
             {[
-              { value: 'process', label: 'Process' },
-              { value: 'file', label: 'File' },
-              { value: 'network', label: 'Network' },
-              { value: 'registry', label: 'Registry' },
+              { value: 'process', label: 'Process Activity' },
+              { value: 'file', label: 'File Activity' },
+              { value: 'network_connection', label: 'Network Connections' },
+              { value: 'dns', label: 'DNS Activity' },
+              { value: 'http', label: 'Web/HTTP Traffic' },
+              { value: 'firewall', label: 'Firewall Events' },
+              { value: 'registry', label: 'Registry Activity' },
               { value: 'authentication', label: 'Authentication' },
-              { value: 'persistence', label: 'Persistence' },
+              { value: 'api_activity', label: 'API Activity' },
+              { value: 'email', label: 'Email Events' },
+              { value: 'identity_management', label: 'Identity Management' },
+              { value: 'scheduled_task', label: 'Scheduled Tasks' },
+              { value: 'service', label: 'Service Events' },
             ].map((category) => (
               <label
                 key={category.value}
@@ -430,7 +537,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                   }
                   className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
                 />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
+                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
                   {category.label}
                 </span>
               </label>
