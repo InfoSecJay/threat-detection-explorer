@@ -75,7 +75,9 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.languages?.length || 0) > 0 ||
     (filters.mitre_tactics?.length || 0) > 0 ||
     (filters.mitre_techniques?.length || 0) > 0 ||
-    (filters.log_sources?.length || 0) > 0;
+    (filters.log_sources?.length || 0) > 0 ||
+    (filters.platforms?.length || 0) > 0 ||
+    (filters.event_categories?.length || 0) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -361,6 +363,78 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 ))}
               </div>
             ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Platform filter */}
+      <div className="mb-3">
+        <SectionHeader title="Platform" section="platform" count={filters.platforms?.length} />
+        {expandedSections.has('platform') && (
+          <div className="space-y-1 mt-2">
+            {[
+              { value: 'windows', label: 'Windows', color: '#3b82f6' },
+              { value: 'linux', label: 'Linux', color: '#f97316' },
+              { value: 'macos', label: 'macOS', color: '#a855f7' },
+              { value: 'cloud', label: 'Cloud', color: '#06b6d4' },
+              { value: 'network', label: 'Network', color: '#22c55e' },
+              { value: 'email', label: 'Email', color: '#ec4899' },
+            ].map((platform) => (
+              <label
+                key={platform.value}
+                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.platforms?.includes(platform.value) || false}
+                  onChange={(e) =>
+                    handleMultiSelect('platforms', platform.value, e.target.checked)
+                  }
+                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: platform.color }}
+                />
+                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
+                  {platform.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Event Category filter */}
+      <div className="mb-3">
+        <SectionHeader title="Event Category" section="eventcategory" count={filters.event_categories?.length} />
+        {expandedSections.has('eventcategory') && (
+          <div className="space-y-1 mt-2">
+            {[
+              { value: 'process', label: 'Process' },
+              { value: 'file', label: 'File' },
+              { value: 'network', label: 'Network' },
+              { value: 'registry', label: 'Registry' },
+              { value: 'authentication', label: 'Authentication' },
+              { value: 'persistence', label: 'Persistence' },
+            ].map((category) => (
+              <label
+                key={category.value}
+                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.event_categories?.includes(category.value) || false}
+                  onChange={(e) =>
+                    handleMultiSelect('event_categories', category.value, e.target.checked)
+                  }
+                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                />
+                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
+                  {category.label}
+                </span>
+              </label>
+            ))}
           </div>
         )}
       </div>

@@ -140,8 +140,9 @@ class SearchService:
         Returns:
             Dict mapping source name to list of detections
         """
+        # Use text-based matching for cross-database compatibility (SQLite + PostgreSQL)
         query = select(Detection).where(
-            Detection.mitre_techniques.contains([technique])
+            cast(Detection.mitre_techniques, String).ilike(f'%"{technique}"%')
         )
 
         if sources:
@@ -298,12 +299,12 @@ class SearchService:
             conditions.append(Detection.language.in_(filters.languages))
 
         # MITRE tactics filter
+        # Use text-based matching for cross-database compatibility (SQLite + PostgreSQL)
         if filters.mitre_tactics:
-            # Check if any of the specified tactics are in the array
             tactic_conditions = []
             for tactic in filters.mitre_tactics:
                 tactic_conditions.append(
-                    Detection.mitre_tactics.contains([tactic])
+                    cast(Detection.mitre_tactics, String).ilike(f'%"{tactic}"%')
                 )
             if tactic_conditions:
                 conditions.append(or_(*tactic_conditions))
@@ -313,7 +314,7 @@ class SearchService:
             technique_conditions = []
             for technique in filters.mitre_techniques:
                 technique_conditions.append(
-                    Detection.mitre_techniques.contains([technique])
+                    cast(Detection.mitre_techniques, String).ilike(f'%"{technique}"%')
                 )
             if technique_conditions:
                 conditions.append(or_(*technique_conditions))
@@ -322,7 +323,9 @@ class SearchService:
         if filters.tags:
             tag_conditions = []
             for tag in filters.tags:
-                tag_conditions.append(Detection.tags.contains([tag]))
+                tag_conditions.append(
+                    cast(Detection.tags, String).ilike(f'%"{tag}"%')
+                )
             if tag_conditions:
                 conditions.append(or_(*tag_conditions))
 
@@ -331,7 +334,7 @@ class SearchService:
             log_source_conditions = []
             for log_source in filters.log_sources:
                 log_source_conditions.append(
-                    Detection.log_sources.contains([log_source])
+                    cast(Detection.log_sources, String).ilike(f'%{log_source}%')
                 )
             if log_source_conditions:
                 conditions.append(or_(*log_source_conditions))
