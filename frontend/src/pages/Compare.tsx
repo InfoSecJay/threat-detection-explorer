@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { RuleComparison } from '../components/RuleComparison';
 import { ComparisonCharts } from '../components/ComparisonCharts';
+import { TechniqueAutocomplete } from '../components/TechniqueAutocomplete';
 import { useCompare, useCoverageGap } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
 
@@ -166,16 +167,18 @@ export function Compare() {
                   </option>
                 ))}
               </select>
+            ) : queryType === 'technique' ? (
+              <TechniqueAutocomplete
+                value={queryValue}
+                onChange={setQueryValue}
+                placeholder="Search by technique ID or name (e.g., T1059 or 'powershell')"
+              />
             ) : (
               <input
                 type="text"
                 value={queryValue}
                 onChange={(e) => setQueryValue(e.target.value)}
-                placeholder={
-                  queryType === 'technique'
-                    ? 'Enter technique ID (e.g., T1059)'
-                    : 'Enter keyword (e.g., powershell, 4688)'
-                }
+                placeholder="Enter keyword (e.g., powershell, 4688)"
                 className="flex-1 px-4 py-3 bg-void-900 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50"
               />
             )}
