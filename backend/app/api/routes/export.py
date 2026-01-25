@@ -47,10 +47,15 @@ async def export_detections(
                 sources=request.filters.sources,
                 statuses=request.filters.statuses,
                 severities=request.filters.severities,
+                languages=request.filters.languages,
                 mitre_tactics=request.filters.mitre_tactics,
                 mitre_techniques=request.filters.mitre_techniques,
                 tags=request.filters.tags,
                 log_sources=request.filters.log_sources,
+                # Standardized taxonomy filters
+                platforms=request.filters.platforms,
+                event_categories=request.filters.event_categories,
+                data_sources_normalized=request.filters.data_sources_normalized,
                 offset=0,
                 limit=100000,  # Large limit for export
             )
