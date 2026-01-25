@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { useReleaseSources, useReleases } from '../hooks/useReleases';
+import { useReleases } from '../hooks/useReleases';
 import { useTrendingTechniques, useTrendingPlatforms, useTrendingSummary } from '../hooks/useTrending';
 import { useMitre } from '../contexts/MitreContext';
+import type { Release } from '../services/api';
 
 // Source display names and colors
-const sourceConfig: Record<string, { name: string; color: string; bgColor: string }> = {
-  sigma: { name: 'SigmaHQ', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-  elastic: { name: 'Elastic', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
-  splunk: { name: 'Splunk', color: 'text-green-400', bgColor: 'bg-green-500/20' },
+const sourceConfig: Record<string, { name: string; color: string; bgColor: string; borderColor: string }> = {
+  sigma: { name: 'SigmaHQ', color: 'text-blue-400', bgColor: 'bg-blue-500/20', borderColor: 'border-blue-500/30' },
+  elastic: { name: 'Elastic', color: 'text-amber-400', bgColor: 'bg-amber-500/20', borderColor: 'border-amber-500/30' },
+  splunk: { name: 'Splunk', color: 'text-green-400', bgColor: 'bg-green-500/20', borderColor: 'border-green-500/30' },
+  sublime: { name: 'Sublime', color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30' },
+  elastic_protections: { name: 'Elastic Protections', color: 'text-orange-400', bgColor: 'bg-orange-500/20', borderColor: 'border-orange-500/30' },
+  lolrmm: { name: 'LOLRMM', color: 'text-pink-400', bgColor: 'bg-pink-500/20', borderColor: 'border-pink-500/30' },
 };
 
 // Time period options
@@ -20,84 +24,183 @@ const periodOptions = [
   { value: 365, label: '1 Year' },
 ];
 
-function ReleaseCard({ source }: { source: string }) {
-  const { data: releases, isLoading, error } = useReleases(source, 3);
-  const config = sourceConfig[source] || { name: source, color: 'text-gray-400', bgColor: 'bg-gray-500/20' };
+interface ReleaseWithSource extends Release {
+  source: string;
+}
+
+function UnifiedReleaseFeed() {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+
+  // Fetch releases from all sources
+  const { data: sigmaReleases, isLoading: sigmaLoading } = useReleases('sigma', 5);
+  const { data: elasticReleases, isLoading: elasticLoading } = useReleases('elastic', 5);
+  const { data: splunkReleases, isLoading: splunkLoading } = useReleases('splunk', 5);
+
+  const isLoading = sigmaLoading || elasticLoading || splunkLoading;
+
+  // Combine and sort releases by date
+  const allReleases = useMemo(() => {
+    const releases: ReleaseWithSource[] = [];
+
+    if (sigmaReleases) {
+      releases.push(...sigmaReleases.map((r) => ({ ...r, source: 'sigma' })));
+    }
+    if (elasticReleases) {
+      releases.push(...elasticReleases.map((r) => ({ ...r, source: 'elastic' })));
+    }
+    if (splunkReleases) {
+      releases.push(...splunkReleases.map((r) => ({ ...r, source: 'splunk' })));
+    }
+
+    // Sort by date descending
+    return releases.sort(
+      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+    );
+  }, [sigmaReleases, elasticReleases, splunkReleases]);
+
+  // Filter releases
+  const filteredReleases = useMemo(() => {
+    if (sourceFilter === 'all') return allReleases;
+    return allReleases.filter((r) => r.source === sourceFilter);
+  }, [allReleases, sourceFilter]);
 
   if (isLoading) {
     return (
-      <div className="bg-void-850 border border-void-700 p-4 animate-pulse">
-        <div className="h-6 bg-void-700 rounded w-1/3 mb-4"></div>
-        <div className="space-y-3">
-          <div className="h-4 bg-void-700 rounded w-full"></div>
-          <div className="h-4 bg-void-700 rounded w-2/3"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-void-850 border border-breach-500/30 p-4">
-        <h3 className={`font-display font-semibold ${config.color} mb-2`}>{config.name}</h3>
-        <p className="text-sm text-breach-400">Failed to load releases</p>
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="bg-void-850 border border-void-700 p-4 animate-pulse">
+            <div className="flex gap-3">
+              <div className="h-6 w-20 bg-void-700 rounded"></div>
+              <div className="h-6 w-24 bg-void-700 rounded"></div>
+              <div className="h-6 flex-1 bg-void-700 rounded"></div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
 
   return (
-    <div
-      className="bg-void-850 border border-void-700 overflow-hidden"
-      style={{
-        clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-      }}
-    >
-      {/* Header */}
-      <div className={`px-4 py-3 ${config.bgColor} border-b border-void-700`}>
-        <h3 className={`font-display font-semibold ${config.color} uppercase tracking-wide`}>
-          {config.name}
-        </h3>
-      </div>
-
-      {/* Releases */}
-      <div className="divide-y divide-void-700">
-        {releases?.map((release) => (
-          <div key={release.id} className="p-4 hover:bg-void-800/50 transition-colors">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <a
-                href={release.html_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-sm text-matrix-500 hover:text-matrix-400 transition-colors"
-              >
-                {release.tag_name}
-              </a>
-              <span className="text-xs text-gray-500 font-mono whitespace-nowrap">
-                {new Date(release.published_at).toLocaleDateString()}
-              </span>
-            </div>
-            <h4 className="text-sm text-white font-medium mb-2 line-clamp-1">
-              {release.name}
-            </h4>
-            {release.body && (
-              <div className="text-xs text-gray-400 line-clamp-3 prose prose-invert prose-xs max-w-none">
-                <ReactMarkdown>{release.body.slice(0, 300)}</ReactMarkdown>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* View all link */}
-      <div className="px-4 py-2 bg-void-900 border-t border-void-700">
-        <a
-          href={`https://github.com/${source === 'sigma' ? 'SigmaHQ/sigma' : source === 'elastic' ? 'elastic/detection-rules' : 'splunk/security_content'}/releases`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-mono text-gray-500 hover:text-matrix-500 transition-colors"
+    <div className="space-y-4">
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        <button
+          onClick={() => setSourceFilter('all')}
+          className={`px-3 py-1.5 text-xs font-mono uppercase transition-colors ${
+            sourceFilter === 'all'
+              ? 'bg-matrix-500/20 text-matrix-400 border border-matrix-500/30'
+              : 'bg-void-800 text-gray-400 border border-void-600 hover:text-white'
+          }`}
         >
-          VIEW_ALL_RELEASES &rarr;
-        </a>
+          All Sources
+        </button>
+        {['sigma', 'elastic', 'splunk'].map((source) => {
+          const config = sourceConfig[source];
+          return (
+            <button
+              key={source}
+              onClick={() => setSourceFilter(source)}
+              className={`px-3 py-1.5 text-xs font-mono uppercase transition-colors ${
+                sourceFilter === source
+                  ? `${config.bgColor} ${config.color} border ${config.borderColor}`
+                  : 'bg-void-800 text-gray-400 border border-void-600 hover:text-white'
+              }`}
+            >
+              {config.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Release List */}
+      <div className="space-y-3">
+        {filteredReleases.map((release) => {
+          const config = sourceConfig[release.source] || sourceConfig.sigma;
+          const isExpanded = expandedId === release.id;
+
+          return (
+            <div
+              key={`${release.source}-${release.id}`}
+              className={`bg-void-850 border transition-all ${
+                isExpanded ? config.borderColor : 'border-void-700'
+              }`}
+              style={{
+                clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))',
+              }}
+            >
+              {/* Header - Always visible */}
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : release.id)}
+                className="w-full p-4 text-left hover:bg-void-800/50 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  {/* Source Badge */}
+                  <span
+                    className={`px-2 py-0.5 text-xs font-mono uppercase ${config.bgColor} ${config.color} border ${config.borderColor} flex-shrink-0`}
+                  >
+                    {config.name}
+                  </span>
+
+                  {/* Tag */}
+                  <a
+                    href={release.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-mono text-sm text-matrix-500 hover:text-matrix-400 transition-colors flex-shrink-0"
+                  >
+                    {release.tag_name}
+                  </a>
+
+                  {/* Title */}
+                  <span className="text-sm text-white truncate flex-1">
+                    {release.name}
+                  </span>
+
+                  {/* Date */}
+                  <span className="text-xs text-gray-500 font-mono flex-shrink-0">
+                    {new Date(release.published_at).toLocaleDateString()}
+                  </span>
+
+                  {/* Expand icon */}
+                  <svg
+                    className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                      isExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Expanded Content */}
+              {isExpanded && release.body && (
+                <div className="px-4 pb-4 border-t border-void-700">
+                  <div className="pt-4 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-a:text-matrix-500 prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:rounded">
+                    <ReactMarkdown>{release.body}</ReactMarkdown>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-void-700 flex items-center justify-between">
+                    <span className="text-xs font-mono text-gray-500">
+                      {release.author && `Published by ${release.author}`}
+                    </span>
+                    <a
+                      href={release.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
+                    >
+                      VIEW_ON_GITHUB &rarr;
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -273,11 +376,14 @@ function ActivitySummary({ days }: { days: number }) {
     return null;
   }
 
+  // Sort sources by count descending
+  const sortedSources = Object.entries(data.by_source).sort((a, b) => b[1] - a[1]);
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div className="flex flex-wrap gap-4 mb-8">
       {/* Total Modified */}
       <div
-        className="bg-void-850 border border-void-700 p-4"
+        className="bg-void-850 border border-void-700 p-4 min-w-[160px]"
         style={{
           clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
         }}
@@ -289,35 +395,31 @@ function ActivitySummary({ days }: { days: number }) {
         <div className="text-xs text-gray-500">in last {days} days</div>
       </div>
 
-      {/* By Source */}
-      {Object.entries(data.by_source)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([source, count]) => {
-          const config = sourceConfig[source] || { name: source, color: 'text-gray-400' };
-          return (
-            <div
-              key={source}
-              className="bg-void-850 border border-void-700 p-4"
-              style={{
-                clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-              }}
-            >
-              <div className="text-xs font-mono text-gray-500 mb-1 uppercase">{config.name}</div>
-              <div className={`text-2xl font-display font-bold ${config.color}`}>
-                {count.toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-500">rules updated</div>
+      {/* All Sources with data */}
+      {sortedSources.map(([source, count]) => {
+        const config = sourceConfig[source] || { name: source, color: 'text-gray-400' };
+        return (
+          <div
+            key={source}
+            className="bg-void-850 border border-void-700 p-4 min-w-[140px]"
+            style={{
+              clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+            }}
+          >
+            <div className="text-xs font-mono text-gray-500 mb-1 uppercase">{config.name}</div>
+            <div className={`text-2xl font-display font-bold ${config.color}`}>
+              {count.toLocaleString()}
             </div>
-          );
-        })}
+            <div className="text-xs text-gray-500">rules updated</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export function IndustryIntel() {
   const [trendingPeriod, setTrendingPeriod] = useState(90);
-  const { data: sources } = useReleaseSources();
 
   return (
     <div className="space-y-8">
@@ -345,11 +447,7 @@ export function IndustryIntel() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {(sources || [{ id: 'sigma' }, { id: 'elastic' }, { id: 'splunk' }]).map((source) => (
-            <ReleaseCard key={source.id} source={source.id} />
-          ))}
-        </div>
+        <UnifiedReleaseFeed />
       </section>
 
       {/* Trending Section */}
@@ -423,7 +521,7 @@ export function IndustryIntel() {
       </section>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-xs font-mono text-gray-500">
+      <div className="flex items-center justify-center gap-6 text-xs font-mono text-gray-500 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-500"></span>
           <span>SigmaHQ</span>
@@ -439,6 +537,14 @@ export function IndustryIntel() {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-purple-500"></span>
           <span>Sublime</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+          <span>Elastic Protections</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+          <span>LOLRMM</span>
         </div>
       </div>
     </div>
