@@ -5,6 +5,7 @@ import { DetectionList } from './pages/DetectionList';
 import { DetectionDetail } from './pages/DetectionDetail';
 import { Compare } from './pages/Compare';
 import { SideBySide } from './pages/SideBySide';
+import { IndustryIntel } from './pages/IndustryIntel';
 import { About } from './pages/About';
 import { ChangeLog } from './pages/ChangeLog';
 import { Integrations } from './pages/Integrations';
@@ -210,6 +211,7 @@ function App() {
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/compare">Compare</NavLink>
+              <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
                 items={[
@@ -239,6 +241,7 @@ function App() {
           <Route path="/detections/:id" element={<DetectionDetail />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/compare/side-by-side" element={<SideBySide />} />
+          <Route path="/intel" element={<IndustryIntel />} />
           <Route path="/about" element={<About />} />
           <Route path="/changelog" element={<ChangeLog />} />
           <Route path="/integrations" element={<Integrations />} />

@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import init_db
 # Import models to register them with SQLAlchemy Base before init_db
 from app.models import Detection, Repository, SyncJob  # noqa: F401
-from app.api.routes import detections, repositories, export, compare, releases, mitre, scheduler as scheduler_routes
+from app.api.routes import detections, repositories, export, compare, releases, mitre, scheduler as scheduler_routes, trending
 from app.services.scheduler import scheduler
 
 logger = logging.getLogger(__name__)
@@ -69,3 +69,4 @@ app.include_router(compare.router, prefix=settings.api_prefix)
 app.include_router(releases.router, prefix=settings.api_prefix)
 app.include_router(mitre.router, prefix=settings.api_prefix)
 app.include_router(scheduler_routes.router, prefix=settings.api_prefix)
+app.include_router(trending.router, prefix=settings.api_prefix)

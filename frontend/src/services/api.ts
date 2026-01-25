@@ -239,4 +239,56 @@ export const releasesApi = {
   },
 };
 
+// Trending types
+export interface TrendingTechnique {
+  technique_id: string;
+  count: number;
+  sources: string[];
+  latest_date: string | null;
+}
+
+export interface TrendingPlatform {
+  platform: string;
+  count: number;
+  sources: string[];
+  latest_date: string | null;
+}
+
+export interface TrendingTechniquesResponse {
+  period_days: number;
+  cutoff_date: string;
+  techniques: TrendingTechnique[];
+}
+
+export interface TrendingPlatformsResponse {
+  period_days: number;
+  cutoff_date: string;
+  platforms: TrendingPlatform[];
+}
+
+export interface TrendingSummaryResponse {
+  period_days: number;
+  cutoff_date: string;
+  total_modified: number;
+  by_source: Record<string, number>;
+}
+
+// Trending endpoints
+export const trendingApi = {
+  getTechniques: async (days: number = 90, limit: number = 15): Promise<TrendingTechniquesResponse> => {
+    const response = await api.get(`/trending/techniques?days=${days}&limit=${limit}`);
+    return response.data;
+  },
+
+  getPlatforms: async (days: number = 90, limit: number = 15): Promise<TrendingPlatformsResponse> => {
+    const response = await api.get(`/trending/platforms?days=${days}&limit=${limit}`);
+    return response.data;
+  },
+
+  getSummary: async (days: number = 90): Promise<TrendingSummaryResponse> => {
+    const response = await api.get(`/trending/summary?days=${days}`);
+    return response.data;
+  },
+};
+
 export default api;
