@@ -64,40 +64,76 @@ export function DetectionList() {
 
   if (error) {
     return (
-      <div className="bg-red-500/20 text-red-400 border border-red-500/30 p-4 rounded-lg">
-        Error loading detections: {error.message}
+      <div className="bg-breach-500/10 text-breach-400 border border-breach-500/30 p-6"
+        style={{
+          clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="font-mono text-sm">ERROR: {error.message}</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {/* Page Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Detection Rules</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
+            Detection Rules
+          </h1>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600">
+            <span className="w-2 h-2 bg-matrix-500 rounded-full animate-pulse" />
+            <span className="text-xs font-mono text-gray-400">
+              {data?.total.toLocaleString() || '...'} <span className="text-gray-500">RULES</span>
+            </span>
+          </div>
+        </div>
         <button
           onClick={() => setIsExportModalOpen(true)}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors"
+          className="px-4 py-2 bg-pulse-500 text-void-950 font-display font-semibold text-sm uppercase tracking-wider hover:bg-pulse-400 transition-colors"
+          style={{
+            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+          }}
         >
-          Export
+          <span className="flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export
+          </span>
         </button>
       </div>
 
-      {/* Full-width search bar */}
+      {/* Search Bar */}
       <form onSubmit={handleSearchSubmit} className="mb-6">
         <div className="flex gap-3">
           <div className="flex-1 relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by title, description, detection logic, author..."
-              className="w-full px-4 py-3 bg-cyber-850 border border-cyber-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 pr-10"
+              className="w-full pl-12 pr-10 py-3 bg-void-850 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50 transition-all"
+              style={{
+                clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+              }}
             />
             {searchInput && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-matrix-500 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -107,26 +143,30 @@ export function DetectionList() {
           </div>
           <button
             type="submit"
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-400 hover:to-blue-400 transition-all font-medium"
+            className="btn-primary px-8"
           >
             Search
           </button>
         </div>
         {filters.search && (
-          <p className="mt-2 text-sm text-gray-400">
-            Showing results for: <span className="text-cyan-400">"{filters.search}"</span>
+          <p className="mt-3 text-sm font-mono text-gray-500">
+            <span className="text-gray-600">[</span>
+            QUERY
+            <span className="text-gray-600">]</span>
+            {' '}<span className="text-matrix-500">"{filters.search}"</span>
           </p>
         )}
       </form>
 
+      {/* Main Content Area */}
       <div className="flex gap-6">
-        {/* Filters sidebar */}
+        {/* Filters Sidebar */}
         <div className="w-64 flex-shrink-0">
           <FilterPanel filters={filters} onFiltersChange={setFilters} />
         </div>
 
-        {/* Detection list */}
-        <div className="flex-1">
+        {/* Detection List */}
+        <div className="flex-1 min-w-0">
           <RuleList
             detections={data?.items || []}
             total={data?.total || 0}

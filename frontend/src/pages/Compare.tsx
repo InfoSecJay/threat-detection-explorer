@@ -48,51 +48,68 @@ export function Compare() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Cross-Vendor Comparison</h1>
-          <p className="text-gray-400 mt-1">
-            Compare detection coverage across all vendors
+          <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
+            Cross-Vendor Comparison
+          </h1>
+          <p className="text-sm text-gray-500 mt-1 font-mono">
+            COMPARE DETECTION COVERAGE ACROSS ALL SOURCES
           </p>
         </div>
         <Link
           to="/compare/side-by-side"
-          className="px-4 py-2 bg-cyber-800 border border-cyber-600 text-gray-300 rounded-lg hover:bg-cyber-700 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
+          className="px-4 py-2 bg-void-800 border border-void-600 text-gray-300 font-display text-sm uppercase tracking-wider hover:bg-void-700 hover:text-matrix-500 hover:border-matrix-500/30 transition-all"
+          style={{
+            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+          }}
         >
-          Side-by-Side Comparison
+          Side-by-Side
         </Link>
       </div>
 
-      {/* Search form */}
-      <div className="bg-cyber-850 rounded-lg border border-cyber-700 p-6">
+      {/* Search Form */}
+      <div
+        className="bg-void-850 border border-void-700 p-6"
+        style={{
+          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
+        }}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex gap-4">
-            <label className="flex items-center text-gray-300 cursor-pointer">
+          {/* Query Type Selection */}
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 cursor-pointer group">
               <input
                 type="radio"
                 name="queryType"
                 value="technique"
                 checked={queryType === 'technique'}
                 onChange={() => setQueryType('technique')}
-                className="mr-2 text-cyan-500 bg-cyber-900 border-cyber-600 focus:ring-cyan-500"
+                className="w-4 h-4 text-matrix-500 bg-void-900 border-void-600 focus:ring-matrix-500/50"
               />
-              MITRE Technique
+              <span className="text-sm text-gray-400 group-hover:text-white transition-colors font-display uppercase tracking-wide">
+                MITRE Technique
+              </span>
             </label>
-            <label className="flex items-center text-gray-300 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer group">
               <input
                 type="radio"
                 name="queryType"
                 value="keyword"
                 checked={queryType === 'keyword'}
                 onChange={() => setQueryType('keyword')}
-                className="mr-2 text-cyan-500 bg-cyber-900 border-cyber-600 focus:ring-cyan-500"
+                className="w-4 h-4 text-matrix-500 bg-void-900 border-void-600 focus:ring-matrix-500/50"
               />
-              Keyword
+              <span className="text-sm text-gray-400 group-hover:text-white transition-colors font-display uppercase tracking-wide">
+                Keyword
+              </span>
             </label>
           </div>
 
-          <div className="flex gap-2">
+          {/* Search Input */}
+          <div className="flex gap-3">
             <input
               type="text"
               value={queryValue}
@@ -102,21 +119,21 @@ export function Compare() {
                   ? 'Enter technique ID (e.g., T1059)'
                   : 'Enter keyword (e.g., powershell, 4688)'
               }
-              className="flex-1 px-4 py-2 bg-cyber-900 border border-cyber-700 rounded-lg text-white placeholder-gray-500 focus:ring-cyan-500 focus:border-cyan-500"
+              className="flex-1 px-4 py-3 bg-void-900 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50"
             />
             <button
               type="submit"
               disabled={!queryValue.trim()}
-              className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-400 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Compare
             </button>
           </div>
         </form>
 
-        {/* Quick technique suggestions */}
-        <div className="mt-4">
-          <p className="text-sm text-gray-500 mb-2">Popular techniques:</p>
+        {/* Quick Technique Suggestions */}
+        <div className="mt-6 pt-4 border-t border-void-700">
+          <p className="text-xs font-mono text-gray-500 mb-3">POPULAR_TECHNIQUES:</p>
           <div className="flex flex-wrap gap-2">
             {['T1059', 'T1055', 'T1027', 'T1105', 'T1053'].map((tech) => {
               const name = getTechniqueName(tech);
@@ -129,10 +146,10 @@ export function Compare() {
                     setSubmittedQuery({ technique: tech, keyword: undefined });
                     setSearchParams({ technique: tech });
                   }}
-                  className="px-3 py-1.5 bg-cyber-700 text-gray-300 rounded-full text-sm hover:bg-cyber-600 hover:text-cyan-400 transition-colors flex items-center gap-2"
+                  className="px-3 py-1.5 bg-void-800 text-gray-300 border border-void-600 text-sm hover:bg-void-700 hover:text-matrix-500 hover:border-matrix-500/30 transition-all flex items-center gap-2"
                 >
-                  <span className="font-mono">{tech}</span>
-                  {name && <span className="text-gray-400">- {name}</span>}
+                  <span className="font-mono text-matrix-500">{tech}</span>
+                  {name && <span className="text-gray-500 text-xs">- {name}</span>}
                 </button>
               );
             })}
@@ -140,20 +157,35 @@ export function Compare() {
         </div>
       </div>
 
-      {/* Comparison results */}
+      {/* Loading State */}
       {compareLoading && (
-        <div className="text-center py-8">
-          <div className="animate-spin h-8 w-8 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto"></div>
-          <p className="mt-2 text-gray-400">Loading comparison...</p>
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 border-2 border-matrix-500/30 rounded-full"></div>
+            <div className="absolute inset-0 border-2 border-transparent border-t-matrix-500 rounded-full animate-spin"></div>
+          </div>
+          <p className="mt-4 text-sm font-mono text-gray-500">COMPARING_SOURCES...</p>
         </div>
       )}
 
+      {/* Error State */}
       {compareError && (
-        <div className="bg-red-500/20 text-red-400 border border-red-500/30 p-4 rounded-lg">
-          Error: {compareError.message}
+        <div
+          className="bg-breach-500/10 border border-breach-500/30 p-6"
+          style={{
+            clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-breach-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="font-mono text-sm text-breach-400">ERROR: {compareError.message}</span>
+          </div>
         </div>
       )}
 
+      {/* Comparison Results */}
       {compareData && <RuleComparison data={compareData} />}
 
       {/* Comparison Charts */}
@@ -161,29 +193,42 @@ export function Compare() {
         <ComparisonCharts data={compareData} />
       )}
 
-      {/* Coverage gap analysis */}
-      <div className="bg-cyber-850 rounded-lg border border-cyber-700 p-6">
+      {/* Coverage Gap Analysis */}
+      <div
+        className="bg-void-850 border border-void-700 p-6"
+        style={{
+          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
+        }}
+      >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Coverage Gap Analysis</h2>
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">
+              Coverage Gap Analysis
+            </h2>
+          </div>
           <button
             onClick={() => setShowGapAnalysis(!showGapAnalysis)}
-            className="text-cyan-400 hover:text-cyan-300 transition-colors"
+            className="text-sm font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
           >
-            {showGapAnalysis ? 'Hide' : 'Show'}
+            {showGapAnalysis ? '[ HIDE ]' : '[ SHOW ]'}
           </button>
         </div>
 
         {showGapAnalysis && (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Source Selection */}
             <div className="flex items-center gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">
-                  Base Source
+                <label className="block text-xs font-mono text-gray-500 mb-1.5">
+                  BASE_SOURCE
                 </label>
                 <select
                   value={gapBaseSource}
                   onChange={(e) => setGapBaseSource(e.target.value)}
-                  className="px-3 py-2 bg-cyber-900 border border-cyber-700 rounded-md text-white"
+                  className="px-3 py-2 bg-void-900 border border-void-700 text-white text-sm focus:ring-matrix-500/50 focus:border-matrix-500/50"
                 >
                   <option value="sigma">Sigma</option>
                   <option value="elastic">Elastic</option>
@@ -193,15 +238,15 @@ export function Compare() {
                   <option value="lolrmm">LOLRMM</option>
                 </select>
               </div>
-              <div className="pt-6 text-gray-500">vs</div>
+              <div className="pt-5 text-gray-600 font-display">VS</div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">
-                  Compare Source
+                <label className="block text-xs font-mono text-gray-500 mb-1.5">
+                  COMPARE_SOURCE
                 </label>
                 <select
                   value={gapCompareSource}
                   onChange={(e) => setGapCompareSource(e.target.value)}
-                  className="px-3 py-2 bg-cyber-900 border border-cyber-700 rounded-md text-white"
+                  className="px-3 py-2 bg-void-900 border border-void-700 text-white text-sm focus:ring-matrix-500/50 focus:border-matrix-500/50"
                 >
                   <option value="sigma">Sigma</option>
                   <option value="elastic">Elastic</option>
@@ -213,28 +258,56 @@ export function Compare() {
               </div>
             </div>
 
-            {gapLoading && <p className="text-gray-400">Loading gap analysis...</p>}
+            {/* Loading */}
+            {gapLoading && (
+              <p className="text-sm font-mono text-gray-500">ANALYZING_COVERAGE...</p>
+            )}
 
+            {/* Gap Results */}
             {gapData && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                  <h4 className="font-semibold text-green-400">Overlapping Coverage</h4>
-                  <p className="text-2xl font-bold text-green-300">
-                    {gapData.overlap_count} techniques
-                  </p>
-                </div>
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <h4 className="font-semibold text-red-400">
-                    Gaps ({gapBaseSource} only)
-                  </h4>
-                  <p className="text-2xl font-bold text-red-300">
-                    {gapData.gaps.length} techniques
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Overlap Card */}
+                <div
+                  className="p-5 bg-pulse-500/5 border border-pulse-500/30"
+                  style={{
+                    clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 bg-pulse-500 rounded-full"></span>
+                    <h4 className="font-display font-semibold text-pulse-400 text-sm uppercase tracking-wide">
+                      Overlapping Coverage
+                    </h4>
+                  </div>
+                  <p className="text-3xl font-display font-bold text-pulse-500">
+                    {gapData.overlap_count}
+                    <span className="text-sm font-mono text-pulse-400/60 ml-2">techniques</span>
                   </p>
                 </div>
 
+                {/* Gaps Card */}
+                <div
+                  className="p-5 bg-breach-500/5 border border-breach-500/30"
+                  style={{
+                    clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 bg-breach-500 rounded-full"></span>
+                    <h4 className="font-display font-semibold text-breach-400 text-sm uppercase tracking-wide">
+                      Gaps ({gapBaseSource} only)
+                    </h4>
+                  </div>
+                  <p className="text-3xl font-display font-bold text-breach-500">
+                    {gapData.gaps.length}
+                    <span className="text-sm font-mono text-breach-400/60 ml-2">techniques</span>
+                  </p>
+                </div>
+
+                {/* Gap Details */}
                 {gapData.gaps.length > 0 && (
                   <div className="col-span-2">
-                    <h4 className="font-semibold text-gray-300 mb-2">
+                    <h4 className="font-mono text-xs text-gray-500 mb-3 uppercase">
                       Techniques in {gapBaseSource} but not in {gapCompareSource}:
                     </h4>
                     <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -248,13 +321,13 @@ export function Compare() {
                               setQueryValue(tech);
                               setSubmittedQuery({ technique: tech, keyword: undefined });
                             }}
-                            className="w-full text-left px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                            className="w-full text-left px-4 py-2 bg-breach-500/5 text-breach-400 border border-breach-500/20 hover:bg-breach-500/10 transition-colors flex items-center gap-3"
                           >
-                            <span className="font-mono text-sm bg-red-500/20 px-2 py-0.5 rounded">
+                            <span className="font-mono text-sm bg-breach-500/20 px-2 py-0.5">
                               {tech}
                             </span>
                             {name && (
-                              <span className="text-gray-300 text-sm truncate">
+                              <span className="text-gray-400 text-sm truncate">
                                 {name}
                               </span>
                             )}
@@ -263,7 +336,7 @@ export function Compare() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="ml-auto text-gray-500 hover:text-cyan-400 text-xs"
+                              className="ml-auto text-gray-600 hover:text-matrix-500 text-xs font-mono"
                             >
                               MITRE
                             </a>
