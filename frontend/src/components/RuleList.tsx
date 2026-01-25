@@ -339,7 +339,7 @@ export function RuleList({
                     className={`hover:bg-void-800/50 cursor-pointer transition-colors ${
                       isSelected(detection.id) ? 'bg-matrix-500/5' : ''
                     }`}
-                    onClick={() => window.location.href = `/detections/${detection.id}`}
+                    onClick={() => navigate(`/detections/${detection.id}`)}
                   >
                     {enableSelection && (
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
