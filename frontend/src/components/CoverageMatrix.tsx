@@ -271,9 +271,19 @@ export function CoverageMatrix() {
 
   if (error) {
     return (
-      <div className="bg-breach-500/10 border border-breach-500/30 p-6 text-center">
-        <p className="text-breach-400 font-mono text-sm">
+      <div className="bg-breach-500/10 border border-breach-500/30 p-6 text-center"
+        style={{
+          clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+        }}
+      >
+        <svg className="w-8 h-8 text-breach-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <p className="text-breach-400 font-mono text-sm mb-2">
           ERROR: Failed to load coverage matrix
+        </p>
+        <p className="text-gray-500 text-xs">
+          The backend API may need to be redeployed. Try refreshing the page.
         </p>
       </div>
     );
