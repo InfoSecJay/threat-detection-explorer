@@ -1,8 +1,10 @@
 """Cross-vendor comparison API routes."""
 
+from collections import defaultdict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -10,7 +12,9 @@ from app.api.schemas import (
     CompareRequest, CompareResponse, DetectionListItem,
     SideBySideRequest, SideBySideResponse
 )
+from app.models.detection import Detection
 from app.services.search import SearchService
+from app.services.mitre import mitre_service
 
 router = APIRouter(prefix="/compare", tags=["compare"])
 
@@ -212,3 +216,136 @@ async def compare_side_by_side(
         detections=[DetectionListItem.model_validate(d) for d in detections],
         field_comparison=field_comparison,
     )
+
+
+@router.get("/coverage-matrix")
+async def get_coverage_matrix(
+    tactic: Optional[str] = Query(None, description="Filter by tactic ID (e.g., TA0002)"),
+    include_subtechniques: bool = Query(True, description="Include sub-techniques in the matrix"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get MITRE technique coverage matrix across all sources.
+
+    Returns coverage data showing which sources have detections for each technique,
+    organized by tactic for matrix visualization.
+    """
+    await mitre_service.ensure_loaded()
+
+    # Get all detections with their techniques
+    query = select(Detection.source, Detection.mitre_techniques)
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Build coverage map: technique_id -> {source: count}
+    coverage: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    sources_set: set[str] = set()
+
+    for source, techniques in rows:
+        if not techniques:
+            continue
+        sources_set.add(source)
+        for tech_id in techniques:
+            if tech_id:
+                coverage[tech_id][source] += 1
+
+    sources = sorted(sources_set)
+
+    # Get MITRE tactics and techniques
+    all_tactics = mitre_service.get_all_tactics()
+    all_techniques = mitre_service.get_all_techniques()
+
+    # Filter techniques by tactic if specified
+    if tactic:
+        tactic = tactic.upper()
+        if tactic not in all_tactics:
+            raise HTTPException(status_code=400, detail=f"Invalid tactic ID: {tactic}")
+
+    # Organize by tactic
+    tactics_data = []
+
+    # Define tactic order (kill chain order)
+    tactic_order = [
+        "TA0043",  # Reconnaissance
+        "TA0042",  # Resource Development
+        "TA0001",  # Initial Access
+        "TA0002",  # Execution
+        "TA0003",  # Persistence
+        "TA0004",  # Privilege Escalation
+        "TA0005",  # Defense Evasion
+        "TA0006",  # Credential Access
+        "TA0007",  # Discovery
+        "TA0008",  # Lateral Movement
+        "TA0009",  # Collection
+        "TA0011",  # Command and Control
+        "TA0010",  # Exfiltration
+        "TA0040",  # Impact
+    ]
+
+    for tactic_id in tactic_order:
+        if tactic and tactic_id != tactic:
+            continue
+
+        tactic_info = all_tactics.get(tactic_id)
+        if not tactic_info or tactic_info.get("deprecated"):
+            continue
+
+        # Get techniques for this tactic
+        tactic_techniques = []
+        for tech_id, tech_info in all_techniques.items():
+            if tech_info.get("deprecated"):
+                continue
+            if tactic_id not in tech_info.get("tactics", []):
+                continue
+            if not include_subtechniques and tech_info.get("is_subtechnique"):
+                continue
+
+            # Get coverage for this technique
+            tech_coverage = coverage.get(tech_id, {})
+            total_count = sum(tech_coverage.values())
+
+            tactic_techniques.append({
+                "id": tech_id,
+                "name": tech_info.get("name", ""),
+                "is_subtechnique": tech_info.get("is_subtechnique", False),
+                "coverage": {src: tech_coverage.get(src, 0) for src in sources},
+                "total_detections": total_count,
+                "sources_with_coverage": len([s for s in sources if tech_coverage.get(s, 0) > 0]),
+            })
+
+        # Sort techniques: parent techniques first, then subtechniques
+        tactic_techniques.sort(key=lambda t: (t["is_subtechnique"], t["id"]))
+
+        if tactic_techniques:  # Only include tactics with techniques
+            tactics_data.append({
+                "id": tactic_id,
+                "name": tactic_info.get("name", ""),
+                "short_name": tactic_info.get("short_name", ""),
+                "techniques": tactic_techniques,
+                "technique_count": len(tactic_techniques),
+            })
+
+    # Calculate summary statistics
+    total_techniques = sum(t["technique_count"] for t in tactics_data)
+    techniques_with_coverage = len([t for t in coverage.keys() if sum(coverage[t].values()) > 0])
+
+    # Coverage by source
+    source_coverage = {}
+    for src in sources:
+        covered = len([t for t in coverage.keys() if coverage[t].get(src, 0) > 0])
+        source_coverage[src] = {
+            "covered_techniques": covered,
+            "total_techniques": total_techniques,
+            "coverage_percent": round((covered / total_techniques * 100) if total_techniques > 0 else 0, 1),
+        }
+
+    return {
+        "sources": sources,
+        "tactics": tactics_data,
+        "summary": {
+            "total_tactics": len(tactics_data),
+            "total_techniques": total_techniques,
+            "techniques_with_any_coverage": techniques_with_coverage,
+            "overall_coverage_percent": round((techniques_with_coverage / total_techniques * 100) if total_techniques > 0 else 0, 1),
+            "source_coverage": source_coverage,
+        },
+    }

@@ -143,6 +143,19 @@ export const compareApi = {
     const response = await api.post('/compare/side-by-side', { ids });
     return response.data;
   },
+
+  coverageMatrix: async (params?: {
+    tactic?: string;
+    include_subtechniques?: boolean;
+  }): Promise<CoverageMatrixResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.tactic) searchParams.set('tactic', params.tactic);
+    if (params?.include_subtechniques !== undefined) {
+      searchParams.set('include_subtechniques', String(params.include_subtechniques));
+    }
+    const response = await api.get(`/compare/coverage-matrix?${searchParams.toString()}`);
+    return response.data;
+  },
 };
 
 // Export endpoints
@@ -154,6 +167,40 @@ export const exportApi = {
     return response.data;
   },
 };
+
+// Coverage Matrix types
+export interface TechniqueCoverage {
+  id: string;
+  name: string;
+  is_subtechnique: boolean;
+  coverage: Record<string, number>;
+  total_detections: number;
+  sources_with_coverage: number;
+}
+
+export interface TacticCoverage {
+  id: string;
+  name: string;
+  short_name: string;
+  techniques: TechniqueCoverage[];
+  technique_count: number;
+}
+
+export interface CoverageMatrixResponse {
+  sources: string[];
+  tactics: TacticCoverage[];
+  summary: {
+    total_tactics: number;
+    total_techniques: number;
+    techniques_with_any_coverage: number;
+    overall_coverage_percent: number;
+    source_coverage: Record<string, {
+      covered_techniques: number;
+      total_techniques: number;
+      coverage_percent: number;
+    }>;
+  };
+}
 
 // MITRE ATT&CK types
 export interface MitreTactic {
