@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useReleases } from '../hooks/useReleases';
-import { useTrendingTechniques, useTrendingPlatforms, useTrendingSummary } from '../hooks/useTrending';
+import { useTrendingTechniques, useTrendingPlatforms } from '../hooks/useTrending';
 import { useMitre } from '../contexts/MitreContext';
 import type { Release } from '../services/api';
 
@@ -180,8 +181,8 @@ function UnifiedReleaseFeed() {
               {/* Expanded Content */}
               {isExpanded && release.body && (
                 <div className="px-4 pb-4 border-t border-void-700">
-                  <div className="pt-4 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-a:text-matrix-500 prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:rounded">
-                    <ReactMarkdown>{release.body}</ReactMarkdown>
+                  <div className="pt-4 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-display prose-headings:mt-4 prose-headings:mb-2 prose-h2:text-base prose-h3:text-sm prose-p:text-gray-300 prose-p:my-2 prose-a:text-matrix-500 prose-a:no-underline hover:prose-a:underline prose-strong:text-white prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-void-900 prose-pre:border prose-pre:border-void-600 prose-ul:my-2 prose-ul:pl-4 prose-ol:my-2 prose-ol:pl-4 prose-li:text-gray-300 prose-li:my-1 prose-li:marker:text-matrix-500">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{release.body}</ReactMarkdown>
                   </div>
                   <div className="mt-4 pt-3 border-t border-void-700 flex items-center justify-between">
                     <span className="text-xs font-mono text-gray-500">
@@ -369,55 +370,6 @@ function TrendingPlatformsSection({ days }: { days: number }) {
   );
 }
 
-function ActivitySummary({ days }: { days: number }) {
-  const { data, isLoading } = useTrendingSummary(days);
-
-  if (isLoading || !data) {
-    return null;
-  }
-
-  // Sort sources by count descending
-  const sortedSources = Object.entries(data.by_source).sort((a, b) => b[1] - a[1]);
-
-  return (
-    <div className="flex flex-wrap gap-4 mb-8">
-      {/* Total Modified */}
-      <div
-        className="bg-void-850 border border-void-700 p-4 min-w-[160px]"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-        }}
-      >
-        <div className="text-xs font-mono text-gray-500 mb-1">RULES_UPDATED</div>
-        <div className="text-2xl font-display font-bold text-matrix-500">
-          {data.total_modified.toLocaleString()}
-        </div>
-        <div className="text-xs text-gray-500">in last {days} days</div>
-      </div>
-
-      {/* All Sources with data */}
-      {sortedSources.map(([source, count]) => {
-        const config = sourceConfig[source] || { name: source, color: 'text-gray-400' };
-        return (
-          <div
-            key={source}
-            className="bg-void-850 border border-void-700 p-4 min-w-[140px]"
-            style={{
-              clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-            }}
-          >
-            <div className="text-xs font-mono text-gray-500 mb-1 uppercase">{config.name}</div>
-            <div className={`text-2xl font-display font-bold ${config.color}`}>
-              {count.toLocaleString()}
-            </div>
-            <div className="text-xs text-gray-500">rules updated</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function IndustryIntel() {
   const [trendingPeriod, setTrendingPeriod] = useState(90);
 
@@ -432,23 +384,6 @@ export function IndustryIntel() {
           RELEASE_NOTES // TRENDING_TECHNIQUES // PLATFORM_ACTIVITY
         </p>
       </div>
-
-      {/* Activity Summary */}
-      <ActivitySummary days={trendingPeriod} />
-
-      {/* Releases Section */}
-      <section>
-        <div className="flex items-center gap-3 mb-4">
-          <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-          <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">
-            Latest Releases
-          </h2>
-        </div>
-
-        <UnifiedReleaseFeed />
-      </section>
 
       {/* Trending Section */}
       <section>
@@ -518,6 +453,20 @@ export function IndustryIntel() {
             <TrendingPlatformsSection days={trendingPeriod} />
           </div>
         </div>
+      </section>
+
+      {/* Releases Section */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">
+            Latest Releases
+          </h2>
+        </div>
+
+        <UnifiedReleaseFeed />
       </section>
 
       {/* Legend */}
