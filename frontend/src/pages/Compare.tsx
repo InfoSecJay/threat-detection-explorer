@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { RuleComparison } from '../components/RuleComparison';
 import { ComparisonCharts } from '../components/ComparisonCharts';
 import { TechniqueAutocomplete } from '../components/TechniqueAutocomplete';
-import { CoverageMatrix } from '../components/CoverageMatrix';
 import { useCompare, useCoverageGap } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
 
@@ -51,7 +50,6 @@ export function Compare() {
   });
 
   const [showGapAnalysis, setShowGapAnalysis] = useState(false);
-  const [showCoverageMatrix, setShowCoverageMatrix] = useState(true);
   const [gapBaseSource, setGapBaseSource] = useState('sigma');
   const [gapCompareSource, setGapCompareSource] = useState('elastic');
 
@@ -240,33 +238,6 @@ export function Compare() {
             })}
           </div>
         </div>
-      </div>
-
-      {/* MITRE Coverage Matrix */}
-      <div
-        className="bg-void-850 border border-void-700 p-6"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-            </svg>
-            <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">
-              MITRE Coverage Matrix
-            </h2>
-          </div>
-          <button
-            onClick={() => setShowCoverageMatrix(!showCoverageMatrix)}
-            className="text-sm font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
-          >
-            {showCoverageMatrix ? '[ HIDE ]' : '[ SHOW ]'}
-          </button>
-        </div>
-
-        {showCoverageMatrix && <CoverageMatrix />}
       </div>
 
       {/* Loading State */}
