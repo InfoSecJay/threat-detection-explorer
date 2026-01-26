@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useReleases } from '../hooks/useReleases';
 import { useTrendingTechniques, useTrendingPlatforms } from '../hooks/useTrending';
 import { useMitre } from '../contexts/MitreContext';
@@ -182,7 +181,7 @@ function UnifiedReleaseFeed() {
               {isExpanded && release.body && (
                 <div className="px-4 pb-4 border-t border-void-700">
                   <div className="pt-4 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-display prose-headings:mt-4 prose-headings:mb-2 prose-h2:text-base prose-h3:text-sm prose-p:text-gray-300 prose-p:my-2 prose-a:text-matrix-500 prose-a:no-underline hover:prose-a:underline prose-strong:text-white prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-void-900 prose-pre:border prose-pre:border-void-600 prose-ul:my-2 prose-ul:pl-4 prose-ol:my-2 prose-ol:pl-4 prose-li:text-gray-300 prose-li:my-1 prose-li:marker:text-matrix-500">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{release.body}</ReactMarkdown>
+                    <ReactMarkdown>{release.body}</ReactMarkdown>
                   </div>
                   <div className="mt-4 pt-3 border-t border-void-700 flex items-center justify-between">
                     <span className="text-xs font-mono text-gray-500">
