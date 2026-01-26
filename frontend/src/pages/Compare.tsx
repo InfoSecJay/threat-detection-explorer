@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { RuleComparison } from '../components/RuleComparison';
 import { ComparisonCharts } from '../components/ComparisonCharts';
@@ -54,6 +54,28 @@ export function Compare() {
   const [showCoverageMatrix, setShowCoverageMatrix] = useState(true);
   const [gapBaseSource, setGapBaseSource] = useState('sigma');
   const [gapCompareSource, setGapCompareSource] = useState('elastic');
+
+  // Sync state with URL params when navigating (e.g., from Coverage Matrix links)
+  useEffect(() => {
+    const technique = searchParams.get('technique');
+    const keyword = searchParams.get('keyword');
+    const platform = searchParams.get('platform');
+
+    // Only update if URL has params and they differ from current state
+    if (technique && technique !== submittedQuery.technique) {
+      setQueryType('technique');
+      setQueryValue(technique);
+      setSubmittedQuery({ technique, keyword: undefined, platform: undefined });
+    } else if (keyword && keyword !== submittedQuery.keyword) {
+      setQueryType('keyword');
+      setQueryValue(keyword);
+      setSubmittedQuery({ technique: undefined, keyword, platform: undefined });
+    } else if (platform && platform !== submittedQuery.platform) {
+      setQueryType('platform');
+      setQueryValue(platform);
+      setSubmittedQuery({ technique: undefined, keyword: undefined, platform });
+    }
+  }, [searchParams]);
 
   const { data: compareData, isLoading: compareLoading, error: compareError } = useCompare(submittedQuery);
   const { data: gapData, isLoading: gapLoading } = useCoverageGap(
