@@ -247,6 +247,11 @@ async def get_coverage_matrix(
         for tech_id in techniques:
             if tech_id:
                 coverage[tech_id][source] += 1
+                # Also roll up sub-technique counts to parent technique
+                # Sub-techniques have format T####.### (e.g., T1001.003)
+                if "." in tech_id:
+                    parent_id = tech_id.split(".")[0]
+                    coverage[parent_id][source] += 1
 
     sources = sorted(sources_set)
 
