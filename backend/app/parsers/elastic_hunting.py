@@ -88,6 +88,11 @@ class ElasticHuntingParser(BaseParser):
                 notes_text = "\n\nNotes:\n" + "\n".join(f"- {note}" for note in notes)
                 description = (description or "") + notes_text
 
+            # Extract references
+            references = hunt.get("references", [])
+            if not isinstance(references, list):
+                references = [references] if references else []
+
             return ParsedRule(
                 source=self.source_name,
                 file_path=str(file_path),
@@ -108,6 +113,7 @@ class ElasticHuntingParser(BaseParser):
                     "integration": integration,
                     "language": language_list,
                     "notes": notes,
+                    "references": references,
                 },
             )
 

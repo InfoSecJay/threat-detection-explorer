@@ -288,7 +288,7 @@ export function Home() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600 rounded mb-6">
               <span className="w-2 h-2 bg-pulse-500 rounded-full animate-pulse" />
               <span className="text-xs font-mono text-gray-400">
-                <span className="text-pulse-400">OPERATIONAL</span> // 6 INTEL FEEDS ACTIVE
+                <span className="text-pulse-400">OPERATIONAL</span> // 7 INTEL FEEDS ACTIVE
               </span>
             </div>
 

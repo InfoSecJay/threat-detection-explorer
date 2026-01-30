@@ -73,7 +73,7 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
             language=language,
             tags=parsed.tags,
-            references=[],  # Hunting queries don't have references field
+            references=extra.get("references", []),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
             rule_created_date=None,  # Not available in Elastic Hunting
