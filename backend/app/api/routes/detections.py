@@ -1,5 +1,6 @@
 """Detection rules API routes."""
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +15,8 @@ from app.api.schemas import (
     StatisticsResponse,
 )
 from app.services.search import SearchService, SearchFilters
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -62,8 +65,21 @@ async def list_detections(
     search_service = SearchService(db)
     detections, total = await search_service.search_detections(filters)
 
+    # Convert detections to list items with error handling
+    items = []
+    for d in detections:
+        try:
+            items.append(DetectionListItem.from_detection(d))
+        except Exception as e:
+            logger.error(f"Failed to serialize detection {d.id}: {e}")
+            logger.error(f"Detection title: {d.title[:100] if d.title else 'None'}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to serialize detection {d.id}: {str(e)}"
+            )
+
     return DetectionListResponse(
-        items=[DetectionListItem.from_detection(d) for d in detections],
+        items=items,
         total=total,
         offset=offset,
         limit=limit,
