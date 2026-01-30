@@ -11,7 +11,7 @@ from app.services.ingestion import IngestionService
 router = APIRouter(prefix="/repositories", tags=["repositories"])
 
 
-ALL_REPOSITORIES = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm"]
+ALL_REPOSITORIES = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting"]
 
 
 @router.get("", response_model=list[RepositoryResponse])

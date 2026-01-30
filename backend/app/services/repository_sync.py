@@ -43,6 +43,10 @@ class RepositorySyncService:
             "url": settings.lolrmm_repo_url,
             "name": "lolrmm",
         },
+        "elastic_hunting": {
+            "url": settings.elastic_hunting_repo_url,
+            "name": "elastic_hunting",
+        },
     }
 
     def __init__(self, db: AsyncSession):
