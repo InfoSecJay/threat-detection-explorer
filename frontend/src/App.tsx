@@ -172,7 +172,7 @@ function Logo() {
           <span className="text-white ml-1">DETECTION</span>
         </div>
         <div className="text-[10px] font-mono text-gray-500 tracking-widest">
-          EXPLORER // v1.0
+          EXPLORER // v1.3.0
         </div>
       </div>
     </Link>
@@ -279,7 +279,7 @@ function App() {
 
             {/* Center - Version */}
             <div className="text-xs font-mono text-gray-600">
-              THREAT_DETECTION_EXPLORER // BUILD_2024.01
+              THREAT_DETECTION_EXPLORER // v1.3.0
             </div>
 
             {/* Right - Social links */}
