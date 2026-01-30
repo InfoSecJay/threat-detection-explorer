@@ -239,19 +239,27 @@ async def get_coverage_matrix(
     # Build coverage map: technique_id -> {source: count}
     coverage: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     sources_set: set[str] = set()
+    unmapped_techniques: set[str] = set()
 
     for source, techniques in rows:
         if not techniques:
             continue
         sources_set.add(source)
         for tech_id in techniques:
-            if tech_id:
-                coverage[tech_id][source] += 1
+            if not tech_id:
+                continue
+
+            # Map deprecated/revoked techniques to current equivalents
+            mapped_id = mitre_service.map_technique(tech_id)
+            if mapped_id:
+                coverage[mapped_id][source] += 1
                 # Also roll up sub-technique counts to parent technique
-                # Sub-techniques have format T####.### (e.g., T1001.003)
-                if "." in tech_id:
-                    parent_id = tech_id.split(".")[0]
+                if "." in mapped_id:
+                    parent_id = mapped_id.split(".")[0]
                     coverage[parent_id][source] += 1
+            else:
+                # Track unmapped techniques for debugging
+                unmapped_techniques.add(tech_id)
 
     sources = sorted(sources_set)
 
@@ -297,7 +305,8 @@ async def get_coverage_matrix(
         # Get techniques for this tactic
         tactic_techniques = []
         for tech_id, tech_info in all_techniques.items():
-            if tech_info.get("deprecated"):
+            # Skip deprecated or revoked techniques
+            if tech_info.get("deprecated") or tech_info.get("revoked"):
                 continue
             if tactic_id not in tech_info.get("tactics", []):
                 continue
@@ -352,5 +361,6 @@ async def get_coverage_matrix(
             "techniques_with_any_coverage": techniques_with_coverage,
             "overall_coverage_percent": round((techniques_with_coverage / total_techniques * 100) if total_techniques > 0 else 0, 1),
             "source_coverage": source_coverage,
+            "unmapped_techniques": sorted(list(unmapped_techniques)) if unmapped_techniques else [],
         },
     }

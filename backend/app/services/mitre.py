@@ -13,6 +13,61 @@ logger = logging.getLogger(__name__)
 # MITRE ATT&CK Enterprise data URL
 MITRE_CTI_URL = "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
 
+# Mapping of deprecated/revoked technique IDs to their current equivalents
+# This helps map old technique IDs in rules to current MITRE techniques
+DEPRECATED_TECHNIQUE_MAPPING = {
+    # Credential Access techniques that were reorganized
+    "T1208": "T1558.003",  # Kerberoasting -> Steal or Forge Kerberos Tickets: Kerberoasting
+    "T1003": "T1003",      # Credential Dumping (still exists but has sub-techniques now)
+    "T1081": "T1552.001",  # Credentials in Files -> Unsecured Credentials: Credentials In Files
+    "T1214": "T1552.002",  # Credentials in Registry -> Unsecured Credentials: Credentials in Registry
+    "T1145": "T1552.004",  # Private Keys -> Unsecured Credentials: Private Keys
+    "T1098": "T1098",      # Account Manipulation (still exists)
+
+    # Discovery techniques
+    "T1086": "T1059.001",  # PowerShell -> Command and Scripting Interpreter: PowerShell
+    "T1064": "T1059",      # Scripting -> Command and Scripting Interpreter
+    "T1117": "T1218.011",  # Regsvr32 -> Signed Binary Proxy Execution: Regsvr32
+    "T1085": "T1218.011",  # Rundll32 -> Signed Binary Proxy Execution: Rundll32
+    "T1118": "T1218.004",  # InstallUtil -> Signed Binary Proxy Execution: InstallUtil
+    "T1121": "T1218.009",  # Regsvcs/Regasm -> Signed Binary Proxy Execution: Regsvcs/Regasm
+    "T1127": "T1127",      # Trusted Developer Utilities (still exists)
+    "T1170": "T1218.005",  # Mshta -> Signed Binary Proxy Execution: Mshta
+    "T1191": "T1218.003",  # CMSTP -> Signed Binary Proxy Execution: CMSTP
+    "T1028": "T1021.006",  # Windows Remote Management -> Remote Services: Windows Remote Management
+    "T1100": "T1505.003",  # Web Shell -> Server Software Component: Web Shell
+    "T1077": "T1021.002",  # Windows Admin Shares -> Remote Services: SMB/Windows Admin Shares
+    "T1076": "T1021.001",  # Remote Desktop Protocol -> Remote Services: Remote Desktop Protocol
+
+    # Persistence techniques
+    "T1128": "T1546.011",  # Netsh Helper DLL -> Event Triggered Execution: Netsh Helper DLL
+    "T1050": "T1543.003",  # New Service -> Create or Modify System Process: Windows Service
+    "T1031": "T1543.003",  # Modify Existing Service -> Create or Modify System Process: Windows Service
+    "T1060": "T1547.001",  # Registry Run Keys -> Boot or Logon Autostart Execution: Registry Run Keys
+    "T1004": "T1547.004",  # Winlogon Helper DLL -> Boot or Logon Autostart Execution: Winlogon Helper DLL
+    "T1058": "T1574.011",  # Service Registry Permissions Weakness -> Hijack Execution Flow
+    "T1034": "T1574.007",  # Path Interception -> Hijack Execution Flow: Path Interception
+    "T1038": "T1574.001",  # DLL Search Order Hijacking -> Hijack Execution Flow: DLL Search Order Hijacking
+    "T1044": "T1574.010",  # File System Permissions Weakness -> Hijack Execution Flow
+
+    # Defense Evasion
+    "T1088": "T1548.002",  # Bypass UAC -> Abuse Elevation Control Mechanism: Bypass UAC
+    "T1055": "T1055",      # Process Injection (still exists with sub-techniques)
+    "T1108": "T1078",      # Redundant Access -> Valid Accounts
+    "T1089": "T1562.001",  # Disabling Security Tools -> Impair Defenses: Disable or Modify Tools
+    "T1116": "T1036.001",  # Code Signing -> Masquerading: Invalid Code Signature
+    "T1107": "T1070.004",  # File Deletion -> Indicator Removal: File Deletion
+    "T1066": "T1027",      # Indicator Removal from Tools -> Obfuscated Files or Information
+
+    # Execution
+    "T1035": "T1569.002",  # Service Execution -> System Services: Service Execution
+    "T1053": "T1053",      # Scheduled Task (still exists with sub-techniques)
+
+    # Exfiltration
+    "T1002": "T1560",      # Data Compressed -> Archive Collected Data
+    "T1022": "T1560.001",  # Data Encrypted -> Archive Collected Data: Archive via Utility
+}
+
 # Cache settings
 CACHE_FILE = Path("data/mitre_attack.json")
 CACHE_DURATION_HOURS = 24  # Refresh cache every 24 hours
@@ -174,6 +229,7 @@ class MitreAttackService:
                         "tactics": technique_tactics,
                         "url": technique_url,
                         "deprecated": obj.get("x_mitre_deprecated", False),
+                        "revoked": obj.get("revoked", False),
                         "is_subtechnique": "." in technique_id,
                     }
 
@@ -236,6 +292,43 @@ class MitreAttackService:
             "subtechniques_count": sum(1 for t in self._techniques.values() if t.get("is_subtechnique")),
             "last_fetch": self._last_fetch.isoformat() if self._last_fetch else None,
             "loaded": self._loaded,
+        }
+
+    def is_valid_technique(self, technique_id: str) -> bool:
+        """Check if a technique ID is valid and not deprecated/revoked."""
+        technique = self._techniques.get(technique_id)
+        if not technique:
+            return False
+        return not technique.get("deprecated", False) and not technique.get("revoked", False)
+
+    def map_technique(self, technique_id: str) -> Optional[str]:
+        """Map a technique ID to its current equivalent.
+
+        Returns the mapped technique ID if deprecated/revoked,
+        the original ID if valid, or None if invalid and unmapped.
+        """
+        # Check if it's already a valid technique
+        if self.is_valid_technique(technique_id):
+            return technique_id
+
+        # Check deprecation mapping
+        if technique_id in DEPRECATED_TECHNIQUE_MAPPING:
+            mapped_id = DEPRECATED_TECHNIQUE_MAPPING[technique_id]
+            # Verify the mapped technique is valid
+            if self.is_valid_technique(mapped_id):
+                return mapped_id
+
+        # Check if it exists but is deprecated - try to use it anyway
+        if technique_id in self._techniques:
+            return technique_id
+
+        return None
+
+    def get_valid_techniques(self) -> dict[str, dict]:
+        """Get all valid (non-deprecated, non-revoked) techniques."""
+        return {
+            tid: tinfo for tid, tinfo in self._techniques.items()
+            if not tinfo.get("deprecated", False) and not tinfo.get("revoked", False)
         }
 
 
