@@ -1,9 +1,24 @@
 """Pydantic schemas for API request/response models."""
 
+import re
 from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+def sanitize_string(value: str | None) -> str:
+    """Sanitize a string for JSON serialization.
+
+    Removes null bytes and other control characters that can cause
+    JSON serialization to fail.
+    """
+    if value is None:
+        return ""
+    # Remove null bytes and other problematic control characters
+    # Keep common whitespace (tab, newline, carriage return)
+    sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
+    return sanitized
 
 
 # Detection schemas
@@ -86,27 +101,31 @@ class DetectionListItem(BaseModel):
 
     @classmethod
     def from_detection(cls, detection) -> "DetectionListItem":
-        """Create a list item from a detection."""
+        """Create a list item from a detection.
+
+        Sanitizes string fields to handle control characters that could
+        cause JSON serialization failures.
+        """
         data = {
             "id": str(detection.id),
             "source": detection.source,
-            "source_file": detection.source_file,
-            "source_repo_url": detection.source_repo_url,
-            "source_rule_url": detection.source_rule_url,
-            "rule_id": detection.rule_id,
-            "title": detection.title,
-            "description": detection.description,
-            "author": detection.author,
+            "source_file": sanitize_string(detection.source_file),
+            "source_repo_url": sanitize_string(detection.source_repo_url),
+            "source_rule_url": sanitize_string(detection.source_rule_url),
+            "rule_id": sanitize_string(detection.rule_id),
+            "title": sanitize_string(detection.title),
+            "description": sanitize_string(detection.description),
+            "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
             "log_sources": detection.log_sources or [],
             "data_sources": detection.data_sources or [],
-            "platform": detection.platform or "",
-            "event_category": detection.event_category or "",
-            "data_source_normalized": detection.data_source_normalized or "",
+            "platform": sanitize_string(detection.platform) or "",
+            "event_category": sanitize_string(detection.event_category) or "",
+            "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
             "mitre_tactics": detection.mitre_tactics or [],
             "mitre_techniques": detection.mitre_techniques or [],
-            "detection_logic": detection.detection_logic or "",
+            "detection_logic": sanitize_string(detection.detection_logic) or "",
             "language": detection.language or "unknown",
             "tags": detection.tags or [],
             "references": detection.references or [],
