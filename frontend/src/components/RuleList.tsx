@@ -322,6 +322,12 @@ export function RuleList({
                 </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('rule_created_date')}
+                >
+                  Created <SortIndicator field="rule_created_date" />
+                </th>
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
                   onClick={() => handleSort('rule_modified_date')}
                 >
                   Modified <SortIndicator field="rule_modified_date" />
@@ -447,6 +453,14 @@ export function RuleList({
                           <span className="text-xs text-gray-600">-</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span
+                        className="text-xs font-mono text-gray-400"
+                        title={formatDate(detection.rule_created_date)}
+                      >
+                        {formatRelativeDate(detection.rule_created_date)}
+                      </span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span
