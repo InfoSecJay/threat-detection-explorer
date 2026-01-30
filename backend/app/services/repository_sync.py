@@ -47,6 +47,10 @@ class RepositorySyncService:
             "url": settings.elastic_hunting_repo_url,
             "name": "elastic_hunting",
         },
+        "sentinel": {
+            "url": settings.sentinel_repo_url,
+            "name": "sentinel",
+        },
     }
 
     def __init__(self, db: AsyncSession):

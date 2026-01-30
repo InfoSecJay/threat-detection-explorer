@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel';
   className?: string;
   size?: number;
 }) {
@@ -16,6 +16,7 @@ export function DataSourceIcon({
     elastic_protections: '#06b6d4',
     lolrmm: '#22c55e',
     elastic_hunting: '#8b5cf6',
+    sentinel: '#0078d4',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -131,6 +132,22 @@ export function DataSourceIcon({
           <path d="M28,28 L36,36" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
           <path d="M20,14 L20,26" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
           <path d="M14,20 L26,20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      )}
+
+      {source === 'sentinel' && (
+        // Microsoft Sentinel - cloud with radar/eye icon
+        <g filter={`url(#glow-${source})`}>
+          {/* Cloud shape */}
+          <path
+            d="M14,28 Q10,28 10,24 Q10,20 14,20 Q14,14 20,14 Q24,14 26,16 Q28,14 32,14 Q38,14 38,20 Q38,28 32,28 Z"
+            fill="none"
+            stroke={color}
+            strokeWidth="2"
+          />
+          {/* Inner eye/radar */}
+          <circle cx="24" cy="22" r="4" fill="none" stroke={color} strokeWidth="1.5" />
+          <circle cx="24" cy="22" r="1.5" fill={color} />
         </g>
       )}
     </svg>

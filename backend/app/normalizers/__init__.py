@@ -8,6 +8,7 @@ from app.normalizers.sublime import SublimeNormalizer
 from app.normalizers.elastic_protections import ElasticProtectionsNormalizer
 from app.normalizers.lolrmm import LOLRMMNormalizer
 from app.normalizers.elastic_hunting import ElasticHuntingNormalizer
+from app.normalizers.sentinel import SentinelNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -19,4 +20,5 @@ __all__ = [
     "ElasticProtectionsNormalizer",
     "LOLRMMNormalizer",
     "ElasticHuntingNormalizer",
+    "SentinelNormalizer",
 ]

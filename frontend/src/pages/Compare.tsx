@@ -320,6 +320,7 @@ export function Compare() {
                   <option value="elastic_protections">Elastic Protections</option>
                   <option value="lolrmm">LOLRMM</option>
                   <option value="elastic_hunting">Elastic Hunting</option>
+                  <option value="sentinel">Microsoft Sentinel</option>
                 </select>
               </div>
               <div className="pt-5 text-gray-600 font-display">VS</div>
@@ -339,6 +340,7 @@ export function Compare() {
                   <option value="elastic_protections">Elastic Protections</option>
                   <option value="lolrmm">LOLRMM</option>
                   <option value="elastic_hunting">Elastic Hunting</option>
+                  <option value="sentinel">Microsoft Sentinel</option>
                 </select>
               </div>
             </div>

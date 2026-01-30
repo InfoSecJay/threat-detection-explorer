@@ -29,6 +29,7 @@ const sourceColors: Record<string, string> = {
   elastic_protections: '#06b6d4',
   lolrmm: '#22c55e',
   elastic_hunting: '#8b5cf6',
+  sentinel: '#0078d4',
 };
 
 const sourceLabels: Record<string, string> = {
@@ -39,6 +40,7 @@ const sourceLabels: Record<string, string> = {
   elastic_protections: 'EL_PROTECT',
   lolrmm: 'LOLRMM',
   elastic_hunting: 'EL_HUNT',
+  sentinel: 'SENTINEL',
 };
 
 // Sort options

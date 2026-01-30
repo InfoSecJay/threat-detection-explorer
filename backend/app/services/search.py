@@ -243,7 +243,7 @@ class SearchService:
         }
 
         # Count by source
-        for source in ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting"]:
+        for source in ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting", "sentinel"]:
             count_result = await self.db.execute(
                 select(func.count(Detection.id)).where(Detection.source == source)
             )

@@ -8,6 +8,7 @@ from app.parsers.sublime import SublimeParser
 from app.parsers.elastic_protections import ElasticProtectionsParser
 from app.parsers.lolrmm import LOLRMMParser
 from app.parsers.elastic_hunting import ElasticHuntingParser
+from app.parsers.sentinel import SentinelParser
 
 __all__ = [
     "BaseParser",
@@ -19,4 +20,5 @@ __all__ = [
     "ElasticProtectionsParser",
     "LOLRMMParser",
     "ElasticHuntingParser",
+    "SentinelParser",
 ]

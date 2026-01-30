@@ -76,6 +76,13 @@ const dataSources = [
     repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
     color: '#8b5cf6',
   },
+  {
+    id: 'sentinel' as const,
+    name: 'Microsoft Sentinel',
+    description: 'Analytics rules for Microsoft Sentinel SIEM using KQL queries.',
+    repoUrl: 'https://github.com/Azure/Azure-Sentinel',
+    color: '#0078d4',
+  },
 ];
 
 // Feature cards configuration
@@ -83,7 +90,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 7 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 8 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {
@@ -288,7 +295,7 @@ export function Home() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600 rounded mb-6">
               <span className="w-2 h-2 bg-pulse-500 rounded-full animate-pulse" />
               <span className="text-xs font-mono text-gray-400">
-                <span className="text-pulse-400">OPERATIONAL</span> // 7 INTEL FEEDS ACTIVE
+                <span className="text-pulse-400">OPERATIONAL</span> // 8 INTEL FEEDS ACTIVE
               </span>
             </div>
 
@@ -441,6 +448,12 @@ export function Home() {
                 label="Elastic Hunt"
                 color="#8b5cf6"
                 delay={350}
+              />
+              <StatCard
+                value={stats.by_source.sentinel || 0}
+                label="Sentinel"
+                color="#0078d4"
+                delay={400}
               />
             </div>
           </div>

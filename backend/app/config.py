@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     lolrmm_repo_url: str = "https://github.com/magicsword-io/LOLRMM.git"
     # Elastic Hunting uses same repo as elastic detection-rules, different folder
     elastic_hunting_repo_url: str = "https://github.com/elastic/detection-rules.git"
+    # Microsoft Sentinel Analytics Rules
+    sentinel_repo_url: str = "https://github.com/Azure/Azure-Sentinel.git"
 
     # API settings
     api_prefix: str = "/api"

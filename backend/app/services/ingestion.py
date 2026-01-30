@@ -15,12 +15,12 @@ from app.models.repository import Repository
 from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
-    ElasticHuntingParser, BaseParser
+    ElasticHuntingParser, SentinelParser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
-    ElasticHuntingNormalizer, BaseNormalizer, NormalizedDetection
+    ElasticHuntingNormalizer, SentinelNormalizer, BaseNormalizer, NormalizedDetection
 )
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.ingestion_errors import (
@@ -47,6 +47,7 @@ class IngestionService:
             "elastic_protections": ElasticProtectionsParser(),
             "lolrmm": LOLRMMParser(),
             "elastic_hunting": ElasticHuntingParser(),
+            "sentinel": SentinelParser(),
         }
 
         # Initialize normalizers
@@ -58,6 +59,7 @@ class IngestionService:
             "elastic_protections": ElasticProtectionsNormalizer(settings.elastic_protections_repo_url),
             "lolrmm": LOLRMMNormalizer(settings.lolrmm_repo_url),
             "elastic_hunting": ElasticHuntingNormalizer(settings.elastic_hunting_repo_url),
+            "sentinel": SentinelNormalizer(settings.sentinel_repo_url),
         }
 
     async def ingest_repository(self, repo_name: str) -> IngestionStats:

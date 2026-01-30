@@ -12,6 +12,7 @@ const sourceColors: Record<string, { bg: string; text: string; border: string }>
   elastic_protections: { bg: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500' },
   lolrmm: { bg: 'bg-pink-500', text: 'text-pink-400', border: 'border-pink-500' },
   elastic_hunting: { bg: 'bg-violet-500', text: 'text-violet-400', border: 'border-violet-500' },
+  sentinel: { bg: 'bg-sky-500', text: 'text-sky-400', border: 'border-sky-500' },
 };
 
 const sourceDisplayNames: Record<string, string> = {
@@ -22,6 +23,7 @@ const sourceDisplayNames: Record<string, string> = {
   elastic_protections: 'Elastic Prot.',
   lolrmm: 'LOLRMM',
   elastic_hunting: 'Elastic Hunt',
+  sentinel: 'Sentinel',
 };
 
 function CoverageSummary({ data }: { data: ReturnType<typeof useCoverageMatrix>['data'] }) {

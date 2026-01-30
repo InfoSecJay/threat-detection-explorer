@@ -58,6 +58,12 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
     repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
     color: '#8b5cf6',
   },
+  sentinel: {
+    displayName: 'Microsoft Sentinel',
+    description: 'Analytics rules for Microsoft Sentinel SIEM using KQL queries.',
+    repoUrl: 'https://github.com/Azure/Azure-Sentinel',
+    color: '#0078d4',
+  },
 };
 
 function formatDate(dateString: string | null): string {
@@ -105,7 +111,7 @@ function IntegrationCard({ repo }: { repo: Repository }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting'} size={40} />
+          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel'} size={40} />
           <div>
             <h3 className="font-display font-semibold tracking-wide" style={{ color: config.color }}>
               {config.displayName}

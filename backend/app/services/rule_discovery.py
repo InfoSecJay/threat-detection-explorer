@@ -42,6 +42,10 @@ class RuleDiscoveryService:
             "include_patterns": ["hunting/**/*.toml"],
             "exclude_dirs": ["deprecated", "tests", "test", ".git"],
         },
+        "sentinel": {
+            "include_patterns": ["Solutions/**/Analytic Rules/*.yaml", "Solutions/**/Analytic Rules/*.yml"],
+            "exclude_dirs": ["deprecated", "tests", "test", ".git", "sample", "Sample"],
+        },
     }
 
     def discover_rules(self, repo_name: str) -> Generator[Path, None, None]:

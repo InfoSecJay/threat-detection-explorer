@@ -11,6 +11,15 @@ interface ChangeLogEntry {
 
 const changeLog: ChangeLogEntry[] = [
   {
+    version: '1.4.0',
+    date: '2026-01-30',
+    changes: [
+      { type: 'added', description: 'Microsoft Sentinel Analytics Rules integration - KQL detection rules from Azure Sentinel' },
+      { type: 'added', description: 'Sentinel connector-based platform detection (AWS, Azure, GCP, Windows, Linux)' },
+      { type: 'improved', description: 'Detection Intel Feed now supports 8 security repositories' },
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-01-30',
     changes: [

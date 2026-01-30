@@ -17,6 +17,7 @@ const sourceColors: Record<string, string> = {
   elastic_protections: '#06b6d4',
   lolrmm: '#22c55e',
   elastic_hunting: '#8b5cf6',
+  sentinel: '#0078d4',
 };
 
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
@@ -143,6 +144,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               { value: 'elastic_protections', label: 'Elastic Protect' },
               { value: 'lolrmm', label: 'LOLRMM' },
               { value: 'elastic_hunting', label: 'Elastic Hunting' },
+              { value: 'sentinel', label: 'Microsoft Sentinel' },
             ].map((source) => (
               <label
                 key={source.value}
