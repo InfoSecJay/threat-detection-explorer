@@ -340,6 +340,10 @@ class MitreAttackService:
         Returns:
             Deduplicated list of tactic IDs (e.g., ['TA0001', 'TA0003', 'TA0004'])
         """
+        # Ensure data is loaded (sync version - tries cache only)
+        if not self._loaded:
+            self._load_from_cache()
+
         tactics = set()
 
         for tech_id in technique_ids:
