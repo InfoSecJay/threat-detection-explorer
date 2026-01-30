@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting';
   className?: string;
   size?: number;
 }) {
@@ -15,6 +15,7 @@ export function DataSourceIcon({
     sublime: '#ec4899',
     elastic_protections: '#06b6d4',
     lolrmm: '#22c55e',
+    elastic_hunting: '#8b5cf6',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -120,6 +121,16 @@ export function DataSourceIcon({
           <path d="M18,34 L30,34" stroke={color} strokeWidth="2" strokeLinecap="round" />
           <circle cx="24" cy="20" r="4" fill="none" stroke={color} strokeWidth="1.5" />
           <path d="M24,16 L24,18" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      )}
+
+      {source === 'elastic_hunting' && (
+        // Hunting/Magnifier with crosshair icon
+        <g filter={`url(#glow-${source})`}>
+          <circle cx="20" cy="20" r="10" fill="none" stroke={color} strokeWidth="2" />
+          <path d="M28,28 L36,36" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M20,14 L20,26" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M14,20 L26,20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
         </g>
       )}
     </svg>

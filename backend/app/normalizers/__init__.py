@@ -7,6 +7,7 @@ from app.normalizers.splunk import SplunkNormalizer
 from app.normalizers.sublime import SublimeNormalizer
 from app.normalizers.elastic_protections import ElasticProtectionsNormalizer
 from app.normalizers.lolrmm import LOLRMMNormalizer
+from app.normalizers.elastic_hunting import ElasticHuntingNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -17,4 +18,5 @@ __all__ = [
     "SublimeNormalizer",
     "ElasticProtectionsNormalizer",
     "LOLRMMNormalizer",
+    "ElasticHuntingNormalizer",
 ]

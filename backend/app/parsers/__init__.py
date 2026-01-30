@@ -7,6 +7,7 @@ from app.parsers.splunk import SplunkParser
 from app.parsers.sublime import SublimeParser
 from app.parsers.elastic_protections import ElasticProtectionsParser
 from app.parsers.lolrmm import LOLRMMParser
+from app.parsers.elastic_hunting import ElasticHuntingParser
 
 __all__ = [
     "BaseParser",
@@ -17,4 +18,5 @@ __all__ = [
     "SublimeParser",
     "ElasticProtectionsParser",
     "LOLRMMParser",
+    "ElasticHuntingParser",
 ]

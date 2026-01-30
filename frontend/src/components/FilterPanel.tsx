@@ -16,6 +16,7 @@ const sourceColors: Record<string, string> = {
   sublime: '#ec4899',
   elastic_protections: '#06b6d4',
   lolrmm: '#22c55e',
+  elastic_hunting: '#8b5cf6',
 };
 
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
@@ -141,6 +142,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               { value: 'sublime', label: 'Sublime' },
               { value: 'elastic_protections', label: 'Elastic Protect' },
               { value: 'lolrmm', label: 'LOLRMM' },
+              { value: 'elastic_hunting', label: 'Elastic Hunting' },
             ].map((source) => (
               <label
                 key={source.value}

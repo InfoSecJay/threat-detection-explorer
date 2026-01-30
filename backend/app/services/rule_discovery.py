@@ -38,6 +38,10 @@ class RuleDiscoveryService:
             "include_patterns": ["detections/sigma/**/*.yml", "detections/sigma/**/*.yaml"],
             "exclude_dirs": ["deprecated", "tests", "test", ".git"],
         },
+        "elastic_hunting": {
+            "include_patterns": ["hunting/**/*.toml"],
+            "exclude_dirs": ["deprecated", "tests", "test", ".git"],
+        },
     }
 
     def discover_rules(self, repo_name: str) -> Generator[Path, None, None]:

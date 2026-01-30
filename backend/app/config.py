@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     sublime_repo_url: str = "https://github.com/sublime-security/sublime-rules.git"
     elastic_protections_repo_url: str = "https://github.com/elastic/protections-artifacts.git"
     lolrmm_repo_url: str = "https://github.com/magicsword-io/LOLRMM.git"
+    # Elastic Hunting uses same repo as elastic detection-rules, different folder
+    elastic_hunting_repo_url: str = "https://github.com/elastic/detection-rules.git"
 
     # API settings
     api_prefix: str = "/api"

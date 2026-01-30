@@ -28,6 +28,7 @@ const sourceColors: Record<string, string> = {
   sublime: '#ec4899',
   elastic_protections: '#06b6d4',
   lolrmm: '#22c55e',
+  elastic_hunting: '#8b5cf6',
 };
 
 const sourceLabels: Record<string, string> = {
@@ -37,6 +38,7 @@ const sourceLabels: Record<string, string> = {
   sublime: 'SUBLIME',
   elastic_protections: 'EL_PROTECT',
   lolrmm: 'LOLRMM',
+  elastic_hunting: 'EL_HUNT',
 };
 
 // Sort options

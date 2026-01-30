@@ -69,6 +69,13 @@ const dataSources = [
     repoUrl: 'https://github.com/magicsword-io/LOLRMM',
     color: '#22c55e',
   },
+  {
+    id: 'elastic_hunting' as const,
+    name: 'Elastic Hunting',
+    description: 'Proactive threat hunting queries using ES|QL for Elastic Security.',
+    repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
+    color: '#8b5cf6',
+  },
 ];
 
 // Feature cards configuration
@@ -76,7 +83,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 6 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 7 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {
@@ -398,6 +405,12 @@ export function Home() {
               label="LOLRMM"
               color="#22c55e"
               delay={300}
+            />
+            <StatCard
+              value={stats.by_source.elastic_hunting || 0}
+              label="Elastic Hunt"
+              color="#8b5cf6"
+              delay={350}
             />
           </div>
         </section>

@@ -52,6 +52,12 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
     repoUrl: 'https://github.com/magicsword-io/LOLRMM',
     color: '#22c55e',
   },
+  elastic_hunting: {
+    displayName: 'Elastic Hunting Queries',
+    description: 'Proactive threat hunting queries using ES|QL for Elastic Security.',
+    repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
+    color: '#8b5cf6',
+  },
 };
 
 function formatDate(dateString: string | null): string {
@@ -99,7 +105,7 @@ function IntegrationCard({ repo }: { repo: Repository }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm'} size={40} />
+          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting'} size={40} />
           <div>
             <h3 className="font-display font-semibold tracking-wide" style={{ color: config.color }}>
               {config.displayName}
