@@ -61,7 +61,7 @@ async def compare_detections(
     total_by_source = {}
 
     for source, detections in grouped.items():
-        results[source] = [DetectionListItem.model_validate(d) for d in detections]
+        results[source] = [DetectionListItem.from_detection(d) for d in detections]
         total_by_source[source] = len(detections)
 
     return CompareResponse(
@@ -104,7 +104,7 @@ async def compare_detections_post(
     total_by_source = {}
 
     for source, detections in grouped.items():
-        results[source] = [DetectionListItem.model_validate(d) for d in detections]
+        results[source] = [DetectionListItem.from_detection(d) for d in detections]
         total_by_source[source] = len(detections)
 
     return CompareResponse(
@@ -126,7 +126,7 @@ async def find_coverage_gaps(
     Returns techniques that base_source has detections for,
     but compare_source does not.
     """
-    valid_sources = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm"]
+    valid_sources = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting", "sentinel"]
     if base_source not in valid_sources:
         raise HTTPException(status_code=400, detail=f"Invalid base_source: {base_source}")
     if compare_source not in valid_sources:
@@ -213,7 +213,7 @@ async def compare_side_by_side(
     }
 
     return SideBySideResponse(
-        detections=[DetectionListItem.model_validate(d) for d in detections],
+        detections=[DetectionListItem.from_detection(d) for d in detections],
         field_comparison=field_comparison,
     )
 

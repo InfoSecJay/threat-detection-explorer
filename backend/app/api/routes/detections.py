@@ -63,7 +63,7 @@ async def list_detections(
     detections, total = await search_service.search_detections(filters)
 
     return DetectionListResponse(
-        items=[DetectionListItem.model_validate(d) for d in detections],
+        items=[DetectionListItem.from_detection(d) for d in detections],
         total=total,
         offset=offset,
         limit=limit,
@@ -99,7 +99,7 @@ async def search_detections(
     detections, total = await search_service.search_detections(filters)
 
     return DetectionListResponse(
-        items=[DetectionListItem.model_validate(d) for d in detections],
+        items=[DetectionListItem.from_detection(d) for d in detections],
         total=total,
         offset=params.offset,
         limit=params.limit,

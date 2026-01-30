@@ -21,7 +21,8 @@ export interface Detection {
   data_source_normalized: string;  // sysmon, auditd, cloudtrail, etc.
   mitre_tactics: string[];
   mitre_techniques: string[];
-  detection_logic: string;
+  detection_logic?: string;  // Full logic - only available in detail view
+  detection_logic_preview?: string;  // Truncated logic for list views (first 500 chars)
   language: string;
   tags: string[];
   references: string[];

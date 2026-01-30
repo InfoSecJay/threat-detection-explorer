@@ -49,14 +49,75 @@ class DetectionResponse(DetectionBase):
         from_attributes = True
 
 
-class DetectionListItem(DetectionBase):
-    """Detection item for list views (without raw_content)."""
+class DetectionListItem(BaseModel):
+    """Detection item for list views (without detection_logic and raw_content for performance)."""
 
+    id: str
+    source: str
+    source_file: str
+    source_repo_url: str
+    source_rule_url: Optional[str] = None
+    rule_id: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    author: Optional[str] = None
+    status: str
+    severity: str
+    log_sources: list[str] = []
+    data_sources: list[str] = []
+    # Standardized log source taxonomy
+    platform: str = ""
+    event_category: str = ""
+    data_source_normalized: str = ""
+    mitre_tactics: list[str] = []
+    mitre_techniques: list[str] = []
+    # Truncated detection_logic for preview (first 500 chars)
+    detection_logic_preview: str = ""
+    language: str = "unknown"
+    tags: list[str] = []
+    references: list[str] = []
+    false_positives: list[str] = []
+    rule_created_date: Optional[datetime] = None
+    rule_modified_date: Optional[datetime] = None
     created_at: datetime  # Sync timestamp
     updated_at: datetime  # Sync timestamp
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_detection(cls, detection) -> "DetectionListItem":
+        """Create a list item from a detection, truncating detection_logic."""
+        data = {
+            "id": str(detection.id),
+            "source": detection.source,
+            "source_file": detection.source_file,
+            "source_repo_url": detection.source_repo_url,
+            "source_rule_url": detection.source_rule_url,
+            "rule_id": detection.rule_id,
+            "title": detection.title,
+            "description": detection.description,
+            "author": detection.author,
+            "status": detection.status,
+            "severity": detection.severity,
+            "log_sources": detection.log_sources or [],
+            "data_sources": detection.data_sources or [],
+            "platform": detection.platform or "",
+            "event_category": detection.event_category or "",
+            "data_source_normalized": detection.data_source_normalized or "",
+            "mitre_tactics": detection.mitre_tactics or [],
+            "mitre_techniques": detection.mitre_techniques or [],
+            "detection_logic_preview": (detection.detection_logic or "")[:500],
+            "language": detection.language or "unknown",
+            "tags": detection.tags or [],
+            "references": detection.references or [],
+            "false_positives": detection.false_positives or [],
+            "rule_created_date": detection.rule_created_date,
+            "rule_modified_date": detection.rule_modified_date,
+            "created_at": detection.created_at,
+            "updated_at": detection.updated_at,
+        }
+        return cls(**data)
 
 
 class DetectionListResponse(BaseModel):
