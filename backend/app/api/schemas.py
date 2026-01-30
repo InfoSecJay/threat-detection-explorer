@@ -32,6 +32,36 @@ def sanitize_string(value: str | None) -> str:
         return ""
 
 
+def normalize_string_list(items: list | None) -> list[str]:
+    """Normalize a list to contain only strings.
+
+    Handles cases where list items might be dicts or other types
+    that need to be converted to strings.
+    """
+    if not items:
+        return []
+    result = []
+    for item in items:
+        if isinstance(item, str):
+            result.append(item)
+        elif isinstance(item, dict):
+            # Convert dict to a meaningful string representation
+            # Try common dict patterns first
+            if "name" in item:
+                result.append(str(item["name"]))
+            elif "id" in item:
+                result.append(str(item["id"]))
+            elif "Schema" in item:
+                # Sentinel schema tags - extract the schema name
+                result.append(item.get("Schema", str(item)))
+            else:
+                # Fall back to string representation
+                result.append(str(item))
+        else:
+            result.append(str(item))
+    return result
+
+
 # Detection schemas
 class DetectionBase(BaseModel):
     """Base detection schema with common fields."""
@@ -129,18 +159,18 @@ class DetectionListItem(BaseModel):
             "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
-            "log_sources": detection.log_sources or [],
-            "data_sources": detection.data_sources or [],
+            "log_sources": normalize_string_list(detection.log_sources),
+            "data_sources": normalize_string_list(detection.data_sources),
             "platform": sanitize_string(detection.platform) or "",
             "event_category": sanitize_string(detection.event_category) or "",
             "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
-            "mitre_tactics": detection.mitre_tactics or [],
-            "mitre_techniques": detection.mitre_techniques or [],
+            "mitre_tactics": normalize_string_list(detection.mitre_tactics),
+            "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
             "language": detection.language or "unknown",
-            "tags": detection.tags or [],
-            "references": detection.references or [],
-            "false_positives": detection.false_positives or [],
+            "tags": normalize_string_list(detection.tags),
+            "references": normalize_string_list(detection.references),
+            "false_positives": normalize_string_list(detection.false_positives),
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "created_at": detection.created_at,
