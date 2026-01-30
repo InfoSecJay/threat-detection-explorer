@@ -4,6 +4,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.mitre import mitre_service
 
 
 class ElasticHuntingNormalizer(BaseNormalizer):
@@ -51,6 +52,15 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         elif language.lower() in ["eql", "kql", "lucene"]:
             language = language.lower()
 
+        # Get techniques from parsed rule
+        techniques = parsed.mitre_attack.get("techniques", [])
+
+        # Derive tactics from techniques using MITRE service
+        # Elastic Hunting rules only provide techniques, so we need to look up the tactics
+        tactics = parsed.mitre_attack.get("tactics", [])
+        if not tactics and techniques:
+            tactics = mitre_service.get_tactics_for_techniques(techniques)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -68,8 +78,8 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             platform=platform,
             event_category=event_category or "hunting",
             data_source_normalized=data_source_normalized or self._get_data_source_from_integration(extra),
-            mitre_tactics=parsed.mitre_attack.get("tactics", []),
-            mitre_techniques=parsed.mitre_attack.get("techniques", []),
+            mitre_tactics=tactics,
+            mitre_techniques=techniques,
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
             language=language,
             tags=parsed.tags,

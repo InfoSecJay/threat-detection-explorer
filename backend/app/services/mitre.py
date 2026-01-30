@@ -331,6 +331,38 @@ class MitreAttackService:
             if not tinfo.get("deprecated", False) and not tinfo.get("revoked", False)
         }
 
+    def get_tactics_for_techniques(self, technique_ids: list[str]) -> list[str]:
+        """Get all tactics associated with a list of techniques.
+
+        Args:
+            technique_ids: List of technique IDs (e.g., ['T1078', 'T1078.004'])
+
+        Returns:
+            Deduplicated list of tactic IDs (e.g., ['TA0001', 'TA0003', 'TA0004'])
+        """
+        tactics = set()
+
+        for tech_id in technique_ids:
+            # Try to map deprecated techniques first
+            mapped_id = self.map_technique(tech_id)
+            if mapped_id:
+                tech_id = mapped_id
+
+            technique = self._techniques.get(tech_id)
+            if technique:
+                for tactic_id in technique.get("tactics", []):
+                    tactics.add(tactic_id)
+
+            # For sub-techniques, also check parent technique
+            if "." in tech_id:
+                parent_id = tech_id.split(".")[0]
+                parent = self._techniques.get(parent_id)
+                if parent:
+                    for tactic_id in parent.get("tactics", []):
+                        tactics.add(tactic_id)
+
+        return sorted(tactics)
+
 
 # Global singleton instance
 mitre_service = MitreAttackService()
