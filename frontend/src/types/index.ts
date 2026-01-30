@@ -1,7 +1,9 @@
 // Detection types
+export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel';
+
 export interface Detection {
   id: string;
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm';
+  source: DetectionSource;
   source_file: string;
   source_repo_url: string;
   source_rule_url: string | null;
