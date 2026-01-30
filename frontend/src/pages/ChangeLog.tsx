@@ -11,6 +11,18 @@ interface ChangeLogEntry {
 
 const changeLog: ChangeLogEntry[] = [
   {
+    version: '1.3.0',
+    date: '2026-01-30',
+    changes: [
+      { type: 'added', description: 'Elastic Hunting Queries integration - 138 ES|QL threat hunting queries' },
+      { type: 'added', description: 'MITRE ATT&CK technique validation with deprecated technique mapping' },
+      { type: 'added', description: 'Sub-technique rollup in MITRE Coverage Matrix' },
+      { type: 'added', description: 'Rule Created date column in Detections table' },
+      { type: 'improved', description: 'Coverage Matrix now shows parent technique counts including sub-techniques' },
+      { type: 'fixed', description: 'Invalid MITRE techniques (e.g., T1208) now mapped to current equivalents' },
+    ],
+  },
+  {
     version: '1.2.0',
     date: '2026-01-25',
     changes: [
@@ -40,7 +52,7 @@ const changeLog: ChangeLogEntry[] = [
     date: '2026-01-24',
     changes: [
       { type: 'added', description: 'Initial release of Threat Detection Explorer' },
-      { type: 'added', description: 'Detection rule aggregation from 6 security repositories' },
+      { type: 'added', description: 'Detection rule aggregation from multiple security repositories' },
       { type: 'added', description: 'Full-text search and MITRE ATT&CK filtering' },
       { type: 'added', description: 'Cross-vendor comparison functionality' },
       { type: 'added', description: 'Coverage gap analysis between sources' },
