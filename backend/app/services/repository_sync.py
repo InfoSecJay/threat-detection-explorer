@@ -109,13 +109,15 @@ class RepositorySyncService:
             await self.db.commit()
 
             if repo_path.exists():
-                # Pull updates
-                commit_hash = await self._pull_repository(repo_path)
-                message = f"Updated {name} repository"
-            else:
-                # Clone repository
-                commit_hash = await self._clone_repository(config["url"], repo_path)
-                message = f"Cloned {name} repository"
+                # For shallow clones, delete and re-clone to get latest changes
+                # This is more reliable than trying to pull shallow clones
+                import shutil
+                logger.info(f"Removing existing repo at {repo_path} for fresh clone")
+                shutil.rmtree(repo_path)
+
+            # Clone repository (fresh clone ensures we have latest)
+            commit_hash = await self._clone_repository(config["url"], repo_path)
+            message = f"Cloned {name} repository"
 
             # Update repository metadata
             repo_db.last_commit_hash = commit_hash
