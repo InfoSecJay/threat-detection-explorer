@@ -27,7 +27,7 @@ export function DetectionList() {
     event_categories: searchParams.get('event_categories')?.split(',').filter(Boolean) || [],
     data_sources_normalized: searchParams.get('data_sources_normalized')?.split(',').filter(Boolean) || [],
     offset: parseInt(searchParams.get('offset') || '0', 10),
-    limit: parseInt(searchParams.get('limit') || '50', 10),
+    limit: parseInt(searchParams.get('limit') || '25', 10),
     sort_by: searchParams.get('sort_by') || 'title',
     sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
   });
@@ -51,7 +51,7 @@ export function DetectionList() {
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
     if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
     if (filters.offset) params.set('offset', String(filters.offset));
-    if (filters.limit && filters.limit !== 50) params.set('limit', String(filters.limit));
+    if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit));
     if (filters.sort_by && filters.sort_by !== 'title') params.set('sort_by', filters.sort_by);
     if (filters.sort_order && filters.sort_order !== 'asc') params.set('sort_order', filters.sort_order);
 

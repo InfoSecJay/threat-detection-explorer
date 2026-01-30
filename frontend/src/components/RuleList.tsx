@@ -92,7 +92,7 @@ export function RuleList({
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const limit = filters.limit || 50;
+  const limit = filters.limit || 25;
   const offset = filters.offset || 0;
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.ceil(total / limit);
