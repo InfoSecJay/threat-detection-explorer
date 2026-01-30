@@ -50,7 +50,7 @@ class DetectionResponse(DetectionBase):
 
 
 class DetectionListItem(BaseModel):
-    """Detection item for list views (without detection_logic and raw_content for performance)."""
+    """Detection item for list views (without raw_content)."""
 
     id: str
     source: str
@@ -71,8 +71,7 @@ class DetectionListItem(BaseModel):
     data_source_normalized: str = ""
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
-    # Truncated detection_logic for preview (first 500 chars)
-    detection_logic_preview: str = ""
+    detection_logic: str = ""
     language: str = "unknown"
     tags: list[str] = []
     references: list[str] = []
@@ -87,7 +86,7 @@ class DetectionListItem(BaseModel):
 
     @classmethod
     def from_detection(cls, detection) -> "DetectionListItem":
-        """Create a list item from a detection, truncating detection_logic."""
+        """Create a list item from a detection."""
         data = {
             "id": str(detection.id),
             "source": detection.source,
@@ -107,7 +106,7 @@ class DetectionListItem(BaseModel):
             "data_source_normalized": detection.data_source_normalized or "",
             "mitre_tactics": detection.mitre_tactics or [],
             "mitre_techniques": detection.mitre_techniques or [],
-            "detection_logic_preview": (detection.detection_logic or "")[:500],
+            "detection_logic": detection.detection_logic or "",
             "language": detection.language or "unknown",
             "tags": detection.tags or [],
             "references": detection.references or [],
