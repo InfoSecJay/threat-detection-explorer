@@ -233,7 +233,7 @@ function App() {
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600 rounded">
               <span className="w-2 h-2 bg-matrix-500 rounded-full animate-pulse" />
               <span className="text-xs font-mono text-gray-400">
-                <span className="text-matrix-400">7</span> SOURCES ACTIVE
+                <span className="text-matrix-400">8</span> SOURCES ACTIVE
               </span>
             </div>
           </div>

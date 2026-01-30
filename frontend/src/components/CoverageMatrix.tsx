@@ -32,7 +32,7 @@ function CoverageSummary({ data }: { data: ReturnType<typeof useCoverageMatrix>[
   const { summary, sources } = data;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
       {/* Overall Coverage */}
       <div
         className="bg-void-850 border border-matrix-500/30 p-4"
@@ -259,8 +259,8 @@ export function CoverageMatrix() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {[...Array(7)].map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+          {[...Array(8)].map((_, i) => (
             <div key={i} className="h-24 bg-void-800 animate-pulse rounded" />
           ))}
         </div>
