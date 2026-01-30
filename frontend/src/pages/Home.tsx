@@ -358,60 +358,91 @@ export function Home() {
               Detection Intel Feed
             </h2>
             <div className="flex-1 h-px bg-gradient-to-r from-void-700 to-transparent" />
-            <span className="text-xs font-mono text-gray-500">
-              TOTAL_RULES: <span className="text-matrix-500">{stats.total.toLocaleString()}</span>
-            </span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <StatCard
-              value={stats.total}
-              label="Total Rules"
-              color="#00ffcc"
-              delay={0}
-            />
-            <StatCard
-              value={stats.by_source.sigma || 0}
-              label="Sigma"
-              color="#a855f7"
-              delay={50}
-            />
-            <StatCard
-              value={stats.by_source.elastic || 0}
-              label="Elastic"
-              color="#3b82f6"
-              delay={100}
-            />
-            <StatCard
-              value={stats.by_source.splunk || 0}
-              label="Splunk"
-              color="#f97316"
-              delay={150}
-            />
-            <StatCard
-              value={stats.by_source.sublime || 0}
-              label="Sublime"
-              color="#ec4899"
-              delay={200}
-            />
-            <StatCard
-              value={stats.by_source.elastic_protections || 0}
-              label="Elastic Protect"
-              color="#06b6d4"
-              delay={250}
-            />
-            <StatCard
-              value={stats.by_source.lolrmm || 0}
-              label="LOLRMM"
-              color="#22c55e"
-              delay={300}
-            />
-            <StatCard
-              value={stats.by_source.elastic_hunting || 0}
-              label="Elastic Hunt"
-              color="#8b5cf6"
-              delay={350}
-            />
+          {/* Two-tier layout: Hero total + Source grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {/* Hero Total - spans 1 column on large screens, full width on mobile */}
+            <div className="lg:col-span-1">
+              <div
+                className="relative group h-full"
+              >
+                <div
+                  className="relative bg-void-850 border border-matrix-500/30 p-6 h-full transition-all duration-300 group-hover:border-matrix-500/50 overflow-hidden"
+                  style={{
+                    clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
+                  }}
+                >
+                  {/* Background glow */}
+                  <div
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                      background: 'radial-gradient(ellipse at center, #00ffcc20 0%, transparent 70%)',
+                    }}
+                  />
+                  {/* Corner accent */}
+                  <div className="absolute top-0 right-0 w-4 h-4 bg-matrix-500" />
+
+                  <div className="relative">
+                    <p className="text-xs font-mono text-gray-500 mb-2 uppercase tracking-wider">
+                      Aggregate Total
+                    </p>
+                    <p className="text-4xl lg:text-5xl font-display font-bold tracking-wider text-matrix-500">
+                      {stats.total.toLocaleString()}
+                    </p>
+                    <p className="text-sm font-mono text-gray-400 mt-2">
+                      Detection Rules
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Source Cards Grid - 3 columns on large, 2 on medium, responsive fill */}
+            <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <StatCard
+                value={stats.by_source.sigma || 0}
+                label="Sigma"
+                color="#a855f7"
+                delay={50}
+              />
+              <StatCard
+                value={stats.by_source.elastic || 0}
+                label="Elastic"
+                color="#3b82f6"
+                delay={100}
+              />
+              <StatCard
+                value={stats.by_source.splunk || 0}
+                label="Splunk"
+                color="#f97316"
+                delay={150}
+              />
+              <StatCard
+                value={stats.by_source.sublime || 0}
+                label="Sublime"
+                color="#ec4899"
+                delay={200}
+              />
+              <StatCard
+                value={stats.by_source.elastic_protections || 0}
+                label="Elastic Protect"
+                color="#06b6d4"
+                delay={250}
+              />
+              <StatCard
+                value={stats.by_source.lolrmm || 0}
+                label="LOLRMM"
+                color="#22c55e"
+                delay={300}
+              />
+              <StatCard
+                value={stats.by_source.elastic_hunting || 0}
+                label="Elastic Hunt"
+                color="#8b5cf6"
+                delay={350}
+              />
+            </div>
           </div>
         </section>
       )}
