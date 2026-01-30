@@ -1,6 +1,7 @@
 """Repository synchronization service."""
 
 import logging
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,15 @@ from app.config import settings
 from app.models.repository import Repository
 
 logger = logging.getLogger(__name__)
+
+# Sparse checkout patterns for large repositories
+SPARSE_CHECKOUT_PATTERNS = {
+    "sentinel": [
+        "Solutions/*/Analytic Rules/*",
+        "Solutions/*/Hunting Queries/*",
+        "Solutions/*/Detection Queries/*",
+    ],
+}
 
 
 class RepositorySyncService:
@@ -120,8 +130,15 @@ class RepositorySyncService:
                 shutil.rmtree(repo_path)
 
             # Clone repository (fresh clone ensures we have latest)
-            commit_hash = await self._clone_repository(config["url"], repo_path)
-            message = f"Cloned {name} repository"
+            # Use sparse checkout for large repos like sentinel
+            if name in SPARSE_CHECKOUT_PATTERNS:
+                commit_hash = await self._sparse_clone_repository(
+                    config["url"], repo_path, SPARSE_CHECKOUT_PATTERNS[name]
+                )
+                message = f"Sparse cloned {name} repository"
+            else:
+                commit_hash = await self._clone_repository(config["url"], repo_path)
+                message = f"Cloned {name} repository"
 
             # Update repository metadata
             repo_db.last_commit_hash = commit_hash
@@ -163,6 +180,60 @@ class RepositorySyncService:
 
         # Clone with depth=1 for faster initial clone
         repo = Repo.clone_from(url, path, depth=1)
+        return repo.head.commit.hexsha
+
+    async def _sparse_clone_repository(
+        self, url: str, path: Path, patterns: list[str]
+    ) -> str:
+        """Clone a git repository using sparse checkout for large repos.
+
+        Args:
+            url: Repository URL
+            path: Local path to clone to
+            patterns: List of sparse checkout patterns
+
+        Returns:
+            Current commit hash
+        """
+        logger.info(f"Sparse cloning {url} to {path} with patterns: {patterns}")
+        path.mkdir(parents=True, exist_ok=True)
+
+        # Initialize empty repo
+        subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
+
+        # Add remote
+        subprocess.run(
+            ["git", "remote", "add", "origin", url],
+            cwd=path, check=True, capture_output=True
+        )
+
+        # Enable sparse checkout
+        subprocess.run(
+            ["git", "config", "core.sparseCheckout", "true"],
+            cwd=path, check=True, capture_output=True
+        )
+
+        # Write sparse checkout patterns
+        sparse_checkout_file = path / ".git" / "info" / "sparse-checkout"
+        sparse_checkout_file.parent.mkdir(parents=True, exist_ok=True)
+        sparse_checkout_file.write_text("\n".join(patterns) + "\n")
+
+        logger.info(f"Fetching with sparse checkout patterns...")
+
+        # Fetch with depth=1
+        subprocess.run(
+            ["git", "fetch", "--depth=1", "origin", "master"],
+            cwd=path, check=True, capture_output=True
+        )
+
+        # Checkout
+        subprocess.run(
+            ["git", "checkout", "master"],
+            cwd=path, check=True, capture_output=True
+        )
+
+        # Get commit hash
+        repo = Repo(path)
         return repo.head.commit.hexsha
 
     async def _pull_repository(self, path: Path) -> str:

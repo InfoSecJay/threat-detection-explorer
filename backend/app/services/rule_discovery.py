@@ -43,7 +43,14 @@ class RuleDiscoveryService:
             "exclude_dirs": ["deprecated", "tests", "test", ".git"],
         },
         "sentinel": {
-            "include_patterns": ["Solutions/**/Analytic Rules/*.yaml", "Solutions/**/Analytic Rules/*.yml"],
+            "include_patterns": [
+                "Solutions/**/Analytic Rules/*.yaml",
+                "Solutions/**/Analytic Rules/*.yml",
+                "Solutions/**/Hunting Queries/*.yaml",
+                "Solutions/**/Hunting Queries/*.yml",
+                "Solutions/**/Detection Queries/*.yaml",
+                "Solutions/**/Detection Queries/*.yml",
+            ],
             "exclude_dirs": ["deprecated", "tests", "test", ".git", "sample", "Sample"],
         },
     }
