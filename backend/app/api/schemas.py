@@ -10,15 +10,26 @@ from pydantic import BaseModel, Field
 def sanitize_string(value: str | None) -> str:
     """Sanitize a string for JSON serialization.
 
-    Removes null bytes and other control characters that can cause
-    JSON serialization to fail.
+    Removes null bytes, control characters, and invalid Unicode that
+    can cause JSON serialization to fail.
     """
     if value is None:
         return ""
-    # Remove null bytes and other problematic control characters
-    # Keep common whitespace (tab, newline, carriage return)
-    sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
-    return sanitized
+    try:
+        # If value is bytes, decode it
+        if isinstance(value, bytes):
+            value = value.decode('utf-8', errors='replace')
+        # Convert to string if needed
+        value = str(value)
+        # Remove null bytes and other problematic control characters
+        # Keep common whitespace (tab, newline, carriage return)
+        sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
+        # Remove surrogate pairs that cause JSON encoding issues
+        sanitized = sanitized.encode('utf-8', errors='surrogateescape').decode('utf-8', errors='replace')
+        return sanitized
+    except Exception:
+        # If all else fails, return an empty string
+        return ""
 
 
 # Detection schemas
