@@ -9,6 +9,7 @@ import type { SearchFilters } from '../types';
 export function DetectionList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
 
   // Parse filters from URL
@@ -68,6 +69,11 @@ export function DetectionList() {
   const handleClearSearch = () => {
     setSearchInput('');
     setFilters({ ...filters, search: undefined, offset: 0 });
+  };
+
+  const handleExportSelected = (ids: string[]) => {
+    setSelectedIdsForExport(ids);
+    setIsExportModalOpen(true);
   };
 
   if (error) {
@@ -181,14 +187,19 @@ export function DetectionList() {
             filters={filters}
             onFiltersChange={setFilters}
             isLoading={isLoading}
+            onExportSelected={handleExportSelected}
           />
         </div>
       </div>
 
       <ExportModal
         isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
+        onClose={() => {
+          setIsExportModalOpen(false);
+          setSelectedIdsForExport([]);
+        }}
         filters={filters}
+        selectedIds={selectedIdsForExport.length > 0 ? selectedIdsForExport : undefined}
       />
     </div>
   );

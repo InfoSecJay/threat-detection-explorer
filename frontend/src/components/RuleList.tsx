@@ -10,6 +10,7 @@ interface RuleListProps {
   onFiltersChange: (filters: SearchFilters) => void;
   isLoading?: boolean;
   enableSelection?: boolean;
+  onExportSelected?: (ids: string[]) => void;
 }
 
 // Color mappings
@@ -87,6 +88,7 @@ export function RuleList({
   onFiltersChange,
   isLoading,
   enableSelection = true,
+  onExportSelected,
 }: RuleListProps) {
   const { getTacticName } = useMitre();
   const navigate = useNavigate();
@@ -104,7 +106,7 @@ export function RuleList({
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-      } else if (next.size < 6) {
+      } else {
         next.add(id);
       }
       return next;
@@ -112,7 +114,7 @@ export function RuleList({
   };
 
   const selectAll = () => {
-    const allIds = detections.slice(0, 6).map((d) => d.id);
+    const allIds = detections.map((d) => d.id);
     setSelectedIds(new Set(allIds));
   };
 
@@ -126,7 +128,7 @@ export function RuleList({
   };
 
   const isSelected = (id: string) => selectedIds.has(id);
-  const canSelect = selectedIds.size < 6;
+  const canSelect = true; // No limit on selection
 
   const handlePageChange = (page: number) => {
     onFiltersChange({ ...filters, offset: (page - 1) * limit });
@@ -236,6 +238,14 @@ export function RuleList({
                   COMPARE
                 </button>
               )}
+              {onExportSelected && selectedIds.size >= 1 && (
+                <button
+                  onClick={() => onExportSelected(Array.from(selectedIds))}
+                  className="px-3 py-1 bg-pulse-500 text-void-950 text-xs font-display font-semibold uppercase hover:bg-pulse-400 transition-colors"
+                >
+                  EXPORT
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -287,10 +297,10 @@ export function RuleList({
                   <th className="px-3 py-3 text-left w-10">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === Math.min(6, detections.length) && selectedIds.size > 0}
+                      checked={selectedIds.size === detections.length && selectedIds.size > 0}
                       onChange={() => selectedIds.size > 0 ? clearSelection() : selectAll()}
                       className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50"
-                      title="Select all (max 6)"
+                      title="Select all on page"
                     />
                   </th>
                 )}
