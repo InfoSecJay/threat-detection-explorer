@@ -36,28 +36,13 @@ const severityConfig: Record<string, { color: string; glow: string }> = {
   unknown: { color: '#6b7280', glow: 'none' },
 };
 
-// Check if a field differs between detections
-function fieldDiffers(detections: Detection[], field: keyof Detection): boolean {
-  if (detections.length < 2) return false;
-  const first = detections[0][field];
-  return detections.some((d) => {
-    const val = d[field];
-    if (Array.isArray(first) && Array.isArray(val)) {
-      return JSON.stringify(first) !== JSON.stringify(val);
-    }
-    return val !== first;
-  });
-}
-
 interface RulePanelProps {
   detection: Detection;
-  allDetections: Detection[];
 }
 
-function RulePanel({ detection, allDetections }: RulePanelProps) {
+function RulePanel({ detection }: RulePanelProps) {
   const sourceColor = sourceColors[detection.source] || '#6b7280';
   const severity = severityConfig[detection.severity] || severityConfig.unknown;
-  const isDiff = (field: keyof Detection) => fieldDiffers(allDetections, field);
 
   return (
     <div
@@ -154,14 +139,9 @@ function RulePanel({ detection, allDetections }: RulePanelProps) {
       </div>
 
       {/* Description Section */}
-      <div className={`px-5 py-4 border-b border-white/5 ${isDiff('description') ? 'bg-amber-500/5' : ''}`}>
+      <div className="px-5 py-4 border-b border-white/5">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">DESCRIPTION</span>
-          {isDiff('description') && (
-            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-mono rounded">
-              DIFFERS
-            </span>
-          )}
         </div>
         <p className="text-sm text-gray-400 leading-relaxed line-clamp-4">
           {detection.description || 'No description available'}
@@ -170,24 +150,17 @@ function RulePanel({ detection, allDetections }: RulePanelProps) {
 
       {/* Detection Logic - The Main Event */}
       <div
-        className={`flex-1 overflow-auto ${isDiff('detection_logic') ? 'bg-amber-500/[0.02]' : ''}`}
+        className="flex-1 overflow-auto"
         style={{ scrollbarGutter: 'stable' }}
       >
         <div className="px-5 py-4">
           {/* Logic Header */}
           <div className="flex items-center justify-between mb-3 sticky top-0 bg-inherit py-2 -my-2">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">DETECTION LOGIC</span>
-              </div>
-              {isDiff('detection_logic') && (
-                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-mono rounded">
-                  DIFFERS
-                </span>
-              )}
+            <div className="flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">DETECTION LOGIC</span>
             </div>
             <span
               className="text-[10px] font-mono px-2 py-1 rounded"
@@ -287,14 +260,6 @@ export function SideBySideComparison({ data }: SideBySideComparisonProps) {
             <span className="text-gray-500 font-mono text-xs">RULES</span>
           </div>
         </div>
-
-        {/* Diff Legend */}
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-mono rounded">
-            DIFFERS
-          </span>
-          <span className="font-mono">= values differ</span>
-        </div>
       </div>
 
       {/* Comparison Grid */}
@@ -310,7 +275,6 @@ export function SideBySideComparison({ data }: SideBySideComparisonProps) {
           <RulePanel
             key={detection.id}
             detection={detection}
-            allDetections={data.detections}
           />
         ))}
       </div>
