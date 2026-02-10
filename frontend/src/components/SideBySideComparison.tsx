@@ -1,4 +1,3 @@
-import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Detection, SideBySideResponse } from '../types';
 
@@ -53,27 +52,12 @@ function fieldDiffers(detections: Detection[], field: keyof Detection): boolean 
 interface RulePanelProps {
   detection: Detection;
   allDetections: Detection[];
-  syncScrollRef: React.RefObject<HTMLDivElement | null>;
-  onScroll: (scrollTop: number) => void;
-  syncEnabled: boolean;
 }
 
-function RulePanel({ detection, allDetections, syncScrollRef, onScroll, syncEnabled }: RulePanelProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+function RulePanel({ detection, allDetections }: RulePanelProps) {
   const sourceColor = sourceColors[detection.source] || '#6b7280';
   const severity = severityConfig[detection.severity] || severityConfig.unknown;
   const isDiff = (field: keyof Detection) => fieldDiffers(allDetections, field);
-
-  useEffect(() => {
-    if (!syncEnabled || !scrollRef.current || !syncScrollRef.current) return;
-    scrollRef.current.scrollTop = syncScrollRef.current.scrollTop;
-  }, [syncEnabled, syncScrollRef]);
-
-  const handleScroll = () => {
-    if (syncEnabled && scrollRef.current) {
-      onScroll(scrollRef.current.scrollTop);
-    }
-  };
 
   return (
     <div
@@ -186,8 +170,6 @@ function RulePanel({ detection, allDetections, syncScrollRef, onScroll, syncEnab
 
       {/* Detection Logic - The Main Event */}
       <div
-        ref={scrollRef}
-        onScroll={handleScroll}
         className={`flex-1 overflow-auto ${isDiff('detection_logic') ? 'bg-amber-500/[0.02]' : ''}`}
         style={{ scrollbarGutter: 'stable' }}
       >
@@ -271,15 +253,7 @@ function RulePanel({ detection, allDetections, syncScrollRef, onScroll, syncEnab
 }
 
 export function SideBySideComparison({ data }: SideBySideComparisonProps) {
-  const [syncScroll, setSyncScroll] = useState(false);
-  const syncScrollRef = useRef<HTMLDivElement>(null);
   const numPanels = data.detections.length;
-
-  const handleScroll = (scrollTop: number) => {
-    if (syncScroll && syncScrollRef.current) {
-      syncScrollRef.current.scrollTop = scrollTop;
-    }
-  };
 
   // Calculate grid columns based on number of detections
   const getGridStyle = () => {
@@ -314,41 +288,12 @@ export function SideBySideComparison({ data }: SideBySideComparisonProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          {/* Diff Legend */}
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-mono rounded">
-              DIFFERS
-            </span>
-            <span className="font-mono">= values differ</span>
-          </div>
-
-          {/* Sync Toggle */}
-          <label className="flex items-center gap-2 cursor-pointer group">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={syncScroll}
-                onChange={(e) => setSyncScroll(e.target.checked)}
-                className="sr-only"
-              />
-              <div
-                className={`w-10 h-5 rounded-full transition-colors ${
-                  syncScroll ? 'bg-matrix-500/30' : 'bg-void-700'
-                }`}
-              />
-              <div
-                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all ${
-                  syncScroll
-                    ? 'translate-x-5 bg-matrix-500 shadow-[0_0_10px_rgba(0,255,204,0.5)]'
-                    : 'bg-gray-500'
-                }`}
-              />
-            </div>
-            <span className="text-xs font-mono text-gray-400 group-hover:text-gray-300 transition-colors">
-              SYNC SCROLL
-            </span>
-          </label>
+        {/* Diff Legend */}
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-mono rounded">
+            DIFFERS
+          </span>
+          <span className="font-mono">= values differ</span>
         </div>
       </div>
 
@@ -366,9 +311,6 @@ export function SideBySideComparison({ data }: SideBySideComparisonProps) {
             key={detection.id}
             detection={detection}
             allDetections={data.detections}
-            syncScrollRef={syncScrollRef}
-            onScroll={handleScroll}
-            syncEnabled={syncScroll}
           />
         ))}
       </div>
