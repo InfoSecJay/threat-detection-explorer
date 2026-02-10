@@ -361,7 +361,7 @@ export function SideBySideComparison({ data }: SideBySideComparisonProps) {
           minHeight: '500px'
         }}
       >
-        {data.detections.map((detection, index) => (
+        {data.detections.map((detection) => (
           <RulePanel
             key={detection.id}
             detection={detection}
