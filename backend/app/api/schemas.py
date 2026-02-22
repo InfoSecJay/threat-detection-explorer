@@ -132,6 +132,16 @@ class DetectionListItem(BaseModel):
     tags: list[str] = []
     references: list[str] = []
     false_positives: list[str] = []
+    # Extracted observable fields
+    extracted_fields_used: list[str] = []
+    extracted_event_ids: list[str] = []
+    extracted_process_names: list[str] = []
+    extracted_file_paths: list[str] = []
+    extracted_registry_keys: list[str] = []
+    extracted_network_indicators: list[str] = []
+    extracted_source_tables: list[str] = []
+    extracted_observables: list[dict] = []
+    query_complexity: str = "unknown"
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
     created_at: datetime  # Sync timestamp
@@ -171,6 +181,15 @@ class DetectionListItem(BaseModel):
             "tags": normalize_string_list(detection.tags),
             "references": normalize_string_list(detection.references),
             "false_positives": normalize_string_list(detection.false_positives),
+            "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
+            "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
+            "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],
+            "extracted_file_paths": getattr(detection, 'extracted_file_paths', None) or [],
+            "extracted_registry_keys": getattr(detection, 'extracted_registry_keys', None) or [],
+            "extracted_network_indicators": getattr(detection, 'extracted_network_indicators', None) or [],
+            "extracted_source_tables": getattr(detection, 'extracted_source_tables', None) or [],
+            "extracted_observables": getattr(detection, 'extracted_observables', None) or [],
+            "query_complexity": getattr(detection, 'query_complexity', None) or "unknown",
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "created_at": detection.created_at,

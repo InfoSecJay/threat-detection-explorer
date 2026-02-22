@@ -71,6 +71,17 @@ class NormalizedDetection:
     # Original raw content
     raw_content: str = ""
 
+    # Extracted observable fields (from detection logic parsing)
+    extracted_fields_used: list[str] = field(default_factory=list)
+    extracted_event_ids: list[str] = field(default_factory=list)
+    extracted_process_names: list[str] = field(default_factory=list)
+    extracted_file_paths: list[str] = field(default_factory=list)
+    extracted_registry_keys: list[str] = field(default_factory=list)
+    extracted_network_indicators: list[str] = field(default_factory=list)
+    extracted_source_tables: list[str] = field(default_factory=list)
+    extracted_observables: list[dict] = field(default_factory=list)
+    query_complexity: str = "unknown"
+
     # Rule dates from source
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None

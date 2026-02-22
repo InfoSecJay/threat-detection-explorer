@@ -4,6 +4,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.field_extractor import extract_sentinel_fields
 
 
 class SentinelNormalizer(BaseNormalizer):
@@ -32,6 +33,10 @@ class SentinelNormalizer(BaseNormalizer):
         if not platform:
             platform = self._determine_platform(extra)
 
+        # Extract observable fields from KQL query
+        query_str = parsed.detection_logic_raw if isinstance(parsed.detection_logic_raw, str) else str(parsed.detection_logic_raw)
+        extracted = extract_sentinel_fields(query_str)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -51,14 +56,23 @@ class SentinelNormalizer(BaseNormalizer):
             data_source_normalized=data_source_normalized or self._get_data_source_from_connectors(extra),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
-            detection_logic=parsed.detection_logic_raw,
+            detection_logic=query_str,
             language="kql",
             tags=parsed.tags,
-            references=[],  # Sentinel rules don't typically have references
+            references=[],
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
-            rule_created_date=None,  # Not available in Sentinel rules
-            rule_modified_date=None,  # Version available but not date
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
+            query_complexity=extracted.query_complexity,
+            rule_created_date=None,
+            rule_modified_date=None,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

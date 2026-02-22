@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
-from sqlalchemy import String, Text, DateTime, JSON, Index
+from sqlalchemy import String, Text, DateTime, JSON, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -97,6 +97,26 @@ class Detection(Base):
 
     # False positives / known limitations
     false_positives: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    # Extracted observable fields (from detection logic parsing)
+    extracted_fields_used: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_event_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_process_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_file_paths: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_registry_keys: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_network_indicators: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_source_tables: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_observables: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    query_complexity: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="unknown",
+        index=True,
+    )
+
+    # Rule quality score (0-100)
+    quality_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    quality_details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Original rule content
     raw_content: Mapped[str] = mapped_column(Text, nullable=False)

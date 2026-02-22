@@ -5,6 +5,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.field_extractor import extract_sigma_fields
 
 
 class SigmaNormalizer(BaseNormalizer):
@@ -29,6 +30,12 @@ class SigmaNormalizer(BaseNormalizer):
             product=product,
             category=category,
             service=service
+        )
+
+        # Extract observable fields from detection logic
+        extracted = extract_sigma_fields(
+            parsed.detection_logic_raw if isinstance(parsed.detection_logic_raw, dict) else {},
+            logsource=log_source,
         )
 
         return NormalizedDetection(
@@ -56,6 +63,15 @@ class SigmaNormalizer(BaseNormalizer):
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[o.to_dict() if hasattr(o, 'to_dict') else {"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
+            query_complexity=extracted.query_complexity,
             rule_created_date=self.parse_date(extra.get("date")),
             rule_modified_date=self.parse_date(extra.get("modified")),
         )

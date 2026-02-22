@@ -4,6 +4,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.field_extractor import extract_splunk_fields
 
 
 class SplunkNormalizer(BaseNormalizer):
@@ -29,6 +30,10 @@ class SplunkNormalizer(BaseNormalizer):
             log_sources=combined_sources
         )
 
+        # Extract observable fields from SPL search
+        search_str = self._format_detection_logic(parsed.detection_logic_raw)
+        extracted = extract_splunk_fields(search_str)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -48,14 +53,23 @@ class SplunkNormalizer(BaseNormalizer):
             data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
-            detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            detection_logic=search_str,
             language="spl",
             tags=self._normalize_tags(parsed.tags),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
+            query_complexity=extracted.query_complexity,
             rule_created_date=self.parse_date(extra.get("date")),
-            rule_modified_date=None,  # Splunk doesn't have a modified date field
+            rule_modified_date=None,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:
