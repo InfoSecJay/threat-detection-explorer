@@ -40,6 +40,11 @@ class SearchFilters:
     event_categories: list[str] = field(default_factory=list)
     data_sources_normalized: list[str] = field(default_factory=list)
 
+    # Extracted field filters
+    event_ids: list[str] = field(default_factory=list)
+    process_names: list[str] = field(default_factory=list)
+    query_complexity: list[str] = field(default_factory=list)
+
     # Pagination
     offset: int = 0
     limit: int = 50
@@ -381,6 +386,30 @@ class SearchService:
         # Data source normalized filter (standardized taxonomy)
         if filters.data_sources_normalized:
             conditions.append(Detection.data_source_normalized.in_(filters.data_sources_normalized))
+
+        # Extracted Event IDs filter (JSON array, text-based matching)
+        if filters.event_ids:
+            event_id_conditions = []
+            for eid in filters.event_ids:
+                event_id_conditions.append(
+                    cast(Detection.extracted_event_ids, String).ilike(f'%"{eid}"%')
+                )
+            if event_id_conditions:
+                conditions.append(or_(*event_id_conditions))
+
+        # Extracted Process Names filter (JSON array, text-based matching)
+        if filters.process_names:
+            process_name_conditions = []
+            for pname in filters.process_names:
+                process_name_conditions.append(
+                    cast(Detection.extracted_process_names, String).ilike(f'%{pname}%')
+                )
+            if process_name_conditions:
+                conditions.append(or_(*process_name_conditions))
+
+        # Query complexity filter (scalar field)
+        if filters.query_complexity:
+            conditions.append(Detection.query_complexity.in_(filters.query_complexity))
 
         return conditions
 

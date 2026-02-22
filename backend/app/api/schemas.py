@@ -90,6 +90,16 @@ class DetectionBase(BaseModel):
     tags: list[str] = []
     references: list[str] = []
     false_positives: list[str] = []
+    # Extracted observable fields
+    extracted_fields_used: list[str] = []
+    extracted_event_ids: list[str] = []
+    extracted_process_names: list[str] = []
+    extracted_file_paths: list[str] = []
+    extracted_registry_keys: list[str] = []
+    extracted_network_indicators: list[str] = []
+    extracted_source_tables: list[str] = []
+    extracted_observables: list[dict] = []
+    query_complexity: str = "unknown"
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
 
@@ -299,6 +309,10 @@ class SearchParams(BaseModel):
     platforms: list[str] = Field(default_factory=list)
     event_categories: list[str] = Field(default_factory=list)
     data_sources_normalized: list[str] = Field(default_factory=list)
+    # Extracted field filters
+    event_ids: list[str] = Field(default_factory=list)
+    process_names: list[str] = Field(default_factory=list)
+    query_complexity: list[str] = Field(default_factory=list)
     offset: int = 0
     limit: int = Field(default=50, le=200)
     sort_by: str = "title"

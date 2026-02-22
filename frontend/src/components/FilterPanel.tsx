@@ -79,7 +79,10 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.mitre_techniques?.length || 0) > 0 ||
     (filters.log_sources?.length || 0) > 0 ||
     (filters.platforms?.length || 0) > 0 ||
-    (filters.event_categories?.length || 0) > 0;
+    (filters.event_categories?.length || 0) > 0 ||
+    (filters.event_ids?.length || 0) > 0 ||
+    (filters.process_names?.length || 0) > 0 ||
+    (filters.query_complexity?.length || 0) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -599,6 +602,143 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 ))}
               </div>
             ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Event IDs filter */}
+      <div className="mb-3">
+        <SectionHeader title="Event IDs" section="eventids" count={filters.event_ids?.length} />
+        {expandedSections.has('eventids') && (
+          <div className="mt-2">
+            <input
+              type="text"
+              placeholder="e.g., 4688"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = (e.target as HTMLInputElement).value.trim();
+                  if (value && !filters.event_ids?.includes(value)) {
+                    onFiltersChange({
+                      ...filters,
+                      event_ids: [...(filters.event_ids || []), value],
+                      offset: 0,
+                    });
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }
+              }}
+              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+            />
+            {filters.event_ids?.length ? (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {filters.event_ids.map((eid) => (
+                  <span
+                    key={eid}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 text-xs font-mono border border-amber-500/30"
+                  >
+                    {eid}
+                    <button
+                      onClick={() =>
+                        onFiltersChange({
+                          ...filters,
+                          event_ids: filters.event_ids?.filter((e) => e !== eid),
+                          offset: 0,
+                        })
+                      }
+                      className="hover:text-breach-400 transition-colors"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Process Names filter */}
+      <div className="mb-3">
+        <SectionHeader title="Process Names" section="processnames" count={filters.process_names?.length} />
+        {expandedSections.has('processnames') && (
+          <div className="mt-2">
+            <input
+              type="text"
+              placeholder="e.g., powershell.exe"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = (e.target as HTMLInputElement).value.trim().toLowerCase();
+                  if (value && !filters.process_names?.includes(value)) {
+                    onFiltersChange({
+                      ...filters,
+                      process_names: [...(filters.process_names || []), value],
+                      offset: 0,
+                    });
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }
+              }}
+              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+            />
+            {filters.process_names?.length ? (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {filters.process_names.map((pname) => (
+                  <span
+                    key={pname}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-400 text-xs font-mono border border-red-500/30"
+                  >
+                    {pname}
+                    <button
+                      onClick={() =>
+                        onFiltersChange({
+                          ...filters,
+                          process_names: filters.process_names?.filter((p) => p !== pname),
+                          offset: 0,
+                        })
+                      }
+                      className="hover:text-breach-400 transition-colors"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Query Complexity filter */}
+      <div className="mb-3">
+        <SectionHeader title="Query Complexity" section="complexity" count={filters.query_complexity?.length} />
+        {expandedSections.has('complexity') && (
+          <div className="space-y-1 mt-2">
+            {[
+              { value: 'simple', label: 'Simple', color: '#00ff41' },
+              { value: 'moderate', label: 'Moderate', color: '#fbbf24' },
+              { value: 'complex', label: 'Complex', color: '#ff0040' },
+            ].map((complexity) => (
+              <label
+                key={complexity.value}
+                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.query_complexity?.includes(complexity.value) || false}
+                  onChange={(e) =>
+                    handleMultiSelect('query_complexity', complexity.value, e.target.checked)
+                  }
+                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: complexity.color }}
+                />
+                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
+                  {complexity.label}
+                </span>
+              </label>
+            ))}
           </div>
         )}
       </div>

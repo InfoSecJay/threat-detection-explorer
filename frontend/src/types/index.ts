@@ -26,6 +26,22 @@ export interface Detection {
   tags: string[];
   references: string[];
   false_positives: string[];
+  // Extracted observable fields
+  extracted_fields_used: string[];
+  extracted_event_ids: string[];
+  extracted_process_names: string[];
+  extracted_file_paths: string[];
+  extracted_registry_keys: string[];
+  extracted_network_indicators: string[];
+  extracted_source_tables: string[];
+  extracted_observables: Array<{
+    field: string;
+    values: string[];
+    type: string;
+    subtype: string;
+    negated: boolean;
+  }>;
+  query_complexity: string;
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;
@@ -103,6 +119,10 @@ export interface SearchFilters {
   platforms?: string[];
   event_categories?: string[];
   data_sources_normalized?: string[];
+  // Extracted field filters
+  event_ids?: string[];
+  process_names?: string[];
+  query_complexity?: string[];
   offset?: number;
   limit?: number;
   sort_by?: string;

@@ -73,6 +73,10 @@ export const detectionsApi = {
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
     if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+    // Extracted field filters
+    if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
+    if (filters.process_names?.length) params.set('process_names', filters.process_names.join(','));
+    if (filters.query_complexity?.length) params.set('query_complexity', filters.query_complexity.join(','));
     if (filters.offset !== undefined) params.set('offset', String(filters.offset));
     if (filters.limit !== undefined) params.set('limit', String(filters.limit));
     if (filters.sort_by) params.set('sort_by', filters.sort_by);
