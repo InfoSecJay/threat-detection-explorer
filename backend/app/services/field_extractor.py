@@ -1,11 +1,17 @@
 """Field extraction service for parsing detection logic across formats.
 
 Extracts observable artifacts (process names, file paths, registry keys, Event IDs,
-network indicators) from detection query logic. Supports Sigma, Elastic (EQL/KQL/Lucene),
-Splunk (SPL), and Sentinel (KQL) formats.
+network indicators, API actions, target resources) from detection query logic.
+Supports Sigma, Elastic (EQL/KQL/Lucene/ES|QL), Splunk (SPL), Sentinel (KQL),
+and Sublime (MQL) formats.
 
-Inspired by security-detections-mcp field extraction approach and
-UC-16 Observable/Artifact Extraction methodology.
+Domain-aware extraction maps fields by security domain:
+  - Endpoint (Windows/Linux/macOS): process, file, registry, Event IDs
+  - Cloud (AWS/Azure/GCP): API actions, principals, resources, regions
+  - Identity (Okta/Entra ID): event actions, actors, targets, auth factors
+  - Email: sender domains, recipients, subjects, attachments, URLs
+  - DNS: query names, query types, response codes
+  - Network: IPs, ports, protocols, directions
 """
 
 import re
@@ -18,8 +24,8 @@ class ExtractedObservable:
     """A single observable artifact extracted from detection logic."""
     field: str              # Original field name (e.g., "process.name", "CommandLine")
     values: list[str]       # Values/patterns matched
-    type: str               # Observable type: process, file, registry, network, authentication, cloud
-    subtype: str            # e.g., process_name, command_line_pattern, file_path, registry_key
+    type: str               # Observable type: process, file, registry, network, cloud, identity, email, dns, etc.
+    subtype: str            # e.g., process_name, api_action, sender_domain, query_name
     negated: bool = False   # Whether this is a NOT/exclusion condition
 
 
@@ -33,6 +39,9 @@ class ExtractedFields:
     file_paths: list[str] = field(default_factory=list)
     registry_keys: list[str] = field(default_factory=list)
     network_indicators: list[str] = field(default_factory=list)
+    # Domain-specific extraction
+    api_actions: list[str] = field(default_factory=list)          # Cloud/Identity API actions/event types
+    target_resources: list[str] = field(default_factory=list)     # Cloud resources, identity targets
     observables: list[ExtractedObservable] = field(default_factory=list)
     query_complexity: str = "simple"
 
@@ -46,6 +55,8 @@ class ExtractedFields:
             "file_paths": self.file_paths,
             "registry_keys": self.registry_keys,
             "network_indicators": self.network_indicators,
+            "api_actions": self.api_actions,
+            "target_resources": self.target_resources,
             "observables": [
                 {
                     "field": o.field,
@@ -66,15 +77,14 @@ class ExtractedFields:
 
 # Maps field names (lowercase) to (observable_type, observable_subtype)
 FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
-    # Process fields - Sigma / generic
+    # ---- PROCESS FIELDS ----
+    # Sigma / generic
     "image": ("process", "process_name"),
     "parentimage": ("process", "parent_process_name"),
     "originalfilename": ("process", "process_name"),
     "commandline": ("process", "command_line_pattern"),
     "parentcommandline": ("process", "parent_command_line"),
-    "user": ("authentication", "user"),
-    "logonid": ("authentication", "logon_id"),
-    # Process fields - ECS (Elastic)
+    # ECS (Elastic)
     "process.name": ("process", "process_name"),
     "process.executable": ("process", "process_path"),
     "process.args": ("process", "command_line_pattern"),
@@ -86,7 +96,7 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "process.pe.original_file_name": ("process", "process_name"),
     "process.hash.sha256": ("process", "process_hash"),
     "process.hash.md5": ("process", "process_hash"),
-    # Process fields - Splunk CIM
+    # Splunk CIM
     "processes.process_name": ("process", "process_name"),
     "processes.process": ("process", "command_line_pattern"),
     "processes.parent_process_name": ("process", "parent_process_name"),
@@ -94,77 +104,245 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "processes.original_file_name": ("process", "process_name"),
     "process_name": ("process", "process_name"),
     "parent_process_name": ("process", "parent_process_name"),
-    # Process fields - Microsoft Defender / Sentinel
+    # Microsoft Defender / Sentinel MDE
     "filename": ("process", "process_name"),
     "initiatingprocessfilename": ("process", "parent_process_name"),
     "processcommandline": ("process", "command_line_pattern"),
     "initiatingprocesscommandline": ("process", "parent_command_line"),
     "foldername": ("process", "process_path"),
-    # File fields - Sigma
+    "sha256": ("process", "process_hash"),
+    "sha1": ("process", "process_hash"),
+    "md5": ("process", "process_hash"),
+
+    # ---- FILE FIELDS ----
+    # Sigma
     "targetfilename": ("file", "file_path"),
     "imageloaded": ("file", "file_path"),
     "contents": ("file", "file_content"),
-    # File fields - ECS
+    # ECS
     "file.name": ("file", "file_name"),
     "file.path": ("file", "file_path"),
     "file.extension": ("file", "file_extension"),
     "file.hash.sha256": ("file", "file_hash"),
-    # File fields - Splunk
+    "file.hash.md5": ("file", "file_hash"),
+    # Splunk
     "filesystem.file_name": ("file", "file_name"),
     "filesystem.file_path": ("file", "file_path"),
-    # Registry fields - Sigma
+
+    # ---- REGISTRY FIELDS ----
+    # Sigma
     "targetobject": ("registry", "registry_key"),
     "details": ("registry", "registry_value"),
     "newvalue": ("registry", "registry_value"),
-    # Registry fields - ECS
+    # ECS
     "registry.path": ("registry", "registry_key"),
     "registry.key": ("registry", "registry_key"),
     "registry.value": ("registry", "registry_value"),
     "registry.data.strings": ("registry", "registry_value"),
-    # Registry fields - Splunk
+    # Splunk
     "registry.registry_key_name": ("registry", "registry_key"),
     "registry.registry_value_name": ("registry", "registry_value"),
-    # Registry fields - Sentinel
+    # Sentinel
     "registrykey": ("registry", "registry_key"),
     "registryvaluename": ("registry", "registry_value"),
-    # Network fields - Sigma
+    "registryvaluedata": ("registry", "registry_value"),
+
+    # ---- NETWORK FIELDS ----
+    # Sigma
     "destinationport": ("network", "port"),
     "destinationhostname": ("network", "domain"),
     "destinationip": ("network", "ip_address"),
     "sourceport": ("network", "port"),
     "sourceip": ("network", "ip_address"),
     "destinationisipv6": ("network", "ip_address"),
-    # Network fields - ECS
+    # ECS
     "destination.ip": ("network", "ip_address"),
     "destination.port": ("network", "port"),
     "destination.domain": ("network", "domain"),
     "source.ip": ("network", "ip_address"),
     "source.port": ("network", "port"),
-    "dns.question.name": ("network", "domain"),
     "url.full": ("network", "url"),
     "url.domain": ("network", "domain"),
     "http.request.method": ("network", "http_method"),
     "http.response.status_code": ("network", "http_status"),
-    # Network fields - Splunk
+    "network.transport": ("network", "protocol"),
+    "network.direction": ("network", "direction"),
+    "network.type": ("network", "type"),
+    "network.protocol": ("network", "protocol"),
+    # Splunk
     "dest_port": ("network", "port"),
     "dest_ip": ("network", "ip_address"),
     "dest": ("network", "ip_address"),
     "src_ip": ("network", "ip_address"),
     "src": ("network", "ip_address"),
-    # Network fields - Sentinel
+    "protocol": ("network", "protocol"),
+    "transport": ("network", "protocol"),
+    "direction": ("network", "direction"),
+    "action": ("network", "action"),
+    # Sentinel
     "remoteport": ("network", "port"),
     "remoteip": ("network", "ip_address"),
     "remoteurl": ("network", "url"),
-    # Event ID fields
+    "localport": ("network", "port"),
+    "localip": ("network", "ip_address"),
+
+    # ---- DNS FIELDS ----
+    # ECS
+    "dns.question.name": ("dns", "query_name"),
+    "dns.question.type": ("dns", "query_type"),
+    "dns.response_code": ("dns", "response_code"),
+    "dns.answers.data": ("dns", "answer"),
+    "dns.answers.type": ("dns", "answer_type"),
+    # Sigma
+    "queryname": ("dns", "query_name"),
+    "querytype": ("dns", "query_type"),
+    "queryresults": ("dns", "answer"),
+    # Sentinel
+    "dnsquery": ("dns", "query_name"),
+    "querytype_s": ("dns", "query_type"),
+
+    # ---- EVENT ID FIELDS ----
     "eventid": ("event", "event_id"),
     "eventcode": ("event", "event_id"),
     "event.code": ("event", "event_id"),
     "event_id": ("event", "event_id"),
     "message_id": ("event", "event_id"),
-    # Cloud fields
-    "event.action": ("cloud", "api_call"),
+
+    # ---- AUTHENTICATION FIELDS ----
+    "user": ("authentication", "user"),
+    "logonid": ("authentication", "logon_id"),
+    "user.name": ("authentication", "user"),
+    "user.id": ("authentication", "user_id"),
+    "user.domain": ("authentication", "domain"),
+    "user.email": ("authentication", "user_email"),
+    "accountname": ("authentication", "user"),
+    "accountdomain": ("authentication", "domain"),
+    "logontypename": ("authentication", "logon_type"),
+    "logontype": ("authentication", "logon_type"),
+    "subjectusername": ("authentication", "user"),
+    "targetusername": ("authentication", "user"),
+    "subjectdomainname": ("authentication", "domain"),
+    "targetdomainname": ("authentication", "domain"),
+
+    # ---- CLOUD FIELDS - AWS ----
+    "event.action": ("cloud", "api_action"),
+    "event.provider": ("cloud", "event_source"),
     "cloud.provider": ("cloud", "cloud_provider"),
-    "aws.cloudtrail.event_name": ("cloud", "api_call"),
+    "cloud.region": ("cloud", "region"),
+    "cloud.account.id": ("cloud", "account_id"),
+    "aws.cloudtrail.event_name": ("cloud", "api_action"),
+    "aws.cloudtrail.request_parameters": ("cloud", "request_params"),
+    "aws.cloudtrail.response_elements": ("cloud", "response_elements"),
+    "aws.cloudtrail.error_code": ("cloud", "error_code"),
+    "aws.cloudtrail.error_message": ("cloud", "error_message"),
+    "aws.cloudtrail.user_identity.arn": ("cloud", "principal"),
+    "aws.cloudtrail.user_identity.type": ("cloud", "principal_type"),
+    "aws.cloudtrail.resources.arn": ("cloud", "resource"),
+    "eventname": ("cloud", "api_action"),
+    "eventsource": ("cloud", "event_source"),
+    "useridentity.arn": ("cloud", "principal"),
+    "useridentity.type": ("cloud", "principal_type"),
+    "resources.arn": ("cloud", "resource"),
+    "errorcode": ("cloud", "error_code"),
+    "errormessage": ("cloud", "error_message"),
+    "awsregion": ("cloud", "region"),
+    "sourceipaddress": ("cloud", "source_ip"),
+    "useragent": ("cloud", "user_agent"),
+    "recipientaccountid": ("cloud", "account_id"),
+    "requestparameters": ("cloud", "request_params"),
+
+    # ---- CLOUD FIELDS - Azure ----
+    "operationname": ("cloud", "api_action"),
+    "operationnamevalue": ("cloud", "api_action"),
+    "calleripaddress": ("cloud", "source_ip"),
+    "resulttype": ("cloud", "result"),
+    "resultsignature": ("cloud", "result"),
+    "resourceid": ("cloud", "resource"),
+    "resourcegroup": ("cloud", "resource_group"),
+    "resourceprovider": ("cloud", "resource_type"),
+    "properties.message": ("cloud", "context"),
+    "properties.statuscode": ("cloud", "result"),
+
+    # ---- CLOUD FIELDS - GCP ----
+    "methodname": ("cloud", "api_action"),
+    "gcp.audit.method_name": ("cloud", "api_action"),
+    "protopayload.methodname": ("cloud", "api_action"),
+    "protopayload.servicename": ("cloud", "event_source"),
+    "protopayload.authenticationinfo.principalemail": ("cloud", "principal"),
+    "resource.type": ("cloud", "resource_type"),
+
+    # ---- IDENTITY FIELDS - Okta ----
+    "eventtype": ("identity", "action"),
+    "event_type": ("identity", "action"),
+    "outcome.result": ("identity", "outcome"),
+    "outcome.reason": ("identity", "outcome_reason"),
+    "actor.displayname": ("identity", "actor"),
+    "actor.alternateid": ("identity", "actor"),
+    "actor.id": ("identity", "actor"),
+    "okta.actor.alternate_id": ("identity", "actor"),
+    "okta.actor.display_name": ("identity", "actor"),
+    "okta.event_type": ("identity", "action"),
+    "okta.outcome.result": ("identity", "outcome"),
+    "target.displayname": ("identity", "target"),
+    "target.type": ("identity", "target_type"),
+    "client.device": ("identity", "device"),
+    "client.ipaddress": ("identity", "source_ip"),
+    "client.useragent.rawuseragent": ("identity", "user_agent"),
+    "client.geographicalcontext.country": ("identity", "geo"),
+    "authenticationcontext.credentialtype": ("identity", "auth_factor"),
+    "debugcontext.debugdata.requesturi": ("identity", "context"),
+    "okta.debug_context.debug_data.request_uri": ("identity", "context"),
+    "securitycontext.isproxy": ("identity", "context"),
+
+    # ---- IDENTITY FIELDS - Entra ID / AAD ----
+    "actiontype": ("identity", "action"),
+    "activity": ("identity", "action"),
+    "targetresources": ("identity", "target"),
+    "initiatedby": ("identity", "actor"),
+    "conditionalaccessstatus": ("identity", "context"),
+    "appid": ("identity", "target"),
+    "appdisplayname": ("identity", "target"),
+    "resourcedisplayname": ("identity", "target"),
+    "risklevelduringsignin": ("identity", "risk"),
+    "riskstate": ("identity", "risk"),
+
+    # ---- ENDPOINT FIELDS - Sentinel MDE ----
+    "devicename": ("endpoint", "hostname"),
+    "deviceid": ("endpoint", "device_id"),
+    "remotedevicename": ("endpoint", "remote_hostname"),
+
+    # ---- EMAIL FIELDS ----
+    # Sublime MQL
+    "sender.email.domain": ("email", "sender_domain"),
+    "sender.email.domain.root_domain": ("email", "sender_domain"),
+    "sender.email.domain.domain": ("email", "sender_domain"),
+    "sender.email.email": ("email", "sender"),
+    "sender.display_name": ("email", "sender_name"),
+    "sender.email.domain.tld": ("email", "sender_domain"),
+    "from.address": ("email", "sender"),
+    "recipients": ("email", "recipient"),
+    "recipients.to": ("email", "recipient"),
+    "subject.subject": ("email", "subject"),
+    "headers.subject": ("email", "subject"),
+    "headers.return_path": ("email", "return_path"),
+    "headers.reply_to": ("email", "reply_to"),
+    "attachments.file_name": ("email", "attachment"),
+    "attachments.file_type": ("email", "attachment_type"),
+    "attachments.file_extension": ("email", "attachment_type"),
+    "attachments.content_type": ("email", "attachment_type"),
+    "body.links": ("email", "url"),
+    "body.urls": ("email", "url"),
+    "body.current_thread.text": ("email", "body_content"),
+    "body.html.raw": ("email", "body_content"),
+    "headers.auth_summary.spf.pass": ("email", "auth_result"),
+    "headers.auth_summary.dmarc.pass": ("email", "auth_result"),
+    "headers.auth_summary.dkim.pass": ("email", "auth_result"),
+    "ml.nlu_classifier": ("email", "ml_classifier"),
+    # ECS / M365
+    "email.from.address": ("email", "sender"),
+    "email.to.address": ("email", "recipient"),
+    "email.subject": ("email", "subject"),
+    "email.attachments.file.name": ("email", "attachment"),
 }
 
 # Known Microsoft Sentinel/MDE table names
@@ -192,14 +370,24 @@ def _classify_field(field_name: str) -> tuple[str, str]:
     key = field_name.lower().strip()
     if key in FIELD_TYPE_MAP:
         return FIELD_TYPE_MAP[key]
-    # Heuristic fallback
+    # Heuristic fallback - order matters (more specific first)
     if any(p in key for p in ["process", "image", "commandline", "cmd"]):
         return ("process", "process_field")
-    if any(p in key for p in ["file", "path", "filename"]):
-        return ("file", "file_field")
     if any(p in key for p in ["registry", "reg", "hklm", "hkcu"]):
         return ("registry", "registry_field")
-    if any(p in key for p in ["ip", "port", "domain", "dns", "url", "host"]):
+    if any(p in key for p in ["file", "path", "filename"]):
+        return ("file", "file_field")
+    if any(p in key for p in ["operationname", "eventname", "methodname", "event.action"]):
+        return ("cloud", "api_action")
+    if any(p in key for p in ["sender", "recipient", "subject", "attachment"]):
+        return ("email", "email_field")
+    if any(p in key for p in ["dns", "queryname", "rcode"]):
+        return ("dns", "dns_field")
+    if any(p in key for p in ["actor", "principal", "identity"]):
+        return ("identity", "identity_field")
+    if any(p in key for p in ["resource", "arn", "bucket"]):
+        return ("cloud", "resource")
+    if any(p in key for p in ["ip", "port", "domain", "url", "host"]):
         return ("network", "network_field")
     if any(p in key for p in ["user", "logon", "auth", "account", "signin"]):
         return ("authentication", "auth_field")
@@ -246,6 +434,43 @@ def _flatten_values(val: Any) -> list[str]:
             result.extend(_flatten_values(v))
         return result
     return [str(val)]
+
+
+def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
+                         negated: bool, result: ExtractedFields):
+    """Route extracted values to domain-specific fields based on type classification."""
+    # Cloud API actions (the key field for cloud rule comparison)
+    if obs_type == "cloud" and obs_subtype == "api_action" and not negated:
+        result.api_actions.extend(v for v in values if v)
+
+    # Identity event actions (the key field for identity rule comparison)
+    if obs_type == "identity" and obs_subtype == "action" and not negated:
+        result.api_actions.extend(v for v in values if v)
+
+    # Cloud resources and identity targets
+    if obs_type == "cloud" and obs_subtype in ("resource", "resource_type") and not negated:
+        result.target_resources.extend(v for v in values if v)
+    if obs_type == "identity" and obs_subtype == "target" and not negated:
+        result.target_resources.extend(v for v in values if v)
+
+    # Email and DNS indicators also go to network_indicators for backward compat
+    if obs_type in ("email", "dns") and obs_subtype in (
+        "sender_domain", "sender", "url", "query_name", "answer"
+    ):
+        result.network_indicators.extend(v for v in values if v)
+
+
+def _deduplicate_all(result: ExtractedFields):
+    """Deduplicate all extraction lists."""
+    result.fields_used = list(dict.fromkeys(result.fields_used))
+    result.event_ids = list(dict.fromkeys(result.event_ids))
+    result.process_names = list(dict.fromkeys(result.process_names))
+    result.file_paths = list(dict.fromkeys(result.file_paths))
+    result.registry_keys = list(dict.fromkeys(result.registry_keys))
+    result.network_indicators = list(dict.fromkeys(result.network_indicators))
+    result.source_tables = list(dict.fromkeys(result.source_tables))
+    result.api_actions = list(dict.fromkeys(result.api_actions))
+    result.target_resources = list(dict.fromkeys(result.target_resources))
 
 
 # ===========================================================================
@@ -309,14 +534,7 @@ def extract_sigma_fields(detection: dict, logsource: Optional[dict] = None) -> E
             tables.append(logsource["service"])
         result.source_tables = tables
 
-    # Deduplicate
-    result.fields_used = list(dict.fromkeys(result.fields_used))
-    result.event_ids = list(dict.fromkeys(result.event_ids))
-    result.process_names = list(dict.fromkeys(result.process_names))
-    result.file_paths = list(dict.fromkeys(result.file_paths))
-    result.registry_keys = list(dict.fromkeys(result.registry_keys))
-    result.network_indicators = list(dict.fromkeys(result.network_indicators))
-
+    _deduplicate_all(result)
     return result
 
 
@@ -357,17 +575,20 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
         if obs_type == "network":
             result.network_indicators.extend(flat_values)
 
+        # Route domain-specific fields
+        _route_domain_fields(obs_type, obs_subtype, flat_values, is_negated, result)
+
 
 # ===========================================================================
-# ELASTIC EXTRACTOR (EQL / KQL / Lucene)
+# ELASTIC EXTRACTOR (EQL / KQL / Lucene / ES|QL)
 # ===========================================================================
 
 def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields:
-    """Extract fields from Elastic detection queries (EQL, KQL, or Lucene).
+    """Extract fields from Elastic detection queries (EQL, KQL, Lucene, or ES|QL).
 
     Args:
         query: The query string
-        language: One of "eql", "kql", "kuery", "lucene"
+        language: One of "eql", "kql", "kuery", "lucene", "esql"
 
     Returns:
         ExtractedFields with extracted observables
@@ -379,7 +600,9 @@ def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields
     query = query.strip()
     lang = language.lower()
 
-    if lang == "eql":
+    if lang == "esql":
+        return extract_esql_fields(query)
+    elif lang == "eql":
         _extract_eql_fields(query, result)
     elif lang in ("kql", "kuery"):
         _extract_elastic_kql_fields(query, result)
@@ -392,14 +615,7 @@ def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields
         else:
             _extract_elastic_kql_fields(query, result)
 
-    # Deduplicate
-    result.fields_used = list(dict.fromkeys(result.fields_used))
-    result.event_ids = list(dict.fromkeys(result.event_ids))
-    result.process_names = list(dict.fromkeys(result.process_names))
-    result.file_paths = list(dict.fromkeys(result.file_paths))
-    result.registry_keys = list(dict.fromkeys(result.registry_keys))
-    result.network_indicators = list(dict.fromkeys(result.network_indicators))
-
+    _deduplicate_all(result)
     return result
 
 
@@ -525,6 +741,9 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
     if obs_type == "network":
         result.network_indicators.extend(v for v in values if v)
 
+    # Route domain-specific fields
+    _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+
 
 # ===========================================================================
 # SPLUNK EXTRACTOR (SPL)
@@ -602,6 +821,8 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
             result.registry_keys.extend(_extract_registry_paths([value]))
         if obs_type == "network":
             result.network_indicators.append(value)
+        # Route domain-specific fields
+        _route_domain_fields(obs_type, obs_subtype, [value], False, result)
 
     # Extract fields from IN() operator
     in_matches = re.findall(r'([\w.]+)\s+IN\s*\(([^)]+)\)', search, re.IGNORECASE)
@@ -626,6 +847,8 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
             result.observables.append(observable)
             if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
                 result.process_names.extend(_extract_exe_names(values))
+            # Route domain-specific fields
+            _route_domain_fields(obs_type, obs_subtype, values, False, result)
 
     # Extract fields from "by" clause (stats ... by field1, field2)
     by_matches = re.findall(r'\bby\s+([^|]+?)(?:\||$)', search, re.IGNORECASE)
@@ -656,16 +879,10 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
                 result.observables.append(observable)
                 if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
                     result.process_names.extend(_extract_exe_names(values))
+                # Route domain-specific fields
+                _route_domain_fields(obs_type, obs_subtype, values, False, result)
 
-    # Deduplicate
-    result.fields_used = list(dict.fromkeys(result.fields_used))
-    result.event_ids = list(dict.fromkeys(result.event_ids))
-    result.process_names = list(dict.fromkeys(result.process_names))
-    result.source_tables = list(dict.fromkeys(result.source_tables))
-    result.file_paths = list(dict.fromkeys(result.file_paths))
-    result.registry_keys = list(dict.fromkeys(result.registry_keys))
-    result.network_indicators = list(dict.fromkeys(result.network_indicators))
-
+    _deduplicate_all(result)
     return result
 
 
@@ -793,15 +1010,7 @@ def extract_sentinel_fields(query: str) -> ExtractedFields:
             if clean and not clean.startswith('bin(') and '(' not in clean:
                 result.fields_used.append(clean)
 
-    # Deduplicate
-    result.source_tables = list(dict.fromkeys(result.source_tables))
-    result.fields_used = list(dict.fromkeys(result.fields_used))
-    result.event_ids = list(dict.fromkeys(result.event_ids))
-    result.process_names = list(dict.fromkeys(result.process_names))
-    result.file_paths = list(dict.fromkeys(result.file_paths))
-    result.registry_keys = list(dict.fromkeys(result.registry_keys))
-    result.network_indicators = list(dict.fromkeys(result.network_indicators))
-
+    _deduplicate_all(result)
     return result
 
 
@@ -838,3 +1047,220 @@ def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, 
 
     if obs_type == "network":
         result.network_indicators.extend(v for v in values if v)
+
+    # Route domain-specific fields
+    _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+
+
+# ===========================================================================
+# ES|QL EXTRACTOR
+# ===========================================================================
+
+def extract_esql_fields(query: str) -> ExtractedFields:
+    """Extract fields from Elastic ES|QL queries.
+
+    Args:
+        query: The ES|QL query string
+
+    Returns:
+        ExtractedFields with extracted observables
+    """
+    result = ExtractedFields()
+    if not query or not isinstance(query, str):
+        return result
+
+    query = query.strip()
+
+    # Determine complexity
+    pipe_count = query.count('|')
+    if pipe_count > 5 or re.search(r'\bENRICH\b', query, re.IGNORECASE):
+        result.query_complexity = "complex"
+    elif pipe_count > 2:
+        result.query_complexity = "moderate"
+    else:
+        result.query_complexity = "simple"
+
+    # Extract FROM table-name
+    from_matches = re.findall(r'\bFROM\s+([\w.*\-]+)', query, re.IGNORECASE)
+    for table in from_matches:
+        result.source_tables.append(table)
+
+    # Extract WHERE field == "value"
+    eq_patterns = re.findall(r'([\w.@]+)\s*==\s*"([^"]*)"', query)
+    for field_name, value in eq_patterns:
+        _add_elastic_observable(field_name, [value], False, result)
+
+    # Extract WHERE field == number
+    eq_num_patterns = re.findall(r'([\w.@]+)\s*==\s*(\d+)(?!\w)', query)
+    for field_name, value in eq_num_patterns:
+        _add_elastic_observable(field_name, [value], False, result)
+
+    # Extract WHERE field != "value"
+    neq_patterns = re.findall(r'([\w.@]+)\s*!=\s*"([^"]*)"', query)
+    for field_name, value in neq_patterns:
+        _add_elastic_observable(field_name, [value], True, result)
+
+    # Extract field LIKE "pattern" or field RLIKE "pattern"
+    like_patterns = re.findall(r'([\w.@]+)\s+(?:LIKE|RLIKE)\s+"([^"]*)"', query, re.IGNORECASE)
+    for field_name, value in like_patterns:
+        _add_elastic_observable(field_name, [value], False, result)
+
+    # Extract field IN ("v1", "v2")
+    in_patterns = re.findall(r'([\w.@]+)\s+IN\s*\(([^)]+)\)', query, re.IGNORECASE)
+    for field_name, values_str in in_patterns:
+        values = re.findall(r'"([^"]*)"', values_str)
+        if values:
+            _add_elastic_observable(field_name, values, False, result)
+
+    # Extract STATS ... BY field patterns
+    stats_by = re.findall(r'\bBY\s+([^|]+)', query, re.IGNORECASE)
+    for by_clause in stats_by:
+        by_fields = [f.strip().strip(',') for f in by_clause.split(',')]
+        for f in by_fields:
+            clean = f.strip()
+            if clean and clean not in result.fields_used:
+                result.fields_used.append(clean)
+
+    # Extract DISSECT field "%{pattern}" patterns for field tracking
+    dissect_matches = re.findall(r'\bDISSECT\s+([\w.@]+)', query, re.IGNORECASE)
+    for f in dissect_matches:
+        if f not in result.fields_used:
+            result.fields_used.append(f)
+
+    _deduplicate_all(result)
+    return result
+
+
+# ===========================================================================
+# SUBLIME MQL EXTRACTOR
+# ===========================================================================
+
+def extract_sublime_fields(query: str) -> ExtractedFields:
+    """Extract fields from Sublime Security MQL (Message Query Language) queries.
+
+    Parses email detection rules for sender domains, recipients, subjects,
+    attachments, URLs, and other email-specific indicators.
+
+    Args:
+        query: The MQL query string
+
+    Returns:
+        ExtractedFields with extracted observables
+    """
+    result = ExtractedFields()
+    if not query or not isinstance(query, str):
+        return result
+
+    query = query.strip()
+
+    # Determine complexity
+    and_count = len(re.findall(r'\band\b', query, re.IGNORECASE))
+    or_count = len(re.findall(r'\bor\b', query, re.IGNORECASE))
+    if and_count + or_count > 8:
+        result.query_complexity = "complex"
+    elif and_count + or_count > 3:
+        result.query_complexity = "moderate"
+    else:
+        result.query_complexity = "simple"
+
+    # Extract source table from type.inbound / type.outbound
+    type_matches = re.findall(r'\btype\.(inbound|outbound)\b', query, re.IGNORECASE)
+    for t in type_matches:
+        result.source_tables.append(f"type.{t.lower()}")
+
+    # Pattern: field == "value"
+    eq_patterns = re.findall(r'([\w.]+)\s*==\s*"([^"]*)"', query)
+    for field_name, value in eq_patterns:
+        _add_sublime_observable(field_name, [value], False, result)
+
+    # Pattern: field != "value"
+    neq_patterns = re.findall(r'([\w.]+)\s*!=\s*"([^"]*)"', query)
+    for field_name, value in neq_patterns:
+        _add_sublime_observable(field_name, [value], True, result)
+
+    # Pattern: field = "value" (single equals, common in MQL)
+    single_eq = re.findall(r'([\w.]+)\s*(?<!=)=\s*(?!=)"([^"]*)"', query)
+    for field_name, value in single_eq:
+        # Skip if already captured by == pattern
+        if (field_name, value) not in eq_patterns:
+            _add_sublime_observable(field_name, [value], False, result)
+
+    # Pattern: field in ("v1", "v2")
+    in_patterns = re.findall(r'([\w.]+)\s+in\s*\(([^)]+)\)', query, re.IGNORECASE)
+    for field_name, values_str in in_patterns:
+        values = re.findall(r'"([^"]*)"', values_str)
+        if values:
+            _add_sublime_observable(field_name, values, False, result)
+
+    # Pattern: regex.icontains(field, "pattern") or regex.contains(field, "pattern")
+    regex_patterns = re.findall(
+        r'regex\.(?:i?contains|i?match)\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*[\'"]([^\'"]*)[\'"]',
+        query, re.IGNORECASE
+    )
+    for field_name, pattern in regex_patterns:
+        _add_sublime_observable(field_name, [pattern], False, result)
+
+    # Pattern: strings.icontains(field, "value") or strings.contains(field, "value")
+    str_patterns = re.findall(
+        r'strings\.(?:i?contains|i?like|starts_with|ends_with)\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*[\'"]([^\'"]*)[\'"]',
+        query, re.IGNORECASE
+    )
+    for field_name, value in str_patterns:
+        _add_sublime_observable(field_name, [value], False, result)
+
+    # Pattern: any(field, .attr == "value")
+    any_eq_patterns = re.findall(
+        r'any\s*\(\s*([\w.]+)\s*,\s*\.([\w.]+)\s*==\s*"([^"]*)"',
+        query, re.IGNORECASE
+    )
+    for container, attr, value in any_eq_patterns:
+        field_name = f"{container}.{attr}"
+        _add_sublime_observable(field_name, [value], False, result)
+
+    # Pattern: any(field, .attr in ("v1", "v2"))
+    any_in_patterns = re.findall(
+        r'any\s*\(\s*([\w.]+)\s*,\s*\.([\w.]+)\s+in\s*\(([^)]+)\)',
+        query, re.IGNORECASE
+    )
+    for container, attr, values_str in any_in_patterns:
+        values = re.findall(r'"([^"]*)"', values_str)
+        field_name = f"{container}.{attr}"
+        if values:
+            _add_sublime_observable(field_name, values, False, result)
+
+    # Pattern: .field == "value" (within any() context, dot-prefixed)
+    dot_eq_patterns = re.findall(r'\.([\w.]+)\s*==\s*"([^"]*)"', query)
+    for field_name, value in dot_eq_patterns:
+        # Only add if not already captured
+        if field_name not in result.fields_used:
+            _add_sublime_observable(field_name, [value], False, result)
+
+    _deduplicate_all(result)
+    return result
+
+
+def _add_sublime_observable(field_name: str, values: list[str], negated: bool, result: ExtractedFields):
+    """Add an observable from Sublime MQL field extraction."""
+    result.fields_used.append(field_name)
+    obs_type, obs_subtype = _classify_field(field_name)
+
+    observable = ExtractedObservable(
+        field=field_name,
+        values=values,
+        type=obs_type,
+        subtype=obs_subtype,
+        negated=negated,
+    )
+    result.observables.append(observable)
+
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+        result.process_names.extend(_extract_exe_names(values))
+
+    if obs_type == "file" and "path" in obs_subtype:
+        result.file_paths.extend(values)
+
+    if obs_type == "network":
+        result.network_indicators.extend(v for v in values if v)
+
+    # Route domain-specific fields
+    _route_domain_fields(obs_type, obs_subtype, values, negated, result)

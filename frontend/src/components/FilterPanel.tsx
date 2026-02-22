@@ -82,7 +82,8 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.event_categories?.length || 0) > 0 ||
     (filters.event_ids?.length || 0) > 0 ||
     (filters.process_names?.length || 0) > 0 ||
-    (filters.query_complexity?.length || 0) > 0;
+    (filters.query_complexity?.length || 0) > 0 ||
+    (filters.api_actions?.length || 0) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -739,6 +740,57 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 </span>
               </label>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* API Actions filter */}
+      <div className="mb-3">
+        <SectionHeader title="API Actions" section="apiactions" count={filters.api_actions?.length} />
+        {expandedSections.has('apiactions') && (
+          <div className="mt-2">
+            <input
+              type="text"
+              placeholder="e.g., CreateUser"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = (e.target as HTMLInputElement).value.trim();
+                  if (value && !filters.api_actions?.includes(value)) {
+                    onFiltersChange({
+                      ...filters,
+                      api_actions: [...(filters.api_actions || []), value],
+                      offset: 0,
+                    });
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }
+              }}
+              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+            />
+            {filters.api_actions?.length ? (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {filters.api_actions.map((action) => (
+                  <span
+                    key={action}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 text-xs font-mono border border-cyan-500/30"
+                  >
+                    {action}
+                    <button
+                      onClick={() =>
+                        onFiltersChange({
+                          ...filters,
+                          api_actions: filters.api_actions?.filter((a) => a !== action),
+                          offset: 0,
+                        })
+                      }
+                      className="hover:text-breach-400 transition-colors"
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

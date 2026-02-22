@@ -77,6 +77,7 @@ export const detectionsApi = {
     if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
     if (filters.process_names?.length) params.set('process_names', filters.process_names.join(','));
     if (filters.query_complexity?.length) params.set('query_complexity', filters.query_complexity.join(','));
+    if (filters.api_actions?.length) params.set('api_actions', filters.api_actions.join(','));
     if (filters.offset !== undefined) params.set('offset', String(filters.offset));
     if (filters.limit !== undefined) params.set('limit', String(filters.limit));
     if (filters.sort_by) params.set('sort_by', filters.sort_by);

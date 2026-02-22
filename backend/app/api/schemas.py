@@ -100,6 +100,8 @@ class DetectionBase(BaseModel):
     extracted_source_tables: list[str] = []
     extracted_observables: list[dict] = []
     query_complexity: str = "unknown"
+    extracted_api_actions: list[str] = []
+    extracted_target_resources: list[str] = []
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
 
@@ -152,6 +154,8 @@ class DetectionListItem(BaseModel):
     extracted_source_tables: list[str] = []
     extracted_observables: list[dict] = []
     query_complexity: str = "unknown"
+    extracted_api_actions: list[str] = []
+    extracted_target_resources: list[str] = []
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
     created_at: datetime  # Sync timestamp
@@ -200,6 +204,8 @@ class DetectionListItem(BaseModel):
             "extracted_source_tables": getattr(detection, 'extracted_source_tables', None) or [],
             "extracted_observables": getattr(detection, 'extracted_observables', None) or [],
             "query_complexity": getattr(detection, 'query_complexity', None) or "unknown",
+            "extracted_api_actions": getattr(detection, 'extracted_api_actions', None) or [],
+            "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "created_at": detection.created_at,
@@ -313,6 +319,7 @@ class SearchParams(BaseModel):
     event_ids: list[str] = Field(default_factory=list)
     process_names: list[str] = Field(default_factory=list)
     query_complexity: list[str] = Field(default_factory=list)
+    api_actions: list[str] = Field(default_factory=list)
     offset: int = 0
     limit: int = Field(default=50, le=200)
     sort_by: str = "title"

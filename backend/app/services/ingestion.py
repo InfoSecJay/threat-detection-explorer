@@ -275,6 +275,8 @@ class IngestionService:
             extracted_source_tables=normalized.extracted_source_tables,
             extracted_observables=normalized.extracted_observables,
             query_complexity=normalized.query_complexity,
+            extracted_api_actions=normalized.extracted_api_actions,
+            extracted_target_resources=normalized.extracted_target_resources,
             rule_created_date=normalized.rule_created_date,
             rule_modified_date=normalized.rule_modified_date,
             created_at=datetime.utcnow(),

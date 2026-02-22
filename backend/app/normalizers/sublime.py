@@ -4,6 +4,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.field_extractor import extract_sublime_fields
 
 
 class SublimeNormalizer(BaseNormalizer):
@@ -28,6 +29,10 @@ class SublimeNormalizer(BaseNormalizer):
         if not platform:
             platform = "email"
 
+        # Extract observable fields from MQL query
+        query_str = self._format_detection_logic(parsed.detection_logic_raw)
+        extracted = extract_sublime_fields(query_str)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -47,12 +52,23 @@ class SublimeNormalizer(BaseNormalizer):
             data_source_normalized=data_source_normalized or "exchange",
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
-            detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            detection_logic=query_str,
             language="mql",  # Sublime uses Message Query Language (MQL)
             tags=parsed.tags,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
+            query_complexity=extracted.query_complexity,
+            extracted_api_actions=extracted.api_actions,
+            extracted_target_resources=extracted.target_resources,
             rule_created_date=None,  # Sublime doesn't have creation dates
             rule_modified_date=None,  # Sublime doesn't have modified dates
         )
@@ -79,14 +95,7 @@ class SublimeNormalizer(BaseNormalizer):
         return self.normalize_data_sources(raw_sources)
 
     def _format_detection_logic(self, detection: Any) -> str:
-        """Format Sublime detection logic (source field) for display.
-
-        Args:
-            detection: Sublime MQL query string (from source field)
-
-        Returns:
-            The full source/detection logic
-        """
+        """Format Sublime detection logic (source field) for display."""
         if not detection:
             return "No detection logic available"
 

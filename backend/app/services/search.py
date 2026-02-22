@@ -44,6 +44,7 @@ class SearchFilters:
     event_ids: list[str] = field(default_factory=list)
     process_names: list[str] = field(default_factory=list)
     query_complexity: list[str] = field(default_factory=list)
+    api_actions: list[str] = field(default_factory=list)
 
     # Pagination
     offset: int = 0
@@ -410,6 +411,16 @@ class SearchService:
         # Query complexity filter (scalar field)
         if filters.query_complexity:
             conditions.append(Detection.query_complexity.in_(filters.query_complexity))
+
+        # Extracted API Actions filter (JSON array, text-based matching)
+        if filters.api_actions:
+            api_action_conditions = []
+            for action in filters.api_actions:
+                api_action_conditions.append(
+                    cast(Detection.extracted_api_actions, String).ilike(f'%{action}%')
+                )
+            if api_action_conditions:
+                conditions.append(or_(*api_action_conditions))
 
         return conditions
 

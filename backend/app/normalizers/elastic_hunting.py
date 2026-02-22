@@ -4,6 +4,7 @@ from typing import Any
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.field_extractor import extract_elastic_fields
 from app.services.mitre import mitre_service
 
 
@@ -61,6 +62,10 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         if not tactics and techniques:
             tactics = mitre_service.get_tactics_for_techniques(techniques)
 
+        # Extract observable fields from query
+        query_str = self._format_detection_logic(parsed.detection_logic_raw)
+        extracted = extract_elastic_fields(query_str, language)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -80,12 +85,23 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             data_source_normalized=data_source_normalized or self._get_data_source_from_integration(extra),
             mitre_tactics=tactics,
             mitre_techniques=techniques,
-            detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
+            detection_logic=query_str,
             language=language,
             tags=parsed.tags,
             references=extra.get("references", []),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
+            query_complexity=extracted.query_complexity,
+            extracted_api_actions=extracted.api_actions,
+            extracted_target_resources=extracted.target_resources,
             rule_created_date=None,  # Not available in Elastic Hunting
             rule_modified_date=None,  # Not available in Elastic Hunting
         )

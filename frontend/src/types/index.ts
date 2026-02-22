@@ -42,6 +42,8 @@ export interface Detection {
     negated: boolean;
   }>;
   query_complexity: string;
+  extracted_api_actions: string[];
+  extracted_target_resources: string[];
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;
@@ -123,6 +125,7 @@ export interface SearchFilters {
   event_ids?: string[];
   process_names?: string[];
   query_complexity?: string[];
+  api_actions?: string[];
   offset?: number;
   limit?: number;
   sort_by?: string;

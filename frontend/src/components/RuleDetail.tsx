@@ -299,7 +299,9 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             detection.extracted_file_paths?.length > 0 ||
             detection.extracted_registry_keys?.length > 0 ||
             detection.extracted_network_indicators?.length > 0 ||
-            detection.extracted_source_tables?.length > 0) && (
+            detection.extracted_source_tables?.length > 0 ||
+            detection.extracted_api_actions?.length > 0 ||
+            detection.extracted_target_resources?.length > 0) && (
             <div className="pt-4 border-t border-cyber-700">
               <div className="flex items-center gap-2 mb-4">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -397,6 +399,34 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                       {detection.extracted_source_tables.map((st) => (
                         <span key={st} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-sm font-mono">
                           {st}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {detection.extracted_api_actions?.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                      API Actions
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {detection.extracted_api_actions.map((action) => (
+                        <span key={action} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-sm font-mono">
+                          {action}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {detection.extracted_target_resources?.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                      Target Resources
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {detection.extracted_target_resources.map((res, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded text-sm font-mono">
+                          {res}
                         </span>
                       ))}
                     </div>

@@ -113,6 +113,8 @@ class Detection(Base):
         default="unknown",
         index=True,
     )
+    extracted_api_actions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    extracted_target_resources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     # Rule quality score (0-100)
     quality_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

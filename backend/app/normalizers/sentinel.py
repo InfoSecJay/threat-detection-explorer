@@ -71,6 +71,8 @@ class SentinelNormalizer(BaseNormalizer):
             extracted_source_tables=extracted.source_tables,
             extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
             query_complexity=extracted.query_complexity,
+            extracted_api_actions=extracted.api_actions,
+            extracted_target_resources=extracted.target_resources,
             rule_created_date=None,
             rule_modified_date=None,
         )

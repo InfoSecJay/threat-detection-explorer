@@ -11,6 +11,20 @@ interface ChangeLogEntry {
 
 const changeLog: ChangeLogEntry[] = [
   {
+    version: '1.5.0',
+    date: '2026-02-22',
+    changes: [
+      { type: 'added', description: 'Domain-aware field extraction — cloud API actions, identity events, email fields, and DNS indicators now extracted across all sources' },
+      { type: 'added', description: 'Sublime MQL parser for email detection rules (sender domains, attachments, URLs, regex patterns)' },
+      { type: 'added', description: 'ES|QL parser for Elastic Hunting queries (FROM, WHERE, STATS BY, LIKE/RLIKE)' },
+      { type: 'added', description: 'API Actions filter — search for specific cloud/identity actions (e.g., CreateUser) across all vendors' },
+      { type: 'added', description: 'API Actions and Target Resources badges in rule detail view' },
+      { type: 'improved', description: 'Field extraction coverage from 76% to 93% of all rules (2,171 previously dark rules now have observables)' },
+      { type: 'improved', description: 'FIELD_TYPE_MAP expanded to ~250 entries covering AWS, Azure, GCP, Okta, Entra ID, email, and DNS fields' },
+      { type: 'improved', description: 'Elastic Protections and Elastic Hunting normalizers now perform field extraction' },
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-01-30',
     changes: [

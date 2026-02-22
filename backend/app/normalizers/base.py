@@ -81,6 +81,8 @@ class NormalizedDetection:
     extracted_source_tables: list[str] = field(default_factory=list)
     extracted_observables: list[dict] = field(default_factory=list)
     query_complexity: str = "unknown"
+    extracted_api_actions: list[str] = field(default_factory=list)
+    extracted_target_resources: list[str] = field(default_factory=list)
 
     # Rule dates from source
     rule_created_date: Optional[datetime] = None
