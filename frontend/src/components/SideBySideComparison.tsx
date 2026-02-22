@@ -1,5 +1,58 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Detection, SideBySideResponse } from '../types';
+
+function CopyButton({ text, label = 'COPY' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono transition-all ${
+        copied
+          ? 'bg-matrix-500/20 text-matrix-400'
+          : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300'
+      }`}
+      title={copied ? 'Copied!' : `Copy ${label.toLowerCase()}`}
+    >
+      {copied ? (
+        <>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          COPIED
+        </>
+      ) : (
+        <>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          {label}
+        </>
+      )}
+    </button>
+  );
+}
 
 interface SideBySideComparisonProps {
   data: SideBySideResponse;
@@ -162,15 +215,20 @@ function RulePanel({ detection }: RulePanelProps) {
               </svg>
               <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">DETECTION LOGIC</span>
             </div>
-            <span
-              className="text-[10px] font-mono px-2 py-1 rounded"
-              style={{
-                backgroundColor: `${sourceColor}15`,
-                color: sourceColor,
-              }}
-            >
-              {detection.language?.toUpperCase() || 'UNKNOWN'}
-            </span>
+            <div className="flex items-center gap-2">
+              {detection.detection_logic && (
+                <CopyButton text={detection.detection_logic} label="COPY" />
+              )}
+              <span
+                className="text-[10px] font-mono px-2 py-1 rounded"
+                style={{
+                  backgroundColor: `${sourceColor}15`,
+                  color: sourceColor,
+                }}
+              >
+                {detection.language?.toUpperCase() || 'UNKNOWN'}
+              </span>
+            </div>
           </div>
 
           {/* Code Block */}
