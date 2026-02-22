@@ -116,6 +116,52 @@ class DetectionResponse(DetectionBase):
     class Config:
         from_attributes = True
 
+    @classmethod
+    def from_detection(cls, detection) -> "DetectionResponse":
+        """Create a response from a detection ORM object with safe serialization."""
+        data = {
+            "id": str(detection.id),
+            "source": detection.source,
+            "source_file": sanitize_string(detection.source_file),
+            "source_repo_url": sanitize_string(detection.source_repo_url),
+            "source_rule_url": sanitize_string(detection.source_rule_url),
+            "rule_id": sanitize_string(detection.rule_id),
+            "title": sanitize_string(detection.title),
+            "description": sanitize_string(detection.description),
+            "author": sanitize_string(detection.author),
+            "status": detection.status,
+            "severity": detection.severity,
+            "log_sources": normalize_string_list(detection.log_sources),
+            "data_sources": normalize_string_list(detection.data_sources),
+            "platform": sanitize_string(detection.platform) or "",
+            "event_category": sanitize_string(detection.event_category) or "",
+            "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
+            "mitre_tactics": normalize_string_list(detection.mitre_tactics),
+            "mitre_techniques": normalize_string_list(detection.mitre_techniques),
+            "detection_logic": sanitize_string(detection.detection_logic) or "",
+            "language": detection.language or "unknown",
+            "tags": normalize_string_list(detection.tags),
+            "references": normalize_string_list(detection.references),
+            "false_positives": normalize_string_list(detection.false_positives),
+            "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
+            "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
+            "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],
+            "extracted_file_paths": getattr(detection, 'extracted_file_paths', None) or [],
+            "extracted_registry_keys": getattr(detection, 'extracted_registry_keys', None) or [],
+            "extracted_network_indicators": getattr(detection, 'extracted_network_indicators', None) or [],
+            "extracted_source_tables": getattr(detection, 'extracted_source_tables', None) or [],
+            "extracted_observables": getattr(detection, 'extracted_observables', None) or [],
+            "query_complexity": getattr(detection, 'query_complexity', None) or "unknown",
+            "extracted_api_actions": getattr(detection, 'extracted_api_actions', None) or [],
+            "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
+            "rule_created_date": detection.rule_created_date,
+            "rule_modified_date": detection.rule_modified_date,
+            "raw_content": sanitize_string(detection.raw_content) or "",
+            "created_at": detection.created_at,
+            "updated_at": detection.updated_at,
+        }
+        return cls(**data)
+
 
 class DetectionListItem(BaseModel):
     """Detection item for list views (without raw_content)."""

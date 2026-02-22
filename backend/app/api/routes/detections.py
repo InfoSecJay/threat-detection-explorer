@@ -164,7 +164,7 @@ async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
     if not detection:
         raise HTTPException(status_code=404, detail=f"Detection not found: {detection_id}")
 
-    return DetectionResponse.model_validate(detection)
+    return DetectionResponse.from_detection(detection)
 
 
 def _parse_csv(value: Optional[str]) -> list[str]:
