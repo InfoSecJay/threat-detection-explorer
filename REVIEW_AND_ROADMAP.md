@@ -1,13 +1,13 @@
 # Threat Detection Explorer - Review & Roadmap
 
 **Review Date:** February 2026
-**Last Updated:** February 2026 (Post field-extraction implementation)
+**Last Updated:** February 22, 2026 (v1.5.0 — Domain-aware field extraction)
 
 ---
 
 ## Executive Summary
 
-The Threat Detection Explorer has evolved from a **read-only catalog** into a **rule content engineering platform**. With the addition of field-level parsing and observable extraction across 4 SIEM formats, the platform now deeply understands detection logic — not just metadata. This positions it to support LLM-assisted comparison, gap analysis, quality assessment, and eventually rule generation.
+The Threat Detection Explorer has evolved from a **read-only catalog** into a **rule content engineering platform**. With the addition of domain-aware field-level parsing and observable extraction across 6 detection languages (Sigma, EQL, KQL, SPL, ES|QL, MQL), the platform now deeply understands detection logic — not just metadata. This positions it to support LLM-assisted comparison, gap analysis, quality assessment, and eventually rule generation.
 
 **Inspiration & Alignment:**
 - [security-detections-mcp](https://github.com/mhaggis/security-detections-mcp) by Michael Haag — extract-at-index-time approach, cross-vendor field-level search, process/file/registry extraction from query logic
@@ -15,39 +15,76 @@ The Threat Detection Explorer has evolved from a **read-only catalog** into a **
 - [UC-17: Rule Comparison & Gap Analysis](https://github.com/InfoSecJay/ai-for-detection-engineering/blob/main/use-cases/rule-content-engineering/17-rule-comparison-and-gap-analysis.md) — pairwise observable-level comparison, coverage depth, CTI alignment
 - [UC-18: Rule Quality Assessment](https://github.com/InfoSecJay/ai-for-detection-engineering/blob/main/use-cases/rule-content-engineering/18-rule-quality-assessment.md) — 5-dimension quality scoring (specificity, description alignment, MITRE mapping, evasion gaps, severity)
 - [UC-19: Detection Rule Generation](https://github.com/InfoSecJay/ai-for-detection-engineering/blob/main/use-cases/rule-content-engineering/19-detection-rule-generation.md) — LLM-assisted cross-platform rule generation and translation
+- [Domain-Entity Mapping](https://github.com/InfoSecJay/ai-for-detection-engineering/blob/main/data-requirements/domain-entity-mapping.md) — security domain taxonomy driving field extraction priorities
 
 ---
 
-## Current Architecture
+## Current State (v1.5.0)
 
-### What's Built
+### Extraction Coverage
+
+| Metric | Value |
+|--------|-------|
+| Total rules | 12,031 across 8 sources |
+| With observables | 11,210 (93%) |
+| Dark (no observables) | 821 (7%) |
+| With api_actions | 2,164 (18%) |
+| With target_resources | 130 (1%) |
+| With process_names | 3,361 (28%) |
+| With event_ids | 959 (8%) |
+
+**Query complexity distribution:** 46% moderate, 29% simple, 24% complex
+
+### Dark Rule Breakdown (821 remaining)
+
+| Source | Dark | Root Cause |
+|--------|------|-----------|
+| Sentinel | 648 | Niche tables (Guardian AI, NativeWindowsFirewall) without field mappings |
+| Sigma | 64 | Keyword-only rules (`condition: keywords`) — structurally un-extractable |
+| Splunk | 44 | Macro-based SPL (e.g., `` `cisco_asa` ``) — no field-level conditions |
+| Sublime | 44 | Email patterns the MQL parser misses (reply-to, URL rewrite encoders) |
+| Elastic | 10 | Meta-analysis queries over `.alerts-security.*` index |
+| Elastic Hunting | 6 | Raw SQL (`SELECT * FROM shadow`) — osquery-style |
+| Elastic Protections | 5 | Registry/DLL metadata the EQL parser missed |
+
+---
+
+## What's Built
 
 | Layer | Capability | Status |
 |-------|-----------|--------|
 | **Ingestion** | 8 sources (SigmaHQ, LOLRMM, Elastic, Splunk, Sentinel, Sublime, Elastic Hunting, Elastic Protections) | Done |
 | **Normalization** | Unified schema across all formats with platform/event_category/data_source taxonomy | Done |
-| **Field Extraction** | Parse detection logic for observables across Sigma, Elastic (EQL/KQL/Lucene), Splunk (SPL), Sentinel (KQL) | Done |
-| **Observable Storage** | Extracted fields, Event IDs, process names, file paths, registry keys, network indicators, source tables, structured observables, query complexity | Done |
-| **Search** | Full-text + metadata filters (source, severity, MITRE, platform, language, etc.) | Done |
+| **Field Extraction** | Domain-aware parsing across 6 languages: Sigma, EQL, KQL/Lucene, SPL, ES\|QL, MQL | Done |
+| **Observable Storage** | Fields used, Event IDs, process names, file paths, registry keys, network indicators, source tables, API actions, target resources, structured observables, query complexity | Done |
+| **Search & Filters** | Full-text + metadata + extracted field filters (event IDs, process names, query complexity, API actions) | Done |
+| **Frontend Display** | Observable badges, API actions, target resources in rule detail view | Done |
 | **Comparison** | Side-by-side rule comparison with field-level diff | Done |
 | **Coverage Matrix** | MITRE ATT&CK heatmap with technique/sub-technique drill-down | Done |
 | **Export** | JSON/CSV export with filters | Done |
 | **Industry Intel** | Trending techniques, GitHub releases | Done |
+| **DB Migration** | Lightweight auto-migration for missing columns on startup | Done |
 
 ### Field Extraction Detail
 
 The field extractor service (`backend/app/services/field_extractor.py`) parses detection logic at ingestion time and stores structured observables. This is the foundation for all downstream rule content engineering features.
 
-**Formats parsed:**
+**Formats parsed (6 languages):**
 - **Sigma** — YAML detection sections, selection/filter/condition blocks, modifier expansion (`|contains`, `|endswith`, `|re`)
-- **Elastic** — EQL (`event where condition`), KQL (`field:value`), Lucene (`field:"value"`), sequences, thresholds
-- **Splunk** — SPL pipes, tstats/datamodel references, `index=`/`sourcetype=`, field=value, IN operators, macros
-- **Sentinel** — KQL table references, where/project/extend/summarize operators, let variables, union/join
+- **Elastic EQL** — `event where condition`, sequences, thresholds, field comparisons
+- **Elastic KQL/Lucene** — `field:value`, `field:(val1 OR val2)`, quoted phrases
+- **Splunk SPL** — Pipes, tstats/datamodel references, `index=`/`sourcetype=`, field=value, IN operators, macros
+- **Sentinel KQL** — Table references, where/project/extend/summarize operators, let variables, union/join
+- **ES|QL** — `FROM`, `WHERE` equality/negation/IN/LIKE/RLIKE, `STATS BY` (Elastic Hunting)
+- **Sublime MQL** — Email field equality, regex patterns, `any()` iterators, `strings.icontains()` (email security)
 
-**Formats NOT parsed (intentionally):**
-- Sublime (MQL) — different paradigm, low priority
-- Elastic Hunting (ES|QL) — investigation queries, not detection rules
-- Elastic Protections — behavioral rules with complex endpoint-specific logic
+**Domain-aware FIELD_TYPE_MAP (~250 entries):**
+- **Endpoint** — process paths, parents, hashes, PE info, file names, registry keys, Event IDs
+- **Cloud** — AWS CloudTrail (eventName, eventSource), Azure Activity, GCP audit
+- **Identity** — Okta (eventType, outcome), Entra ID, authentication contexts
+- **Email** — sender domains, attachments, body URLs, subject, recipients
+- **DNS** — query names, types, response codes
+- **Network** — IPs, ports, domains, protocols
 
 **Extracted observables per rule:**
 - `extracted_fields_used` — all field names referenced in the query
@@ -57,27 +94,31 @@ The field extractor service (`backend/app/services/field_extractor.py`) parses d
 - `extracted_registry_keys` — registry paths
 - `extracted_network_indicators` — IPs, domains, ports
 - `extracted_source_tables` — data source tables (e.g., DeviceProcessEvents, SecurityEvent)
+- `extracted_api_actions` — cloud/identity API event names (e.g., CreateUser, ConsoleLogin)
+- `extracted_target_resources` — cloud resource targets (e.g., S3 buckets, IAM roles)
 - `extracted_observables` — full structured list with type/subtype/negation
 - `query_complexity` — simple, moderate, complex (based on joins, sequences, aggregations)
 
-**Test coverage:** 79 unit tests across 4 format extractors (all passing).
+**Test coverage:** 110 unit tests across 6 format extractors (all passing).
 
 ---
 
 ## Roadmap
 
-### P0 — Foundation (Field-Level Intelligence)
+### P0 — Immediate Improvements
 
-#### 1. Field-Level Search & Filters
-**Status:** Next up
-**What:** Expose extracted fields as searchable API parameters and frontend filters.
+#### 1. Missing Search Filters
+**Status:** Not started
+**What:** Add backend + frontend filters for extracted fields that exist in the DB but aren't searchable yet.
 
-- Add search params: `event_ids`, `process_names`, `fields_used`, `source_tables`, `query_complexity`
-- Backend: `backend/app/services/search.py` — JSON-based list search (matching existing `mitre_techniques` pattern)
-- Frontend: `frontend/src/components/FilterPanel.tsx` — Event ID input, process name multi-select, complexity toggle
-- Frontend: Observable display on rule detail view
+Missing filters:
+- **File Paths** — `extracted_file_paths` (can't find rules hunting specific directories)
+- **Registry Keys** — `extracted_registry_keys` (can't search persistence rules)
+- **Network Indicators** — `extracted_network_indicators` (can't find network hunting rules)
+- **Target Resources** — `extracted_target_resources` (can't find cloud resource-specific rules)
+- **Source Tables** — `extracted_source_tables` (can't search by log source table)
 
-**Why P0:** The extracted data exists in the database but isn't queryable yet. This unlocks the core value of field extraction — "find all rules checking for Event ID 4688" or "find all rules monitoring powershell.exe".
+**Effort:** ~1 hour (follow existing pattern in search.py + FilterPanel.tsx)
 
 #### 2. Rule Quality Scoring (Deterministic)
 **Status:** Schema ready (quality_score, quality_details columns exist)
@@ -91,7 +132,6 @@ Dimensions:
 5. **Query Complexity Score** (0-10) — multi-condition, appropriate complexity for claimed technique
 
 **New file:** `backend/app/services/quality_scorer.py`
-**Why P0:** Quality scoring is deterministic (no LLM needed), low effort, high value. Helps engineers find the best rule for their use case.
 
 #### 3. Observable-Level Rule Comparison
 **Status:** Foundation ready (observables extracted and stored)
@@ -101,6 +141,16 @@ Dimensions:
 - Show which fields each rule checks, what values they look for
 - Identify coverage gaps: "Rule A checks CommandLine but not ParentImage"
 - Cross-vendor observable alignment: Sigma's `Image` = ECS's `process.executable` = Splunk's `Processes.process`
+
+### P0.5 — Extraction Quality Fixes
+
+| Issue | Effort | Impact |
+|-------|--------|--------|
+| EQL sequence events not detected (`sequence ... [process where ...]`) | 15 min | Query complexity misclassified |
+| Sentinel table names with hyphens/dots (regex `\w+` misses `AzureActivity-*`) | 5 min | Some Sentinel fields missed |
+| Splunk `by` clause with backticks (~10% of Splunk searches) | 10 min | Fields missed |
+| Linux executable names (non-`.exe` processes) | 20 min | Edge cases missed |
+| Sublime reply-to headers and URL rewrite encoders | 30 min | 44 dark Sublime rules |
 
 ---
 
@@ -137,7 +187,7 @@ Dimensions:
 #### 7. Rule Translation Engine
 **What:** Translate detection logic between SIEM formats.
 
-- Start with Sigma as pivot format (Sigma→SPL, Sigma→KQL, Sigma→EQL)
+- Start with Sigma as pivot format (Sigma->SPL, Sigma->KQL, Sigma->EQL)
 - Leverage extracted observables for field mapping across vendor schemas
 - Integrate with [sigma-cli](https://github.com/SigmaHQ/sigma-cli) / pySigma pipelines
 - UI: "Translate to..." dropdown on rule detail page
@@ -209,7 +259,9 @@ Dimensions:
 | Enable FastAPI Swagger docs | 1 line | Backlog |
 | Keyboard shortcuts (j/k nav, / search) | Low | Backlog |
 | Copy to clipboard for detection logic | Low | Done |
-| EventID extraction from detection logic | Medium | Done (via field extractor) |
+| Observable type expansion (certificate, behavioral, geolocation) | Medium | Backlog |
+| "Fields Used" display in rule detail | Low | Backlog |
+| Expand Sentinel field mappings (reduce 648 dark rules) | Medium | Backlog |
 
 ---
 
@@ -223,19 +275,28 @@ Dimensions:
 - [x] JSON/CSV export
 - [x] Industry intel page
 - [x] Copy to clipboard for detection logic
-- [x] Field extraction service — Sigma, Elastic (EQL/KQL/Lucene), Splunk (SPL), Sentinel (KQL)
-- [x] 79 unit tests for field extraction (all passing)
-- [x] Database schema for extracted observables (10 new columns)
-- [x] Normalizer integration (all 5 normalizers wired to extractors)
-- [x] API schema updated to include extracted fields in responses
-
-### In Progress
-- [ ] Field-level search filters (API + frontend)
-- [ ] Re-ingestion to populate extracted fields
+- [x] Field extraction service — 6 language extractors (Sigma, EQL, KQL/Lucene, SPL, ES|QL, MQL)
+- [x] Domain-aware FIELD_TYPE_MAP (~250 entries across endpoint, cloud, identity, email, DNS)
+- [x] API actions and target resources extraction (cloud/identity domains)
+- [x] Sublime MQL parser for email detection rules
+- [x] ES|QL parser for Elastic Hunting queries
+- [x] 110 unit tests for field extraction (all passing)
+- [x] Database schema for extracted observables (12 columns including api_actions, target_resources)
+- [x] All 8 normalizers wired to extractors (including Elastic Protections, Elastic Hunting, Sublime)
+- [x] API schema updated with extracted fields in responses
+- [x] Field-level search filters (event IDs, process names, query complexity, API actions)
+- [x] API Actions filter in frontend FilterPanel
+- [x] Observable badges display in rule detail view
+- [x] Lightweight DB migration for missing columns on startup
+- [x] Safe serialization for detection detail endpoint
+- [x] Production deployment with full extraction data (12,031 rules)
+- [x] Changelog updated to v1.5.0
 
 ### Backlog
+- [ ] Additional search filters: file paths, registry keys, network indicators, target resources, source tables (P0)
 - [ ] Rule Quality Scoring — deterministic (P0)
 - [ ] Observable-Level Rule Comparison (P0)
+- [ ] Extraction quality fixes: EQL sequences, Sentinel tables, Splunk backticks (P0.5)
 - [ ] Cross-Vendor Gap Analysis (P1)
 - [ ] Duplicate/Similar Rule Detection (P1)
 - [ ] Data Source Requirements Mapping (P1)
@@ -258,27 +319,30 @@ Dimensions:
 
 | File | Purpose |
 |------|---------|
-| `backend/app/services/field_extractor.py` | Core extraction service — 4 format extractors, ~80 field-to-type mappings |
-| `backend/app/services/ingestion.py` | Ingestion pipeline — parse → normalize → extract → store |
+| `backend/app/services/field_extractor.py` | Core extraction service — 6 format extractors, ~250 field-to-type mappings |
+| `backend/app/services/ingestion.py` | Ingestion pipeline — parse -> normalize -> extract -> store |
 | `backend/app/models/detection.py` | SQLAlchemy model with 40+ columns including extracted fields |
 | `backend/app/normalizers/base.py` | Base normalizer with NormalizedDetection dataclass |
-| `backend/app/normalizers/{sigma,elastic,splunk,sentinel,lolrmm}.py` | Format-specific normalizers |
-| `backend/app/api/schemas.py` | Pydantic response schemas |
-| `backend/app/services/search.py` | Search service (needs field-level params) |
-| `backend/tests/test_field_extraction/` | 79 unit tests across 4 formats |
+| `backend/app/normalizers/{sigma,elastic,splunk,sentinel,sublime,lolrmm,elastic_protections,elastic_hunting}.py` | Format-specific normalizers |
+| `backend/app/api/schemas.py` | Pydantic response schemas with safe serialization |
+| `backend/app/services/search.py` | Search service with extracted field filters |
+| `backend/app/database.py` | DB init with lightweight column migration |
+| `backend/tests/test_field_extraction/` | 110 unit tests across 6 formats |
 
 ### Database Schema (Extracted Fields)
 
 ```
-extracted_fields_used     JSON    All field names referenced in query
-extracted_event_ids       JSON    Windows Event IDs
-extracted_process_names   JSON    Process executable names
-extracted_file_paths      JSON    File system paths
-extracted_registry_keys   JSON    Registry paths
-extracted_network_indicators JSON  IPs, domains, ports
-extracted_source_tables   JSON    Data source tables
-extracted_observables     JSON    Full structured observables [{field, values, type, subtype, negated}]
-query_complexity          TEXT    simple | moderate | complex
-quality_score             INT     0-100 (nullable, not yet populated)
-quality_details           JSON    Per-dimension scores (nullable, not yet populated)
+extracted_fields_used        JSON    All field names referenced in query
+extracted_event_ids          JSON    Windows Event IDs
+extracted_process_names      JSON    Process executable names
+extracted_file_paths         JSON    File system paths
+extracted_registry_keys      JSON    Registry paths
+extracted_network_indicators JSON    IPs, domains, ports
+extracted_source_tables      JSON    Data source tables
+extracted_api_actions        JSON    Cloud/identity API event names
+extracted_target_resources   JSON    Cloud resource targets
+extracted_observables        JSON    Full structured observables [{field, values, type, subtype, negated}]
+query_complexity             TEXT    simple | moderate | complex
+quality_score                INT     0-100 (nullable, not yet populated)
+quality_details              JSON    Per-dimension scores (nullable, not yet populated)
 ```
