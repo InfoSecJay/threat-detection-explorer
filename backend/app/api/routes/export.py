@@ -17,6 +17,19 @@ from app.models.detection import Detection
 router = APIRouter(prefix="/export", tags=["export"])
 
 
+# Excel has a 32,767 character per cell limit; truncate to stay safe
+_CSV_CELL_MAX = 32000
+
+
+def _truncate(value: str | None, max_len: int = _CSV_CELL_MAX) -> str:
+    """Truncate a string to max_len, appending a note if truncated."""
+    if not value:
+        return ""
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + "... [TRUNCATED]"
+
+
 def _safe_join(items: list | None, separator: str = "; ") -> str:
     """Safely join list items to a string, handling dicts and non-string types."""
     if not items:
@@ -34,7 +47,10 @@ def _safe_join(items: list | None, separator: str = "; ") -> str:
                 result.append(str(item))
         else:
             result.append(str(item))
-    return separator.join(result)
+    joined = separator.join(result)
+    if len(joined) > _CSV_CELL_MAX:
+        return joined[:_CSV_CELL_MAX] + "... [TRUNCATED]"
+    return joined
 
 
 @router.post("")
@@ -224,7 +240,7 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
             _safe_join(d.data_sources),
             _safe_join(d.mitre_tactics),
             _safe_join(d.mitre_techniques),
-            d.detection_logic,
+            _truncate(d.detection_logic),
             _safe_join(d.tags),
             _safe_join(d.references),
             _safe_join(d.false_positives),
@@ -244,7 +260,7 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
             d.updated_at.isoformat(),
         ]
         if include_raw:
-            row.append(d.raw_content)
+            row.append(_truncate(d.raw_content))
 
         writer.writerow(row)
 
