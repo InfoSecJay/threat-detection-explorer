@@ -17,6 +17,26 @@ from app.models.detection import Detection
 router = APIRouter(prefix="/export", tags=["export"])
 
 
+def _safe_join(items: list | None, separator: str = "; ") -> str:
+    """Safely join list items to a string, handling dicts and non-string types."""
+    if not items:
+        return ""
+    result = []
+    for item in items:
+        if isinstance(item, str):
+            result.append(item)
+        elif isinstance(item, dict):
+            if "name" in item:
+                result.append(str(item["name"]))
+            elif "Schema" in item:
+                result.append(item["Schema"])
+            else:
+                result.append(str(item))
+        else:
+            result.append(str(item))
+    return separator.join(result)
+
+
 @router.post("")
 async def export_detections(
     request: ExportRequest,
@@ -83,17 +103,37 @@ def _export_json(detections: list[Detection], include_raw: bool) -> StreamingRes
             "source": d.source,
             "source_file": d.source_file,
             "source_repo_url": d.source_repo_url,
+            "source_rule_url": d.source_rule_url,
+            "rule_id": d.rule_id,
             "title": d.title,
             "description": d.description,
             "author": d.author,
             "status": d.status,
             "severity": d.severity,
-            "log_sources": d.log_sources,
-            "data_sources": d.data_sources,
-            "mitre_tactics": d.mitre_tactics,
-            "mitre_techniques": d.mitre_techniques,
+            "platform": getattr(d, "platform", "") or "",
+            "event_category": getattr(d, "event_category", "") or "",
+            "data_source_normalized": getattr(d, "data_source_normalized", "") or "",
+            "language": getattr(d, "language", "unknown") or "unknown",
+            "log_sources": d.log_sources or [],
+            "data_sources": d.data_sources or [],
+            "mitre_tactics": d.mitre_tactics or [],
+            "mitre_techniques": d.mitre_techniques or [],
             "detection_logic": d.detection_logic,
-            "tags": d.tags,
+            "tags": d.tags or [],
+            "references": d.references or [],
+            "false_positives": d.false_positives or [],
+            "extracted_fields_used": getattr(d, "extracted_fields_used", None) or [],
+            "extracted_event_ids": getattr(d, "extracted_event_ids", None) or [],
+            "extracted_process_names": getattr(d, "extracted_process_names", None) or [],
+            "extracted_file_paths": getattr(d, "extracted_file_paths", None) or [],
+            "extracted_registry_keys": getattr(d, "extracted_registry_keys", None) or [],
+            "extracted_network_indicators": getattr(d, "extracted_network_indicators", None) or [],
+            "extracted_source_tables": getattr(d, "extracted_source_tables", None) or [],
+            "query_complexity": getattr(d, "query_complexity", "unknown") or "unknown",
+            "extracted_api_actions": getattr(d, "extracted_api_actions", None) or [],
+            "extracted_target_resources": getattr(d, "extracted_target_resources", None) or [],
+            "rule_created_date": d.rule_created_date.isoformat() if d.rule_created_date else None,
+            "rule_modified_date": d.rule_modified_date.isoformat() if d.rule_modified_date else None,
             "created_at": d.created_at.isoformat(),
             "updated_at": d.updated_at.isoformat(),
         }
@@ -123,17 +163,37 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
         "source",
         "source_file",
         "source_repo_url",
+        "source_rule_url",
+        "rule_id",
         "title",
         "description",
         "author",
         "status",
         "severity",
+        "platform",
+        "event_category",
+        "data_source_normalized",
+        "language",
         "log_sources",
         "data_sources",
         "mitre_tactics",
         "mitre_techniques",
         "detection_logic",
         "tags",
+        "references",
+        "false_positives",
+        "extracted_fields_used",
+        "extracted_event_ids",
+        "extracted_process_names",
+        "extracted_file_paths",
+        "extracted_registry_keys",
+        "extracted_network_indicators",
+        "extracted_source_tables",
+        "query_complexity",
+        "extracted_api_actions",
+        "extracted_target_resources",
+        "rule_created_date",
+        "rule_modified_date",
         "created_at",
         "updated_at",
     ]
@@ -149,17 +209,37 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
             d.source,
             d.source_file,
             d.source_repo_url,
+            d.source_rule_url or "",
+            d.rule_id or "",
             d.title,
             d.description or "",
             d.author or "",
             d.status,
             d.severity,
-            ",".join(d.log_sources),
-            ",".join(d.data_sources),
-            ",".join(d.mitre_tactics),
-            ",".join(d.mitre_techniques),
+            getattr(d, "platform", "") or "",
+            getattr(d, "event_category", "") or "",
+            getattr(d, "data_source_normalized", "") or "",
+            getattr(d, "language", "unknown") or "unknown",
+            _safe_join(d.log_sources),
+            _safe_join(d.data_sources),
+            _safe_join(d.mitre_tactics),
+            _safe_join(d.mitre_techniques),
             d.detection_logic,
-            ",".join(d.tags),
+            _safe_join(d.tags),
+            _safe_join(d.references),
+            _safe_join(d.false_positives),
+            _safe_join(getattr(d, "extracted_fields_used", None)),
+            _safe_join(getattr(d, "extracted_event_ids", None)),
+            _safe_join(getattr(d, "extracted_process_names", None)),
+            _safe_join(getattr(d, "extracted_file_paths", None)),
+            _safe_join(getattr(d, "extracted_registry_keys", None)),
+            _safe_join(getattr(d, "extracted_network_indicators", None)),
+            _safe_join(getattr(d, "extracted_source_tables", None)),
+            getattr(d, "query_complexity", "unknown") or "unknown",
+            _safe_join(getattr(d, "extracted_api_actions", None)),
+            _safe_join(getattr(d, "extracted_target_resources", None)),
+            d.rule_created_date.isoformat() if d.rule_created_date else "",
+            d.rule_modified_date.isoformat() if d.rule_modified_date else "",
             d.created_at.isoformat(),
             d.updated_at.isoformat(),
         ]
