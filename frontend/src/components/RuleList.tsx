@@ -230,13 +230,18 @@ export function RuleList({
               >
                 CLEAR
               </button>
-              {selectedIds.size >= 2 && (
+              {selectedIds.size >= 2 && selectedIds.size <= 6 && (
                 <button
                   onClick={handleCompareSelected}
                   className="px-3 py-1 bg-matrix-500 text-void-950 text-xs font-display font-semibold uppercase hover:bg-matrix-400 transition-colors"
                 >
-                  COMPARE
+                  COMPARE ({selectedIds.size})
                 </button>
+              )}
+              {selectedIds.size > 6 && (
+                <span className="text-xs font-mono text-gray-500" title="Side-by-side comparison supports a maximum of 6 rules">
+                  COMPARE (max 6)
+                </span>
               )}
               {onExportSelected && selectedIds.size >= 1 && (
                 <button
