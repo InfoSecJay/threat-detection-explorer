@@ -237,6 +237,13 @@ class IngestionService:
             repo.rule_count = count
             await self.db.commit()
 
+    @staticmethod
+    def _validate_date(dt: datetime | None) -> datetime | None:
+        """Return None if a rule date is in the future (author typo)."""
+        if dt and dt > datetime.utcnow():
+            return None
+        return dt
+
     def _to_detection_model(self, normalized: NormalizedDetection) -> Detection:
         """Convert normalized detection to database model."""
         return Detection(
@@ -277,8 +284,8 @@ class IngestionService:
             query_complexity=normalized.query_complexity,
             extracted_api_actions=normalized.extracted_api_actions,
             extracted_target_resources=normalized.extracted_target_resources,
-            rule_created_date=normalized.rule_created_date,
-            rule_modified_date=normalized.rule_modified_date,
+            rule_created_date=self._validate_date(normalized.rule_created_date),
+            rule_modified_date=self._validate_date(normalized.rule_modified_date),
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
