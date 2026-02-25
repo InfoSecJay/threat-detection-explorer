@@ -313,10 +313,12 @@ export function RuleComparison({ data }: RuleComparisonProps) {
     (a, arr) => a + arr.length,
     0
   );
-  const activeSourcesWithResults = ALL_SOURCES.filter(
-    (s) => filteredResults[s]?.length
+  // Always show columns for sources that have results in the ORIGINAL data
+  // and are toggled on — preserves layout when filters narrow results
+  const originalSourcesWithResults = ALL_SOURCES.filter(
+    (s) => (data.total_by_source[s] || 0) > 0 && activeSources.has(s)
   );
-  const colCount = activeSourcesWithResults.length;
+  const colCount = originalSourcesWithResults.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -510,7 +512,7 @@ export function RuleComparison({ data }: RuleComparisonProps) {
             gridTemplateColumns: `repeat(${Math.min(colCount, 8)}, minmax(0, 1fr))`,
           }}
         >
-          {activeSourcesWithResults.map((source) => (
+          {originalSourcesWithResults.map((source) => (
             <div
               key={source}
               className={`p-3 border-l-4 ${sourceTailwind[source]}`}
@@ -560,7 +562,7 @@ export function RuleComparison({ data }: RuleComparisonProps) {
             gridTemplateColumns: `repeat(${Math.min(colCount, 8)}, minmax(0, 1fr))`,
           }}
         >
-          {activeSourcesWithResults.map((source) => (
+          {originalSourcesWithResults.map((source) => (
             <div key={source} className="space-y-2">
               <h3
                 className="font-display font-semibold text-sm text-gray-300 border-b pb-2 tracking-wide uppercase"
@@ -568,13 +570,19 @@ export function RuleComparison({ data }: RuleComparisonProps) {
               >
                 {sourceLabels[source]}
               </h3>
-              {filteredResults[source]?.map((detection) => (
-                <EnhancedDetectionCard
-                  key={detection.id}
-                  detection={detection}
-                  sourceColor={sourceColors[source]}
-                />
-              ))}
+              {filteredResults[source]?.length ? (
+                filteredResults[source].map((detection) => (
+                  <EnhancedDetectionCard
+                    key={detection.id}
+                    detection={detection}
+                    sourceColor={sourceColors[source]}
+                  />
+                ))
+              ) : (
+                <p className="text-xs font-mono text-gray-600 py-4 text-center">
+                  No matches
+                </p>
+              )}
             </div>
           ))}
         </div>
