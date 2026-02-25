@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import type { Detection, CompareResponse } from '../types';
 import {
   ALL_SOURCES,
@@ -9,6 +8,7 @@ import {
   severityOrder,
   severityTailwind,
 } from '../constants/sources';
+import { RulePreviewModal } from './RulePreviewModal';
 
 interface RuleComparisonProps {
   data: CompareResponse;
@@ -19,14 +19,16 @@ interface RuleComparisonProps {
 function EnhancedDetectionCard({
   detection,
   sourceColor,
+  onClick,
 }: {
   detection: Detection;
   sourceColor: string;
+  onClick: () => void;
 }) {
   return (
-    <Link
-      to={`/detections/${detection.id}`}
-      className="block p-3 bg-void-900 border border-void-700 hover:border-matrix-500/30 transition-all group"
+    <div
+      onClick={onClick}
+      className="block p-3 bg-void-900 border border-void-700 hover:border-matrix-500/30 transition-all group cursor-pointer"
       style={{
         borderLeftWidth: '3px',
         borderLeftColor: sourceColor,
@@ -88,7 +90,7 @@ function EnhancedDetectionCard({
           )}
         </div>
       )}
-    </Link>
+    </div>
   );
 }
 
@@ -142,6 +144,9 @@ function TogglePill({
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function RuleComparison({ data }: RuleComparisonProps) {
+  // ── Modal state ────────────────────────────────────────────────────────────
+  const [selectedDetection, setSelectedDetection] = useState<Detection | null>(null);
+
   // ── Filter state ──────────────────────────────────────────────────────────
   const [activeSources, setActiveSources] = useState<Set<string>>(new Set());
   const [activePlatforms, setActivePlatforms] = useState<Set<string>>(
@@ -576,6 +581,7 @@ export function RuleComparison({ data }: RuleComparisonProps) {
                     key={detection.id}
                     detection={detection}
                     sourceColor={sourceColors[source]}
+                    onClick={() => setSelectedDetection(detection)}
                   />
                 ))
               ) : (
@@ -587,6 +593,13 @@ export function RuleComparison({ data }: RuleComparisonProps) {
           ))}
         </div>
       )}
+
+      {/* ── Rule Preview Modal ────────────────────────────────────────────── */}
+      <RulePreviewModal
+        detection={selectedDetection}
+        isOpen={selectedDetection !== null}
+        onClose={() => setSelectedDetection(null)}
+      />
     </div>
   );
 }
