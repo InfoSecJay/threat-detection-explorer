@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { RuleComparison } from '../components/RuleComparison';
 import { ComparisonCharts } from '../components/ComparisonCharts';
 import { TechniqueAutocomplete } from '../components/TechniqueAutocomplete';
-import { useCompare, useCoverageGap } from '../hooks/useCompare';
+import { useCompare } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
+import { sourceColors, sourceLabelsShort } from '../constants/sources';
 
 // Platform options for comparison dropdown
 const platformOptions = [
@@ -28,13 +29,13 @@ const platformOptions = [
 
 export function Compare() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { getTechniqueName, getTechniqueUrl } = useMitre();
+  const { getTechniqueName } = useMitre();
 
   // Determine initial query type - keyword is default
   const getInitialQueryType = (): 'keyword' | 'technique' | 'platform' => {
     if (searchParams.get('technique')) return 'technique';
     if (searchParams.get('platform')) return 'platform';
-    return 'keyword'; // Default to keyword
+    return 'keyword';
   };
 
   const [queryType, setQueryType] = useState<'keyword' | 'technique' | 'platform'>(
@@ -49,17 +50,12 @@ export function Compare() {
     platform: searchParams.get('platform') || undefined,
   });
 
-  const [showGapAnalysis, setShowGapAnalysis] = useState(false);
-  const [gapBaseSource, setGapBaseSource] = useState('sigma');
-  const [gapCompareSource, setGapCompareSource] = useState('elastic');
-
-  // Sync state with URL params when navigating (e.g., from Coverage Matrix links)
+  // Sync state with URL params when navigating
   useEffect(() => {
     const technique = searchParams.get('technique');
     const keyword = searchParams.get('keyword');
     const platform = searchParams.get('platform');
 
-    // Only update if URL has params and they differ from current state
     if (technique && technique !== submittedQuery.technique) {
       setQueryType('technique');
       setQueryValue(technique);
@@ -76,10 +72,6 @@ export function Compare() {
   }, [searchParams]);
 
   const { data: compareData, isLoading: compareLoading, error: compareError } = useCompare(submittedQuery);
-  const { data: gapData, isLoading: gapLoading } = useCoverageGap(
-    showGapAnalysis ? gapBaseSource : '',
-    showGapAnalysis ? gapCompareSource : ''
-  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +84,6 @@ export function Compare() {
     };
     setSubmittedQuery(newQuery);
 
-    // Update URL
     const params = new URLSearchParams();
     if (newQuery.technique) params.set('technique', newQuery.technique);
     if (newQuery.keyword) params.set('keyword', newQuery.keyword);
@@ -100,8 +91,12 @@ export function Compare() {
     setSearchParams(params);
   };
 
+  const totalCount = compareData
+    ? Object.values(compareData.total_by_source).reduce((a, b) => a + b, 0)
+    : 0;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -268,176 +263,58 @@ export function Compare() {
         </div>
       )}
 
-      {/* Comparison Results */}
-      {compareData && <RuleComparison data={compareData} />}
+      {/* ── Workspace Header ─────────────────────────────────────────────── */}
+      {compareData && (
+        <div
+          className="flex items-center justify-between px-4 py-3 bg-void-850 border border-void-700"
+          style={{
+            clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono text-gray-600">QUERY:</span>
+            <span className="text-sm font-display text-matrix-500 uppercase">
+              {compareData.query_type === 'keyword'
+                ? `"${compareData.query_value}"`
+                : compareData.query_value}
+            </span>
+            <span className="text-gray-700">|</span>
+            <span className="text-xs font-mono text-gray-400">
+              <span className="text-white font-semibold">{totalCount}</span> DETECTIONS
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {Object.entries(compareData.total_by_source)
+              .filter(([_, count]) => count > 0)
+              .sort(([, a], [, b]) => b - a)
+              .map(([source, count]) => (
+                <span
+                  key={source}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono"
+                  style={{
+                    backgroundColor: `${sourceColors[source]}15`,
+                    color: sourceColors[source],
+                    border: `1px solid ${sourceColors[source]}35`,
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: sourceColors[source] }}
+                  />
+                  {sourceLabelsShort[source]} {count}
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
 
-      {/* Comparison Charts */}
+      {/* ── Analytics Charts (moved up from bottom) ──────────────────────── */}
       {compareData && Object.keys(compareData.results).length > 0 && (
         <ComparisonCharts data={compareData} />
       )}
 
-      {/* Coverage Gap Analysis */}
-      <div
-        className="bg-void-850 border border-void-700 p-6"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">
-              Coverage Gap Analysis
-            </h2>
-          </div>
-          <button
-            onClick={() => setShowGapAnalysis(!showGapAnalysis)}
-            className="text-sm font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
-          >
-            {showGapAnalysis ? '[ HIDE ]' : '[ SHOW ]'}
-          </button>
-        </div>
-
-        {showGapAnalysis && (
-          <div className="space-y-6">
-            {/* Source Selection */}
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="block text-xs font-mono text-gray-500 mb-1.5">
-                  BASE_SOURCE
-                </label>
-                <select
-                  value={gapBaseSource}
-                  onChange={(e) => setGapBaseSource(e.target.value)}
-                  className="px-3 py-2 bg-void-900 border border-void-700 text-white text-sm focus:ring-matrix-500/50 focus:border-matrix-500/50"
-                >
-                  <option value="sigma">Sigma</option>
-                  <option value="elastic">Elastic</option>
-                  <option value="splunk">Splunk</option>
-                  <option value="sublime">Sublime</option>
-                  <option value="elastic_protections">Elastic Protections</option>
-                  <option value="lolrmm">LOLRMM</option>
-                  <option value="elastic_hunting">Elastic Hunting</option>
-                  <option value="sentinel">Microsoft Sentinel</option>
-                </select>
-              </div>
-              <div className="pt-5 text-gray-600 font-display">VS</div>
-              <div>
-                <label className="block text-xs font-mono text-gray-500 mb-1.5">
-                  COMPARE_SOURCE
-                </label>
-                <select
-                  value={gapCompareSource}
-                  onChange={(e) => setGapCompareSource(e.target.value)}
-                  className="px-3 py-2 bg-void-900 border border-void-700 text-white text-sm focus:ring-matrix-500/50 focus:border-matrix-500/50"
-                >
-                  <option value="sigma">Sigma</option>
-                  <option value="elastic">Elastic</option>
-                  <option value="splunk">Splunk</option>
-                  <option value="sublime">Sublime</option>
-                  <option value="elastic_protections">Elastic Protections</option>
-                  <option value="lolrmm">LOLRMM</option>
-                  <option value="elastic_hunting">Elastic Hunting</option>
-                  <option value="sentinel">Microsoft Sentinel</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Loading */}
-            {gapLoading && (
-              <p className="text-sm font-mono text-gray-500">ANALYZING_COVERAGE...</p>
-            )}
-
-            {/* Gap Results */}
-            {gapData && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Overlap Card */}
-                <div
-                  className="p-5 bg-pulse-500/5 border border-pulse-500/30"
-                  style={{
-                    clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 bg-pulse-500 rounded-full"></span>
-                    <h4 className="font-display font-semibold text-pulse-400 text-sm uppercase tracking-wide">
-                      Overlapping Coverage
-                    </h4>
-                  </div>
-                  <p className="text-3xl font-display font-bold text-pulse-500">
-                    {gapData.overlap_count}
-                    <span className="text-sm font-mono text-pulse-400/60 ml-2">techniques</span>
-                  </p>
-                </div>
-
-                {/* Gaps Card */}
-                <div
-                  className="p-5 bg-breach-500/5 border border-breach-500/30"
-                  style={{
-                    clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 bg-breach-500 rounded-full"></span>
-                    <h4 className="font-display font-semibold text-breach-400 text-sm uppercase tracking-wide">
-                      Gaps ({gapBaseSource} only)
-                    </h4>
-                  </div>
-                  <p className="text-3xl font-display font-bold text-breach-500">
-                    {gapData.gaps.length}
-                    <span className="text-sm font-mono text-breach-400/60 ml-2">techniques</span>
-                  </p>
-                </div>
-
-                {/* Gap Details */}
-                {gapData.gaps.length > 0 && (
-                  <div className="col-span-2">
-                    <h4 className="font-mono text-xs text-gray-500 mb-3 uppercase">
-                      Techniques in {gapBaseSource} but not in {gapCompareSource}:
-                    </h4>
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {gapData.gaps.map((tech) => {
-                        const name = getTechniqueName(tech);
-                        return (
-                          <button
-                            key={tech}
-                            onClick={() => {
-                              setQueryType('technique');
-                              setQueryValue(tech);
-                              setSubmittedQuery({ technique: tech, keyword: undefined, platform: undefined });
-                            }}
-                            className="w-full text-left px-4 py-2 bg-breach-500/5 text-breach-400 border border-breach-500/20 hover:bg-breach-500/10 transition-colors flex items-center gap-3"
-                          >
-                            <span className="font-mono text-sm bg-breach-500/20 px-2 py-0.5">
-                              {tech}
-                            </span>
-                            {name && (
-                              <span className="text-gray-400 text-sm truncate">
-                                {name}
-                              </span>
-                            )}
-                            <a
-                              href={getTechniqueUrl(tech)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="ml-auto text-gray-600 hover:text-matrix-500 text-xs font-mono"
-                            >
-                              MITRE
-                            </a>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* ── Comparison Workspace (filter toolbar + rule grid) ────────────── */}
+      {compareData && <RuleComparison data={compareData} />}
     </div>
   );
 }
