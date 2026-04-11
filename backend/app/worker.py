@@ -4,7 +4,7 @@ This module is the entrypoint for the Railway worker service. It runs in
 its own process (separate Railway service) from the FastAPI API so that
 long-running git clones and rule ingestion never block API requests.
 
-Two responsibilities:
+Three responsibilities:
 
 1. Poll the `sync_jobs` table for pending jobs and process them one at a
    time via `app.services.scheduler.run_full_sync_job`.
@@ -13,6 +13,11 @@ Two responsibilities:
    fires a callback that inserts a new pending job row; the poll loop
    then picks it up like any other job, so scheduled and manual syncs
    go through identical code paths.
+
+3. Serve a tiny /api/health endpoint so Railway's deployment healthcheck
+   passes. Without this, Railway fails the deploy after ~100 seconds of
+   "service unavailable" because the worker has no HTTP listener. The
+   health endpoint is served on the same asyncio loop as the poll loop.
 
 Run locally with:
 
@@ -24,11 +29,14 @@ Command" override on the worker service.
 
 import asyncio
 import logging
+import os
 import signal
 from typing import Optional
 
+import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from fastapi import FastAPI
 
 from app.config import settings
 from app.database import async_session_maker, init_db
@@ -49,16 +57,41 @@ POLL_INTERVAL_SECONDS = 5
 STUCK_JOB_TIMEOUT_MINUTES = 30
 
 
+def _build_health_app() -> FastAPI:
+    """Build a minimal FastAPI app that serves `/api/health` only.
+
+    This exists solely to satisfy Railway's deployment healthcheck,
+    which is configured in `backend/railway.toml` to hit `/api/health`.
+    Without it, the worker deploy is marked failed after ~100s of
+    retries because the worker has no HTTP listener of its own.
+
+    Responding successfully here is also a real liveness signal: if
+    the asyncio event loop is wedged or the process crashed, Railway
+    will fail the healthcheck and auto-restart the container via the
+    on_failure restart policy, which is exactly what we want.
+    """
+    app = FastAPI(title="Detection Explorer Worker", docs_url=None, redoc_url=None)
+
+    @app.get("/api/health")
+    async def health() -> dict[str, str]:
+        return {"status": "healthy", "service": "threat-detection-explorer-worker"}
+
+    return app
+
+
 class Worker:
-    """Worker process: poll loop + cron scheduler.
+    """Worker process: poll loop + cron scheduler + health HTTP server.
 
     The worker is a long-lived asyncio program. `start()` blocks until
     the worker is asked to stop via SIGTERM/SIGINT or an internal error.
+    The health server and poll loop run concurrently on the same event
+    loop via asyncio.gather so they share the same lifecycle.
     """
 
     def __init__(self) -> None:
         self._running: bool = False
         self._scheduler: Optional[AsyncIOScheduler] = None
+        self._health_server: Optional[uvicorn.Server] = None
 
     async def start(self) -> None:
         """Initialize the worker and enter the main poll loop."""
@@ -120,8 +153,29 @@ class Worker:
                 # KeyboardInterrupt will still work as a fallback in main().
                 pass
 
-        logger.info("Worker started — polling for pending jobs")
+        # Configure the health HTTP server. Railway injects PORT for
+        # services with healthchecks; default to 8080 locally.
+        port = int(os.environ.get("PORT", "8080"))
+        health_config = uvicorn.Config(
+            _build_health_app(),
+            host="0.0.0.0",
+            port=port,
+            log_level="warning",
+            access_log=False,
+        )
+        self._health_server = uvicorn.Server(health_config)
+        logger.info(f"Worker started — polling for pending jobs (health on :{port})")
 
+        # Run poll loop and health server concurrently on the same event loop.
+        # asyncio.gather will raise if either coroutine raises, so wrap the
+        # poll loop in try/except inside _poll_forever to keep it alive.
+        await asyncio.gather(
+            self._poll_forever(),
+            self._health_server.serve(),
+        )
+
+    async def _poll_forever(self) -> None:
+        """Main poll loop. Runs until `self._running` is set to False."""
         while self._running:
             try:
                 await self._poll_once()
@@ -134,14 +188,15 @@ class Worker:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
     async def stop(self) -> None:
-        """Request graceful shutdown. The poll loop will exit after its
-        current iteration."""
+        """Request graceful shutdown of the poll loop and health server."""
         if not self._running:
             return
         logger.info("Worker stopping...")
         self._running = False
         if self._scheduler and self._scheduler.running:
             self._scheduler.shutdown(wait=False)
+        if self._health_server is not None:
+            self._health_server.should_exit = True
 
     async def _enqueue_scheduled_sync(self) -> None:
         """APScheduler callback: queue a nightly full sync job.
