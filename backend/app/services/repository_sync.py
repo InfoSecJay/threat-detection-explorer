@@ -178,8 +178,13 @@ class RepositorySyncService:
         logger.info(f"Cloning {url} to {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Clone with depth=1 for faster initial clone
-        repo = Repo.clone_from(url, path, depth=1)
+        # Blobless partial clone (--filter=blob:none): downloads the full commit
+        # graph and tree objects so `git log --follow -- <file>` can report real
+        # creation/modification dates for every rule, but defers historical blob
+        # downloads until they're explicitly requested. Disk cost is ~equivalent
+        # to the old depth=1 clone plus a few MB of extra commit metadata.
+        # Requires git >= 2.19 (widely available).
+        repo = Repo.clone_from(url, path, multi_options=["--filter=blob:none"])
         return repo.head.commit.hexsha
 
     async def _sparse_clone_repository(
@@ -213,6 +218,19 @@ class RepositorySyncService:
             cwd=path, check=True, capture_output=True
         )
 
+        # Mark origin as a promisor remote so git accepts the blobless fetch
+        # below and knows how to lazy-fetch missing blobs later if needed.
+        # When `git clone --filter=` is used these are set automatically; for
+        # manually-initialized repos we have to configure them ourselves.
+        subprocess.run(
+            ["git", "config", "remote.origin.promisor", "true"],
+            cwd=path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "config", "remote.origin.partialclonefilter", "blob:none"],
+            cwd=path, check=True, capture_output=True
+        )
+
         # Write sparse checkout patterns
         sparse_checkout_file = path / ".git" / "info" / "sparse-checkout"
         sparse_checkout_file.parent.mkdir(parents=True, exist_ok=True)
@@ -220,10 +238,21 @@ class RepositorySyncService:
 
         logger.info(f"Fetching with sparse checkout patterns...")
 
-        # Fetch with depth=1
+        # Blobless partial fetch: pulls full commit history + trees (so
+        # `git log --follow -- <file>` works for date extraction) but defers
+        # historical blob downloads. Combined with sparse checkout, only the
+        # current-HEAD blobs matching the sparse patterns are downloaded.
         subprocess.run(
-            ["git", "fetch", "--depth=1", "origin", "master"],
-            cwd=path, check=True, capture_output=True
+            [
+                "git",
+                "fetch",
+                "--filter=blob:none",
+                "origin",
+                "master",
+            ],
+            cwd=path,
+            check=True,
+            capture_output=True,
         )
 
         # Checkout

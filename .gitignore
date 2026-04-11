@@ -86,6 +86,7 @@ logs/
 
 # Local working notes (internal planning docs, not for public repo)
 DETECTION_EXPLORER_ACTION_PLAN.md
+TODO.md
 
 # Local dev database
 backend/detections.db

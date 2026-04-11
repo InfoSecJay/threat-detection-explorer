@@ -50,16 +50,23 @@ class IngestionService:
             "sentinel": SentinelParser(),
         }
 
-        # Initialize normalizers
+        # Initialize normalizers — pass local repo paths so they can fall back
+        # to `git log` for rule dates when the source format doesn't embed them.
         self.normalizers: dict[str, BaseNormalizer] = {
-            "sigma": SigmaNormalizer(settings.sigma_repo_url),
-            "elastic": ElasticNormalizer(settings.elastic_repo_url),
-            "splunk": SplunkNormalizer(settings.splunk_repo_url),
-            "sublime": SublimeNormalizer(settings.sublime_repo_url),
-            "elastic_protections": ElasticProtectionsNormalizer(settings.elastic_protections_repo_url),
-            "lolrmm": LOLRMMNormalizer(settings.lolrmm_repo_url),
-            "elastic_hunting": ElasticHuntingNormalizer(settings.elastic_hunting_repo_url),
-            "sentinel": SentinelNormalizer(settings.sentinel_repo_url),
+            "sigma": SigmaNormalizer(settings.sigma_repo_url, settings.get_repo_path("sigma")),
+            "elastic": ElasticNormalizer(settings.elastic_repo_url, settings.get_repo_path("elastic")),
+            "splunk": SplunkNormalizer(settings.splunk_repo_url, settings.get_repo_path("splunk")),
+            "sublime": SublimeNormalizer(settings.sublime_repo_url, settings.get_repo_path("sublime")),
+            "elastic_protections": ElasticProtectionsNormalizer(
+                settings.elastic_protections_repo_url,
+                settings.get_repo_path("elastic_protections"),
+            ),
+            "lolrmm": LOLRMMNormalizer(settings.lolrmm_repo_url, settings.get_repo_path("lolrmm")),
+            "elastic_hunting": ElasticHuntingNormalizer(
+                settings.elastic_hunting_repo_url,
+                settings.get_repo_path("elastic_hunting"),
+            ),
+            "sentinel": SentinelNormalizer(settings.sentinel_repo_url, settings.get_repo_path("sentinel")),
         }
 
     async def ingest_repository(self, repo_name: str) -> IngestionStats:

@@ -3,10 +3,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 import hashlib
 
 from app.parsers.base import ParsedRule
+from app.services.git_service import GitService
 from app.services.log_source_taxonomy import standardize_log_sources
 
 
@@ -92,13 +94,53 @@ class NormalizedDetection:
 class BaseNormalizer(ABC):
     """Abstract base class for detection rule normalizers."""
 
-    def __init__(self, repo_url: str):
-        """Initialize normalizer with repository URL.
+    def __init__(self, repo_url: str, repo_path: Optional[Path] = None):
+        """Initialize normalizer with repository URL and optional local clone path.
 
         Args:
             repo_url: Base URL for the source repository
+            repo_path: Local path to the cloned repository. When provided, the
+                normalizer can fall back to `git log` for rule creation/modified
+                dates when the source rule file doesn't embed them. Optional so
+                tests and legacy callers still work without a clone on disk.
         """
         self.repo_url = repo_url
+        self.repo_path = repo_path
+        self._git_service: Optional[GitService] = (
+            GitService(repo_path) if repo_path else None
+        )
+
+    def _resolve_rule_dates(
+        self,
+        file_path: str,
+        embedded_created: Optional[datetime] = None,
+        embedded_modified: Optional[datetime] = None,
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
+        """Return (created_date, modified_date), preferring embedded values.
+
+        If the rule file embeds a date field (Sigma `date`/`modified`,
+        Splunk `date`, LOLRMM `date`/`modified`), those win — the author's
+        stated date is more meaningful than a commit timestamp. Only fields
+        left as None fall through to `git log` via the GitService, which
+        itself returns None on shallow clones or any other failure.
+
+        Passing `file_path` as the ParsedRule.file_path (repo-relative) lets
+        the git service run `git log -- <path>` from the repo root.
+        """
+        created = embedded_created
+        modified = embedded_modified
+
+        if created is None and modified is None and self._git_service is None:
+            return None, None
+
+        if self._git_service is not None and (created is None or modified is None):
+            git_created, git_modified = self._git_service.get_file_dates(file_path)
+            if created is None:
+                created = git_created
+            if modified is None:
+                modified = git_modified
+
+        return created, modified
 
     @abstractmethod
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:

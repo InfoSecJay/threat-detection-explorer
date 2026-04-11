@@ -38,6 +38,9 @@ class ElasticProtectionsNormalizer(BaseNormalizer):
         query_str = self._format_detection_logic(parsed.detection_logic_raw)
         extracted = extract_elastic_fields(query_str, "eql")
 
+        # Elastic Protections TOML doesn't embed date fields — fall back to git log
+        rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -74,8 +77,8 @@ class ElasticProtectionsNormalizer(BaseNormalizer):
             query_complexity=extracted.query_complexity,
             extracted_api_actions=extracted.api_actions,
             extracted_target_resources=extracted.target_resources,
-            rule_created_date=None,  # Not available in Elastic Protections
-            rule_modified_date=None,  # Not available in Elastic Protections
+            rule_created_date=rule_created,
+            rule_modified_date=rule_modified,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

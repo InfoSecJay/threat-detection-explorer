@@ -34,6 +34,13 @@ class ElasticNormalizer(BaseNormalizer):
         lang = self._determine_language(parsed.detection_logic_raw, extra)
         extracted = extract_elastic_fields(query_str, lang)
 
+        # Prefer embedded Elastic dates; fall back to git log when a rule omits them
+        rule_created, rule_modified = self._resolve_rule_dates(
+            parsed.file_path,
+            embedded_created=self.parse_date(extra.get("creation_date")),
+            embedded_modified=self.parse_date(extra.get("updated_date")),
+        )
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -70,8 +77,8 @@ class ElasticNormalizer(BaseNormalizer):
             query_complexity=extracted.query_complexity,
             extracted_api_actions=extracted.api_actions,
             extracted_target_resources=extracted.target_resources,
-            rule_created_date=self.parse_date(extra.get("creation_date")),
-            rule_modified_date=self.parse_date(extra.get("updated_date")),
+            rule_created_date=rule_created,
+            rule_modified_date=rule_modified,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:

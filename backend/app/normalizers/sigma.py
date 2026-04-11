@@ -38,6 +38,13 @@ class SigmaNormalizer(BaseNormalizer):
             logsource=log_source,
         )
 
+        # Prefer embedded Sigma dates; fall back to git log when a rule omits them
+        rule_created, rule_modified = self._resolve_rule_dates(
+            parsed.file_path,
+            embedded_created=self.parse_date(extra.get("date")),
+            embedded_modified=self.parse_date(extra.get("modified")),
+        )
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -74,8 +81,8 @@ class SigmaNormalizer(BaseNormalizer):
             query_complexity=extracted.query_complexity,
             extracted_api_actions=extracted.api_actions,
             extracted_target_resources=extracted.target_resources,
-            rule_created_date=self.parse_date(extra.get("date")),
-            rule_modified_date=self.parse_date(extra.get("modified")),
+            rule_created_date=rule_created,
+            rule_modified_date=rule_modified,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

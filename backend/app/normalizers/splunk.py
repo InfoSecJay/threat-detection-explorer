@@ -34,6 +34,12 @@ class SplunkNormalizer(BaseNormalizer):
         search_str = self._format_detection_logic(parsed.detection_logic_raw)
         extracted = extract_splunk_fields(search_str)
 
+        # Splunk rules embed `date` (created) but not modified — git log fills in modified
+        rule_created, rule_modified = self._resolve_rule_dates(
+            parsed.file_path,
+            embedded_created=self.parse_date(extra.get("date")),
+        )
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -70,8 +76,8 @@ class SplunkNormalizer(BaseNormalizer):
             query_complexity=extracted.query_complexity,
             extracted_api_actions=extracted.api_actions,
             extracted_target_resources=extracted.target_resources,
-            rule_created_date=self.parse_date(extra.get("date")),
-            rule_modified_date=None,
+            rule_created_date=rule_created,
+            rule_modified_date=rule_modified,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:

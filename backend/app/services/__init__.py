@@ -1,13 +1,9 @@
-"""Application services."""
+"""Application services.
 
-from app.services.repository_sync import RepositorySyncService
-from app.services.rule_discovery import RuleDiscoveryService
-from app.services.ingestion import IngestionService
-from app.services.search import SearchService
-
-__all__ = [
-    "RepositorySyncService",
-    "RuleDiscoveryService",
-    "IngestionService",
-    "SearchService",
-]
+Submodules should be imported directly (e.g.
+``from app.services.ingestion import IngestionService``) rather than
+through this package. Eagerly re-exporting them here would create
+circular-import risk for any module in ``app.normalizers`` or
+``app.parsers`` that needs a helper from this package, because the
+``IngestionService`` import chain transitively loads every normalizer.
+"""
