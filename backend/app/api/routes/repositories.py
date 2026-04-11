@@ -5,13 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.api.schemas import RepositoryResponse, SyncResponse, IngestionResponse, IngestionStatsSchema
-from app.services.repository_sync import RepositorySyncService
+from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.ingestion import IngestionService
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
-
-
-ALL_REPOSITORIES = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting", "sentinel"]
 
 
 @router.get("", response_model=list[RepositoryResponse])
@@ -20,7 +17,7 @@ async def list_repositories(db: AsyncSession = Depends(get_db)):
     sync_service = RepositorySyncService(db)
 
     # Ensure all repositories exist in DB
-    for name in ALL_REPOSITORIES:
+    for name in ALL_REPOSITORY_NAMES:
         await sync_service.ensure_repository_exists(name)
 
     repos = await sync_service.get_all_repositories()
@@ -42,7 +39,7 @@ async def get_repository(name: str, db: AsyncSession = Depends(get_db)):
 @router.post("/{name}/sync", response_model=SyncResponse)
 async def sync_repository(name: str, db: AsyncSession = Depends(get_db)):
     """Trigger sync for a specific repository."""
-    if name not in ALL_REPOSITORIES:
+    if name not in ALL_REPOSITORY_NAMES:
         raise HTTPException(status_code=400, detail=f"Invalid repository name: {name}")
 
     sync_service = RepositorySyncService(db)
@@ -57,7 +54,7 @@ async def sync_all_repositories(db: AsyncSession = Depends(get_db)):
     sync_service = RepositorySyncService(db)
     results = []
 
-    for name in ALL_REPOSITORIES:
+    for name in ALL_REPOSITORY_NAMES:
         success, message = await sync_service.sync_repository(name)
         results.append(SyncResponse(success=success, message=message, repository=name))
 
@@ -67,7 +64,7 @@ async def sync_all_repositories(db: AsyncSession = Depends(get_db)):
 @router.post("/{name}/ingest", response_model=IngestionResponse)
 async def ingest_repository(name: str, db: AsyncSession = Depends(get_db)):
     """Ingest detection rules from a synced repository."""
-    if name not in ALL_REPOSITORIES:
+    if name not in ALL_REPOSITORY_NAMES:
         raise HTTPException(status_code=400, detail=f"Invalid repository name: {name}")
 
     # Check if repository is synced
@@ -131,7 +128,7 @@ async def ingest_all_repositories(db: AsyncSession = Depends(get_db)):
     sync_service = RepositorySyncService(db)
     results = []
 
-    for name in ALL_REPOSITORIES:
+    for name in ALL_REPOSITORY_NAMES:
         repo = await sync_service.get_repository(name)
 
         if not repo or not repo.last_sync_at:

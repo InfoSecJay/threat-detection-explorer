@@ -8,6 +8,7 @@ from sqlalchemy import select, or_, and_, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +250,7 @@ class SearchService:
         }
 
         # Count by source
-        for source in ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting", "sentinel"]:
+        for source in ALL_REPOSITORY_NAMES:
             count_result = await self.db.execute(
                 select(func.count(Detection.id)).where(Detection.source == source)
             )

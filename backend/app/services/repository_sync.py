@@ -15,6 +15,26 @@ from app.models.repository import Repository
 
 logger = logging.getLogger(__name__)
 
+# Canonical list of every detection rule source Detection Explorer supports.
+#
+# This is the SINGLE SOURCE OF TRUTH for "which repositories exist." Every
+# other module that needs to iterate over all sources (scheduler, stats,
+# trending, API routes) imports this constant rather than hardcoding its own
+# list, because in the past drift between hardcoded lists silently caused
+# sources to be excluded from nightly sync (e.g. sentinel and elastic_hunting
+# were missing from the scheduler's list for weeks). Keep this list in the
+# same order as REPO_CONFIGS below so ingestion ordering is predictable.
+ALL_REPOSITORY_NAMES: list[str] = [
+    "sigma",
+    "elastic",
+    "splunk",
+    "sublime",
+    "elastic_protections",
+    "lolrmm",
+    "elastic_hunting",
+    "sentinel",
+]
+
 # Sparse checkout patterns for large repositories
 SPARSE_CHECKOUT_PATTERNS = {
     "sentinel": [

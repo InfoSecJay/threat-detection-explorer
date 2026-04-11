@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import settings
+from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.scheduler import (
     scheduler,
     get_sync_job_history,
@@ -140,13 +141,11 @@ async def trigger_sync(
     from app.models.sync_job import SyncJob
 
     # Validate repository if specified
-    if request.repository:
-        valid_repos = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm"]
-        if request.repository not in valid_repos:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid repository: {request.repository}. Valid options: {valid_repos}",
-            )
+    if request.repository and request.repository not in ALL_REPOSITORY_NAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid repository: {request.repository}. Valid options: {ALL_REPOSITORY_NAMES}",
+        )
 
     # Create a pending job record
     job = SyncJob(

@@ -22,6 +22,7 @@ from app.normalizers import (
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
     ElasticHuntingNormalizer, SentinelNormalizer, BaseNormalizer, NormalizedDetection
 )
+from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.ingestion_errors import (
     IngestionStats, ErrorStage, ErrorSeverity
@@ -302,7 +303,7 @@ class IngestionService:
         stats = {}
 
         # Count detections per source
-        for source in ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting"]:
+        for source in ALL_REPOSITORY_NAMES:
             result = await self.db.execute(
                 select(Detection).where(Detection.source == source)
             )

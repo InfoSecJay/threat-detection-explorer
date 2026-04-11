@@ -13,12 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import async_session_maker
 from app.models.sync_job import SyncJob
-from app.services.repository_sync import RepositorySyncService
 from app.services.ingestion import IngestionService
+from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 
 logger = logging.getLogger(__name__)
-
-ALL_REPOSITORIES = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm"]
 
 
 class SchedulerService:
@@ -119,7 +117,7 @@ class SchedulerService:
             logger.info(f"Created sync job {job_id}")
 
             try:
-                repos_to_sync = [repository] if repository else ALL_REPOSITORIES
+                repos_to_sync = [repository] if repository else ALL_REPOSITORY_NAMES
                 total_discovered = 0
                 total_stored = 0
                 total_errors = 0

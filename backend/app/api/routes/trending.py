@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.detection import Detection
+from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
 router = APIRouter(prefix="/trending", tags=["trending"])
 
@@ -168,7 +169,7 @@ async def get_trending_summary(
 
     # Count by source
     by_source = {}
-    for source in ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm"]:
+    for source in ALL_REPOSITORY_NAMES:
         source_query = select(func.count(Detection.id)).where(
             and_(
                 Detection.source == source,

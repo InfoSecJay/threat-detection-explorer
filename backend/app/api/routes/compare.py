@@ -13,6 +13,7 @@ from app.api.schemas import (
     SideBySideRequest, SideBySideResponse
 )
 from app.models.detection import Detection
+from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.search import SearchService
 from app.services.mitre import mitre_service
 
@@ -126,10 +127,9 @@ async def find_coverage_gaps(
     Returns techniques that base_source has detections for,
     but compare_source does not.
     """
-    valid_sources = ["sigma", "elastic", "splunk", "sublime", "elastic_protections", "lolrmm", "elastic_hunting", "sentinel"]
-    if base_source not in valid_sources:
+    if base_source not in ALL_REPOSITORY_NAMES:
         raise HTTPException(status_code=400, detail=f"Invalid base_source: {base_source}")
-    if compare_source not in valid_sources:
+    if compare_source not in ALL_REPOSITORY_NAMES:
         raise HTTPException(status_code=400, detail=f"Invalid compare_source: {compare_source}")
 
     search_service = SearchService(db)
