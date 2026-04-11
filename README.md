@@ -1,17 +1,49 @@
-# Threat Detection Explorer
+# Detection Explorer
 
-A web application for ingesting, normalizing, and exploring detection rules from multiple security content repositories. Enables cross-vendor comparison and coverage analysis.
+![Python](https://img.shields.io/badge/python-3.11+-blue)
+![TypeScript](https://img.shields.io/badge/typescript-React-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Deployment](https://img.shields.io/badge/deployed-Vercel-black)
 
-## Features
+**Explore, compare, and track open-source detection rules across multiple security vendors — in one place.**
 
-- **Multi-Vendor Support**: Ingest rules from SigmaHQ, Elastic Detection Rules, Splunk Security Content, Sublime Rules, Elastic Protections, and LOLRMM
-- **Normalization**: Convert vendor-specific formats to a unified schema
-- **Search & Filter**: Full-text search with filters by source, severity, status, MITRE tactics/techniques
-- **Cross-Vendor Comparison**: Compare detection coverage by technique or keyword
-- **Coverage Gap Analysis**: Identify techniques covered by one vendor but not another
-- **Export**: Download filtered results as JSON or CSV
+🌐 **Live Site: [detectionexplorer.io](https://detectionexplorer.io)**
 
-## Quick Start
+<!-- TODO: Add screenshot here -->
+![Detection Explorer Screenshot](./docs/screenshot.png)
+
+---
+
+Detection Explorer ingests and normalizes detection rules from 6 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
+
+### Why?
+
+Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
+
+- **Search & filter** across 6 vendors with full-text search, severity, status, and MITRE tactic/technique filters
+- **Compare coverage** across vendors for any MITRE technique or keyword
+- **Identify gaps** — find techniques covered by one vendor but missing from another
+- **Stay current** — sync and re-ingest to pull the latest rules from each repo
+- **Export** filtered results as JSON or CSV for downstream use
+
+### Supported Sources
+
+| Repository | Format | Rules |
+|---|---|---|
+| [SigmaHQ](https://github.com/SigmaHQ/sigma) | YAML | <!-- TODO: add count --> |
+| [Elastic Detection Rules](https://github.com/elastic/detection-rules) | TOML | <!-- TODO: add count --> |
+| [Splunk Security Content](https://github.com/splunk/security_content) | YAML | <!-- TODO: add count --> |
+| [Sublime Rules](https://github.com/sublime-security/sublime-rules) | YAML | <!-- TODO: add count --> |
+| [Elastic Protections](https://github.com/elastic/protections-artifacts) | TOML | <!-- TODO: add count --> |
+| [LOLRMM](https://github.com/magicsword-io/LOLRMM) | YAML | <!-- TODO: add count --> |
+
+---
+
+## Development
+
+> Everything below is for running Detection Explorer locally.
+
+### Quick Start
 
 ```bash
 # Clone the repository
@@ -39,7 +71,13 @@ cd frontend && npm run dev
 
 The frontend will be available at `http://localhost:5173` and the API at `http://localhost:8000`.
 
-## Architecture
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Git
+
+### Architecture
 
 ```
 threat_detection_explorer/
@@ -62,15 +100,9 @@ threat_detection_explorer/
     └── threat_detection.db  # SQLite database
 ```
 
-## Prerequisites
+### Usage
 
-- Python 3.11+
-- Node.js 18+
-- Git
-
-## Usage
-
-### 1. Sync Repositories
+#### 1. Sync Repositories
 
 On first use, sync the detection rule repositories:
 
@@ -78,43 +110,43 @@ On first use, sync the detection rule repositories:
 2. Click "Sync" for each repository (SigmaHQ, Elastic, Splunk, etc.)
 3. Wait for the clone/pull to complete
 
-### 2. Ingest Rules
+#### 2. Ingest Rules
 
 After syncing, ingest the rules into the database:
 
 1. Click "Ingest" for each synced repository
 2. Wait for parsing and normalization to complete
 
-### 3. Explore Detections
+#### 3. Explore Detections
 
 - **Browse**: Go to Detections page to search and filter rules
 - **Compare**: Use the Compare page to see coverage across vendors
 - **Export**: Download filtered results as JSON or CSV
 
-## API Endpoints
+### API Endpoints
 
-### Health
+#### Health
 - `GET /api/health` - Health check
 
-### Repositories
+#### Repositories
 - `GET /api/repositories` - List all repositories
 - `POST /api/repositories/{name}/sync` - Sync a repository
 - `POST /api/repositories/{name}/ingest` - Ingest rules from repository
 
-### Detections
+#### Detections
 - `GET /api/detections` - List detections with filters
 - `GET /api/detections/{id}` - Get detection details
 - `GET /api/detections/statistics` - Get statistics
 
-### Compare
+#### Compare
 - `GET /api/compare?technique=T1059` - Compare by MITRE technique
 - `GET /api/compare?keyword=powershell` - Compare by keyword
 - `GET /api/compare/coverage-gap?base_source=sigma&compare_source=elastic` - Find coverage gaps
 
-### Export
+#### Export
 - `POST /api/export` - Export detections as JSON or CSV
 
-## Normalized Schema
+### Normalized Schema
 
 Each detection is normalized to:
 
@@ -142,31 +174,20 @@ Each detection is normalized to:
 }
 ```
 
-## Running Tests
+### Running Tests
 
 ```bash
 cd backend
 pytest tests/ -v
 ```
 
-## Configuration
+### Configuration
 
 Environment variables (can be set in `.env`):
 
 - `DEBUG` - Enable debug mode (default: false)
 - `DATABASE_URL` - SQLite database URL (default: sqlite+aiosqlite:///./data/threat_detection.db)
 - `CORS_ORIGINS` - Allowed CORS origins (default: http://localhost:5173,http://localhost:3000)
-
-## Supported Repositories
-
-| Repository | Format | URL |
-|------------|--------|-----|
-| SigmaHQ | YAML | https://github.com/SigmaHQ/sigma |
-| Elastic Detection Rules | TOML | https://github.com/elastic/detection-rules |
-| Splunk Security Content | YAML | https://github.com/splunk/security_content |
-| Sublime Rules | YAML | https://github.com/sublime-security/sublime-rules |
-| Elastic Protections | TOML | https://github.com/elastic/protections-artifacts |
-| LOLRMM | YAML | https://github.com/magicsword-io/LOLRMM |
 
 ## License
 

@@ -80,3 +80,12 @@ logs/
 *.tmp
 *.temp
 *.bak
+
+# Claude Code local settings
+.claude/
+
+# Local working notes (internal planning docs, not for public repo)
+DETECTION_EXPLORER_ACTION_PLAN.md
+
+# Local dev database
+backend/detections.db
