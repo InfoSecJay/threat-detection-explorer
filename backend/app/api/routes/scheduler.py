@@ -1,19 +1,28 @@
-"""Scheduler and sync job API routes."""
+"""Scheduler and sync job API routes.
 
-from datetime import datetime
+These routes are read/write interfaces to the `sync_jobs` table plus a
+small `/status` informational endpoint. They do NOT execute sync work
+themselves — that has moved to the dedicated worker service (see
+`app.worker`). The API only creates pending job rows; the worker polls
+and processes them.
+"""
+
+from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import settings
+from app.models.sync_job import SyncJob
+from app.services.job_queue import JobQueueService
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.scheduler import (
-    scheduler,
-    get_sync_job_history,
     get_last_successful_sync,
+    get_sync_job_history,
 )
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
@@ -23,10 +32,11 @@ class SchedulerStatusResponse(BaseModel):
     """Response model for scheduler status."""
 
     enabled: bool
-    running: bool
-    next_run_time: Optional[datetime]
     schedule_hour: int
     schedule_minute: int
+    next_run_time: Optional[datetime]
+    last_scheduled_run: Optional[datetime]
+    message: str
 
 
 class SyncJobResponse(BaseModel):
@@ -65,15 +75,54 @@ class TriggerSyncResponse(BaseModel):
     job_id: str
 
 
+def _compute_next_run(now: datetime) -> datetime:
+    """Compute the next cron fire time from settings alone.
+
+    The API process no longer hosts APScheduler, so we can't ask "when
+    does the next run happen?" — we derive it from the same config the
+    worker uses. Accurate to the minute, which is all the UI needs.
+    """
+    candidate = now.replace(
+        hour=settings.sync_schedule_hour,
+        minute=settings.sync_schedule_minute,
+        second=0,
+        microsecond=0,
+    )
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate
+
+
 @router.get("/status", response_model=SchedulerStatusResponse)
-async def get_scheduler_status():
-    """Get the current scheduler status."""
+async def get_scheduler_status(db: AsyncSession = Depends(get_db)):
+    """Return the nightly scheduler's configuration and recent activity.
+
+    Because the nightly scheduler now runs in the dedicated worker
+    service, this endpoint reports config-derived state (enabled flag,
+    schedule hour/minute, next run time) plus the timestamp of the most
+    recent scheduled run observed in the database.
+    """
+    now = datetime.utcnow()
+
+    last_scheduled_result = await db.execute(
+        select(SyncJob.started_at)
+        .where(SyncJob.triggered_by == "scheduled")
+        .where(SyncJob.started_at.is_not(None))
+        .order_by(desc(SyncJob.started_at))
+        .limit(1)
+    )
+    last_scheduled = last_scheduled_result.scalar_one_or_none()
+
     return SchedulerStatusResponse(
         enabled=settings.enable_scheduler,
-        running=scheduler.is_running,
-        next_run_time=scheduler.get_next_run_time(),
         schedule_hour=settings.sync_schedule_hour,
         schedule_minute=settings.sync_schedule_minute,
+        next_run_time=_compute_next_run(now) if settings.enable_scheduler else None,
+        last_scheduled_run=last_scheduled,
+        message=(
+            "Nightly sync runs in the worker service. The API no longer "
+            "hosts an in-process scheduler."
+        ),
     )
 
 
@@ -111,85 +160,45 @@ async def get_sync_job(
     db: AsyncSession = Depends(get_db),
 ):
     """Get details for a specific sync job."""
-    from app.models.sync_job import SyncJob
-
     job = await db.get(SyncJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Sync job not found")
     return SyncJobResponse.model_validate(job)
 
 
-async def _run_sync_in_background(repository: Optional[str], job_id: str):
-    """Background task to run sync."""
-    await scheduler.run_full_sync_job(
-        triggered_by="manual",
-        repository=repository,
-    )
-
-
-@router.post("/trigger", response_model=TriggerSyncResponse)
+@router.post("/trigger", response_model=TriggerSyncResponse, status_code=202)
 async def trigger_sync(
     request: TriggerSyncRequest,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger a manual sync and ingestion.
+    """Queue a manual sync job for the worker to pick up.
 
-    This will run in the background and return immediately.
-    Use the returned job_id to check status via GET /jobs/{job_id}
+    This endpoint only INSERTs a pending row into `sync_jobs`; the
+    worker process polls for pending rows and runs the actual sync.
+    Returns 202 Accepted with the `job_id`; clients can poll
+    GET /jobs/{job_id} to see progress.
     """
-    from app.models.sync_job import SyncJob
-
-    # Validate repository if specified
     if request.repository and request.repository not in ALL_REPOSITORY_NAMES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid repository: {request.repository}. Valid options: {ALL_REPOSITORY_NAMES}",
+            detail=(
+                f"Invalid repository: {request.repository}. "
+                f"Valid options: {ALL_REPOSITORY_NAMES}"
+            ),
         )
 
-    # Create a pending job record
-    job = SyncJob(
+    queue = JobQueueService(db)
+    job = await queue.create_pending_job(
         job_type="full",
         repository=request.repository,
         triggered_by="manual",
-        status="pending",
-    )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-
-    # Run sync in background
-    background_tasks.add_task(
-        scheduler.run_full_sync_job,
-        triggered_by="manual",
-        repository=request.repository,
     )
 
     repo_name = request.repository or "all repositories"
     return TriggerSyncResponse(
-        message=f"Sync triggered for {repo_name}. Check job status for progress.",
+        message=(
+            f"Sync queued for {repo_name}. The worker will pick it up "
+            f"within a few seconds."
+        ),
         job_id=job.id,
     )
-
-
-@router.post("/start")
-async def start_scheduler():
-    """Start the scheduler (if not already running)."""
-    if scheduler.is_running:
-        return {"message": "Scheduler is already running"}
-
-    scheduler.start()
-    return {
-        "message": "Scheduler started",
-        "next_run_time": scheduler.get_next_run_time(),
-    }
-
-
-@router.post("/stop")
-async def stop_scheduler():
-    """Stop the scheduler."""
-    if not scheduler.is_running:
-        return {"message": "Scheduler is not running"}
-
-    scheduler.stop()
-    return {"message": "Scheduler stopped"}

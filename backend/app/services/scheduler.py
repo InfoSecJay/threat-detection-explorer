@@ -1,16 +1,34 @@
-"""Scheduled job service for automatic sync and ingestion."""
+"""Sync job execution logic.
 
-import asyncio
+Historically this module also hosted an in-process APScheduler instance
+that ran the nightly sync directly inside the FastAPI worker. That design
+caused production outages because git clone + ingestion would block the
+API event loop for several minutes at a time.
+
+Today this module contains only the business logic that processes a
+single sync job — `run_full_sync_job`. It is called from two places:
+
+1. The background worker process (`app.worker`), which polls the
+   `sync_jobs` table for pending rows and invokes this function for each
+   one it claims. The worker also hosts its own APScheduler instance to
+   enqueue the nightly run.
+
+2. Tests and scripts that want to run a sync inline without a worker.
+
+The function accepts an optional `job_id` so callers can pass in a row
+that was already created by a different process (the API's /trigger
+endpoint creates `status='pending'` rows; the worker claims them and
+passes the id in). When `job_id` is None the function creates its own
+row, which matches the historical call shape used by tests.
+"""
+
 import logging
 from datetime import datetime
 from typing import Optional
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.database import async_session_maker
 from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
@@ -19,89 +37,43 @@ from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncSer
 logger = logging.getLogger(__name__)
 
 
-class SchedulerService:
-    """Service for managing scheduled sync and ingestion jobs."""
+async def run_full_sync_job(
+    triggered_by: str = "manual",
+    repository: Optional[str] = None,
+    job_id: Optional[str] = None,
+) -> SyncJob:
+    """Run a full sync + ingestion cycle and record results on a SyncJob row.
 
-    _instance: Optional["SchedulerService"] = None
-    _scheduler: Optional[AsyncIOScheduler] = None
-    _is_running: bool = False
+    Args:
+        triggered_by: How the job was triggered ("manual", "scheduled",
+            "webhook"). Ignored when `job_id` is provided — the row's
+            existing value wins.
+        repository: Specific repository to process, or None for all.
+            Ignored when `job_id` is provided.
+        job_id: If provided, operates on the existing SyncJob row with
+            that id. The row is expected to already exist; this function
+            will transition it to `running` (if it isn't already) and
+            then to `completed` or `failed`. If None, creates a new row.
 
-    def __new__(cls):
-        """Singleton pattern to ensure only one scheduler instance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        """Initialize the scheduler."""
-        if self._scheduler is None:
-            self._scheduler = AsyncIOScheduler()
-            self._setup_jobs()
-
-    def _setup_jobs(self):
-        """Set up scheduled jobs."""
-        # Daily full sync at configured time (default 2 AM UTC)
-        self._scheduler.add_job(
-            self._run_full_sync,
-            CronTrigger(
-                hour=settings.sync_schedule_hour,
-                minute=settings.sync_schedule_minute,
-            ),
-            id="daily_full_sync",
-            name="Daily Full Sync",
-            replace_existing=True,
-        )
-        logger.info(
-            f"Scheduled daily sync at {settings.sync_schedule_hour:02d}:{settings.sync_schedule_minute:02d} UTC"
-        )
-
-    def start(self):
-        """Start the scheduler."""
-        if not self._is_running:
-            self._scheduler.start()
-            self._is_running = True
-            logger.info("Scheduler started")
-
-    def stop(self):
-        """Stop the scheduler."""
-        if self._is_running:
-            self._scheduler.shutdown(wait=False)
-            self._is_running = False
-            logger.info("Scheduler stopped")
-
-    @property
-    def is_running(self) -> bool:
-        """Check if scheduler is running."""
-        return self._is_running
-
-    def get_next_run_time(self) -> Optional[datetime]:
-        """Get the next scheduled run time."""
-        job = self._scheduler.get_job("daily_full_sync")
-        if job:
-            return job.next_run_time
-        return None
-
-    async def _run_full_sync(self):
-        """Run a full sync and ingestion for all repositories."""
-        logger.info("Starting scheduled full sync")
-        await self.run_full_sync_job(triggered_by="scheduled")
-
-    async def run_full_sync_job(
-        self,
-        triggered_by: str = "manual",
-        repository: Optional[str] = None,
-    ) -> SyncJob:
-        """Run a full sync and ingestion job.
-
-        Args:
-            triggered_by: How the job was triggered ("manual", "scheduled", "webhook")
-            repository: Specific repository to sync, or None for all
-
-        Returns:
-            The SyncJob record with results
-        """
-        async with async_session_maker() as db:
-            # Create job record
+    Returns:
+        The SyncJob record in its final state.
+    """
+    async with async_session_maker() as db:
+        if job_id is not None:
+            # Worker path: the row already exists, claimed by JobQueueService.
+            job = await db.get(SyncJob, job_id)
+            if job is None:
+                raise ValueError(f"SyncJob {job_id} not found")
+            # Honor whatever was persisted on the row.
+            triggered_by = job.triggered_by
+            repository = job.repository
+            if job.status != "running":
+                # Defensive: if caller forgot to claim, claim now.
+                job.status = "running"
+                job.started_at = job.started_at or datetime.utcnow()
+                await db.commit()
+        else:
+            # Inline path: create a fresh row (tests, ad-hoc scripts).
             job = SyncJob(
                 job_type="full",
                 repository=repository,
@@ -112,102 +84,106 @@ class SchedulerService:
             db.add(job)
             await db.commit()
             await db.refresh(job)
-
             job_id = job.id
-            logger.info(f"Created sync job {job_id}")
 
-            try:
-                repos_to_sync = [repository] if repository else ALL_REPOSITORY_NAMES
-                total_discovered = 0
-                total_stored = 0
-                total_errors = 0
-                total_warnings = 0
-                repo_results = {}
+        logger.info(
+            f"Running sync job {job_id} "
+            f"(trigger={triggered_by}, repo={repository or 'ALL'})"
+        )
 
-                sync_service = RepositorySyncService(db)
-                ingestion_service = IngestionService(db)
+        try:
+            repos_to_sync = [repository] if repository else ALL_REPOSITORY_NAMES
+            total_discovered = 0
+            total_stored = 0
+            total_errors = 0
+            total_warnings = 0
+            repo_results: dict[str, dict] = {}
 
-                for repo_name in repos_to_sync:
-                    repo_result = {
-                        "sync_success": False,
-                        "ingest_success": False,
-                        "rules_discovered": 0,
-                        "rules_stored": 0,
-                        "errors": 0,
-                        "warnings": 0,
-                        "message": "",
-                    }
+            sync_service = RepositorySyncService(db)
+            ingestion_service = IngestionService(db)
 
-                    try:
-                        # Step 1: Sync repository (git pull)
-                        logger.info(f"Syncing repository: {repo_name}")
-                        sync_success, sync_message = await sync_service.sync_repository(repo_name)
-                        repo_result["sync_success"] = sync_success
-                        repo_result["message"] = sync_message
+            for repo_name in repos_to_sync:
+                repo_result = {
+                    "sync_success": False,
+                    "ingest_success": False,
+                    "rules_discovered": 0,
+                    "rules_stored": 0,
+                    "errors": 0,
+                    "warnings": 0,
+                    "message": "",
+                }
 
-                        if not sync_success:
-                            logger.warning(f"Sync failed for {repo_name}: {sync_message}")
-                            total_errors += 1
-                            repo_results[repo_name] = repo_result
-                            continue
+                try:
+                    logger.info(f"Syncing repository: {repo_name}")
+                    sync_success, sync_message = await sync_service.sync_repository(repo_name)
+                    repo_result["sync_success"] = sync_success
+                    repo_result["message"] = sync_message
 
-                        # Step 2: Ingest rules
-                        logger.info(f"Ingesting rules from: {repo_name}")
-                        stats = await ingestion_service.ingest_repository(repo_name)
-
-                        repo_result["ingest_success"] = stats.stored > 0
-                        repo_result["rules_discovered"] = stats.discovered
-                        repo_result["rules_stored"] = stats.stored
-                        repo_result["errors"] = stats.error_count
-                        repo_result["warnings"] = stats.warning_count
-                        repo_result["message"] = f"Stored {stats.stored} rules"
-
-                        total_discovered += stats.discovered
-                        total_stored += stats.stored
-                        total_errors += stats.error_count
-                        total_warnings += stats.warning_count
-
-                        logger.info(
-                            f"Completed {repo_name}: stored={stats.stored}, errors={stats.error_count}"
-                        )
-
-                    except Exception as e:
-                        logger.error(f"Error processing {repo_name}: {e}")
-                        repo_result["message"] = str(e)
+                    if not sync_success:
+                        logger.warning(f"Sync failed for {repo_name}: {sync_message}")
                         total_errors += 1
+                        repo_results[repo_name] = repo_result
+                        continue
 
-                    repo_results[repo_name] = repo_result
+                    logger.info(f"Ingesting rules from: {repo_name}")
+                    stats = await ingestion_service.ingest_repository(repo_name)
 
-                # Update job with results
-                job = await db.get(SyncJob, job_id)
-                job.status = "completed"
-                job.completed_at = datetime.utcnow()
+                    repo_result["ingest_success"] = stats.stored > 0
+                    repo_result["rules_discovered"] = stats.discovered
+                    repo_result["rules_stored"] = stats.stored
+                    repo_result["errors"] = stats.error_count
+                    repo_result["warnings"] = stats.warning_count
+                    repo_result["message"] = f"Stored {stats.stored} rules"
+
+                    total_discovered += stats.discovered
+                    total_stored += stats.stored
+                    total_errors += stats.error_count
+                    total_warnings += stats.warning_count
+
+                    logger.info(
+                        f"Completed {repo_name}: stored={stats.stored}, "
+                        f"errors={stats.error_count}"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Error processing {repo_name}: {e}", exc_info=True)
+                    repo_result["message"] = str(e)
+                    total_errors += 1
+
+                repo_results[repo_name] = repo_result
+
+            # Persist final results on the job row.
+            job = await db.get(SyncJob, job_id)
+            job.status = "completed"
+            job.completed_at = datetime.utcnow()
+            if job.started_at:
                 job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
-                job.rules_discovered = total_discovered
-                job.rules_stored = total_stored
-                job.error_count = total_errors
-                job.warning_count = total_warnings
-                job.repository_results = repo_results
-                await db.commit()
+            job.rules_discovered = total_discovered
+            job.rules_stored = total_stored
+            job.error_count = total_errors
+            job.warning_count = total_warnings
+            job.repository_results = repo_results
+            await db.commit()
 
-                logger.info(
-                    f"Sync job {job_id} completed: "
-                    f"discovered={total_discovered}, stored={total_stored}, "
-                    f"errors={total_errors}, duration={job.duration_seconds:.1f}s"
-                )
+            logger.info(
+                f"Sync job {job_id} completed: "
+                f"discovered={total_discovered}, stored={total_stored}, "
+                f"errors={total_errors}, duration={job.duration_seconds:.1f}s"
+            )
 
-                return job
+            return job
 
-            except Exception as e:
-                logger.error(f"Sync job {job_id} failed: {e}")
-                job = await db.get(SyncJob, job_id)
-                job.status = "failed"
-                job.completed_at = datetime.utcnow()
+        except Exception as e:
+            logger.error(f"Sync job {job_id} failed: {e}", exc_info=True)
+            job = await db.get(SyncJob, job_id)
+            job.status = "failed"
+            job.completed_at = datetime.utcnow()
+            if job.started_at:
                 job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
-                job.error_message = str(e)
-                job.error_count = 1
-                await db.commit()
-                return job
+            job.error_message = str(e)[:2000]
+            job.error_count = 1
+            await db.commit()
+            return job
 
 
 async def get_sync_job_history(
@@ -215,16 +191,7 @@ async def get_sync_job_history(
     limit: int = 20,
     repository: Optional[str] = None,
 ) -> list[SyncJob]:
-    """Get recent sync job history.
-
-    Args:
-        db: Database session
-        limit: Maximum number of jobs to return
-        repository: Filter by repository name
-
-    Returns:
-        List of SyncJob records
-    """
+    """Return recent sync job history, optionally filtered by repository."""
     query = select(SyncJob).order_by(desc(SyncJob.created_at)).limit(limit)
 
     if repository:
@@ -240,15 +207,7 @@ async def get_last_successful_sync(
     db: AsyncSession,
     repository: Optional[str] = None,
 ) -> Optional[SyncJob]:
-    """Get the last successful sync job.
-
-    Args:
-        db: Database session
-        repository: Filter by repository name
-
-    Returns:
-        The last successful SyncJob or None
-    """
+    """Return the most recent completed sync job, optionally filtered."""
     query = (
         select(SyncJob)
         .where(SyncJob.status == "completed")
@@ -263,7 +222,3 @@ async def get_last_successful_sync(
 
     result = await db.execute(query)
     return result.scalar_one_or_none()
-
-
-# Global scheduler instance
-scheduler = SchedulerService()

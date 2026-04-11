@@ -1,4 +1,10 @@
-"""FastAPI application entry point."""
+"""FastAPI application entry point.
+
+This process serves the HTTP API only. Long-running sync and ingestion
+work runs in a separate worker process (see `app.worker`) so that it
+can never block API requests. The API communicates with the worker
+exclusively through the shared `sync_jobs` table in Postgres.
+"""
 
 import logging
 from contextlib import asynccontextmanager
@@ -8,10 +14,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
+
 # Import models to register them with SQLAlchemy Base before init_db
 from app.models import Detection, Repository, SyncJob  # noqa: F401
-from app.api.routes import detections, repositories, export, compare, releases, mitre, scheduler as scheduler_routes, trending
-from app.services.scheduler import scheduler
+from app.api.routes import (
+    compare,
+    detections,
+    export,
+    mitre,
+    releases,
+    repositories,
+    scheduler as scheduler_routes,
+    trending,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,23 +34,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown events."""
-    # Startup
     settings.data_dir.mkdir(parents=True, exist_ok=True)
+    # repos_dir is owned by the worker service and never read from here,
+    # but we create it defensively so local dev (single process) works.
     settings.repos_dir.mkdir(parents=True, exist_ok=True)
     await init_db()
-
-    # Start scheduler if enabled
-    if settings.enable_scheduler:
-        scheduler.start()
-        logger.info(f"Scheduler started. Next sync at: {scheduler.get_next_run_time()}")
-    else:
-        logger.info("Scheduler disabled in configuration")
-
+    logger.info(
+        "API process started. Sync scheduling and processing live in the "
+        "worker service."
+    )
     yield
-
-    # Shutdown
-    if scheduler.is_running:
-        scheduler.stop()
 
 
 app = FastAPI(
