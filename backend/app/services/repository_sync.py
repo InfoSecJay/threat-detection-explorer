@@ -198,13 +198,15 @@ class RepositorySyncService:
         logger.info(f"Cloning {url} to {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Blobless partial clone (--filter=blob:none): downloads the full commit
-        # graph and tree objects so `git log --follow -- <file>` can report real
-        # creation/modification dates for every rule, but defers historical blob
-        # downloads until they're explicitly requested. Disk cost is ~equivalent
-        # to the old depth=1 clone plus a few MB of extra commit metadata.
-        # Requires git >= 2.19 (widely available).
-        repo = Repo.clone_from(url, path, multi_options=["--filter=blob:none"])
+        # Full clone with complete history. We previously used
+        # --filter=blob:none (blobless partial clone), but that caused
+        # fork() failures on Railway containers ("Resource temporarily
+        # unavailable") because the promisor-remote helper processes
+        # exceeded the container's PID/memory limits during nightly syncs.
+        # Full clones are more reliable, and with a 20GB volume the extra
+        # disk usage is irrelevant. Full history also means `git log
+        # --follow` for date extraction works without any limitations.
+        repo = Repo.clone_from(url, path)
         return repo.head.commit.hexsha
 
     async def _sparse_clone_repository(
@@ -238,19 +240,6 @@ class RepositorySyncService:
             cwd=path, check=True, capture_output=True
         )
 
-        # Mark origin as a promisor remote so git accepts the blobless fetch
-        # below and knows how to lazy-fetch missing blobs later if needed.
-        # When `git clone --filter=` is used these are set automatically; for
-        # manually-initialized repos we have to configure them ourselves.
-        subprocess.run(
-            ["git", "config", "remote.origin.promisor", "true"],
-            cwd=path, check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "config", "remote.origin.partialclonefilter", "blob:none"],
-            cwd=path, check=True, capture_output=True
-        )
-
         # Write sparse checkout patterns
         sparse_checkout_file = path / ".git" / "info" / "sparse-checkout"
         sparse_checkout_file.parent.mkdir(parents=True, exist_ok=True)
@@ -258,15 +247,19 @@ class RepositorySyncService:
 
         logger.info(f"Fetching with sparse checkout patterns...")
 
-        # Blobless partial fetch: pulls full commit history + trees (so
-        # `git log --follow -- <file>` works for date extraction) but defers
-        # historical blob downloads. Combined with sparse checkout, only the
-        # current-HEAD blobs matching the sparse patterns are downloaded.
+        # Fetch with --depth=2000: gives enough commit history for
+        # `git log --follow` to extract file creation/modification dates
+        # for most rules, without downloading the entire Azure-Sentinel
+        # history (which would be enormous). We previously used
+        # --filter=blob:none here, but that caused fork() failures on
+        # Railway containers and pathologically slow checkouts (thousands
+        # of individual blob fetches). --depth=2000 is simpler and more
+        # reliable: one packfile, one fetch, predictable disk cost.
         subprocess.run(
             [
                 "git",
                 "fetch",
-                "--filter=blob:none",
+                "--depth=2000",
                 "origin",
                 "master",
             ],
