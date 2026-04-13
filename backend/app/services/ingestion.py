@@ -73,6 +73,27 @@ class IngestionService:
     async def ingest_repository(self, repo_name: str) -> IngestionStats:
         """Ingest all detection rules from a repository.
 
+        Uses an upsert-then-cleanup pattern so that a mid-ingest crash
+        never leaves the database with zero rows for a source. Previously
+        this method did DELETE-then-INSERT, which wiped all existing rules
+        before inserting new ones — a process crash between those two
+        steps left the source empty (this happened to sentinel on
+        2026-04-11).
+
+        The new flow:
+          1. Record `ingest_start` timestamp.
+          2. Upsert every new rule via `session.merge()` (updates existing
+             rows by PK, inserts new ones). Each row's `updated_at` is
+             set to now(), which is >= `ingest_start`.
+          3. After ALL rules are stored, delete stale rows whose
+             `updated_at < ingest_start` — these are rules that existed
+             in the previous ingest but are no longer in the upstream
+             repo (deleted/moved files).
+          4. If the process crashes mid-ingest, old rows (from the
+             previous successful ingest) coexist with partially-updated
+             new rows. No data is lost. The next successful ingest will
+             merge everything cleanly and then delete stale rows.
+
         Args:
             repo_name: Name of the repository (sigma, elastic, splunk, etc.)
 
@@ -87,11 +108,9 @@ class IngestionService:
 
         stats = IngestionStats()
         stats.start_time = datetime.utcnow()
+        ingest_start = stats.start_time
 
         logger.info(f"Starting ingestion for {repo_name}")
-
-        # Clear existing rules for this repository
-        await self._clear_repository_rules(repo_name)
 
         # Discover and process rules
         rules_to_store: list[Detection] = []
@@ -168,6 +187,12 @@ class IngestionService:
             stored_count = await self._store_rules_safe(rules_to_store, stats)
             stats.stored += stored_count
 
+        # Remove rules that no longer exist in the upstream repo. Any row
+        # whose updated_at is older than this ingest's start time was NOT
+        # touched by merge() above, meaning its source file has been
+        # deleted or moved upstream. Safe to remove.
+        await self._cleanup_stale_rules(repo_name, ingest_start)
+
         # Update repository rule count
         await self._update_repository_count(repo_name, stats.stored)
 
@@ -183,33 +208,31 @@ class IngestionService:
 
         return stats
 
-    async def _clear_repository_rules(self, repo_name: str) -> None:
-        """Clear all rules for a repository before re-ingestion."""
-        await self.db.execute(
-            delete(Detection).where(Detection.source == repo_name)
-        )
-        await self.db.commit()
-
     async def _store_rules_safe(
         self,
         rules: list[Detection],
-        stats: IngestionStats
+        stats: IngestionStats,
     ) -> int:
-        """Store a batch of rules to the database with error handling.
+        """Upsert a batch of rules via session.merge().
+
+        merge() checks the primary key: if a row with the same `id`
+        already exists, it updates all columns (including `updated_at`);
+        if not, it inserts a new row. This lets us skip the dangerous
+        DELETE-before-INSERT pattern entirely.
 
         Returns the number of rules successfully stored.
         """
         stored = 0
         for rule in rules:
             try:
-                self.db.add(rule)
+                await self.db.merge(rule)
                 stored += 1
             except Exception as e:
                 stats.add_error(
                     file_path=rule.source_file,
                     stage=ErrorStage.STORE,
                     message=f"Database error: {type(e).__name__}: {str(e)}",
-                    severity=ErrorSeverity.ERROR
+                    severity=ErrorSeverity.ERROR,
                 )
 
         try:
@@ -217,11 +240,11 @@ class IngestionService:
         except Exception as e:
             logger.error(f"Batch commit failed: {e}")
             await self.db.rollback()
-            # Try to store rules one by one
+            # Fall back to one-by-one merge
             stored = 0
             for rule in rules:
                 try:
-                    self.db.add(rule)
+                    await self.db.merge(rule)
                     await self.db.commit()
                     stored += 1
                 except Exception as inner_e:
@@ -230,10 +253,39 @@ class IngestionService:
                         file_path=rule.source_file,
                         stage=ErrorStage.STORE,
                         message=f"Individual store failed: {type(inner_e).__name__}: {str(inner_e)}",
-                        severity=ErrorSeverity.ERROR
+                        severity=ErrorSeverity.ERROR,
                     )
 
         return stored
+
+    async def _cleanup_stale_rules(
+        self, repo_name: str, ingest_start: datetime
+    ) -> None:
+        """Delete rules that were NOT touched by the current ingest.
+
+        Any row whose `updated_at` is older than `ingest_start` was not
+        upserted during this ingest run, meaning the corresponding
+        source file no longer exists in the upstream repo (deleted,
+        renamed to something unparseable, moved outside the rule
+        directory, etc.). Safe to remove.
+
+        This runs AFTER all new rules are successfully stored, so a
+        crash before this point leaves old + new rows coexisting
+        (strictly better than the old DELETE-first approach which left
+        zero rows on crash).
+        """
+        result = await self.db.execute(
+            delete(Detection)
+            .where(Detection.source == repo_name)
+            .where(Detection.updated_at < ingest_start)
+        )
+        stale_count = result.rowcount or 0
+        if stale_count > 0:
+            logger.info(
+                f"Removed {stale_count} stale {repo_name} rule(s) "
+                f"no longer in upstream repo"
+            )
+        await self.db.commit()
 
     async def _update_repository_count(self, repo_name: str, count: int) -> None:
         """Update the rule count for a repository."""
