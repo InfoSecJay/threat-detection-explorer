@@ -262,3 +262,32 @@ by_key:
     platforms: [kubernetes]
     data_sources: [kubernetes_audit]
     event_types: [audit_event]
+
+  # ── product: "any" (Sigma rules that target multiple platforms via
+  #    log-source-agnostic event categories like DNS or network) ────────
+  any/dns:
+    platforms: [windows, linux, macos]
+    data_sources: [dns_query_logs, sysmon, zeek]
+    event_types: [dns_query]
+  any/dns_query:
+    platforms: [windows, linux, macos]
+    data_sources: [dns_query_logs, sysmon, zeek]
+    event_types: [dns_query]
+  any/network_connection:
+    platforms: [windows, linux, macos]
+    data_sources: [zeek, sysmon]
+    event_types: [network_connection]
+  any/proxy:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  any/webserver:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  any/firewall:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    event_types: [network_connection]
+  any:
+    platforms: [cross_platform]

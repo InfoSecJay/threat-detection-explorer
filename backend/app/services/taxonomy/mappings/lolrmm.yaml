@@ -43,6 +43,33 @@ by_key:
     platforms: [macos]
     data_sources: [osquery]
 
+  # ── product: "any" (LOLRMM uses this for cross-platform RMM detection
+  #    via DNS or network flows that aren't OS-specific) ────────────────
+  any/dns:
+    platforms: [windows, linux, macos]
+    data_sources: [dns_query_logs, sysmon, zeek]
+    event_types: [dns_query]
+  any/dns_query:
+    platforms: [windows, linux, macos]
+    data_sources: [dns_query_logs, sysmon, zeek]
+    event_types: [dns_query]
+  any/network_connection:
+    platforms: [windows, linux, macos]
+    data_sources: [zeek, sysmon, palo_alto_firewall, fortinet_firewall]
+    event_types: [network_connection]
+  any/proxy:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  any/webserver:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  any:
+    platforms: [cross_platform]
+    data_sources: []
+    event_types: []
+
 # Every LOLRMM rule is, by definition, an endpoint behavioral detection.
 # These don't add new platforms/event_types but ensure data_sources is
 # never empty for vendors with patchy logsource fields.

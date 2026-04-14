@@ -141,6 +141,10 @@ class DetectionResponse(DetectionBase):
             "platform": sanitize_string(detection.platform) or "",
             "event_category": sanitize_string(detection.event_category) or "",
             "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
+            # Canonical taxonomy (Issue 2)
+            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
+            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
+            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
@@ -161,10 +165,6 @@ class DetectionResponse(DetectionBase):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
-            # Canonical taxonomy (Issue 2)
-            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
-            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
-            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
             "raw_content": sanitize_string(detection.raw_content) or "",
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
@@ -247,6 +247,10 @@ class DetectionListItem(BaseModel):
             "platform": sanitize_string(detection.platform) or "",
             "event_category": sanitize_string(detection.event_category) or "",
             "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
+            # Canonical taxonomy (Issue 2)
+            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
+            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
+            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
