@@ -79,10 +79,15 @@ class DetectionBase(BaseModel):
     severity: str
     log_sources: list[str] = []
     data_sources: list[str] = []
-    # Standardized log source taxonomy
+    # Standardized log source taxonomy (legacy — to be removed in Phase 3)
     platform: str = ""  # windows, linux, macos, cloud, network, email
     event_category: str = ""  # process, file, network, registry, authentication, etc.
     data_source_normalized: str = ""  # sysmon, auditd, cloudtrail, etc.
+    # New canonical taxonomy (Issue 2). See docs/taxonomy.md.
+    # During Phase 1+2 these coexist with the legacy fields above.
+    taxonomy_platforms: list[str] = []
+    taxonomy_data_sources: list[str] = []
+    taxonomy_event_types: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str
@@ -156,6 +161,10 @@ class DetectionResponse(DetectionBase):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
+            # Canonical taxonomy (Issue 2)
+            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
+            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
+            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
             "raw_content": sanitize_string(detection.raw_content) or "",
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
@@ -179,10 +188,14 @@ class DetectionListItem(BaseModel):
     severity: str
     log_sources: list[str] = []
     data_sources: list[str] = []
-    # Standardized log source taxonomy
+    # Standardized log source taxonomy (legacy)
     platform: str = ""
     event_category: str = ""
     data_source_normalized: str = ""
+    # New canonical taxonomy (Issue 2). See docs/taxonomy.md.
+    taxonomy_platforms: list[str] = []
+    taxonomy_data_sources: list[str] = []
+    taxonomy_event_types: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str = ""
