@@ -1,0 +1,233 @@
+# Elastic Detection Rules → canonical taxonomy mappings.
+#
+# Two signals from Elastic rules:
+#   - `index` patterns (most reliable, fine-grained)
+#   - `integration` plugins (coarse, used as fallback)
+#
+# Index patterns can be wildcarded with `*`. The resolver does prefix
+# matching so `logs-aws.cloudtrail-default-2024.01.01` matches
+# `logs-aws.cloudtrail*`.
+
+index_patterns:
+  # ── AWS ───────────────────────────────────────────────────────────────
+  "logs-aws.cloudtrail*":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "filebeat-*":  # legacy; usually CloudTrail in this codebase
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "logs-aws.guardduty*":
+    platforms: [aws]
+    data_sources: [aws_guardduty]
+    event_types: [audit_event]
+  "logs-aws.securityhub*":
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+  "logs-aws.vpcflow*":
+    platforms: [aws]
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  # ── Azure / Entra ID / M365 ───────────────────────────────────────────
+  "logs-azure.signinlogs*":
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "logs-azure.auditlogs*":
+    platforms: [azure_ad]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  "logs-azure.activitylogs*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "logs-o365*":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "logs-microsoft_defender_endpoint*":
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [process_creation, network_connection, file_event]
+  # ── GCP / Workspace ───────────────────────────────────────────────────
+  "logs-gcp.audit*":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  "logs-google_workspace*":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  # ── Endpoint (Elastic Defend) ─────────────────────────────────────────
+  "logs-endpoint.events.process-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [process_creation]
+  "logs-endpoint.events.file-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [file_event]
+  "logs-endpoint.events.network-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [network_connection]
+  "logs-endpoint.events.registry-*":
+    platforms: [windows]
+    data_sources: [elastic_defend]
+    event_types: [registry_event]
+  "logs-endpoint.events.dns-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [dns_query]
+  "logs-endpoint.events.library-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [image_load]
+  "logs-endpoint.events.api-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [api_call]
+  "logs-endpoint.alerts-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [audit_event]
+  "endgame-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_endgame]
+    event_types: [process_creation, network_connection, file_event]
+  # ── Windows Event Logs (multi-source) ────────────────────────────────
+  "logs-windows.sysmon_operational-*":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation, network_connection, file_event, dns_query, registry_event]
+  "logs-windows.powershell*":
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  "logs-windows.forwarded*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "logs-system.security*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication, audit_event]
+  "logs-system.system*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "logs-system.application*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "winlogbeat-*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  # ── Linux / auditd ────────────────────────────────────────────────────
+  "logs-auditd_manager.auditd-*":
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation, file_event]
+  "logs-system.auth*":
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [authentication]
+  "auditbeat-*":
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation, file_event]
+  # ── Third-party EDR feeds ────────────────────────────────────────────
+  "logs-crowdstrike.fdr*":
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+    event_types: [process_creation, network_connection, file_event, dns_query]
+  "logs-sentinel_one_cloud_funnel.*":
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+    event_types: [process_creation, network_connection, file_event]
+  # ── Network ──────────────────────────────────────────────────────────
+  "logs-zeek.*":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection, dns_query]
+  "logs-suricata.*":
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [network_connection]
+  "packetbeat-*":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  # ── Identity ─────────────────────────────────────────────────────────
+  "logs-okta.*":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication, audit_event]
+  "logs-duo.*":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+  # ── GitHub ───────────────────────────────────────────────────────────
+  "logs-github.*":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  # ── Kubernetes ───────────────────────────────────────────────────────
+  "logs-kubernetes.*":
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+
+# Fallback when index_patterns don't match — coarse mapping by integration name
+integrations:
+  endpoint:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  system:
+    platforms: [windows, linux]
+    data_sources: [linux_syslog, windows_security_event_log]
+  auditd_manager:
+    platforms: [linux]
+    data_sources: [auditd]
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+  azure:
+    platforms: [azure]
+    data_sources: [azure_activity]
+  o365:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+  gcp:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+  google_workspace:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+  duo:
+    platforms: [duo]
+    data_sources: [duo_activity]
+  crowdstrike:
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+  sentinel_one_cloud_funnel:
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+  github:
+    platforms: [github]
+    data_sources: [github_audit]
+  network_traffic:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+  kubernetes:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]

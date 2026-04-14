@@ -1,0 +1,215 @@
+# Splunk Security Content → canonical taxonomy mappings.
+#
+# Splunk's `data_source` field is a list of free-form labels like
+# "Sysmon EventID 10", "ASL AWS CloudTrail", "Cisco Duo Activity". They
+# include version/event-id details that we don't care about, so the
+# resolver does prefix/substring matching against the keys below.
+#
+# Keys are lowercase. They're matched against the lowercased data_source
+# label using both exact match and substring containment.
+
+data_source_labels:
+  # ── Sysmon (multiple event IDs) ───────────────────────────────────────
+  "sysmon eventid 1":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  "sysmon eventid 3":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [network_connection]
+  "sysmon eventid 7":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [image_load]
+  "sysmon eventid 10":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  "sysmon eventid 11":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [file_event]
+  "sysmon eventid 12":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [registry_event]
+  "sysmon eventid 13":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [registry_event]
+  "sysmon eventid 22":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [dns_query]
+  "sysmon":  # generic sysmon prefix match
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  # ── Windows event logs ────────────────────────────────────────────────
+  "windows event log security":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication, audit_event]
+  "windows event log system":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "windows event log application":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "windows event log":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  "windows powershell":
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  "powershell":
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  "windows defender":
+    platforms: [windows]
+    data_sources: [windows_defender_event_log]
+    event_types: [audit_event]
+  # ── AWS / Cloud ───────────────────────────────────────────────────────
+  "asl aws cloudtrail":  # Amazon Security Lake CloudTrail (OCSF schema)
+    platforms: [aws]
+    data_sources: [aws_security_lake, aws_cloudtrail]
+    event_types: [api_call]
+  "aws cloudtrail":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "amazon security lake":
+    platforms: [aws]
+    data_sources: [aws_security_lake]
+    event_types: [api_call]
+  "aws security hub":
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+  "asl":  # Amazon Security Lake (generic)
+    platforms: [aws]
+    data_sources: [aws_security_lake]
+    event_types: [api_call]
+  "azure activity":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "azure ad":
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "o365":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "office 365":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "google workspace":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  "gcp":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  # ── Identity ─────────────────────────────────────────────────────────
+  "okta":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  "cisco duo":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+  "duo":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+  # ── Linux ────────────────────────────────────────────────────────────
+  "linux audit":
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation, audit_event]
+  "auditd":
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation, audit_event]
+  "linux":
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  # ── Network ──────────────────────────────────────────────────────────
+  "zeek":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection, dns_query]
+  "suricata":
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [network_connection]
+  "palo alto":
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  "stream":  # Splunk Stream (network analyzer)
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  # ── Container ────────────────────────────────────────────────────────
+  "kubernetes":
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+  # ── EDR ──────────────────────────────────────────────────────────────
+  "crowdstrike":
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+    event_types: [process_creation, network_connection]
+  "carbon black":
+    platforms: [windows]
+    data_sources: [carbon_black]
+    event_types: [process_creation, network_connection]
+
+# Coarse fallback from `tags.security_domain`. Helpful when no explicit
+# data_source label was set. Note: we don't populate data_sources from
+# this — the labels are too coarse to be useful as a data_source.
+security_domain:
+  endpoint:
+    platforms: [windows]
+    event_types: [process_creation]
+  network:
+    platforms: [network_appliance]
+    event_types: [network_connection]
+  identity:
+    event_types: [authentication]
+  cloud:
+    platforms: [aws]
+    event_types: [api_call]
+  access:
+    event_types: [authentication]
+
+# Last-resort: if no data_source label and no security_domain match,
+# scan the search query for these keywords to pick up an event_type.
+search_keywords:
+  "process_name":
+    event_types: [process_creation]
+  "wineventlog":
+    event_types: [audit_event]
+  "tstats":
+    event_types: [process_creation]
+  "datamodel=endpoint.processes":
+    event_types: [process_creation]
+  "datamodel=network_resolution":
+    event_types: [dns_query]
+  "datamodel=authentication":
+    event_types: [authentication]
+  "logon":
+    event_types: [authentication]

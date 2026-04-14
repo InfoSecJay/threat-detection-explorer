@@ -1,0 +1,29 @@
+# Elastic Protections (behavior rules) → canonical taxonomy mappings.
+#
+# These rules run on Elastic Defend agents — there's no index pattern
+# because the rule executes locally. Data source is ALWAYS elastic_defend.
+# Platforms come from the `os_list` field. Event type is parsed from the
+# EQL query head: `process where ...` → process_creation, etc.
+
+os_to_platforms:
+  windows: windows
+  linux: linux
+  macos: macos
+  cross_platform: cross_platform
+
+# Map the EQL "category" keyword (the word before `where` in the query
+# head) to canonical event types.
+eql_category_to_event_types:
+  process: process_creation
+  file: file_event
+  network: network_connection
+  registry: registry_event
+  dns: dns_query
+  library: image_load
+  api: api_call
+  authentication: authentication
+
+# All Elastic Protections rules are agent-resident behavior rules, so
+# the data source is always elastic_defend.
+always_includes:
+  data_sources: [elastic_defend]

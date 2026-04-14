@@ -1,0 +1,12 @@
+# Sublime → canonical taxonomy mappings.
+#
+# Every Sublime detection rule operates on email message data. There is
+# no per-rule data-source field; the data source is implicit. Per the
+# Issue 2 design decision, we don't model `attack_types` (phishing,
+# BEC, etc.) in the taxonomy — that's a separate threat-classification
+# dimension out of scope here.
+
+always_includes:
+  platforms: [email]
+  data_sources: [email_message_metadata]
+  event_types: [email_message]

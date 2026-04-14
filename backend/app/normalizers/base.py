@@ -90,6 +90,13 @@ class NormalizedDetection:
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
 
+    # ── New canonical taxonomy fields (Issue 2) ──────────────────────────
+    # Populated by `BaseNormalizer._resolve_taxonomy()`. See
+    # `app/services/taxonomy/` for the resolver and mapping files.
+    taxonomy_platforms: list[str] = field(default_factory=list)
+    taxonomy_data_sources: list[str] = field(default_factory=list)
+    taxonomy_event_types: list[str] = field(default_factory=list)
+
 
 class BaseNormalizer(ABC):
     """Abstract base class for detection rule normalizers."""
@@ -108,6 +115,29 @@ class BaseNormalizer(ABC):
         self.repo_path = repo_path
         self._git_service: Optional[GitService] = (
             GitService(repo_path) if repo_path else None
+        )
+
+    def _resolve_taxonomy(self, parsed: ParsedRule) -> tuple[list[str], list[str], list[str]]:
+        """Resolve canonical (platforms, data_sources, event_types) for a parsed rule.
+
+        Delegates to `app.services.taxonomy.resolve_for_repo` using the
+        repo name carried on the parsed rule. Subclasses call this once
+        in `normalize()` and pass the result into `NormalizedDetection`.
+
+        The taxonomy resolver is total — it always returns three lists,
+        each containing at least `["unknown"]` if the vendor data didn't
+        supply enough info to determine a value. So this method never
+        raises and never returns empty lists.
+        """
+        # Lazy import: keeps the taxonomy package out of the import chain
+        # until first use, and avoids any circular-import surprises.
+        from app.services.taxonomy import resolve_for_repo
+
+        result = resolve_for_repo(parsed.source, parsed)
+        return (
+            result["platforms"],
+            result["data_sources"],
+            result["event_types"],
         )
 
     def _resolve_rule_dates(

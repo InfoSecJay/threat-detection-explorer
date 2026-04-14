@@ -1,0 +1,264 @@
+# Sigma → canonical taxonomy mappings.
+#
+# Sigma rules carry a `logsource` block with three keys: product, service,
+# category. The resolver tries the most specific compound key first and
+# falls back to less specific ones.
+#
+# Key conventions:
+#   product/service/category  ← most specific
+#   product/service
+#   product/category
+#   product                   ← least specific (broad fallback)
+#
+# All keys are lowercase. All canonical values referenced here must be
+# defined in `app/services/taxonomy/canonical.py`.
+
+by_key:
+  # ── Windows endpoint ──────────────────────────────────────────────────
+  windows/process_creation:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [process_creation]
+  windows/process_access:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  windows/image_load:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [image_load]
+  windows/file_event:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [file_event]
+  windows/file_change:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [file_event]
+  windows/registry_event:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [registry_event]
+  windows/registry_set:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [registry_event]
+  windows/network_connection:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [network_connection]
+  windows/dns_query:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [dns_query]
+  windows/pipe_created:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [file_event]
+  windows/wmi_event:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [audit_event]
+  windows/powershell:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_classic_start:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_module:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_script:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/security:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication, audit_event]
+  windows/system:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/application:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/sysmon:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [audit_event]
+  windows/dns-server:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [dns_query]
+  windows/firewall-as:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [network_connection]
+  windows/defender:
+    platforms: [windows]
+    data_sources: [windows_defender_event_log]
+    event_types: [audit_event]
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    # event_types deliberately omitted — too broad to guess
+  # ── Linux endpoint ────────────────────────────────────────────────────
+  linux/auditd/execve:
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation]
+  linux/auditd:
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [audit_event]
+  linux/process_creation:
+    platforms: [linux]
+    data_sources: [auditd, osquery]
+    event_types: [process_creation]
+  linux/file_event:
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [file_event]
+  linux/network_connection:
+    platforms: [linux]
+    data_sources: [auditd, zeek]
+    event_types: [network_connection]
+  linux/syslog:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+  # ── macOS endpoint ────────────────────────────────────────────────────
+  macos/process_creation:
+    platforms: [macos]
+    data_sources: [osquery]
+    event_types: [process_creation]
+  macos/file_event:
+    platforms: [macos]
+    data_sources: [osquery]
+    event_types: [file_event]
+  macos:
+    platforms: [macos]
+    data_sources: [osquery]
+  # ── AWS ───────────────────────────────────────────────────────────────
+  aws/cloudtrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  # ── Azure ─────────────────────────────────────────────────────────────
+  azure/activitylogs:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  azure/signinlogs:
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  azure/auditlogs:
+    platforms: [azure_ad]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  azure/azureactivity:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  azure/m365defender:
+    platforms: [microsoft_365]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+  azure:
+    platforms: [azure]
+    data_sources: [azure_activity]
+  # ── Microsoft 365 ─────────────────────────────────────────────────────
+  m365/threat_management:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  m365/exchange:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [audit_event]
+  m365:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  # ── GCP ───────────────────────────────────────────────────────────────
+  gcp/google_workspace.admin:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  gcp/gcp.audit:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  gcp:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  google_workspace:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  # ── Okta ──────────────────────────────────────────────────────────────
+  okta/okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication, audit_event]
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  # ── GitHub / GitLab ───────────────────────────────────────────────────
+  github/audit:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  github:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  gitlab:
+    platforms: [gitlab]
+    data_sources: [gitlab_audit]
+    event_types: [audit_event]
+  # ── Network appliances ────────────────────────────────────────────────
+  cisco/aaa:
+    platforms: [network_appliance]
+    data_sources: [cisco_aaa]
+    event_types: [authentication]
+  cisco:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [audit_event]
+  fortinet:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [network_connection]
+  paloalto:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  zeek:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  # ── Container / Kubernetes ────────────────────────────────────────────
+  kubernetes/audit:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+  kubernetes:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]

@@ -74,6 +74,19 @@ class Detection(Base):
         index=True,
     )
 
+    # ── New canonical taxonomy fields (Issue 2) ──────────────────────────
+    # These will replace the four legacy fields above (log_sources,
+    # platform, event_category, data_source_normalized) in Phase 3 of
+    # the migration. For now they coexist — both are populated by the
+    # normalizers, so consumers can switch over incrementally.
+    #
+    # Values come from the canonical vocabulary defined in
+    # `app/services/taxonomy/canonical.py`. Each list always contains at
+    # least one value (`["unknown"]` if nothing could be resolved).
+    taxonomy_platforms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    taxonomy_data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    taxonomy_event_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
     # MITRE ATT&CK mapping
     mitre_tactics: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     mitre_techniques: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

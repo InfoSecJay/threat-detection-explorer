@@ -1,0 +1,130 @@
+# Elastic Hunting → canonical taxonomy mappings.
+#
+# Hunting queries embed `FROM logs-*` clauses + carry an `integration`
+# list. We share most index_patterns with the main Elastic mappings;
+# only the always_includes differ (every hunting query is tagged as
+# `hunting_query` in event_types).
+
+index_patterns:
+  "logs-aws.cloudtrail*":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "logs-azure.signinlogs*":
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "logs-azure.auditlogs*":
+    platforms: [azure_ad]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  "logs-azure.activitylogs*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "logs-o365*":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "logs-gcp.audit*":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  "logs-okta.*":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  "logs-endpoint.events.process-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [process_creation]
+  "logs-endpoint.events.file-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [file_event]
+  "logs-endpoint.events.network-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [network_connection]
+  "logs-endpoint.events.dns-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [dns_query]
+  "logs-windows.sysmon_operational-*":
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [process_creation, network_connection]
+  "logs-system.security*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication]
+  "logs-auditd_manager.auditd-*":
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation]
+  "logs-bedrock*":
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  "logs-*":  # broad catch-all hunting query — leave dimensions empty
+    platforms: []
+    data_sources: []
+    event_types: []
+
+integrations:
+  "aws.cloudtrail":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  endpoint:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log, sysmon]
+  system:
+    platforms: [windows, linux]
+    data_sources: [linux_syslog, windows_security_event_log]
+  network_traffic:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+  azure:
+    platforms: [azure]
+    data_sources: [azure_activity]
+  o365:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+
+# Mapping by `product` field — set by the Elastic Hunting parser based
+# on the file path (hunting/aws/, hunting/azure/, hunting/llm/, etc.)
+by_product:
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  linux:
+    platforms: [linux]
+    data_sources: [auditd]
+  macos:
+    platforms: [macos]
+    data_sources: [osquery]
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+  azure:
+    platforms: [azure]
+    data_sources: [azure_activity]
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+  llm:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+  cross_platform:
+    platforms: [cross_platform]
+
+# Every hunting query is by definition a hunting_query event type.
+always_includes:
+  event_types: [hunting_query]

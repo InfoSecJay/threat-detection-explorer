@@ -1,0 +1,156 @@
+# Microsoft Sentinel → canonical taxonomy mappings.
+#
+# Sentinel rules carry `requiredDataConnectors` — a list of structured
+# entries with `connectorId` + `dataTypes`. We map by both connectorId
+# and dataType (some dataTypes like `SecurityAlert` come from many
+# different connectors but always represent SIEM alerts).
+
+connectors:
+  # ── AWS ───────────────────────────────────────────────────────────────
+  awss3:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  awssecurityhub:
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+  amazonwebservicescloudtrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  # ── Azure ─────────────────────────────────────────────────────────────
+  azureactivity:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  azureactivedirectory:
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin, entra_id_audit]
+    event_types: [authentication, audit_event]
+  azuread:
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin, entra_id_audit]
+    event_types: [authentication, audit_event]
+  entraid:
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  azureadidentityprotection:
+    platforms: [azure_ad]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  # ── Microsoft 365 / Defender ─────────────────────────────────────────
+  office365:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  officeatp:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [email_message]
+  microsoftthreatprotection:
+    platforms: [windows, microsoft_365]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+  microsoftdefenderadvancedthreatprotection:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+  microsoftcloudappsecurity:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  azuresecuritycenter:
+    platforms: [azure]
+    data_sources: [defender_cloud]
+    event_types: [audit_event]
+  microsoftdefenderforcloudtenantbased:
+    platforms: [azure]
+    data_sources: [defender_cloud]
+    event_types: [audit_event]
+  microsoftdefenderforcloud:
+    platforms: [azure]
+    data_sources: [defender_cloud]
+    event_types: [audit_event]
+  # ── Identity / SaaS ──────────────────────────────────────────────────
+  oktassocsl:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  duosecurity:
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+  # ── Windows ──────────────────────────────────────────────────────────
+  securityevents:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication, audit_event]
+  windowsfirewall:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [network_connection]
+  # ── Network / Syslog / Generic ───────────────────────────────────────
+  syslog:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  cef:  # Common Event Format ingest — generic, often network appliances
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    event_types: [network_connection]
+  paloaltonetworks:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  fortinet:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [network_connection]
+  ciscoasa:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  # ── GCP / Workspace ──────────────────────────────────────────────────
+  gcpauditlogsdefinition:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  googleworkspacereports:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+
+# Per-dataType overrides. SecurityAlert is a generic table that any
+# connector can produce, so detecting it at the data_type level lets us
+# add the `siem_alert` data_source signal even when the connectorId is
+# something we don't have a specific mapping for yet.
+data_types:
+  securityalert:
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  awssecurityhubfindings:
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+  azureactivity:
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  signinlogs:
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  auditlogs:
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  officeactivity:
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+
+# Sentinel rules are SIEM correlation queries by definition — every rule
+# is examining audit/api activity at minimum.
+always_includes:
+  event_types: []

@@ -69,6 +69,9 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         # Elastic Hunting TOML doesn't embed date fields — fall back to git log
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
 
+        # Canonical taxonomy (Issue 2)
+        tax_platforms, tax_data_sources, tax_event_types = self._resolve_taxonomy(parsed)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -107,6 +110,9 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
+            taxonomy_platforms=tax_platforms,
+            taxonomy_data_sources=tax_data_sources,
+            taxonomy_event_types=tax_event_types,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

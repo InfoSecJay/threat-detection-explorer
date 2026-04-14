@@ -1,0 +1,51 @@
+# LOLRMM → canonical taxonomy mappings.
+#
+# LOLRMM uses Sigma format. All LOLRMM rules are about RMM (Remote
+# Monitoring & Management) tool detection on Windows. Most are
+# process_creation; a smaller set are network_connection.
+
+by_key:
+  windows/process_creation:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [process_creation]
+  windows/network_connection:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [network_connection]
+  windows/file_event:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [file_event]
+  windows/registry_event:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [registry_event]
+  windows/dns_query:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [dns_query]
+  linux/process_creation:
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [process_creation]
+  macos/process_creation:
+    platforms: [macos]
+    data_sources: [osquery]
+    event_types: [process_creation]
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  linux:
+    platforms: [linux]
+    data_sources: [auditd]
+  macos:
+    platforms: [macos]
+    data_sources: [osquery]
+
+# Every LOLRMM rule is, by definition, an endpoint behavioral detection.
+# These don't add new platforms/event_types but ensure data_sources is
+# never empty for vendors with patchy logsource fields.
+always_includes:
+  data_sources: []
+  event_types: []

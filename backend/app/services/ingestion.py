@@ -346,6 +346,10 @@ class IngestionService:
             extracted_target_resources=normalized.extracted_target_resources,
             rule_created_date=self._validate_date(normalized.rule_created_date),
             rule_modified_date=self._validate_date(normalized.rule_modified_date),
+            # Canonical taxonomy (Issue 2) — coexists with legacy fields above
+            taxonomy_platforms=normalized.taxonomy_platforms,
+            taxonomy_data_sources=normalized.taxonomy_data_sources,
+            taxonomy_event_types=normalized.taxonomy_event_types,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
