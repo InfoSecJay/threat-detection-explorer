@@ -15,10 +15,14 @@ export interface Detection {
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   log_sources: string[];
   data_sources: string[];
-  // Standardized log source taxonomy
+  // Standardized log source taxonomy (legacy — to be removed in Phase 3)
   platform: string;  // windows, linux, macos, cloud, network, email
   event_category: string;  // process, file, network, registry, authentication, etc.
   data_source_normalized: string;  // sysmon, auditd, cloudtrail, etc.
+  // Canonical taxonomy (Issue 2). See docs/taxonomy.md.
+  taxonomy_platforms?: string[];
+  taxonomy_data_sources?: string[];
+  taxonomy_event_types?: string[];
   mitre_tactics: string[];
   mitre_techniques: string[];
   detection_logic: string;
