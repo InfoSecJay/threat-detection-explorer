@@ -216,7 +216,15 @@ by_key:
 
   # ───────────────────────────────────────────────────────────────────────
   # Linux
+  #
+  # Explicit-service rules (Sigma has `service:` in logsource) get a real
+  # data_source. Category-only rules (no service) intentionally omit
+  # data_sources so the field resolves to [unknown] — Sigma doesn't tell
+  # us whether the telemetry came from auditd, osquery, a vendor EDR,
+  # or something else, and we're not in the business of guessing.
   # ───────────────────────────────────────────────────────────────────────
+
+  # Auditd (service explicitly specified)
   linux/auditd/execve:
     platforms: [linux]
     data_sources: [auditd]
@@ -225,40 +233,88 @@ by_key:
     platforms: [linux]
     data_sources: [auditd]
     event_types: [audit_event]
-  linux/process_creation:
-    platforms: [linux]
-    data_sources: [auditd, osquery]
-    event_types: [process_creation]
-  linux/file_event:
-    platforms: [linux]
-    data_sources: [auditd]
-    event_types: [file_event]
-  linux/network_connection:
-    platforms: [linux]
-    data_sources: [auditd, zeek]
-    event_types: [network_connection]
+
+  # Common syslog-backed services — sshd, sudo, cron, systemd, etc. all
+  # write to syslog/journald on modern Linux. `service:` being explicit
+  # gives us the data_source; event_type stays audit_event because these
+  # services don't uniquely produce one event kind.
   linux/syslog:
     platforms: [linux]
     data_sources: [linux_syslog]
     event_types: [audit_event]
-  linux:
+  linux/sshd:
     platforms: [linux]
     data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/sudo:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/cron:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/systemd:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/guacamole:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/clamav:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  linux/vsftpd:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+
+  # Category-only rules (no service specified by Sigma). Event type is
+  # clear from the category; data_source is intentionally NOT listed.
+  linux/process_creation:
+    platforms: [linux]
+    event_types: [process_creation]
+  linux/file_event:
+    platforms: [linux]
+    event_types: [file_event]
+  linux/file_change:
+    platforms: [linux]
+    event_types: [file_change]
+  linux/file_delete:
+    platforms: [linux]
+    event_types: [file_delete]
+  linux/network_connection:
+    platforms: [linux]
+    event_types: [network_connection]
+  linux/dns_query:
+    platforms: [linux]
+    event_types: [dns_query]
+
+  # Bare product fallback — only platform, nothing inferred
+  linux:
+    platforms: [linux]
 
   # ───────────────────────────────────────────────────────────────────────
   # macOS
+  #
+  # Sigma macOS rules never use `service:` — all are category-only.
+  # Platform + event_type is what we can confidently say; data_source is
+  # deliberately NOT listed (could be osquery, Elastic Defend, ESF-based
+  # EDR, etc. — Sigma doesn't tell us).
   # ───────────────────────────────────────────────────────────────────────
   macos/process_creation:
     platforms: [macos]
-    data_sources: [osquery]
     event_types: [process_creation]
   macos/file_event:
     platforms: [macos]
-    data_sources: [osquery]
     event_types: [file_event]
+  macos/network_connection:
+    platforms: [macos]
+    event_types: [network_connection]
   macos:
     platforms: [macos]
-    data_sources: [osquery]
 
   # ───────────────────────────────────────────────────────────────────────
   # Cloud API logs — api_call because they're all REST-API event streams
@@ -396,31 +452,27 @@ by_key:
 
   # ───────────────────────────────────────────────────────────────────────
   # product: "any" — Sigma rules that target multiple platforms via
-  # log-source-agnostic event categories
+  # log-source-agnostic event categories. Platform is `cross_platform`
+  # by design; event_type comes from the category. data_source is
+  # intentionally NOT listed — Sigma deliberately doesn't specify one.
   # ───────────────────────────────────────────────────────────────────────
   any/dns:
-    platforms: [windows, linux, macos]
-    data_sources: [dns_query_logs, sysmon, zeek]
+    platforms: [cross_platform]
     event_types: [dns_query]
   any/dns_query:
-    platforms: [windows, linux, macos]
-    data_sources: [dns_query_logs, sysmon, zeek]
+    platforms: [cross_platform]
     event_types: [dns_query]
   any/network_connection:
-    platforms: [windows, linux, macos]
-    data_sources: [zeek, sysmon]
+    platforms: [cross_platform]
     event_types: [network_connection]
   any/proxy:
     platforms: [network_appliance]
-    data_sources: [proxy_logs]
     event_types: [http_request]
   any/webserver:
     platforms: [network_appliance]
-    data_sources: [proxy_logs]
     event_types: [http_request]
   any/firewall:
     platforms: [network_appliance]
-    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
     event_types: [network_connection]
   any:
     platforms: [cross_platform]

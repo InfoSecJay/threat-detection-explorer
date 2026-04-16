@@ -103,6 +103,91 @@ def test_sigma_aws_cloudtrail():
     assert result["event_types"] == ["api_call"]
 
 
+def test_sigma_resolver_first_match_wins_no_union():
+    """Regression: the resolver used to union data_sources across all
+    matching keys (most specific + all fallbacks), producing spurious
+    multi-source results like [auditd, osquery, linux_syslog] when
+    Sigma only said `product=linux, category=process_creation`.
+    First-match-wins semantics mean the most specific entry's values
+    are authoritative."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "linux", "category": "process_creation"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["linux"]
+    assert result["event_types"] == ["process_creation"]
+    # Since Sigma didn't say service, data_source should be [unknown],
+    # NOT a speculative union of auditd+osquery+linux_syslog.
+    assert result["data_sources"] == [UNKNOWN]
+
+
+def test_sigma_linux_auditd_service_explicit():
+    """Rules with `service: auditd` (no category) DO get a real data_source
+    because the service is explicit in the rule."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "linux", "service": "auditd"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["linux"]
+    assert result["data_sources"] == ["auditd"]
+    assert result["event_types"] == ["audit_event"]
+
+
+def test_sigma_linux_auditd_execve_compound():
+    """Compound logsource (auditd service + execve category) matches
+    the most-specific key and returns process_creation."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "linux", "service": "auditd", "category": "execve"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["linux"]
+    assert result["data_sources"] == ["auditd"]
+    assert result["event_types"] == ["process_creation"]
+
+
+def test_sigma_linux_sshd_maps_to_syslog():
+    """Explicit syslog-backed services (sshd, sudo, cron) map to
+    linux_syslog — not guessed, they really do write to syslog/journald."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "linux", "service": "sshd"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["data_sources"] == ["linux_syslog"]
+    assert result["event_types"] == ["audit_event"]
+
+
+def test_sigma_macos_no_data_source_inference():
+    """macOS rules don't have Sigma-level service info, so data_source
+    is [unknown] — we don't infer osquery / Elastic Defend / etc."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "macos", "category": "process_creation"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["macos"]
+    assert result["event_types"] == ["process_creation"]
+    assert result["data_sources"] == [UNKNOWN]
+
+
+def test_sigma_windows_process_creation_still_has_data_sources():
+    """Windows mappings were deliberately left unchanged — the 'generic
+    categories get both Sysmon and Windows Event Log' behavior is
+    acknowledged as the intended Sigma compatibility semantic."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "windows", "category": "process_creation"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["windows"]
+    assert "sysmon" in result["data_sources"]
+    assert "windows_security_event_log" in result["data_sources"]
+    assert result["event_types"] == ["process_creation"]
+
+
 def test_sigma_unknown_product_returns_unknown():
     parsed = _make_parsed(source="sigma", log_source={"product": "fictional_xyz"})
     result = resolve_for_repo("sigma", parsed)

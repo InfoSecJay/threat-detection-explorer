@@ -43,54 +43,48 @@ by_key:
     platforms: [windows]
     data_sources: [windows_security_event_log]
 
-  # ── Linux ──────────────────────────────────────────────────────────────
+  # ── Linux (category-only; no data_source inference — same as sigma.yaml)
   linux/process_creation:
     platforms: [linux]
-    data_sources: [auditd]
     event_types: [process_creation]
   linux/network_connection:
     platforms: [linux]
-    data_sources: [auditd, zeek]
     event_types: [network_connection]
+  linux/file_event:
+    platforms: [linux]
+    event_types: [file_event]
+  linux/dns_query:
+    platforms: [linux]
+    event_types: [dns_query]
   linux:
     platforms: [linux]
-    data_sources: [auditd]
 
-  # ── macOS ──────────────────────────────────────────────────────────────
+  # ── macOS (category-only; no data_source inference) ──────────────────
   macos/process_creation:
     platforms: [macos]
-    data_sources: [osquery]
     event_types: [process_creation]
   macos:
     platforms: [macos]
-    data_sources: [osquery]
 
-  # ── product: "any" (LOLRMM uses this for cross-platform RMM detection
-  #    via DNS or network flows that aren't OS-specific) ────────────────
+  # ── product: "any" (LOLRMM uses for cross-platform detection via DNS
+  # or network flows). Platform + event_type only; no data_source.
   any/dns:
-    platforms: [windows, linux, macos]
-    data_sources: [dns_query_logs, sysmon, zeek]
+    platforms: [cross_platform]
     event_types: [dns_query]
   any/dns_query:
-    platforms: [windows, linux, macos]
-    data_sources: [dns_query_logs, sysmon, zeek]
+    platforms: [cross_platform]
     event_types: [dns_query]
   any/network_connection:
-    platforms: [windows, linux, macos]
-    data_sources: [zeek, sysmon, palo_alto_firewall, fortinet_firewall]
+    platforms: [cross_platform]
     event_types: [network_connection]
   any/proxy:
     platforms: [network_appliance]
-    data_sources: [proxy_logs]
     event_types: [http_request]
   any/webserver:
     platforms: [network_appliance]
-    data_sources: [proxy_logs]
     event_types: [http_request]
   any:
     platforms: [cross_platform]
-    data_sources: []
-    event_types: []
 
 # Intentionally empty — the mapping entries above carry all the signal.
 always_includes:

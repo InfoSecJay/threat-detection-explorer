@@ -51,22 +51,31 @@ def resolve(parsed: "ParsedRule") -> dict:
     event_types: set[str] = set()
 
     by_key = _MAPPING.get("by_key", {})
+
+    # First pass: find the MOST SPECIFIC matching key and take its values.
+    # Union-across-multiple-matches was a bug — a rule with
+    # `product=linux, category=process_creation` was picking up data_sources
+    # from both `linux/process_creation` AND `linux` bare, giving spurious
+    # multi-source results like [auditd, osquery, linux_syslog] even when
+    # Sigma said nothing about the data source.
+    matched_key: str | None = None
     for key in keys_to_try:
         entry = by_key.get(key)
         if entry:
             platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
-            # If we got a hit at this specificity level, also pick up the
-            # less-specific fallback for any dimension this entry didn't fill.
-            # That way `windows/process_creation` (which gives event_types
-            # but maybe not data_sources) can pull data_sources from the
-            # bare `windows` fallback.
-            continue
+            matched_key = key
+            break
 
-    # If we still have empty dimensions, try any partial-match keys
-    if not (platforms and data_sources and event_types):
-        for key in keys_to_try[1:]:  # already tried the first
+    # Second pass: only fills dimensions the most-specific match left empty,
+    # by looking at less-specific fallback entries. Lets something like
+    # `linux/sshd` (which omits event_types) pull event_types from `linux`
+    # bare, but NEVER overwrites what the specific match already said.
+    if matched_key is not None and not (platforms and data_sources and event_types):
+        for key in keys_to_try:
+            if key == matched_key:
+                continue
             entry = by_key.get(key)
             if not entry:
                 continue
