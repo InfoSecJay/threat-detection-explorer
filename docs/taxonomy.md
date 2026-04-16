@@ -19,6 +19,79 @@ This is a technical reference for engineers who need to:
 
 ---
 
+## Design principles for event_type classification
+
+These principles were formalized after the first review pass against
+real sigma/lolrmm data. They apply to `event_types` specifically, but
+the "no inference" rule applies to the other two dimensions too.
+
+### 1. No inference from channel-level logsources
+
+If a rule's logsource is a broad channel (e.g. `windows/security`,
+`okta`, `m365`), we do NOT try to guess which event type(s) the rule
+might be looking at. Windows Security log contains authentication
+events (4624, 4625), process events (4688), and audit events (4728,
+4732) all intermixed — a rule could be filtering for any of them. We
+tag the rule with a single coarse event_type (`audit_event`) rather
+than listing all plausible sub-types.
+
+**Don't do this:**
+```yaml
+windows/security:
+  event_types: [authentication, audit_event]   # inference — wrong
+```
+
+**Do this:**
+```yaml
+windows/security:
+  event_types: [audit_event]                    # coarse but accurate
+```
+
+The future work is a per-EventID dictionary that refines the
+classification by parsing the rule's `EventID` selection. That's a
+separate undertaking (see TODO items) and not something we fudge with
+heuristics in the meantime.
+
+### 2. Full granularity when the vendor IS explicit
+
+When Sigma gives us a specific `category`, we preserve it 1:1 as its
+own canonical event_type. We do NOT collapse related categories into
+a coarser parent.
+
+**Don't do this:**
+```yaml
+windows/file_delete:
+  event_types: [file_event]                     # lossy generalization
+```
+
+**Do this:**
+```yaml
+windows/file_delete:
+  event_types: [file_delete]                    # preserve the specific kind
+```
+
+Detection engineers filter by these specific activities — a rule about
+LSASS access (`process_access`) is meaningfully different from one
+about process creation. Collapsing them makes the taxonomy less useful
+for real analysts.
+
+### 3. SaaS audit logs are `api_call`
+
+Okta System Log, Microsoft 365 Unified Audit, GitHub Audit Log, GCP
+Audit, Entra ID Audit, and AWS CloudTrail are all **API-call event
+streams** at the architectural level. Per Okta's own docs, every
+System Log entry represents an API call
+([reference](https://developer.okta.com/docs/reference/api/event-types/)).
+Same is true for the others — they're all REST-API event records.
+
+We classify all of them as `api_call` for consistency. Tagging some
+as `api_call` (AWS) and others as `audit_event` (Okta) would be
+inconsistent — the feeds are architecturally identical.
+
+Sign-in logs are the exception — Entra ID `signinlogs` and Azure AD
+sign-in events are exclusively authentication activity, so they get
+`authentication` instead of the generic `api_call`.
+
 ## The model: 3 orthogonal dimensions
 
 Every detection rule answers three independent questions about its

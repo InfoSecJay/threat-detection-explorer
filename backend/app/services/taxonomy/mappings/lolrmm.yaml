@@ -1,10 +1,16 @@
-# LOLRMM → canonical taxonomy mappings.
+# LOLRMM -> canonical taxonomy mappings.
 #
 # LOLRMM uses Sigma format. All LOLRMM rules are about RMM (Remote
-# Monitoring & Management) tool detection on Windows. Most are
-# process_creation; a smaller set are network_connection.
+# Monitoring & Management) tool detection, predominantly Windows with
+# some cross-platform rules using `product: any` for DNS / network
+# detection that isn't OS-specific.
+#
+# Mapping rules follow the same design principles as sigma.yaml:
+#   - No inference (if Sigma doesn't tell us the event type, don't guess)
+#   - Full granularity (preserve Sigma's specific category names)
 
 by_key:
+  # ── Windows Sysmon categories ──────────────────────────────────────────
   windows/process_creation:
     platforms: [windows]
     data_sources: [sysmon, windows_security_event_log]
@@ -25,20 +31,36 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [dns_query]
+  windows/image_load:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [image_load]
+  windows/pipe_created:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [pipe_created]
+  windows:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+
+  # ── Linux ──────────────────────────────────────────────────────────────
   linux/process_creation:
     platforms: [linux]
     data_sources: [auditd]
     event_types: [process_creation]
+  linux/network_connection:
+    platforms: [linux]
+    data_sources: [auditd, zeek]
+    event_types: [network_connection]
+  linux:
+    platforms: [linux]
+    data_sources: [auditd]
+
+  # ── macOS ──────────────────────────────────────────────────────────────
   macos/process_creation:
     platforms: [macos]
     data_sources: [osquery]
     event_types: [process_creation]
-  windows:
-    platforms: [windows]
-    data_sources: [windows_security_event_log]
-  linux:
-    platforms: [linux]
-    data_sources: [auditd]
   macos:
     platforms: [macos]
     data_sources: [osquery]
@@ -70,9 +92,7 @@ by_key:
     data_sources: []
     event_types: []
 
-# Every LOLRMM rule is, by definition, an endpoint behavioral detection.
-# These don't add new platforms/event_types but ensure data_sources is
-# never empty for vendors with patchy logsource fields.
+# Intentionally empty — the mapping entries above carry all the signal.
 always_includes:
   data_sources: []
   event_types: []

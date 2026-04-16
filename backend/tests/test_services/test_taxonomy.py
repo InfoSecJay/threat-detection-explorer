@@ -111,6 +111,91 @@ def test_sigma_unknown_product_returns_unknown():
     assert result["event_types"] == [UNKNOWN]
 
 
+def test_sigma_granular_sysmon_categories_preserved():
+    """Each Sigma Sysmon category maps to its own distinct event_type.
+
+    Regression test for the design decision to NOT collapse related
+    categories (file_delete, file_block_executable, etc.) into
+    file_event. Each category is first-class so detection engineers
+    can filter by the specific activity.
+    """
+    cases = [
+        ("file_delete", "file_delete"),
+        ("file_delete_detected", "file_delete_detected"),
+        ("file_block_executable", "file_block_executable"),
+        ("create_stream_hash", "create_stream_hash"),
+        ("pipe_created", "pipe_created"),
+        ("process_access", "process_access"),
+        ("create_remote_thread", "create_remote_thread"),
+        ("raw_access_thread", "raw_access_thread"),
+        ("process_tampering", "process_tampering"),
+        ("registry_add", "registry_add"),
+        ("registry_set", "registry_set"),
+        ("registry_rename", "registry_rename"),
+        ("wmi_event", "wmi_event"),
+        ("clipboard_capture", "clipboard_capture"),
+        ("driver_load", "driver_load"),
+    ]
+    for sigma_category, expected_event_type in cases:
+        parsed = _make_parsed(
+            source="sigma",
+            log_source={"product": "windows", "category": sigma_category},
+        )
+        result = resolve_for_repo("sigma", parsed)
+        assert expected_event_type in result["event_types"], (
+            f"Sigma category {sigma_category!r} should resolve to "
+            f"event_type {expected_event_type!r}, got {result['event_types']}"
+        )
+
+
+def test_sigma_windows_security_channel_is_blanket_audit_event():
+    """Windows Security/System/Application channels get blanket audit_event
+    with NO inferred authentication tag. The design principle is no
+    inference — per-EventID classification is future work."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "windows", "service": "security"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["event_types"] == ["audit_event"]
+    # Must NOT contain authentication — that would be inference
+    assert "authentication" not in result["event_types"]
+
+
+def test_sigma_okta_is_api_call():
+    """Okta System Log is API-driven per Okta's docs — not a mix of
+    authentication + audit_event."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "okta", "service": "okta"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["event_types"] == ["api_call"]
+    assert "authentication" not in result["event_types"]
+    assert "audit_event" not in result["event_types"]
+
+
+def test_sigma_m365_audit_is_api_call():
+    """Microsoft 365 unified audit is REST API-driven; classify as api_call."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "m365", "service": "threat_management"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert "api_call" in result["event_types"]
+
+
+def test_sigma_azure_signin_is_authentication_not_api_call():
+    """Azure/Entra sign-in logs ARE authentication events — not generic
+    api_call — because the feed is exclusively sign-in activity."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "azure", "service": "signinlogs"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["event_types"] == ["authentication"]
+
+
 # ── Elastic vendor ──────────────────────────────────────────────────────
 
 

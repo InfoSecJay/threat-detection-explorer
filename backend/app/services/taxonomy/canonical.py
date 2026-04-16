@@ -151,25 +151,62 @@ DATA_SOURCES: frozenset[str] = frozenset(
 
 EVENT_TYPES: frozenset[str] = frozenset(
     {
-        # ── Process activity ────────────────────────────────────────────────
-        "process_creation",
-        "process_termination",
-        "image_load",  # DLL load, library load
-        # ── Filesystem ──────────────────────────────────────────────────────
-        "file_event",
-        # ── Windows registry ────────────────────────────────────────────────
-        "registry_event",
-        # ── Network ─────────────────────────────────────────────────────────
-        "network_connection",
-        "dns_query",
+        # Design principle: these values mirror Sigma's `category` vocabulary
+        # 1:1 wherever Sigma provides a specific category. We intentionally
+        # do NOT collapse related categories (file_delete, file_block_executable,
+        # file_change) into a single `file_event` bucket — detection
+        # engineers filter by these specific activities and the distinctions
+        # are meaningful. When a rule's logsource is a coarse channel
+        # (windows/security, okta) rather than a specific category, it gets
+        # the coarser `audit_event` / `api_call` classification instead of
+        # being silently split into plausible sub-categories.
+        #
+        # Values are grouped by theme below. Count as of Issue 2 Phase 1b: 35.
+
+        # ── Process activity (Sysmon 1, 5, 7, 8, 9, 10, 25) ────────────────
+        "process_creation",          # Sysmon 1, Windows 4688
+        "process_termination",       # Sysmon 5
+        "image_load",                # Sysmon 7 — DLL / library load
+        "driver_load",               # Sysmon 6 — kernel driver load
+        "create_remote_thread",      # Sysmon 8 — thread injection
+        "raw_access_thread",         # Sysmon 9 — direct disk thread manip
+        "process_access",            # Sysmon 10 — LSASS read / cred dumping
+        "process_tampering",         # Sysmon 25 — PPID spoofing / image swap
+        # ── File activity (Sysmon 2, 11, 15, 23, 26-29) ────────────────────
+        "file_event",                # Sigma generic category
+        "file_change",               # Sysmon 2 — file creation time changed
+        "create_stream_hash",        # Sysmon 15 — ADS creation
+        "file_delete",               # Sysmon 23
+        "file_delete_detected",      # Sysmon 26
+        "file_block_executable",     # Sysmon 27
+        "file_block_shredding",      # Sysmon 28
+        "file_executable_detected",  # Sysmon 29
+        "pipe_created",              # Sysmon 17, 18 — named pipe
+        # ── Registry activity (Sysmon 12, 13, 14) ──────────────────────────
+        "registry_event",            # Sigma generic category
+        "registry_add",
+        "registry_delete",
+        "registry_set",              # Value modification
+        "registry_rename",           # Sysmon 14
+        # ── Network activity ────────────────────────────────────────────────
+        "network_connection",        # Sysmon 3
+        "dns_query",                 # Sysmon 22
         "http_request",
         # ── Identity / auth ─────────────────────────────────────────────────
         "authentication",
-        # ── Cloud / SaaS API calls ─────────────────────────────────────────
+        # ── Cloud / SaaS API call (also used for Okta/M365/GitHub audit) ───
         "api_call",
-        # ── Generic audit log entry (admin actions, config changes) ────────
+        # ── Generic audit log (Windows Security/System/Application, etc.) ─
+        # Coarse fallback when the logsource is a channel that contains
+        # many different event types. Future work: per-vendor event-ID
+        # dictionaries will refine these to more specific categories.
         "audit_event",
-        # ── Email message inspection ───────────────────────────────────────
+        # ── Sysmon / system-specific misc ──────────────────────────────────
+        "wmi_event",                 # Sysmon 19, 20, 21
+        "clipboard_capture",         # Sysmon 24
+        "sysmon_status",             # Sysmon 4, 16 — service state changes
+        "sysmon_error",              # Sysmon 255
+        # ── Email message inspection (Sublime) ─────────────────────────────
         "email_message",
         # ── Hunting query — broad exploration, not a single event type ─────
         "hunting_query",
