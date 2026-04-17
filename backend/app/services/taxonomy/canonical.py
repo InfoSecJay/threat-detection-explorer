@@ -134,6 +134,8 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "fortinet_firewall",
         "cisco_firewall",
         "cisco_aaa",
+        "huawei_network",        # Huawei network devices (routers, switches)
+        "juniper_network",       # Juniper network devices
         "dns_query_logs",
         "proxy_logs",
         # ── Email telemetry ─────────────────────────────────────────────────

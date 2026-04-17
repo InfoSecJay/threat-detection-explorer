@@ -484,23 +484,96 @@ by_key:
 
   # ═══════════════════════════════════════════════════════════════════════
   # NETWORK APPLIANCES
+  #
+  # Full coverage of rules/network/ (Cisco, FortiGate, Huawei, Juniper,
+  # Zeek). Each vendor's product name matches what Sigma uses in the
+  # logsource (e.g. `fortigate` not `fortinet`).
   # ═══════════════════════════════════════════════════════════════════════
+
+  # ── Cisco (14 rules: aaa=12, bgp=1, ldp=1) ──────────────────────────
   cisco/aaa:
     platforms: [network_appliance]
     data_sources: [cisco_aaa]
     event_types: [authentication]
+  cisco/bgp:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  cisco/ldp:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
   cisco:
     platforms: [network_appliance]
     data_sources: [cisco_firewall]
     event_types: [audit_event]
-  fortinet:
+
+  # ── FortiGate (7 rules: product=fortigate, service=event) ───────────
+  # Note: Sigma uses `fortigate` as the product name, not `fortinet`.
+  fortigate/event:
     platforms: [network_appliance]
     data_sources: [fortinet_firewall]
+    event_types: [audit_event]
+  fortigate:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [audit_event]
+
+  # ── Huawei (1 rule: bgp auth) ───────────────────────────────────────
+  huawei/bgp:
+    platforms: [network_appliance]
+    data_sources: [huawei_network]
     event_types: [network_connection]
+  huawei:
+    platforms: [network_appliance]
+    data_sources: [huawei_network]
+
+  # ── Juniper (1 rule: bgp md5 auth) ──────────────────────────────────
+  juniper/bgp:
+    platforms: [network_appliance]
+    data_sources: [juniper_network]
+    event_types: [network_connection]
+  juniper:
+    platforms: [network_appliance]
+    data_sources: [juniper_network]
+
+  # ── Palo Alto ────────────────────────────────────────────────────────
   paloalto:
     platforms: [network_appliance]
     data_sources: [palo_alto_firewall]
     event_types: [network_connection]
+
+  # ── Zeek (21 rules across 7 services) ────────────────────────────────
+  # Each Zeek service maps to a distinct event_type reflecting the
+  # protocol being analyzed.
+  zeek/dns:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [dns_query]
+  zeek/http:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [http_request]
+  zeek/smb_files:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [file_event]
+  zeek/dce_rpc:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  zeek/x509:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  zeek/rdp:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  zeek/kerberos:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [authentication]
   zeek:
     platforms: [network_appliance]
     data_sources: [zeek]
@@ -617,12 +690,26 @@ by_key:
     event_types: [audit_event]
 
   # ═══════════════════════════════════════════════════════════════════════
-  # BARE CATEGORY RULES (no product — format-agnostic detections)
+  # BARE SERVICE/CATEGORY RULES (no product — format-agnostic detections)
   #
-  # These rules appear in `rules/category/` and `rules/web/webserver_generic/`
-  # and apply to ANY vendor's logs. Platform is `cross_platform` or
-  # `network_appliance` depending on the nature of the detection.
+  # These rules appear in `rules/category/`, `rules/web/webserver_generic/`,
+  # `rules/web/proxy_generic/`, and `rules/web/product/`. They have no
+  # `product:` in the logsource and apply to any vendor's logs. The
+  # resolver matches them via the bare service or category name.
   # ═══════════════════════════════════════════════════════════════════════
+
+  # ── Bare service: webserver products (rules/web/product/) ────────────
+  # Apache and Nginx rules have only `service:` (no product, no category)
+  apache:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [audit_event]
+  nginx:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [audit_event]
+
+  # ── Bare category: generic detection patterns ────────────────────────
   webserver:
     platforms: [network_appliance]
     data_sources: [webserver_logs]
