@@ -48,18 +48,23 @@ PLATFORMS: frozenset[str] = frozenset(
         "linux",
         "macos",
         # ── Public cloud platforms ──────────────────────────────────────────
+        # Note: `azure` covers ALL Azure services including Entra ID (formerly
+        # Azure AD). We used to split them but the distinction is noise — the
+        # specific data_source (`entra_id_signin` vs `azure_activity` etc.)
+        # gives the precision without needing two platform values.
         "aws",
         "azure",
         "gcp",
         # ── Identity / SaaS productivity platforms ──────────────────────────
-        "azure_ad",  # also covers Entra ID (modern Azure AD)
         "okta",
+        "onelogin",
         "google_workspace",
         "microsoft_365",
         "duo",
         # ── DevOps / source control ─────────────────────────────────────────
         "github",
         "gitlab",
+        "bitbucket",
         # ── Network appliance class (broad — covers firewalls, proxies, IDS)
         "network_appliance",
         # ── Email — Sublime and other email-security tooling lives here ─────
@@ -70,8 +75,9 @@ PLATFORMS: frozenset[str] = frozenset(
         # ── LLM (Elastic Hunting has rules targeting LLM service logs) ──────
         "llm",
         # ── Cross-platform marker — rule targets multiple OSes generically ──
+        # Also used for application-framework rules (Django, Spring, JVM, etc.)
+        # and product-agnostic categories (webserver, antivirus, database).
         "cross_platform",
-        # ── Sentinel: unknown
         UNKNOWN,
     }
 )
@@ -107,12 +113,17 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "defender_cloud",  # Microsoft Defender for Cloud
         "gcp_audit",
         "gcp_vpc_flow",
+        # ── Azure extras (beyond the general azure_activity) ────────────────
+        "azure_risk_detection",  # Azure Risk Detection feed
+        "azure_pim",             # Privileged Identity Management audit
         # ── Identity / authentication ───────────────────────────────────────
         "entra_id_signin",  # Azure AD / Entra ID sign-in logs
         "entra_id_audit",
-        "m365_audit",
-        "m365_exchange_audit",
+        "m365_audit",                # M365 Unified Audit Log
+        "m365_exchange_audit",       # Exchange Online mail flow / admin
+        "m365_defender",             # Microsoft Defender for O365 / M365 Defender threat feeds
         "okta_system_log",
+        "onelogin_events",           # OneLogin event feed
         "duo_activity",
         "google_workspace_audit",
         # ── Network telemetry ───────────────────────────────────────────────
@@ -130,7 +141,14 @@ DATA_SOURCES: frozenset[str] = frozenset(
         # ── Application / DevOps audit logs ─────────────────────────────────
         "github_audit",
         "gitlab_audit",
+        "bitbucket_audit",
         "kubernetes_audit",
+        # ── Generic application / infrastructure logs (product-agnostic
+        # Sigma categories like `webserver`, `antivirus`, `database`) ──────
+        "application_logs",   # Django / JVM / Spring / Node.js / etc.
+        "webserver_logs",     # Apache / Nginx / IIS access & error logs
+        "antivirus_logs",     # generic AV event feed (ClamAV, Defender, 3rd-party)
+        "database_logs",      # RDBMS audit / slow query / error logs
         # ── Sigma cross-reference: generic Linux logs (when not auditd) ─────
         "linux_syslog",
         # ── LLM service logs (e.g. Bedrock, OpenAI audit) ───────────────────

@@ -1,43 +1,38 @@
 # Sigma -> canonical taxonomy mappings.
 #
-# Sigma rules carry a `logsource` block with three keys: product, service,
-# category. The resolver tries the most specific compound key first and
-# falls back to less specific ones.
+# Based on a comprehensive catalog of the SigmaHQ repo (~3,100 rules,
+# 125 unique product/service/category combinations). Every combination
+# that appears in the live corpus is covered here.
 #
-# Key conventions:
-#   product/service/category  <- most specific
+# Key lookup order (most specific wins; see vendors/sigma.py):
+#   product/service/category
 #   product/service
 #   product/category
-#   product                   <- least specific (broad fallback)
-#
-# All keys are lowercase. All canonical values referenced here must be
-# defined in `app/services/taxonomy/canonical.py`.
+#   product
+#   service              (bare, for product-less SaaS like onelogin.events)
+#   category             (bare, for format-agnostic rules like webserver)
 #
 # Design principles (see docs/taxonomy.md):
 #
-# 1. No inference. If Sigma doesn't explicitly tell us the event type
-#    (e.g. via `category: process_creation`), we do NOT guess from the
-#    service channel. Windows `security` / `system` / `application`
-#    channels contain many different event types; without a per-EventID
-#    dictionary we classify them as the coarse `audit_event`.
+# 1. No inference for data_source when Sigma didn't give us a service.
+#    If the rule has only `product: linux, category: process_creation`,
+#    we return the platform and event_type explicitly but leave
+#    data_source empty (resolves to [unknown]).
 #
-# 2. Full granularity. When Sigma DOES give us a specific category
-#    (e.g. `category: file_delete`), we preserve it as its own canonical
-#    event_type. We do NOT collapse `file_delete`, `file_block_executable`,
-#    `create_stream_hash` etc. into a generic `file_event` bucket —
-#    detection engineers filter by these specific activities.
+# 2. Full granularity on event_type. Sigma Sysmon categories map 1:1
+#    (file_delete != file_event; create_remote_thread != process_creation).
 #
-# 3. SaaS audit logs are `api_call`. Okta System Log, M365 Unified Audit,
-#    GitHub Audit Log, GCP Audit, Entra ID Audit all record API-level
-#    events at the architectural layer. Classifying them as `audit_event`
-#    is technically accurate but less consistent; `api_call` matches how
-#    we already tag AWS CloudTrail and Azure Activity.
+# 3. SaaS audit logs are api_call. Okta, M365 audit, GitHub, Bitbucket,
+#    Google Workspace, Entra audit — all REST API event streams.
+#    Signin logs (Entra signin, Azure signin) stay `authentication`
+#    because the feed is exclusively sign-in activity.
 
 by_key:
-  # ───────────────────────────────────────────────────────────────────────
-  # Windows — granular Sysmon categories (first, most specific)
-  # ───────────────────────────────────────────────────────────────────────
-  # Process activity
+  # ═══════════════════════════════════════════════════════════════════════
+  # WINDOWS
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # ── Granular Sysmon categories (preserved 1:1) ──────────────────────────
   windows/process_creation:
     platforms: [windows]
     data_sources: [sysmon, windows_security_event_log]
@@ -70,8 +65,6 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [driver_load]
-
-  # File activity
   windows/file_event:
     platforms: [windows]
     data_sources: [sysmon, windows_security_event_log]
@@ -80,6 +73,10 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [file_change]
+  windows/file_access:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [file_event]
   windows/file_delete:
     platforms: [windows]
     data_sources: [sysmon]
@@ -100,6 +97,10 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [file_executable_detected]
+  windows/file_rename:
+    platforms: [windows]
+    data_sources: [sysmon]
+    event_types: [file_event]
   windows/create_stream_hash:
     platforms: [windows]
     data_sources: [sysmon]
@@ -108,8 +109,6 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [pipe_created]
-
-  # Registry activity
   windows/registry_event:
     platforms: [windows]
     data_sources: [sysmon, windows_security_event_log]
@@ -130,8 +129,6 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [registry_rename]
-
-  # Network activity
   windows/network_connection:
     platforms: [windows]
     data_sources: [sysmon, windows_security_event_log]
@@ -140,8 +137,6 @@ by_key:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [dns_query]
-
-  # Sysmon misc
   windows/wmi_event:
     platforms: [windows]
     data_sources: [sysmon]
@@ -159,11 +154,29 @@ by_key:
     data_sources: [sysmon]
     event_types: [sysmon_error]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Windows — channel-level logsources (no Sigma category provided).
-  # All get blanket `audit_event` until we build a per-EventID dictionary
-  # (see TODO: "Windows Security Event Code dictionary").
-  # ───────────────────────────────────────────────────────────────────────
+  # ── PowerShell-specific categories ──────────────────────────────────────
+  # Sigma uses several category names for PowerShell logging modes.
+  # Map all to process_creation since they detect command execution.
+  windows/ps_script:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_module:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_classic_start:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+  windows/ps_classic_provider_start:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+
+  # ── Channel-level services (no Sigma category). Blanket audit_event
+  # until we build per-EventID dictionaries — see the TODO in TODO.md.
+  # Each service also carries the data_source as the provider name.
   windows/security:
     platforms: [windows]
     data_sources: [windows_security_event_log]
@@ -184,47 +197,72 @@ by_key:
     platforms: [windows]
     data_sources: [windows_powershell]
     event_types: [audit_event]
-  windows/ps_classic_start:
+  windows/powershell-classic:
     platforms: [windows]
     data_sources: [windows_powershell]
     event_types: [audit_event]
-  windows/ps_module:
+  windows/windefend:
     platforms: [windows]
-    data_sources: [windows_powershell]
-    event_types: [audit_event]
-  windows/ps_script:
-    platforms: [windows]
-    data_sources: [windows_powershell]
-    event_types: [audit_event]
-  windows/dns-server:
-    platforms: [windows]
-    data_sources: [windows_security_event_log]
-    event_types: [audit_event]
-  windows/firewall-as:
-    platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_defender_event_log]
     event_types: [audit_event]
   windows/defender:
     platforms: [windows]
     data_sources: [windows_defender_event_log]
     event_types: [audit_event]
-  windows:
+  windows/firewall-as:
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    # event_types intentionally omitted — too broad without explicit
-    # category or service hint. Resolver falls back to [unknown].
+    event_types: [audit_event]
+  windows/codeintegrity-operational:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/appxdeployment-server:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/bits-client:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/msexchange-management:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/dns-client:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/dns-server:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/iis-configuration:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/ntlm:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/taskscheduler:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windows/security-mitigations:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Linux
-  #
-  # Explicit-service rules (Sigma has `service:` in logsource) get a real
-  # data_source. Category-only rules (no service) intentionally omit
-  # data_sources so the field resolves to [unknown] — Sigma doesn't tell
-  # us whether the telemetry came from auditd, osquery, a vendor EDR,
-  # or something else, and we're not in the business of guessing.
-  # ───────────────────────────────────────────────────────────────────────
+  # ── Bare `windows` (no service, no category, no inference) ──────────────
+  windows:
+    platforms: [windows]
 
-  # Auditd (service explicitly specified)
+  # ═══════════════════════════════════════════════════════════════════════
+  # LINUX
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # ── Explicit-service rules ──────────────────────────────────────────────
   linux/auditd/execve:
     platforms: [linux]
     data_sources: [auditd]
@@ -233,11 +271,6 @@ by_key:
     platforms: [linux]
     data_sources: [auditd]
     event_types: [audit_event]
-
-  # Common syslog-backed services — sshd, sudo, cron, systemd, etc. all
-  # write to syslog/journald on modern Linux. `service:` being explicit
-  # gives us the data_source; event_type stays audit_event because these
-  # services don't uniquely produce one event kind.
   linux/syslog:
     platforms: [linux]
     data_sources: [linux_syslog]
@@ -271,8 +304,7 @@ by_key:
     data_sources: [linux_syslog]
     event_types: [audit_event]
 
-  # Category-only rules (no service specified by Sigma). Event type is
-  # clear from the category; data_source is intentionally NOT listed.
+  # ── Category-only rules (no service) — no data_source inference ─────────
   linux/process_creation:
     platforms: [linux]
     event_types: [process_creation]
@@ -291,19 +323,12 @@ by_key:
   linux/dns_query:
     platforms: [linux]
     event_types: [dns_query]
-
-  # Bare product fallback — only platform, nothing inferred
   linux:
     platforms: [linux]
 
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
   # macOS
-  #
-  # Sigma macOS rules never use `service:` — all are category-only.
-  # Platform + event_type is what we can confidently say; data_source is
-  # deliberately NOT listed (could be osquery, Elastic Defend, ESF-based
-  # EDR, etc. — Sigma doesn't tell us).
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
   macos/process_creation:
     platforms: [macos]
     event_types: [process_creation]
@@ -316,9 +341,9 @@ by_key:
   macos:
     platforms: [macos]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Cloud API logs — api_call because they're all REST-API event streams
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
+  # AWS
+  # ═══════════════════════════════════════════════════════════════════════
   aws/cloudtrail:
     platforms: [aws]
     data_sources: [aws_cloudtrail]
@@ -327,6 +352,14 @@ by_key:
     platforms: [aws]
     data_sources: [aws_cloudtrail]
     event_types: [api_call]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # AZURE (consolidated — all Azure services under one `azure` platform)
+  #
+  # Sigma splits Azure into 5 distinct services, each with its own log
+  # stream. The platform stays `azure` for all of them; the data_source
+  # carries the precision.
+  # ═══════════════════════════════════════════════════════════════════════
   azure/activitylogs:
     platforms: [azure]
     data_sources: [azure_activity]
@@ -335,47 +368,65 @@ by_key:
     platforms: [azure]
     data_sources: [azure_activity]
     event_types: [api_call]
-  # ── Azure sign-in is authentication (explicitly a sign-in event feed)
   azure/signinlogs:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
-  # ── Azure audit logs are API-level admin events
   azure/auditlogs:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_audit]
     event_types: [api_call]
-  # ── M365 Defender — alert-level feed, not raw API calls
+  azure/riskdetection:
+    platforms: [azure]
+    data_sources: [azure_risk_detection]
+    event_types: [audit_event]
+  azure/pim:
+    platforms: [azure]
+    data_sources: [azure_pim]
+    event_types: [audit_event]
   azure/m365defender:
     platforms: [microsoft_365]
-    data_sources: [defender_endpoint]
+    data_sources: [m365_defender]
     event_types: [audit_event]
   azure:
     platforms: [azure]
     data_sources: [azure_activity]
 
-  # Microsoft 365 — all treated as api_call (M365 Unified Audit is REST API)
+  # ═══════════════════════════════════════════════════════════════════════
+  # MICROSOFT 365 — 4 distinct services reflecting actual Microsoft
+  # architecture. Data source names mirror the upstream service.
+  # ═══════════════════════════════════════════════════════════════════════
   m365/threat_management:
     platforms: [microsoft_365]
-    data_sources: [m365_audit]
-    event_types: [api_call]
+    data_sources: [m365_defender]
+    event_types: [audit_event]
+  m365/threat_detection:
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+    event_types: [audit_event]
   m365/exchange:
     platforms: [microsoft_365]
     data_sources: [m365_exchange_audit]
+    event_types: [api_call]
+  m365/audit:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
     event_types: [api_call]
   m365:
     platforms: [microsoft_365]
     data_sources: [m365_audit]
     event_types: [api_call]
 
-  # GCP
-  gcp/google_workspace.admin:
-    platforms: [google_workspace]
-    data_sources: [google_workspace_audit]
-    event_types: [api_call]
+  # ═══════════════════════════════════════════════════════════════════════
+  # GCP + Google Workspace
+  # ═══════════════════════════════════════════════════════════════════════
   gcp/gcp.audit:
     platforms: [gcp]
     data_sources: [gcp_audit]
+    event_types: [api_call]
+  gcp/google_workspace.admin:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
     event_types: [api_call]
   gcp:
     platforms: [gcp]
@@ -386,11 +437,9 @@ by_key:
     data_sources: [google_workspace_audit]
     event_types: [api_call]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Identity / SaaS — all api_call (per vendor documentation)
-  # ───────────────────────────────────────────────────────────────────────
-  # Okta: https://developer.okta.com/docs/reference/api/event-types/
-  # Every System Log entry is an API-level event.
+  # ═══════════════════════════════════════════════════════════════════════
+  # IDENTITY PROVIDERS
+  # ═══════════════════════════════════════════════════════════════════════
   okta/okta:
     platforms: [okta]
     data_sources: [okta_system_log]
@@ -399,8 +448,19 @@ by_key:
     platforms: [okta]
     data_sources: [okta_system_log]
     event_types: [api_call]
+  # OneLogin uses `onelogin.events` as its service name (dot notation).
+  onelogin/onelogin.events:
+    platforms: [onelogin]
+    data_sources: [onelogin_events]
+    event_types: [api_call]
+  onelogin:
+    platforms: [onelogin]
+    data_sources: [onelogin_events]
+    event_types: [api_call]
 
-  # GitHub / GitLab audit logs — API-driven admin events
+  # ═══════════════════════════════════════════════════════════════════════
+  # DEVOPS / SOURCE CONTROL
+  # ═══════════════════════════════════════════════════════════════════════
   github/audit:
     platforms: [github]
     data_sources: [github_audit]
@@ -413,10 +473,18 @@ by_key:
     platforms: [gitlab]
     data_sources: [gitlab_audit]
     event_types: [api_call]
+  bitbucket/audit:
+    platforms: [bitbucket]
+    data_sources: [bitbucket_audit]
+    event_types: [api_call]
+  bitbucket:
+    platforms: [bitbucket]
+    data_sources: [bitbucket_audit]
+    event_types: [api_call]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Network appliances
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
+  # NETWORK APPLIANCES
+  # ═══════════════════════════════════════════════════════════════════════
   cisco/aaa:
     platforms: [network_appliance]
     data_sources: [cisco_aaa]
@@ -438,24 +506,151 @@ by_key:
     data_sources: [zeek]
     event_types: [network_connection]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # Container / Kubernetes
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
+  # CONTAINERS
+  # ═══════════════════════════════════════════════════════════════════════
   kubernetes/audit:
     platforms: [kubernetes]
     data_sources: [kubernetes_audit]
     event_types: [api_call]
+  kubernetes/audit/application:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
   kubernetes:
     platforms: [kubernetes]
     data_sources: [kubernetes_audit]
     event_types: [api_call]
+  docker:
+    platforms: [docker]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
 
-  # ───────────────────────────────────────────────────────────────────────
-  # product: "any" — Sigma rules that target multiple platforms via
-  # log-source-agnostic event categories. Platform is `cross_platform`
-  # by design; event_type comes from the category. data_source is
-  # intentionally NOT listed — Sigma deliberately doesn't specify one.
-  # ───────────────────────────────────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
+  # APPLICATION FRAMEWORKS (runtime-level detections)
+  #
+  # These all use `category: application` with a product naming the
+  # framework. They're inherently cross-platform (the framework runs
+  # on any OS). Data source is the generic `application_logs` — the
+  # actual origin varies by deployment (container stdout, app logger,
+  # etc.) and Sigma doesn't specify.
+  # ═══════════════════════════════════════════════════════════════════════
+  django/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  django:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  jvm/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  jvm:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  spring/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  spring:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  nodejs/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  nodejs:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  python/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  python:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  ruby_on_rails/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  ruby_on_rails:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  sql/application:
+    platforms: [cross_platform]
+    data_sources: [database_logs]
+    event_types: [audit_event]
+  sql:
+    platforms: [cross_platform]
+    data_sources: [database_logs]
+    event_types: [audit_event]
+  velocity/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  velocity:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  opencanary/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  opencanary:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  rpc_firewall/application:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  rpc_firewall:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # BARE CATEGORY RULES (no product — format-agnostic detections)
+  #
+  # These rules appear in `rules/category/` and `rules/web/webserver_generic/`
+  # and apply to ANY vendor's logs. Platform is `cross_platform` or
+  # `network_appliance` depending on the nature of the detection.
+  # ═══════════════════════════════════════════════════════════════════════
+  webserver:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  proxy:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  dns:
+    platforms: [network_appliance]
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  antivirus:
+    platforms: [cross_platform]
+    data_sources: [antivirus_logs]
+    event_types: [audit_event]
+  database:
+    platforms: [cross_platform]
+    data_sources: [database_logs]
+    event_types: [audit_event]
+  firewall:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    event_types: [network_connection]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # product: "any" (Sigma cross-platform rules via log-agnostic categories)
+  # ═══════════════════════════════════════════════════════════════════════
   any/dns:
     platforms: [cross_platform]
     event_types: [dns_query]

@@ -260,25 +260,127 @@ def test_sigma_okta_is_api_call():
     assert "audit_event" not in result["event_types"]
 
 
-def test_sigma_m365_audit_is_api_call():
-    """Microsoft 365 unified audit is REST API-driven; classify as api_call."""
+def test_sigma_m365_audit_vs_threat_management():
+    """M365 has distinct services with different data_sources:
+    - `threat_management` / `threat_detection` = Defender for O365 feed
+    - `audit` = Unified Audit Log (REST API)
+    - `exchange` = Exchange Online admin/mail flow
+    """
+    # threat_management -> Defender (not plain api_call)
     parsed = _make_parsed(
         source="sigma",
         log_source={"product": "m365", "service": "threat_management"},
     )
     result = resolve_for_repo("sigma", parsed)
-    assert "api_call" in result["event_types"]
+    assert result["data_sources"] == ["m365_defender"]
+    assert result["event_types"] == ["audit_event"]
+
+    # audit -> unified audit log, which IS REST API
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "m365", "service": "audit"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["data_sources"] == ["m365_audit"]
+    assert result["event_types"] == ["api_call"]
+
+    # exchange -> Exchange-specific feed
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "m365", "service": "exchange"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["data_sources"] == ["m365_exchange_audit"]
 
 
 def test_sigma_azure_signin_is_authentication_not_api_call():
-    """Azure/Entra sign-in logs ARE authentication events — not generic
-    api_call — because the feed is exclusively sign-in activity."""
+    """Azure sign-in logs ARE authentication events — not generic
+    api_call — because the feed is exclusively sign-in activity.
+    Platform is `azure` (we consolidated — dropped the separate
+    azure_ad platform; data_source carries the Entra precision)."""
     parsed = _make_parsed(
         source="sigma",
         log_source={"product": "azure", "service": "signinlogs"},
     )
     result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["azure"]
+    assert result["data_sources"] == ["entra_id_signin"]
     assert result["event_types"] == ["authentication"]
+
+
+def test_sigma_azure_consolidation():
+    """All Azure services now resolve to platform=`azure` (no more
+    separate azure_ad platform). Data source gives the precision."""
+    cases = [
+        ("activitylogs", "azure_activity", "api_call"),
+        ("auditlogs", "entra_id_audit", "api_call"),
+        ("riskdetection", "azure_risk_detection", "audit_event"),
+        ("pim", "azure_pim", "audit_event"),
+    ]
+    for service, expected_ds, expected_et in cases:
+        parsed = _make_parsed(
+            source="sigma",
+            log_source={"product": "azure", "service": service},
+        )
+        result = resolve_for_repo("sigma", parsed)
+        assert result["platforms"] == ["azure"], f"service={service}"
+        assert result["data_sources"] == [expected_ds], f"service={service}"
+        assert result["event_types"] == [expected_et], f"service={service}"
+
+
+def test_sigma_bare_category_rules():
+    """Sigma has ~60 rules with no product that use format-agnostic
+    categories (webserver, antivirus, database, proxy). The resolver
+    must handle these via a bare category key lookup."""
+    cases = [
+        ("webserver", "network_appliance", "webserver_logs", "http_request"),
+        ("antivirus", "cross_platform", "antivirus_logs", "audit_event"),
+        ("database", "cross_platform", "database_logs", "audit_event"),
+        ("proxy", "network_appliance", "proxy_logs", "http_request"),
+        ("dns", "network_appliance", "dns_query_logs", "dns_query"),
+    ]
+    for category, expected_plat, expected_ds, expected_et in cases:
+        parsed = _make_parsed(source="sigma", log_source={"category": category})
+        result = resolve_for_repo("sigma", parsed)
+        assert result["platforms"] == [expected_plat], f"category={category}"
+        assert expected_ds in result["data_sources"], f"category={category}"
+        assert expected_et in result["event_types"], f"category={category}"
+
+
+def test_sigma_onelogin():
+    """OneLogin uses `onelogin.events` as its service name (dot notation)."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "onelogin", "service": "onelogin.events"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["onelogin"]
+    assert result["data_sources"] == ["onelogin_events"]
+    assert result["event_types"] == ["api_call"]
+
+
+def test_sigma_bitbucket():
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "bitbucket", "service": "audit"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["platforms"] == ["bitbucket"]
+    assert result["data_sources"] == ["bitbucket_audit"]
+    assert result["event_types"] == ["api_call"]
+
+
+def test_sigma_application_frameworks():
+    """Runtime framework rules (django, jvm, spring, etc.) are
+    cross-platform with application_logs as the data_source."""
+    for product in ["django", "jvm", "spring", "nodejs", "python", "opencanary"]:
+        parsed = _make_parsed(
+            source="sigma",
+            log_source={"product": product, "category": "application"},
+        )
+        result = resolve_for_repo("sigma", parsed)
+        assert result["platforms"] == ["cross_platform"], f"product={product}"
+        assert result["data_sources"] == ["application_logs"], f"product={product}"
 
 
 # ── Elastic vendor ──────────────────────────────────────────────────────

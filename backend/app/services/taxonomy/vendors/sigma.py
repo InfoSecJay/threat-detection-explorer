@@ -45,6 +45,15 @@ def resolve(parsed: "ParsedRule") -> dict:
         keys_to_try.append(f"{product}/{category}")
     if product:
         keys_to_try.append(product)
+    # Bare category / service — Sigma has ~60 rules with no product that
+    # use format-agnostic categories like `webserver`, `antivirus`,
+    # `database`, `proxy`, `dns`, `firewall`, or SaaS services like
+    # `onelogin.events`. Key them directly by the category/service so we
+    # can still classify them.
+    if not product and category:
+        keys_to_try.append(category)
+    if not product and service:
+        keys_to_try.append(service)
 
     platforms: set[str] = set()
     data_sources: set[str] = set()
