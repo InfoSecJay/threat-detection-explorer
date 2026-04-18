@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     # Frontend URL (for CORS in production)
     frontend_url: Optional[str] = None
 
+    # ── Taxonomy drift notifications (Issue 2) ──────────────────────────
+    # When enabled, the worker opens/updates a GitHub issue after each
+    # sync for any repo with unmapped rules. This is a backend-only
+    # signal — it never surfaces on the public frontend.
+    taxonomy_notifications_enabled: bool = False
+    github_token: Optional[str] = None  # PAT with repo:issues write scope
+    github_repo_owner: Optional[str] = "InfoSecJay"
+    github_repo_name: Optional[str] = "threat-detection-explorer"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

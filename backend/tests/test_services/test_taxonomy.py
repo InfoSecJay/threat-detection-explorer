@@ -60,9 +60,45 @@ def test_resolver_always_returns_three_lists():
         assert "platforms" in result
         assert "data_sources" in result
         assert "event_types" in result
+        assert "matched" in result
+        assert "fingerprint" in result
         for key in ("platforms", "data_sources", "event_types"):
             assert isinstance(result[key], list)
             assert len(result[key]) >= 1, f"{repo}.{key} was empty"
+
+
+def test_resolver_matched_false_for_empty_input():
+    """An empty rule for a vendor without defaults should produce matched=False.
+
+    Vendors with `always_includes` in their mapping (elastic_protections,
+    elastic_hunting, lolrmm, sentinel, sublime) inject signal into every
+    rule by design and are excluded here — they can never produce an
+    "unmapped" rule, which is architecturally correct for closed sets
+    like agent-resident behavior rules.
+    """
+    for repo in ["sigma", "elastic", "splunk"]:
+        parsed = _make_parsed(source=repo)
+        result = resolve_for_repo(repo, parsed)
+        assert result["matched"] is False, f"{repo} should report matched=False on empty input"
+
+
+def test_resolver_matched_true_for_mapped_input():
+    """A rule whose logsource hits the mapping should report matched=True."""
+    parsed = _make_parsed(
+        source="sigma",
+        log_source={"product": "windows", "category": "process_creation"},
+    )
+    result = resolve_for_repo("sigma", parsed)
+    assert result["matched"] is True
+
+
+def test_resolver_fingerprint_is_stable_across_calls():
+    """Identical inputs produce identical fingerprints."""
+    ls = {"product": "linux", "service": "auditd"}
+    a = resolve_for_repo("sigma", _make_parsed(source="sigma", log_source=ls))
+    b = resolve_for_repo("sigma", _make_parsed(source="sigma", log_source=ls))
+    assert a["fingerprint"] == b["fingerprint"]
+    assert a["fingerprint"].startswith("sigma:")
 
 
 def test_resolver_returns_only_canonical_values():

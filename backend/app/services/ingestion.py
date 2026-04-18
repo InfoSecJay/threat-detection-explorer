@@ -163,6 +163,18 @@ class IngestionService:
                 normalized = normalizer.normalize(parsed)
                 stats.normalized += 1
 
+                # Taxonomy coverage telemetry (Issue 2). Records whether
+                # the canonical resolver found a mapping for this rule,
+                # grouped by logsource fingerprint so drift reports
+                # collapse identical misses.
+                stats.record_taxonomy_result(
+                    matched=normalized.taxonomy_matched,
+                    fingerprint=normalized.taxonomy_fingerprint,
+                    rule_id=normalized.rule_id,
+                    source_file=normalized.source_file,
+                    title=normalized.title,
+                )
+
                 # Convert to database model
                 detection = self._to_detection_model(normalized)
                 rules_to_store.append(detection)

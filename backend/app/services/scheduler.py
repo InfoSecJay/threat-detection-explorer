@@ -33,6 +33,7 @@ from app.database import async_session_maker
 from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
+from app.services.taxonomy_notifier import notify_drift
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,10 @@ async def run_full_sync_job(
                     "errors": 0,
                     "warnings": 0,
                     "message": "",
+                    "taxonomy_matched": 0,
+                    "taxonomy_unmatched": 0,
+                    "taxonomy_coverage_percent": 0.0,
+                    "taxonomy_unmatched_by_fingerprint": {},
                 }
 
                 try:
@@ -134,6 +139,14 @@ async def run_full_sync_job(
                     repo_result["errors"] = stats.error_count
                     repo_result["warnings"] = stats.warning_count
                     repo_result["message"] = f"Stored {stats.stored} rules"
+                    repo_result["taxonomy_matched"] = stats.taxonomy_matched_count
+                    repo_result["taxonomy_unmatched"] = stats.taxonomy_unmatched_count
+                    repo_result["taxonomy_coverage_percent"] = round(
+                        stats.taxonomy_coverage_percent, 2
+                    )
+                    repo_result["taxonomy_unmatched_by_fingerprint"] = (
+                        stats.taxonomy_unmatched_by_fingerprint
+                    )
 
                     total_discovered += stats.discovered
                     total_stored += stats.stored
@@ -142,7 +155,9 @@ async def run_full_sync_job(
 
                     logger.info(
                         f"Completed {repo_name}: stored={stats.stored}, "
-                        f"errors={stats.error_count}"
+                        f"errors={stats.error_count}, "
+                        f"taxonomy_coverage={stats.taxonomy_coverage_percent:.1f}% "
+                        f"({stats.taxonomy_unmatched_count} unmapped)"
                     )
 
                 except Exception as e:
@@ -170,6 +185,16 @@ async def run_full_sync_job(
                 f"discovered={total_discovered}, stored={total_stored}, "
                 f"errors={total_errors}, duration={job.duration_seconds:.1f}s"
             )
+
+            # Taxonomy drift notifications (Issue 2 observability layer).
+            # Opens/updates GitHub issues for any repo with unmapped
+            # rules. Feature-flagged off by default; no-ops if the
+            # notifier isn't configured. Wrapped in a try so a notifier
+            # bug never degrades the sync's completed status.
+            try:
+                await notify_drift(repo_results, str(job_id))
+            except Exception as e:
+                logger.warning(f"Taxonomy drift notifier raised: {e}", exc_info=True)
 
             return job
 

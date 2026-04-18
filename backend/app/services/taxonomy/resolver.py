@@ -8,8 +8,18 @@ repo names to those functions and provides the unified entry point.
 Public API:
 
     resolve_for_repo(repo_name: str, parsed: ParsedRule) -> dict
-        Returns {"platforms": [...], "data_sources": [...], "event_types": [...]}
-        with all values from the canonical vocabulary (or "unknown").
+        Returns {
+            "platforms": [...],
+            "data_sources": [...],
+            "event_types": [...],
+            "matched": bool,           # True if any dimension was resolved from vendor data
+            "fingerprint": str,        # stable signature of the input for grouping unmapped rules
+        }
+
+The `matched` signal separates "the vendor didn't provide enough info"
+(matched=False, values fall back to [UNKNOWN]) from "the mapping tables
+don't cover this logsource yet" — both historically looked the same.
+It's the key input to coverage metrics + drift notifications.
 """
 
 from typing import TYPE_CHECKING, Callable
@@ -55,10 +65,16 @@ def resolve_for_repo(repo_name: str, parsed: "ParsedRule") -> dict:
         parsed: The vendor's `ParsedRule` instance from the parser.
 
     Returns:
-        A dict with three list[str] entries:
-          - `platforms`: canonical platform identifiers
-          - `data_sources`: canonical data source identifiers
-          - `event_types`: canonical event type identifiers
+        A dict with five entries:
+          - `platforms`: canonical platform identifiers (list[str])
+          - `data_sources`: canonical data source identifiers (list[str])
+          - `event_types`: canonical event type identifiers (list[str])
+          - `matched`: True if the vendor resolver produced ANY canonical
+            value (before UNKNOWN fallback). False means the logsource
+            signature didn't hit any mapping — feeds coverage metrics.
+          - `fingerprint`: stable short string identifying this rule's
+            logsource signature. Used to group unmapped rules in drift
+            reports so identical misses become one ticket, not many.
 
         Each list is sorted, deduplicated, and contains values only from
         the canonical vocabulary in `taxonomy.canonical`. If the vendor
@@ -77,14 +93,21 @@ def resolve_for_repo(repo_name: str, parsed: "ParsedRule") -> dict:
 
     result = resolver(parsed)
 
-    # Defensive: ensure the resolver returned the expected shape and
-    # apply unknown fallback. Vendor resolvers SHOULD do this themselves
-    # but we double-check here so a bug in one resolver can't cause an
-    # ingestion-blocking exception downstream.
+    # Capture raw values BEFORE applying the UNKNOWN fallback so we can
+    # tell "vendor data produced nothing" from "vendor data was mapped
+    # to canonical values". This is the definition of `matched` that
+    # feeds the coverage metrics.
+    raw_platforms = result.get("platforms") or []
+    raw_data_sources = result.get("data_sources") or []
+    raw_event_types = result.get("event_types") or []
+    matched = bool(raw_platforms or raw_data_sources or raw_event_types)
+
     return {
-        "platforms": _ensure_list(result.get("platforms")),
-        "data_sources": _ensure_list(result.get("data_sources")),
-        "event_types": _ensure_list(result.get("event_types")),
+        "platforms": _ensure_list(raw_platforms),
+        "data_sources": _ensure_list(raw_data_sources),
+        "event_types": _ensure_list(raw_event_types),
+        "matched": matched,
+        "fingerprint": _compute_fingerprint(repo_name, parsed),
     }
 
 
@@ -101,3 +124,56 @@ def _ensure_list(value) -> list[str]:
     else:
         value = [str(value)]
     return value if value else [UNKNOWN]
+
+
+def _compute_fingerprint(repo_name: str, parsed: "ParsedRule") -> str:
+    """Build a stable short string representing the rule's logsource signature.
+
+    Used to group unmapped rules in drift reports: identical fingerprints
+    collapse to one row, so "50 new Sigma rules with product=foo/service=bar"
+    surfaces as one entry, not 50. Format varies per vendor but the key
+    invariant is stability — the same input always produces the same
+    fingerprint.
+    """
+    ls = parsed.log_source or {}
+    extra = parsed.extra or {}
+
+    if repo_name == "sigma":
+        return (
+            f"sigma:{ls.get('product') or '-'}"
+            f"/{ls.get('service') or '-'}"
+            f"/{ls.get('category') or '-'}"
+        )
+    if repo_name in ("elastic", "elastic_hunting", "elastic_protections"):
+        indices = ls.get("indices") or extra.get("index") or []
+        integrations = extra.get("integration") or []
+        if isinstance(integrations, str):
+            integrations = [integrations]
+        idx = ",".join(sorted(str(i).lower() for i in indices)) if indices else "-"
+        itg = ",".join(sorted(str(i).lower() for i in integrations)) if integrations else "-"
+        return f"{repo_name}:{idx}|integ:{itg}"
+    if repo_name == "splunk":
+        ds = extra.get("data_source") or []
+        if isinstance(ds, str):
+            ds = [ds]
+        labels = ",".join(sorted(str(d).lower() for d in ds)) if ds else "-"
+        return f"splunk:{labels}"
+    if repo_name == "sentinel":
+        connectors = extra.get("requiredDataConnectors") or []
+        connector_ids: list[str] = []
+        data_types: list[str] = []
+        for c in connectors:
+            if isinstance(c, dict):
+                cid = c.get("connectorId")
+                if cid:
+                    connector_ids.append(str(cid).lower())
+                for dt in c.get("dataTypes") or []:
+                    data_types.append(str(dt).lower())
+        c_str = ",".join(sorted(set(connector_ids))) if connector_ids else "-"
+        d_str = ",".join(sorted(set(data_types))) if data_types else "-"
+        return f"sentinel:{c_str}|dt:{d_str}"
+    if repo_name == "lolrmm":
+        return f"lolrmm:{ls.get('product') or '-'}"
+    if repo_name == "sublime":
+        return "sublime:email"
+    return f"{repo_name}:-"

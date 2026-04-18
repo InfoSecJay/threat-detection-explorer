@@ -97,6 +97,15 @@ class NormalizedDetection:
     taxonomy_data_sources: list[str] = field(default_factory=list)
     taxonomy_event_types: list[str] = field(default_factory=list)
 
+    # Coverage signal — True if the resolver found a mapping, False if
+    # we fell through to [UNKNOWN] for every dimension. Feeds per-sync
+    # coverage metrics + drift notifications. Not persisted to the DB
+    # (yet); lives on the per-sync stats and sync_job.repository_results.
+    taxonomy_matched: bool = False
+    # Stable signature of the rule's logsource input — groups identical
+    # unmapped rules in drift reports.
+    taxonomy_fingerprint: str = ""
+
 
 class BaseNormalizer(ABC):
     """Abstract base class for detection rule normalizers."""
@@ -117,17 +126,25 @@ class BaseNormalizer(ABC):
             GitService(repo_path) if repo_path else None
         )
 
-    def _resolve_taxonomy(self, parsed: ParsedRule) -> tuple[list[str], list[str], list[str]]:
-        """Resolve canonical (platforms, data_sources, event_types) for a parsed rule.
+    def _resolve_taxonomy(
+        self, parsed: ParsedRule
+    ) -> tuple[list[str], list[str], list[str], bool, str]:
+        """Resolve canonical taxonomy + coverage signal for a parsed rule.
 
         Delegates to `app.services.taxonomy.resolve_for_repo` using the
         repo name carried on the parsed rule. Subclasses call this once
         in `normalize()` and pass the result into `NormalizedDetection`.
 
-        The taxonomy resolver is total — it always returns three lists,
-        each containing at least `["unknown"]` if the vendor data didn't
-        supply enough info to determine a value. So this method never
-        raises and never returns empty lists.
+        Returns a 5-tuple:
+          (platforms, data_sources, event_types, matched, fingerprint)
+
+        The first three lists always contain at least `["unknown"]` if
+        the vendor data didn't supply enough info, so this method never
+        raises and never returns empty lists. `matched` is True iff ANY
+        of the three dimensions got a non-empty value from vendor data
+        (before the UNKNOWN fallback). `fingerprint` is a stable short
+        string identifying the rule's logsource signature, used to group
+        unmapped rules in drift reports.
         """
         # Lazy import: keeps the taxonomy package out of the import chain
         # until first use, and avoids any circular-import surprises.
@@ -138,6 +155,8 @@ class BaseNormalizer(ABC):
             result["platforms"],
             result["data_sources"],
             result["event_types"],
+            result["matched"],
+            result["fingerprint"],
         )
 
     def _resolve_rule_dates(

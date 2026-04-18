@@ -70,7 +70,13 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
 
         # Canonical taxonomy (Issue 2)
-        tax_platforms, tax_data_sources, tax_event_types = self._resolve_taxonomy(parsed)
+        (
+            tax_platforms,
+            tax_data_sources,
+            tax_event_types,
+            tax_matched,
+            tax_fingerprint,
+        ) = self._resolve_taxonomy(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -113,6 +119,8 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             taxonomy_platforms=tax_platforms,
             taxonomy_data_sources=tax_data_sources,
             taxonomy_event_types=tax_event_types,
+            taxonomy_matched=tax_matched,
+            taxonomy_fingerprint=tax_fingerprint,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

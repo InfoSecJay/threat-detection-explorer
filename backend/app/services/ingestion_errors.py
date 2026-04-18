@@ -58,6 +58,19 @@ class IngestionStats:
     # Error tracking
     errors: list[IngestionError] = field(default_factory=list)
 
+    # Taxonomy coverage signals (Issue 2 observability layer). Populated
+    # from `NormalizedDetection.taxonomy_matched` + `taxonomy_fingerprint`
+    # during ingestion. Feeds per-sync coverage metrics + drift
+    # notifications — never surfaced to the public frontend.
+    taxonomy_matched_count: int = 0
+    taxonomy_unmatched_count: int = 0
+    # Aggregated unmapped rules grouped by logsource fingerprint, so
+    # "50 new rules with product=foo/service=bar" collapses to one row.
+    # Shape: {fingerprint: {"count": int, "samples": [rule_summary, ...]}}
+    # where each sample is {"rule_id", "source_file", "title"}. Sample
+    # list is capped at 5 per fingerprint to keep the payload small.
+    taxonomy_unmatched_by_fingerprint: dict[str, dict] = field(default_factory=dict)
+
     # Timing
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -78,6 +91,40 @@ class IngestionStats:
             message=message,
             details=details,
         ))
+
+    def record_taxonomy_result(
+        self,
+        matched: bool,
+        fingerprint: str,
+        rule_id: Optional[str],
+        source_file: str,
+        title: str,
+    ) -> None:
+        """Track taxonomy resolver outcome for one rule.
+
+        `matched=True` means the vendor resolver produced at least one
+        canonical value. `matched=False` means the logsource signature
+        fell through to UNKNOWN — we group these by fingerprint so
+        identical misses coalesce into one drift-report row.
+        """
+        if matched:
+            self.taxonomy_matched_count += 1
+            return
+
+        self.taxonomy_unmatched_count += 1
+        bucket = self.taxonomy_unmatched_by_fingerprint.setdefault(
+            fingerprint or "-",
+            {"count": 0, "samples": []},
+        )
+        bucket["count"] += 1
+        # Cap samples per fingerprint so JSON stays small even with huge
+        # corpora. The first 5 are plenty to eyeball the pattern.
+        if len(bucket["samples"]) < 5:
+            bucket["samples"].append({
+                "rule_id": rule_id,
+                "source_file": source_file,
+                "title": title,
+            })
 
     @property
     def error_count(self) -> int:
@@ -113,6 +160,14 @@ class IngestionStats:
             by_stage[stage].append(error.to_dict())
         return by_stage
 
+    @property
+    def taxonomy_coverage_percent(self) -> float:
+        """Percentage of normalized rules that resolved to a canonical mapping."""
+        total = self.taxonomy_matched_count + self.taxonomy_unmatched_count
+        if total == 0:
+            return 0.0
+        return (self.taxonomy_matched_count / total) * 100
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -128,6 +183,10 @@ class IngestionStats:
             "errors_by_stage": self.get_errors_by_stage(),
             # Include first N errors for quick review
             "sample_errors": [e.to_dict() for e in self.errors[:20]],
+            "taxonomy_matched": self.taxonomy_matched_count,
+            "taxonomy_unmatched": self.taxonomy_unmatched_count,
+            "taxonomy_coverage_percent": round(self.taxonomy_coverage_percent, 2),
+            "taxonomy_unmatched_by_fingerprint": self.taxonomy_unmatched_by_fingerprint,
         }
 
     def to_summary_dict(self) -> dict:
@@ -142,4 +201,7 @@ class IngestionStats:
             "warning_count": self.warning_count,
             "success_rate": round(self.success_rate, 2),
             "duration_seconds": self.duration_seconds,
+            "taxonomy_matched": self.taxonomy_matched_count,
+            "taxonomy_unmatched": self.taxonomy_unmatched_count,
+            "taxonomy_coverage_percent": round(self.taxonomy_coverage_percent, 2),
         }

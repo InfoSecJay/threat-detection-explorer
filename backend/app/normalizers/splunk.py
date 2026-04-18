@@ -41,7 +41,13 @@ class SplunkNormalizer(BaseNormalizer):
         )
 
         # Canonical taxonomy (Issue 2)
-        tax_platforms, tax_data_sources, tax_event_types = self._resolve_taxonomy(parsed)
+        (
+            tax_platforms,
+            tax_data_sources,
+            tax_event_types,
+            tax_matched,
+            tax_fingerprint,
+        ) = self._resolve_taxonomy(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -84,6 +90,8 @@ class SplunkNormalizer(BaseNormalizer):
             taxonomy_platforms=tax_platforms,
             taxonomy_data_sources=tax_data_sources,
             taxonomy_event_types=tax_event_types,
+            taxonomy_matched=tax_matched,
+            taxonomy_fingerprint=tax_fingerprint,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:
