@@ -29,19 +29,19 @@ connectors:
     data_sources: [azure_activity]
     event_types: [api_call]
   azureactivedirectory:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin, entra_id_audit]
     event_types: [authentication, audit_event]
   azuread:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin, entra_id_audit]
     event_types: [authentication, audit_event]
   entraid:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
   azureadidentityprotection:
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
   # ── Microsoft 365 / Defender ─────────────────────────────────────────

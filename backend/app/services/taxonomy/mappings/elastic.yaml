@@ -1,66 +1,20 @@
-# Elastic Detection Rules → canonical taxonomy mappings.
+# Elastic Detection Rules -> canonical taxonomy mappings.
 #
-# Two signals from Elastic rules:
-#   - `index` patterns (most reliable, fine-grained)
-#   - `integration` plugins (coarse, used as fallback)
+# Based on a catalog of 1,705 rules with 47 unique integrations and
+# 82 unique index patterns. Two signals:
+#   1. `index` patterns (most reliable, fine-grained) — matched first
+#   2. `integration` plugins (coarse, used as fallback)
 #
-# Index patterns can be wildcarded with `*`. The resolver does prefix
-# matching so `logs-aws.cloudtrail-default-2024.01.01` matches
-# `logs-aws.cloudtrail*`.
+# A single rule can span many indices (Elastic's cross-platform rules
+# often list 6+ index patterns); the resolver unions across all matches.
+#
+# Design: same "no inference" + "full granularity" principles as sigma.yaml.
+# Platform is `azure` everywhere (consolidated from azure + azure_ad).
 
 index_patterns:
-  # ── AWS ───────────────────────────────────────────────────────────────
-  "logs-aws.cloudtrail*":
-    platforms: [aws]
-    data_sources: [aws_cloudtrail]
-    event_types: [api_call]
-  "filebeat-*":  # legacy; usually CloudTrail in this codebase
-    platforms: [aws]
-    data_sources: [aws_cloudtrail]
-    event_types: [api_call]
-  "logs-aws.guardduty*":
-    platforms: [aws]
-    data_sources: [aws_guardduty]
-    event_types: [audit_event]
-  "logs-aws.securityhub*":
-    platforms: [aws]
-    data_sources: [aws_security_hub]
-    event_types: [audit_event]
-  "logs-aws.vpcflow*":
-    platforms: [aws]
-    data_sources: [aws_vpc_flow]
-    event_types: [network_connection]
-  # ── Azure / Entra ID / M365 ───────────────────────────────────────────
-  "logs-azure.signinlogs*":
-    platforms: [azure_ad]
-    data_sources: [entra_id_signin]
-    event_types: [authentication]
-  "logs-azure.auditlogs*":
-    platforms: [azure_ad]
-    data_sources: [entra_id_audit]
-    event_types: [audit_event]
-  "logs-azure.activitylogs*":
-    platforms: [azure]
-    data_sources: [azure_activity]
-    event_types: [api_call]
-  "logs-o365*":
-    platforms: [microsoft_365]
-    data_sources: [m365_audit]
-    event_types: [audit_event]
-  "logs-microsoft_defender_endpoint*":
-    platforms: [windows]
-    data_sources: [defender_endpoint]
-    event_types: [process_creation, network_connection, file_event]
-  # ── GCP / Workspace ───────────────────────────────────────────────────
-  "logs-gcp.audit*":
-    platforms: [gcp]
-    data_sources: [gcp_audit]
-    event_types: [api_call]
-  "logs-google_workspace*":
-    platforms: [google_workspace]
-    data_sources: [google_workspace_audit]
-    event_types: [audit_event]
-  # ── Endpoint (Elastic Defend) ─────────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════
+  # ELASTIC DEFEND (endpoint agent)
+  # ═══════════════════════════════════════════════════════════════════════
   "logs-endpoint.events.process-*":
     platforms: [windows, linux, macos]
     data_sources: [elastic_defend]
@@ -77,31 +31,61 @@ index_patterns:
     platforms: [windows]
     data_sources: [elastic_defend]
     event_types: [registry_event]
-  "logs-endpoint.events.dns-*":
-    platforms: [windows, linux, macos]
-    data_sources: [elastic_defend]
-    event_types: [dns_query]
   "logs-endpoint.events.library-*":
     platforms: [windows, linux, macos]
     data_sources: [elastic_defend]
     event_types: [image_load]
+  "logs-endpoint.events.dns-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [dns_query]
   "logs-endpoint.events.api-*":
     platforms: [windows, linux, macos]
     data_sources: [elastic_defend]
     event_types: [api_call]
+  "logs-endpoint.events.device-*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [audit_event]
+  "logs-endpoint.events.*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
   "logs-endpoint.alerts-*":
     platforms: [windows, linux, macos]
     data_sources: [elastic_defend]
     event_types: [audit_event]
+  "logs-endpoint.*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
   "endgame-*":
     platforms: [windows, linux, macos]
     data_sources: [elastic_endgame]
-    event_types: [process_creation, network_connection, file_event]
-  # ── Windows Event Logs (multi-source) ────────────────────────────────
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CLOUD DEFEND (Elastic container/K8s security agent)
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-cloud_defend.process*":
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+    event_types: [process_creation]
+  "logs-cloud_defend.file*":
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+    event_types: [file_event]
+  "logs-cloud_defend.alerts-*":
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+    event_types: [audit_event]
+  "logs-cloud_defend*":
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # WINDOWS EVENT LOGS (multi-source)
+  # ═══════════════════════════════════════════════════════════════════════
   "logs-windows.sysmon_operational-*":
     platforms: [windows]
     data_sources: [sysmon]
-    event_types: [process_creation, network_connection, file_event, dns_query, registry_event]
   "logs-windows.powershell*":
     platforms: [windows]
     data_sources: [windows_powershell]
@@ -110,10 +94,21 @@ index_patterns:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
+  "logs-windows.*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  "winlogbeat-*":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # SYSTEM LOGS
+  # ═══════════════════════════════════════════════════════════════════════
   "logs-system.security*":
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    event_types: [authentication, audit_event]
+    event_types: [audit_event]
   "logs-system.system*":
     platforms: [windows]
     data_sources: [windows_security_event_log]
@@ -122,67 +117,305 @@ index_patterns:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
-  "winlogbeat-*":
-    platforms: [windows]
-    data_sources: [windows_security_event_log]
-    event_types: [audit_event]
-  # ── Linux / auditd ────────────────────────────────────────────────────
-  "logs-auditd_manager.auditd-*":
-    platforms: [linux]
-    data_sources: [auditd]
-    event_types: [process_creation, file_event]
   "logs-system.auth*":
     platforms: [linux]
     data_sources: [linux_syslog]
     event_types: [authentication]
+  "logs-system.syslog*":
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # LINUX / AUDITD
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-auditd_manager.auditd-*":
+    platforms: [linux]
+    data_sources: [auditd]
   "auditbeat-*":
     platforms: [linux]
     data_sources: [auditd]
-    event_types: [process_creation, file_event]
-  # ── Third-party EDR feeds ────────────────────────────────────────────
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # AWS
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-aws.cloudtrail*":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "logs-aws.guardduty*":
+    platforms: [aws]
+    data_sources: [aws_guardduty]
+    event_types: [audit_event]
+  "logs-aws.securityhub*":
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+  "logs-aws.vpcflow*":
+    platforms: [aws]
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  "logs-aws*":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "filebeat-*":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # AZURE (all services → platform=azure, precision via data_source)
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-azure.signinlogs*":
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "logs-azure.auditlogs*":
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [api_call]
+  "logs-azure.activitylogs*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "logs-azure.identity_protection*":
+    platforms: [azure]
+    data_sources: [azure_risk_detection]
+    event_types: [audit_event]
+  "logs-azure.graphactivitylogs*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "logs-azure.platformlogs*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [audit_event]
+  "logs-azure*":
+    platforms: [azure]
+    data_sources: [azure_activity]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # GCP / GOOGLE WORKSPACE
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-gcp*":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  "logs-google_workspace*":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [api_call]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # M365 / OFFICE 365
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-o365.audit*":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [api_call]
+  "logs-o365*":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [api_call]
+  "logs-m365_defender.event*":
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+    event_types: [audit_event]
+  "logs-m365_defender*":
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+    event_types: [audit_event]
+  "logs-microsoft_defender_endpoint*":
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # IDENTITY (Okta, CyberArk, GitHub)
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-okta*":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [api_call]
+  "logs-duo*":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [api_call]
+  "logs-github.audit*":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [api_call]
+  "logs-github*":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [api_call]
+  "logs-cyberarkpas.audit*":
+    platforms: [cross_platform]
+    data_sources: [cyberark_audit]
+    event_types: [api_call]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CONTAINERS / KUBERNETES
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-kubernetes.audit*":
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [api_call]
+  "logs-kubernetes*":
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # THIRD-PARTY EDR FEEDS
+  # ═══════════════════════════════════════════════════════════════════════
   "logs-crowdstrike.fdr*":
     platforms: [windows, linux, macos]
     data_sources: [crowdstrike_fdr]
-    event_types: [process_creation, network_connection, file_event, dns_query]
+  "logs-crowdstrike.alert*":
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+    event_types: [audit_event]
+  "logs-crowdstrike*":
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
   "logs-sentinel_one_cloud_funnel.*":
     platforms: [windows, linux, macos]
     data_sources: [sentinelone]
-    event_types: [process_creation, network_connection, file_event]
-  # ── Network ──────────────────────────────────────────────────────────
-  "logs-zeek.*":
+  "logs-sentinel_one.alert*":
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+    event_types: [audit_event]
+  "logs-sentinel_one.threat*":
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+    event_types: [audit_event]
+  "logs-jamf_protect*":
+    platforms: [macos]
+    data_sources: [jamf_protect]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # NETWORK (firewalls, IDS, traffic analysis)
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-panw.panos*":
     platforms: [network_appliance]
-    data_sources: [zeek]
-    event_types: [network_connection, dns_query]
-  "logs-suricata.*":
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  "logs-fortinet_fortigate*":
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [network_connection]
+  "logs-cisco_ftd*":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "logs-sonicwall_firewall*":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "logs-suricata*":
     platforms: [network_appliance]
     data_sources: [suricata]
     event_types: [network_connection]
-  "packetbeat-*":
+  "logs-zeek.*":
     platforms: [network_appliance]
     data_sources: [zeek]
     event_types: [network_connection]
-  # ── Identity ─────────────────────────────────────────────────────────
-  "logs-okta.*":
-    platforms: [okta]
-    data_sources: [okta_system_log]
-    event_types: [authentication, audit_event]
-  "logs-duo.*":
-    platforms: [duo]
-    data_sources: [duo_activity]
-    event_types: [authentication]
-  # ── GitHub ───────────────────────────────────────────────────────────
-  "logs-github.*":
-    platforms: [github]
-    data_sources: [github_audit]
+  "logs-network_traffic.http*":
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [http_request]
+  "logs-network_traffic.*":
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+  "packetbeat-*":
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # WEB SERVERS
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-nginx*":
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  "logs-apache*":
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  "logs-iis*":
+    platforms: [windows]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # LLM / AI
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-aws_bedrock*":
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  "logs-azure_openai*":
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # FIM / APM / ALERTS
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-fim.event*":
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [file_event]
+  "apm-*":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
     event_types: [audit_event]
-  # ── Kubernetes ───────────────────────────────────────────────────────
-  "logs-kubernetes.*":
-    platforms: [kubernetes]
-    data_sources: [kubernetes_audit]
+  "traces-apm*":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  ".alerts-security.*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "logs-elastic_security.alert*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "logs-google_secops.alert*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "logs-microsoft_sentinel.alert*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "logs-splunk.alert*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
     event_types: [audit_event]
 
-# Fallback when index_patterns don't match — coarse mapping by integration name
+  # ═══════════════════════════════════════════════════════════════════════
+  # ML / SPECIALIZED (beaconing etc. — analyze endpoint data)
+  # ═══════════════════════════════════════════════════════════════════════
+  "ml_beaconing*":
+    platforms: [cross_platform]
+    data_sources: [elastic_defend]
+    event_types: [network_connection]
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # CATCH-ALL
+  # ═══════════════════════════════════════════════════════════════════════
+  "logs-*":
+    platforms: []
+    data_sources: []
+    event_types: []
+
+# Fallback when no index_pattern matches — coarse mapping by integration name
 integrations:
+  # ── Endpoint ─────────────────────────────────────────────────────────
   endpoint:
     platforms: [windows, linux, macos]
     data_sources: [elastic_defend]
@@ -195,39 +428,185 @@ integrations:
   auditd_manager:
     platforms: [linux]
     data_sources: [auditd]
-  aws:
-    platforms: [aws]
-    data_sources: [aws_cloudtrail]
-  azure:
-    platforms: [azure]
-    data_sources: [azure_activity]
-  o365:
-    platforms: [microsoft_365]
-    data_sources: [m365_audit]
-  gcp:
-    platforms: [gcp]
-    data_sources: [gcp_audit]
-  google_workspace:
-    platforms: [google_workspace]
-    data_sources: [google_workspace_audit]
-  okta:
-    platforms: [okta]
-    data_sources: [okta_system_log]
-  duo:
-    platforms: [duo]
-    data_sources: [duo_activity]
+  sysmon_linux:
+    platforms: [linux]
+    data_sources: [sysmon]
+
+  # ── Third-party EDR ──────────────────────────────────────────────────
   crowdstrike:
     platforms: [windows, linux, macos]
     data_sources: [crowdstrike_fdr]
   sentinel_one_cloud_funnel:
     platforms: [windows, linux, macos]
     data_sources: [sentinelone]
+  sentinel_one:
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+  m365_defender:
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+  jamf_protect:
+    platforms: [macos]
+    data_sources: [jamf_protect]
+
+  # ── Cloud ────────────────────────────────────────────────────────────
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  aws_bedrock:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  azure:
+    platforms: [azure]
+    data_sources: [azure_activity]
+  azure_openai:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  o365:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [api_call]
+  gcp:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  google_workspace:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [api_call]
+
+  # ── Identity ─────────────────────────────────────────────────────────
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [api_call]
+  duo:
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [api_call]
   github:
     platforms: [github]
     data_sources: [github_audit]
-  network_traffic:
-    platforms: [network_appliance]
-    data_sources: [zeek]
+    event_types: [api_call]
+  cyberarkpas:
+    platforms: [cross_platform]
+    data_sources: [cyberark_audit]
+    event_types: [api_call]
+
+  # ── Containers ───────────────────────────────────────────────────────
   kubernetes:
     platforms: [kubernetes]
     data_sources: [kubernetes_audit]
+    event_types: [api_call]
+  cloud_defend:
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+
+  # ── Network ──────────────────────────────────────────────────────────
+  network_traffic:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+  panw:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  fortinet_fortigate:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [network_connection]
+  cisco_ftd:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  sonicwall_firewall:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  suricata:
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [network_connection]
+
+  # ── Web servers ──────────────────────────────────────────────────────
+  nginx:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  apache:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  apache_tomcat:
+    platforms: [cross_platform]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  iis:
+    platforms: [windows]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+
+  # ── FIM / APM ────────────────────────────────────────────────────────
+  fim:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [file_event]
+  apm:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+
+  # ── Elastic ML/behavioral (these analyze endpoint data internally) ──
+  pad:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [audit_event]
+  ded:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [audit_event]
+  lmd:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [audit_event]
+  dga:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [dns_query]
+  beaconing:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [network_connection]
+  problemchild:
+    platforms: [windows, linux, macos]
+    data_sources: [elastic_defend]
+    event_types: [process_creation]
+
+  # ── Alert aggregation / SIEM ─────────────────────────────────────────
+  elastic_security:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  google_secops:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  microsoft_sentinel:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  splunk:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  wiz:
+    platforms: [aws, azure, gcp]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  checkpoint_email:
+    platforms: [email]
+    data_sources: [email_message_metadata]
+    event_types: [email_message]

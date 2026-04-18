@@ -98,10 +98,14 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "osquery",
         "elastic_defend",  # Elastic Endpoint Security agent
         "elastic_endgame",  # Legacy endpoint product
+        "cloud_defend",      # Elastic Cloud Defend (container/K8s security agent)
         "crowdstrike_fdr",  # Falcon Data Replicator
         "defender_endpoint",  # Microsoft Defender for Endpoint (MDATP/MDE)
         "sentinelone",
         "carbon_black",
+        "jamf_protect",          # macOS enterprise security via Jamf
+        "cyberark_audit",        # CyberArk PAM audit logs
+        "network_traffic_logs",  # Elastic Network Traffic integration (Zeek/Suricata backend)
         # ── Cloud telemetry ─────────────────────────────────────────────────
         "aws_cloudtrail",
         "aws_security_hub",

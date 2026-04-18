@@ -11,11 +11,11 @@ index_patterns:
     data_sources: [aws_cloudtrail]
     event_types: [api_call]
   "logs-azure.signinlogs*":
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
   "logs-azure.auditlogs*":
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_audit]
     event_types: [audit_event]
   "logs-azure.activitylogs*":

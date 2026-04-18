@@ -571,5 +571,5 @@ def test_elastic_hunting_extracts_index_from_query():
         detection_logic_raw="FROM logs-azure.signinlogs-default | where ...",
     )
     result = resolve_for_repo("elastic_hunting", parsed)
-    assert "azure_ad" in result["platforms"]
+    assert "azure" in result["platforms"]
     assert "entra_id_signin" in result["data_sources"]

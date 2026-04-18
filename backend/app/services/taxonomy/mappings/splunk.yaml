@@ -101,7 +101,7 @@ data_source_labels:
     data_sources: [azure_activity]
     event_types: [api_call]
   "azure ad":
-    platforms: [azure_ad]
+    platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
   "o365":
