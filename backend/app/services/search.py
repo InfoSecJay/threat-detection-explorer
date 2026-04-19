@@ -433,6 +433,7 @@ class SearchService:
             "source": Detection.source,
             "severity": Detection.severity,
             "status": Detection.status,
+            "language": Detection.language,
             "created_at": Detection.created_at,
             "updated_at": Detection.updated_at,
             "rule_created_date": Detection.rule_created_date,

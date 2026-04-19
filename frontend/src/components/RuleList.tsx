@@ -321,17 +321,17 @@ export function RuleList({
                 >
                   Source <SortIndicator field="source" />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Lang
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('language')}
+                >
+                  Lang <SortIndicator field="language" />
                 </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
                   onClick={() => handleSort('severity')}
                 >
                   Severity <SortIndicator field="severity" />
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Platform
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
                   Tactics
@@ -415,15 +415,6 @@ export function RuleList({
                       >
                         {detection.severity.toUpperCase()}
                       </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {detection.platform ? (
-                        <span className="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs font-mono">
-                          {detection.platform.toUpperCase().replace('_', ' ')}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-600">-</span>
-                      )}
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1 max-w-[180px]">
