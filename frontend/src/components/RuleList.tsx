@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Detection, SearchFilters } from '../types';
-import { useMitre } from '../contexts/MitreContext';
 
 interface RuleListProps {
   detections: Detection[];
@@ -90,7 +89,6 @@ export function RuleList({
   enableSelection = true,
   onExportSelected,
 }: RuleListProps) {
-  const { getTacticName } = useMitre();
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -334,10 +332,13 @@ export function RuleList({
                   Severity <SortIndicator field="severity" />
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Tactics
+                  Platform
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Techniques
+                  Data Source
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
+                  Event Type
                 </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
@@ -417,49 +418,61 @@ export function RuleList({
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {detection.mitre_tactics.slice(0, 2).map((tactic) => (
-                          <span
-                            key={tactic}
-                            className="px-1.5 py-0.5 text-xs bg-void-700 text-gray-300 border border-void-600"
-                            title={tactic}
-                          >
-                            {getTacticName(tactic)}
-                          </span>
-                        ))}
-                        {detection.mitre_tactics.length > 2 && (
-                          <span
-                            className="text-xs text-gray-500"
-                            title={detection.mitre_tactics.map(t => `${t}: ${getTacticName(t)}`).join('\n')}
-                          >
-                            +{detection.mitre_tactics.length - 2}
-                          </span>
-                        )}
-                        {detection.mitre_tactics.length === 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {detection.taxonomy_platforms && detection.taxonomy_platforms.length > 0 ? (
+                          detection.taxonomy_platforms.map((p) => (
+                            <span
+                              key={p}
+                              className={`px-1.5 py-0.5 text-xs font-mono border ${
+                                p === 'unknown'
+                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
+                                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                              }`}
+                            >
+                              {p}
+                            </span>
+                          ))
+                        ) : (
                           <span className="text-xs text-gray-600">-</span>
                         )}
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-[120px]">
-                        {detection.mitre_techniques.slice(0, 2).map((tech) => (
-                          <span
-                            key={tech}
-                            className="px-1.5 py-0.5 bg-matrix-500/10 text-matrix-500 text-xs font-mono border border-matrix-500/20"
-                            title={tech}
-                          >
-                            {tech}
-                          </span>
-                        ))}
-                        {detection.mitre_techniques.length > 2 && (
-                          <span
-                            className="text-xs text-gray-500"
-                            title={detection.mitre_techniques.join(', ')}
-                          >
-                            +{detection.mitre_techniques.length - 2}
-                          </span>
+                      <div className="flex flex-wrap gap-1">
+                        {detection.taxonomy_data_sources && detection.taxonomy_data_sources.length > 0 ? (
+                          detection.taxonomy_data_sources.map((d) => (
+                            <span
+                              key={d}
+                              className={`px-1.5 py-0.5 text-xs font-mono border ${
+                                d === 'unknown'
+                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
+                                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                              }`}
+                            >
+                              {d}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-600">-</span>
                         )}
-                        {detection.mitre_techniques.length === 0 && (
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {detection.taxonomy_event_types && detection.taxonomy_event_types.length > 0 ? (
+                          detection.taxonomy_event_types.map((e) => (
+                            <span
+                              key={e}
+                              className={`px-1.5 py-0.5 text-xs font-mono border ${
+                                e === 'unknown'
+                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
+                                  : 'bg-orange-500/10 text-orange-300 border-orange-500/30'
+                              }`}
+                            >
+                              {e}
+                            </span>
+                          ))
+                        ) : (
                           <span className="text-xs text-gray-600">-</span>
                         )}
                       </div>
