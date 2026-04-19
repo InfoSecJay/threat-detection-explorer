@@ -166,6 +166,12 @@ index_patterns:
   # the AWS bucket. Rules that list only `filebeat-*` stay UNKNOWN —
   # honest over wrong.
 
+  # ── IBM QRadar (external SIEM connector) ─────────────────────────────
+  "logs-ibm_qradar.offense-*":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+
   # ═══════════════════════════════════════════════════════════════════════
   # HIGHER-ORDER RULES (alert-on-alert correlations)
   # ESQL rules that consume `.alerts-security-*` are correlating already-
@@ -620,6 +626,10 @@ integrations:
     platforms: [cross_platform]
     data_sources: [siem_alert]
     event_types: [audit_event]
+  ibm_qradar:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
   wiz:
     platforms: [aws, azure, gcp]
     data_sources: [siem_alert]
