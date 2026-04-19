@@ -100,10 +100,44 @@ data_source_labels:
     platforms: [azure]
     data_sources: [azure_activity]
     event_types: [api_call]
+  "azure monitor activity":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  # Entra ID / Azure AD variants. Splunk's data_source labels are verbose
+  # and inconsistent ("azure ad" vs "azure active directory" vs more
+  # specific per-event variants). Exact-match-first means each must be
+  # listed explicitly. Audit activity (member/role/consent/service
+  # principal/app) goes to `entra_id_audit`; sign-in events to
+  # `entra_id_signin`.
   "azure ad":
     platforms: [azure]
     data_sources: [entra_id_signin]
     event_types: [authentication]
+  "azure active directory":
+    platforms: [azure]
+    data_sources: [entra_id_signin, entra_id_audit]
+    event_types: [authentication, audit_event]
+  "azure active directory sign-in activity":
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "azure active directory add member to role":
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  "azure active directory consent to application":
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  "azure active directory add service principal":
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  "azure active directory update application":
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
   "o365":
     platforms: [microsoft_365]
     data_sources: [m365_audit]
@@ -113,6 +147,14 @@ data_source_labels:
     data_sources: [m365_audit]
     event_types: [audit_event]
   "google workspace":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  "g suite gmail":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [email_message]
+  "g suite drive":
     platforms: [google_workspace]
     data_sources: [google_workspace_audit]
     event_types: [audit_event]
@@ -163,6 +205,43 @@ data_source_labels:
     platforms: [network_appliance]
     data_sources: [zeek]
     event_types: [network_connection]
+  # Cisco Secure Firewall (née Firepower / FTD — Threat Defense). Multiple
+  # event types surface as distinct labels; each resolves to the same
+  # firewall data_source with an appropriate event_type.
+  "cisco secure firewall threat defense intrusion event":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "cisco secure firewall threat defense connection event":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "cisco secure firewall threat defense file event":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [file_event]
+  "cisco asa":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "cisco ios":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [audit_event]
+  "cisco sd-wan":
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    event_types: [network_connection]
+  "nginx access":
+    platforms: [network_appliance]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  # VMware ESXi ships audit events over syslog. Not OS-specific telemetry
+  # so platform=cross_platform (hypervisor layer) + linux_syslog format.
+  "vmware esxi syslog":
+    platforms: [cross_platform]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
   # ── Container ────────────────────────────────────────────────────────
   "kubernetes":
     platforms: [kubernetes]
@@ -177,6 +256,55 @@ data_source_labels:
     platforms: [windows]
     data_sources: [carbon_black]
     event_types: [process_creation, network_connection]
+  "osquery":
+    platforms: [windows, linux, macos]
+    data_sources: [osquery]
+    event_types: [audit_event]
+  # ── SaaS / DevOps ────────────────────────────────────────────────────
+  "github enterprise audit":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  "github organizations audit":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  "circleci":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── M365 / Copilot ───────────────────────────────────────────────────
+  "m365 exported ediscovery prompts":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "m365 copilot":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [api_call]
+  # ── LLM service logs ─────────────────────────────────────────────────
+  "ollama server":
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  "mcp server":  # Model Context Protocol
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+  # ── Misc apps / identity / file-transfer ─────────────────────────────
+  "crushftp":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  "pingid":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [authentication]
+  # Windows AD Monitor (admon) — directory-object audit feed
+  "windows active directory admon":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
 
 # Coarse fallback from `tags.security_domain`. Helpful when no explicit
 # data_source label was set. Note: we don't populate data_sources from
@@ -197,15 +325,23 @@ security_domain:
     event_types: [authentication]
 
 # Last-resort: if no data_source label and no security_domain match,
-# scan the search query for these keywords to pick up an event_type.
+# scan the search query for these keywords to fill in any still-empty
+# dimension (platforms / data_sources / event_types). Each entry can
+# contribute to multiple dimensions. Keyword matches are checked via
+# substring so the query `| from datamodel=Network_Resolution` hits
+# both `datamodel=network_resolution` and `network_resolution`.
 search_keywords:
+  # ── Endpoint / Windows ───────────────────────────────────────────────
   "process_name":
     event_types: [process_creation]
   "wineventlog":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
     event_types: [audit_event]
   "tstats":
     event_types: [process_creation]
   "datamodel=endpoint.processes":
+    platforms: [windows]
     event_types: [process_creation]
   "datamodel=network_resolution":
     event_types: [dns_query]
@@ -213,3 +349,38 @@ search_keywords:
     event_types: [authentication]
   "logon":
     event_types: [authentication]
+  # ── Zeek / Suricata network analyzers (search text often references
+  # the Zeek log type like `zeek:ssl`, `zeek:x509`, `zeek:conn`, etc.) ─
+  "zeek:":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  "zeek_":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  "suricata":
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [network_connection]
+  # ── osquery (endpoint monitoring) — shows up as `index=osquery` etc. ─
+  "osquery":
+    platforms: [windows, linux, macos]
+    data_sources: [osquery]
+    event_types: [audit_event]
+  # ── Cloud platforms (when search references their API/audit tables) ─
+  "cloudtrail":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "aws cloudtrail":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "azureactivity":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "datamodel=cloud":
+    platforms: [aws]
+    event_types: [api_call]

@@ -125,6 +125,105 @@ connectors:
     platforms: [google_workspace]
     data_sources: [google_workspace_audit]
     event_types: [audit_event]
+  # ── Azure Monitor Agent (AMA) ingest connectors ──────────────────────
+  # SyslogAMA is Linux syslog pulled in via Azure Monitor Agent — volume
+  # is high (83 rules) because many third-party appliances fall back to
+  # syslog when a native CEF/OCSF path doesn't exist.
+  syslogama:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  # CEF via AMA goes to the `CommonSecurityLog` table — dataType mapping
+  # below carries the real telemetry signal.
+  cefama:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    event_types: [network_connection]
+  # Custom Logs via AMA is the catch-all for any custom-schema ingestion.
+  # We don't know the shape, so cross_platform / application_logs.
+  customlogsama:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── Azure-native extras ──────────────────────────────────────────────
+  # Web Application Firewall — usually via the AzureDiagnostics table.
+  waf:
+    platforms: [azure, network_appliance]
+    data_sources: [azure_activity]
+    event_types: [network_connection]
+  # Microsoft Dataverse (Power Platform audit).
+  dataverse:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  # Microsoft Defender for IoT.
+  iot:
+    platforms: [cross_platform]
+    data_sources: [defender_cloud]
+    event_types: [audit_event]
+  # ── Third-party attack-path / AD security tools ──────────────────────
+  bloodhoundenterprise:
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  alsidforad:
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  tenable.ad:
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  tenableie:
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  # ── Third-party SIEM alert feeds (long tail — `*_cl` dataType fallback
+  # in the resolver catches anything not explicitly listed here) ───────
+  cloudflaredataconnector:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [network_connection]
+  cyblevisionalerts:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  cyfirmacyberintelligencedc:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  boschaishield:
+    platforms: [llm]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  authomize:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  theom:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  cognnisentineldataconnector:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  senservapro:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  sapbtpauditevents:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  42crunchapiprotection:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [api_call]
+  veeamcustomtablesdataconnector:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
 
 # Per-dataType overrides. SecurityAlert is a generic table that any
 # connector can produce, so detecting it at the data_type level lets us
@@ -147,6 +246,17 @@ data_types:
     data_sources: [entra_id_audit]
     event_types: [audit_event]
   officeactivity:
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  commonsecuritylog:  # CEF data pipe — usually firewall/proxy/NDR
+    platforms: [network_appliance]
+    event_types: [network_connection]
+  azurediagnostics:  # Azure resource diagnostic logs
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  dataverseactivity:
+    platforms: [microsoft_365]
     data_sources: [m365_audit]
     event_types: [audit_event]
 

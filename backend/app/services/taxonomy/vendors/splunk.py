@@ -64,8 +64,13 @@ def resolve(parsed: "ParsedRule") -> dict:
             # produce a meaningful data_source.
             event_types.update(entry.get("event_types") or [])
 
-    # Search query keyword fallback for event_type when nothing else fired
-    if not event_types:
+    # Search query keyword fallback — for any dimension still empty,
+    # scan the search text for known keywords. This catches rules that
+    # don't set an explicit data_source label OR a security_domain,
+    # which is 80+ rules in the corpus (Zeek, Suricata, osquery, etc.).
+    # Keywords contribute to a dimension only when nothing has resolved
+    # it yet, so an explicit label still beats a keyword match.
+    if not (platforms and data_sources and event_types):
         search_text = ""
         detection_logic = parsed.detection_logic_raw
         if isinstance(detection_logic, dict):
@@ -75,7 +80,13 @@ def resolve(parsed: "ParsedRule") -> dict:
 
         keyword_map = _MAPPING.get("search_keywords") or {}
         for keyword, mapping in keyword_map.items():
-            if keyword in search_text:
+            if keyword not in search_text:
+                continue
+            if not platforms:
+                platforms.update(mapping.get("platforms") or [])
+            if not data_sources:
+                data_sources.update(mapping.get("data_sources") or [])
+            if not event_types:
                 event_types.update(mapping.get("event_types") or [])
 
     return {

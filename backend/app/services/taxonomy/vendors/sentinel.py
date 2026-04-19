@@ -54,6 +54,7 @@ def resolve(parsed: "ParsedRule") -> dict:
 
         # Per-dataType overrides (e.g. SecurityAlert can mean different
         # things depending on the connector)
+        matched_any_dt = False
         for dt in data_types:
             if not isinstance(dt, str):
                 continue
@@ -62,6 +63,22 @@ def resolve(parsed: "ParsedRule") -> dict:
                 platforms.update(entry.get("platforms") or [])
                 data_sources.update(entry.get("data_sources") or [])
                 event_types.update(entry.get("event_types") or [])
+                matched_any_dt = True
+
+        # Pattern-based fallback for third-party custom tables. Sentinel's
+        # marketplace has ~230 unique third-party connectors (Cyble,
+        # CYFIRMA, BloodHound, Cloudflare, Theom, Authomize, Veeam, …) —
+        # too many to enumerate individually. Convention: they end in
+        # `_cl` (custom log) and represent ingested alert/detection feeds
+        # from external SIEMs/tools. Treat them as `siem_alert` unless
+        # an explicit entry already resolved them above.
+        if not matched_any_dt and not entry:
+            for dt in data_types:
+                if isinstance(dt, str) and dt.lower().strip().endswith("_cl"):
+                    data_sources.add("siem_alert")
+                    event_types.add("audit_event")
+                    platforms.add("cross_platform")
+                    break
 
     # Always includes — every Sentinel rule produces api_call / audit_event
     # at minimum because all the underlying tables are admin/audit logs

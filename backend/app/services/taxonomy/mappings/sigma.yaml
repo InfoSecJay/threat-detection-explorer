@@ -519,6 +519,18 @@ by_key:
     data_sources: [fortinet_firewall]
     event_types: [audit_event]
 
+  # ── FortiOS / SSL VPN daemon (CVE-2022-42475 rule) ──────────────────
+  # Sigma uses `fortios` (the firmware, not the appliance) as a separate
+  # product name. SSL VPN daemon logs are network-appliance authentication.
+  fortios/sslvpnd:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [authentication]
+  fortios:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [audit_event]
+
   # ── Huawei (1 rule: bgp auth) ───────────────────────────────────────
   huawei/bgp:
     platforms: [network_appliance]
@@ -734,6 +746,21 @@ by_key:
     platforms: [network_appliance]
     data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
     event_types: [network_connection]
+  # NetFlow is network-telemetry metadata (src/dst/bytes/protocol). Rules
+  # like `service: netflow` with no product hit the bare-service lookup.
+  netflow:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+
+  # ── Qualys — vulnerability management / compliance scanner ──────────
+  # Sigma has rules like Default Credentials Usage keyed only on
+  # `product: qualys` with no service/category. Qualys produces its own
+  # audit/event stream (scanner findings, config changes).
+  qualys:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
 
   # ═══════════════════════════════════════════════════════════════════════
   # product: "any" (Sigma cross-platform rules via log-agnostic categories)
