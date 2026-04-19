@@ -609,3 +609,60 @@ def test_elastic_hunting_extracts_index_from_query():
     result = resolve_for_repo("elastic_hunting", parsed)
     assert "azure" in result["platforms"]
     assert "entra_id_signin" in result["data_sources"]
+
+
+# ── Elastic tag walking + rule_type fallback ─────────────────────────────
+
+
+def test_elastic_tags_resolve_to_os_and_data_source():
+    """Tags like `Data Source: Elastic Defend` feed into the resolver."""
+    parsed = _make_parsed(
+        source="elastic",
+        tags=["Domain: Endpoint", "OS: Windows", "Data Source: Elastic Defend"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "windows" in result["platforms"]
+    assert "elastic_defend" in result["data_sources"]
+    assert result["matched"] is True
+
+
+def test_elastic_ml_rule_gets_ml_detection_event_type():
+    """type=machine_learning rules fall back to ml_detection event_type."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"type": "machine_learning", "integration": ["endpoint"]},
+        tags=["OS: Linux", "Rule Type: ML"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "ml_detection" in result["event_types"]
+    assert "elastic_ml" in result["data_sources"]
+    # Integration `endpoint` still contributes the platform list.
+    assert "linux" in result["platforms"]
+
+
+def test_elastic_higher_order_alerts_correlation():
+    """`.alerts-security-*` indices mark higher-order / alert-on-alert rules."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"index": [".alerts-security.alerts-default"]},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "alert_correlation" in result["event_types"]
+    assert "elastic_siem_alerts" in result["data_sources"]
+
+
+def test_elastic_filebeat_no_longer_bleeds_into_aws():
+    """Network rules with filebeat-* must not pick up aws_cloudtrail anymore."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={
+            "index": ["packetbeat-*", "filebeat-*", "logs-network_traffic.*"],
+            "integration": ["network_traffic"],
+        },
+        tags=["Domain: Network"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "aws" not in result["platforms"]
+    assert "aws_cloudtrail" not in result["data_sources"]
+    assert "network_appliance" in result["platforms"]
+    assert "network_traffic_logs" in result["data_sources"]

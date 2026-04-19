@@ -159,10 +159,28 @@ index_patterns:
     platforms: [aws]
     data_sources: [aws_cloudtrail]
     event_types: [api_call]
-  "filebeat-*":
-    platforms: [aws]
-    data_sources: [aws_cloudtrail]
-    event_types: [api_call]
+  # NOTE: `filebeat-*` is intentionally NOT mapped. It's Elastic's generic
+  # log-file shipper and carries anything (syslog, nginx, app logs, etc.).
+  # A prior mapping pointed it at aws_cloudtrail, which caused network
+  # rules (packetbeat + filebeat + logs-network_traffic.*) to bleed into
+  # the AWS bucket. Rules that list only `filebeat-*` stay UNKNOWN —
+  # honest over wrong.
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # HIGHER-ORDER RULES (alert-on-alert correlations)
+  # ESQL rules that consume `.alerts-security-*` are correlating already-
+  # fired alerts — Elastic calls these "higher-order" rules. The input
+  # isn't raw telemetry; it's detected activity.
+  # ═══════════════════════════════════════════════════════════════════════
+  ".alerts-security.alerts-*":
+    data_sources: [elastic_siem_alerts]
+    event_types: [alert_correlation]
+  ".alerts-security*":
+    data_sources: [elastic_siem_alerts]
+    event_types: [alert_correlation]
+  ".alerts-*":
+    data_sources: [elastic_siem_alerts]
+    event_types: [alert_correlation]
 
   # ═══════════════════════════════════════════════════════════════════════
   # AZURE (all services → platform=azure, precision via data_source)
@@ -610,3 +628,113 @@ integrations:
     platforms: [email]
     data_sources: [email_message_metadata]
     event_types: [email_message]
+
+# ═══════════════════════════════════════════════════════════════════════
+# TAGS — fallback signal when index + integration don't resolve everything
+#
+# Elastic rules use a structured tag vocabulary:
+#   "Domain: Endpoint|Network|Cloud|Identity and Access|SIEM|LLM|..."
+#   "OS: Windows|Linux|macOS"
+#   "Data Source: <vendor>"   (occasionally set)
+# The resolver walks `parsed.tags` in lowercase and matches against the
+# keys below. Matches UNION into the per-dimension sets, same as
+# index_patterns and integrations do. Only tags that reliably imply a
+# canonical value are mapped — vague tags like "Use Case: Threat
+# Detection" or "Tactic: Defense Evasion" are intentionally ignored.
+# ═══════════════════════════════════════════════════════════════════════
+tags:
+  # ── OS tags ──────────────────────────────────────────────────────────
+  "os: windows":
+    platforms: [windows]
+  "os: linux":
+    platforms: [linux]
+  "os: macos":
+    platforms: [macos]
+  # ── Domain tags (coarse platform hint when nothing else fires) ──────
+  "domain: endpoint":
+    # Endpoint tag alone doesn't tell us the OS; leave platforms empty
+    # so we don't force cross_platform onto a specifically-tagged rule.
+    data_sources: [elastic_defend]
+  "domain: network":
+    platforms: [network_appliance]
+  "domain: cloud":
+    # Cloud tag without a specific provider — leave for index/integration
+    # to discriminate. Intentionally empty mapping so the tag doesn't
+    # cause a false "matched" signal when nothing else matched.
+    platforms: []
+  "domain: identity and access":
+    event_types: [authentication]
+  "domain: siem":
+    data_sources: [elastic_siem_alerts]
+    event_types: [alert_correlation]
+  "domain: llm":
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+  "domain: container":
+    platforms: [kubernetes]
+  # ── Data Source tags (vendor-level — when set, these are precise) ───
+  "data source: elastic defend":
+    data_sources: [elastic_defend]
+  "data source: elastic endgame":
+    data_sources: [elastic_endgame]
+  "data source: sysmon":
+    platforms: [windows]
+    data_sources: [sysmon]
+  "data source: crowdstrike":
+    data_sources: [crowdstrike_fdr]
+  "data source: sentinelone":
+    data_sources: [sentinelone]
+  "data source: microsoft defender for endpoint":
+    data_sources: [defender_endpoint]
+  "data source: jamf protect":
+    platforms: [macos]
+    data_sources: [jamf_protect]
+  "data source: auditd manager":
+    platforms: [linux]
+    data_sources: [auditd]
+  "data source: system":
+    data_sources: [linux_syslog]
+  "data source: windows":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  "data source: aws":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+  "data source: azure":
+    platforms: [azure]
+    data_sources: [azure_activity]
+  "data source: gcp":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+  "data source: okta":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+  "data source: google workspace":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+  "data source: kubernetes":
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+  "data source: cloud defend":
+    platforms: [kubernetes]
+    data_sources: [cloud_defend]
+  "data source: github":
+    platforms: [github]
+    data_sources: [github_audit]
+  "data source: amazon bedrock":
+    platforms: [llm, aws]
+    data_sources: [llm_service_logs]
+
+# ═══════════════════════════════════════════════════════════════════════
+# RULE TYPES — fallback keyed on `rule.type` (from the TOML)
+#
+# Mostly to cover rules that don't have a resolvable index/integration.
+# `machine_learning` rules don't have an index — they're ML jobs — so we
+# mark them with the `elastic_ml` data_source + `ml_detection` event_type
+# as a baseline. Platform still comes from the integration (`endpoint`,
+# `auditd_manager`, etc.) if present.
+# ═══════════════════════════════════════════════════════════════════════
+rule_types:
+  machine_learning:
+    data_sources: [elastic_ml]
+    event_types: [ml_detection]

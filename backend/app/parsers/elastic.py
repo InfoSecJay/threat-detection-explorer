@@ -1,6 +1,7 @@
 """Elastic detection rule parser."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,22 @@ import toml
 from app.parsers.base import BaseParser, ParsedRule
 
 logger = logging.getLogger(__name__)
+
+
+# ESQL queries embed their source in the query text itself — e.g.
+# `FROM logs-aws.cloudtrail-* | where ...` — not in the separate
+# `rule.index` field. We pull the indices out of the FROM clause so
+# the taxonomy resolver can map them the same way as non-ESQL rules.
+# ESQL FROM syntax supports:
+#   FROM idx
+#   FROM idx1, idx2
+#   FROM "idx with spaces"
+#   FROM idx METADATA _id, _index
+#   from idx (case-insensitive)
+_ESQL_FROM = re.compile(
+    r"\bfrom\s+([^\|\n]+?)(?:\s+metadata\b|\s*\||\n|$)",
+    re.IGNORECASE,
+)
 
 
 class ElasticParser(BaseParser):
@@ -80,6 +97,25 @@ class ElasticParser(BaseParser):
             if isinstance(false_positives, str):
                 false_positives = [false_positives]
 
+            # Index list: union of explicit `rule.index` + ESQL FROM-clause
+            # extraction. ESQL rules embed their source in the query, so we
+            # need to pull it out for the taxonomy resolver to see.
+            explicit_indices = rule.get("index", []) or []
+            if not isinstance(explicit_indices, list):
+                explicit_indices = [explicit_indices]
+            esql_indices = self._extract_esql_indices(rule)
+            # Preserve original order, dedup
+            seen = set()
+            combined_indices: list[str] = []
+            for idx in list(explicit_indices) + esql_indices:
+                if isinstance(idx, str) and idx and idx not in seen:
+                    seen.add(idx)
+                    combined_indices.append(idx)
+
+            # Rebuild log_source with the combined indices (overrides
+            # _determine_log_source's original list).
+            log_source["indices"] = combined_indices
+
             return ParsedRule(
                 source=self.source_name,
                 file_path=str(file_path),
@@ -98,7 +134,11 @@ class ElasticParser(BaseParser):
                     "rule_id": rule.get("rule_id"),
                     "risk_score": rule.get("risk_score"),
                     "type": rule.get("type"),
-                    "index": rule.get("index", []),
+                    "index": combined_indices,
+                    # metadata.integration is critical for taxonomy
+                    # resolution on rules that have no `rule.index` (ML,
+                    # some ESQL). Previously dropped on the floor.
+                    "integration": metadata.get("integration", []) or [],
                     "language": rule.get("language"),
                     "references": rule.get("references", []),
                     "creation_date": metadata.get("creation_date"),
@@ -239,6 +279,39 @@ class ElasticParser(BaseParser):
                             techniques.append(sub_id)
 
         return {"tactics": tactics, "techniques": techniques}
+
+    def _extract_esql_indices(self, rule: dict) -> list[str]:
+        """Pull index patterns out of an ESQL query's FROM clause.
+
+        ESQL rules don't populate `rule.index` — the source index is
+        embedded in the query text (`FROM logs-foo-* | where ...`). This
+        returns those indices as a list so the taxonomy resolver can map
+        them like any other index pattern.
+
+        Returns an empty list for non-ESQL rules or if no FROM clause
+        can be located.
+        """
+        rule_type = rule.get("type", "")
+        language = (rule.get("language") or "").lower()
+        if rule_type != "esql" and language not in ("esql", "es|ql"):
+            return []
+
+        query = rule.get("query")
+        if not isinstance(query, str) or not query:
+            return []
+
+        match = _ESQL_FROM.search(query)
+        if not match:
+            return []
+
+        raw = match.group(1).strip()
+        # Split on commas, strip quotes and whitespace from each entry.
+        indices: list[str] = []
+        for piece in raw.split(","):
+            cleaned = piece.strip().strip('"').strip("'").strip()
+            if cleaned:
+                indices.append(cleaned)
+        return indices
 
     def _determine_log_source(self, rule: dict) -> dict:
         """Determine log source from index patterns and rule metadata."""

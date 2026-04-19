@@ -1,22 +1,22 @@
 """Elastic Detection Rules resolver.
 
-Elastic rules carry two structured signals about telemetry source:
+Elastic rules carry four structured signals about telemetry source, in
+descending order of precision:
 
-  - `metadata.integration` (list of plugin names like "endpoint", "aws",
-    "crowdstrike") — coarse-grained
-  - `rule.index` (list of Elasticsearch index patterns like
-    `logs-aws.cloudtrail*`, `logs-endpoint.events.process-*`) — fine-grained,
-    most reliable
+  1. `rule.index` — index patterns (`logs-aws.cloudtrail*`,
+     `logs-endpoint.events.process-*`) + ESQL `FROM` clauses extracted
+     by the parser.
+  2. `metadata.integration` — integration plugin names (`endpoint`,
+     `aws`, `crowdstrike`) — coarser than index, still structured.
+  3. `rule.tags` — structured tag vocabulary like `"OS: Windows"`,
+     `"Domain: Network"`, `"Data Source: Elastic Defend"`.
+  4. `rule.type` — for types like `machine_learning` that have neither
+     index nor FROM clause.
 
-We extract index patterns first (most precise mappings), then fall back
-to integrations for any dimension still empty. A single rule can span
-many sources (Elastic's cross-platform rules often list 6+ index
-patterns); the resolver unions across all matches.
-
-`event_types` are resolved primarily from the index pattern (e.g.
-`process-*` → process_creation), and as a fallback from the rule's
-language hint (eql tends to mean process events; esql tends to mean
-analytical/audit queries).
+The resolver unions canonical values across all signals. A rule can
+legitimately span multiple sources (Elastic's cross-platform rules
+often list 6+ index patterns); tags tend to be authoritative when they
+specify an OS or Data Source; rule_type is the last resort.
 """
 
 from typing import TYPE_CHECKING
@@ -46,28 +46,35 @@ def resolve(parsed: "ParsedRule") -> dict:
     if isinstance(integrations, str):
         integrations = [integrations]
 
-    return _resolve_from_indices_and_integrations(indices, integrations)
+    tags = parsed.tags or []
+    rule_type = extra.get("type") or ""
+
+    return _resolve_all_signals(indices, integrations, tags, rule_type)
 
 
-def _resolve_from_indices_and_integrations(
-    indices: list[str], integrations: list[str]
+def _resolve_all_signals(
+    indices: list[str],
+    integrations: list[str],
+    tags: list[str],
+    rule_type: str,
 ) -> dict:
-    """Walk index patterns + integrations against the mapping and union
-    canonical values across all matches."""
+    """Walk every structured signal and union canonical values."""
     platforms: set[str] = set()
     data_sources: set[str] = set()
     event_types: set[str] = set()
 
     index_map = _MAPPING.get("index_patterns", {})
     integration_map = _MAPPING.get("integrations", {})
+    tag_map = _MAPPING.get("tags", {})
+    rule_type_map = _MAPPING.get("rule_types", {})
 
     for idx in indices:
+        if not isinstance(idx, str):
+            continue
         idx_lower = idx.lower().strip()
         # Try exact match first, then prefix match (since patterns end in *)
-        if idx_lower in index_map:
-            entry = index_map[idx_lower]
-        else:
-            entry = None
+        entry = index_map.get(idx_lower)
+        if entry is None:
             for pattern, mapping in index_map.items():
                 if _index_matches(idx_lower, pattern.lower()):
                     entry = mapping
@@ -81,6 +88,25 @@ def _resolve_from_indices_and_integrations(
         if not isinstance(integ, str):
             continue
         entry = integration_map.get(integ.lower().strip())
+        if entry:
+            platforms.update(entry.get("platforms") or [])
+            data_sources.update(entry.get("data_sources") or [])
+            event_types.update(entry.get("event_types") or [])
+
+    for tag in tags:
+        if not isinstance(tag, str):
+            continue
+        entry = tag_map.get(tag.lower().strip())
+        if entry:
+            platforms.update(entry.get("platforms") or [])
+            data_sources.update(entry.get("data_sources") or [])
+            event_types.update(entry.get("event_types") or [])
+
+    # Rule-type fallback: applies independently of the other signals so
+    # an ML rule that ALSO has an integration picks up both the
+    # integration's platform AND the ml_detection event_type.
+    if rule_type:
+        entry = rule_type_map.get(rule_type.lower().strip())
         if entry:
             platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])

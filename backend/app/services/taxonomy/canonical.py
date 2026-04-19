@@ -164,6 +164,12 @@ DATA_SOURCES: frozenset[str] = frozenset(
         # ── Sentinel-specific: SIEM-derived alerts (when source is "another
         #    SIEM's alert") ─────────────────────────────────────────────────
         "siem_alert",
+        # ── Elastic Security's own alert stream (`.alerts-security-*`) —
+        # used by higher-order / alert-on-alert correlation rules.
+        "elastic_siem_alerts",
+        # ── Elastic ML anomaly detection jobs (type="machine_learning"
+        # rules that don't have an index; driven by a job config).
+        "elastic_ml",
         UNKNOWN,
     }
 )
@@ -234,6 +240,14 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "email_message",
         # ── Hunting query — broad exploration, not a single event type ─────
         "hunting_query",
+        # ── Alert correlation — rule consumes other alerts (higher-order).
+        # Elastic has rules that query `.alerts-security-*`; Sentinel has
+        # `SecurityAlert`-consuming rules. Distinct from raw event types
+        # because the input is already-detected activity.
+        "alert_correlation",
+        # ── ML-based anomaly detection — no specific event pivot, the
+        # rule fires when an ML job scores the anomaly above threshold.
+        "ml_detection",
         UNKNOWN,
     }
 )
