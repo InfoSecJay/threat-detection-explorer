@@ -31,6 +31,7 @@ import asyncio
 import logging
 import os
 import signal
+from datetime import datetime
 from typing import Optional
 
 import uvicorn
@@ -52,9 +53,18 @@ POLL_INTERVAL_SECONDS = 5
 
 # How long a job can stay in `running` state before the worker assumes
 # the previous worker that owned it crashed and resets it to `failed`.
-# Sized generously so legitimate long-running syncs (sentinel takes
-# several minutes) don't get nuked.
-STUCK_JOB_TIMEOUT_MINUTES = 30
+# Sized generously so legitimate long-running syncs can complete —
+# sentinel ingest alone is ~25 minutes. Must be comfortably larger than
+# the slowest legitimate sync-step so we never nuke work in progress.
+STUCK_JOB_TIMEOUT_MINUTES = 180
+
+# How often to re-run the stuck-job sweep inside the poll loop. The
+# original design only ran it at worker startup, but that misses a bad
+# race: if a deploy kills the worker mid-job and the new worker comes
+# up before `STUCK_JOB_TIMEOUT_MINUTES` has elapsed, the stuck row sits
+# as `running` forever with no one to clean it up. Sweeping periodically
+# fixes this — worst case the orphan lives for `SWEEP + TIMEOUT` minutes.
+STUCK_JOB_SWEEP_INTERVAL_SECONDS = 300  # 5 min
 
 
 def _build_health_app() -> FastAPI:
@@ -92,6 +102,12 @@ class Worker:
         self._running: bool = False
         self._scheduler: Optional[AsyncIOScheduler] = None
         self._health_server: Optional[uvicorn.Server] = None
+        # Monotonic wall-clock of the last stuck-job sweep. Start at
+        # "never" so the first poll cycle after startup still triggers
+        # a sweep (in addition to the one at startup) — the startup
+        # sweep runs BEFORE any jobs are claimed, but a deploy-time
+        # race means a fresh orphan can land between startup and now.
+        self._last_sweep_at: Optional[datetime] = None
 
     async def start(self) -> None:
         """Initialize the worker and enter the main poll loop."""
@@ -178,6 +194,7 @@ class Worker:
         """Main poll loop. Runs until `self._running` is set to False."""
         while self._running:
             try:
+                await self._maybe_sweep_stuck_jobs()
                 await self._poll_once()
             except Exception as e:
                 # Never let an exception from one job kill the poll loop.
@@ -186,6 +203,36 @@ class Worker:
 
             if self._running:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+    async def _maybe_sweep_stuck_jobs(self) -> None:
+        """Re-run the stuck-job sweep every SWEEP_INTERVAL seconds.
+
+        The startup sweep catches jobs left over from a previous worker
+        that died, but it only runs once. If Railway deploys a new image
+        WHILE a job is running, the old worker is killed mid-job and the
+        new worker comes up before `STUCK_JOB_TIMEOUT_MINUTES` has
+        elapsed — so the startup sweep finds nothing and the orphan
+        sits forever. Running the sweep periodically from the poll
+        loop closes that window.
+        """
+        now = datetime.utcnow()
+        if (
+            self._last_sweep_at is not None
+            and (now - self._last_sweep_at).total_seconds()
+            < STUCK_JOB_SWEEP_INTERVAL_SECONDS
+        ):
+            return
+        async with async_session_maker() as db:
+            queue = JobQueueService(db)
+            reset_count = await queue.reset_stuck_jobs(
+                timeout_minutes=STUCK_JOB_TIMEOUT_MINUTES
+            )
+        if reset_count > 0:
+            logger.warning(
+                f"Periodic sweep reset {reset_count} stuck job(s) "
+                f"(orphaned >{STUCK_JOB_TIMEOUT_MINUTES}m)"
+            )
+        self._last_sweep_at = now
 
     async def stop(self) -> None:
         """Request graceful shutdown of the poll loop and health server."""
