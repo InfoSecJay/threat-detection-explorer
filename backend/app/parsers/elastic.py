@@ -143,6 +143,13 @@ class ElasticParser(BaseParser):
                     "references": rule.get("references", []),
                     "creation_date": metadata.get("creation_date"),
                     "updated_date": metadata.get("updated_date"),
+                    # `metadata.promotion = true` marks rules that wrap
+                    # an external detection (Endgame / QRadar / AV /
+                    # other SIEMs) as an Elastic alert. The taxonomy
+                    # uses this to emit `platform_alert` event_type so
+                    # the catalog distinguishes these from raw-telemetry
+                    # rules and from SIEM-internal alert_correlation.
+                    "promotion": bool(metadata.get("promotion", False)),
                 },
             )
 

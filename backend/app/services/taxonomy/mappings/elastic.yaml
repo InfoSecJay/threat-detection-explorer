@@ -400,18 +400,26 @@ index_patterns:
     platforms: [cross_platform]
     data_sources: [application_logs]
     event_types: [audit_event]
+  # Elastic's own SIEM alert stream (higher-order rules consume this).
+  # The specific pattern `.alerts-security*` is already mapped above —
+  # re-listing `.alerts-security.*` here would silently override it
+  # with a different semantics, so we route it to the same canonical
+  # values (elastic_siem_alerts + alert_correlation).
   ".alerts-security.*":
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+    data_sources: [elastic_siem_alerts]
+    event_types: [alert_correlation]
+  # External SIEM alert streams being ingested into Elastic (Elastic
+  # Security from a different cluster, Google SecOps, etc.). These are
+  # `platform_alert` inputs, NOT alert_correlation (which is reserved
+  # for the SIEM consuming its OWN alert stream).
   "logs-elastic_security.alert*":
     platforms: [cross_platform]
     data_sources: [siem_alert]
-    event_types: [audit_event]
+    event_types: [platform_alert]
   "logs-google_secops.alert*":
     platforms: [cross_platform]
     data_sources: [siem_alert]
-    event_types: [audit_event]
+    event_types: [platform_alert]
   "logs-microsoft_sentinel.alert*":
     platforms: [cross_platform]
     data_sources: [siem_alert]
@@ -734,6 +742,25 @@ tags:
   "data source: amazon bedrock":
     platforms: [llm, aws]
     data_sources: [llm_service_logs]
+
+# ═══════════════════════════════════════════════════════════════════════
+# EQL QUERY CATEGORIES — event_type extraction from the query head
+#
+# EQL queries begin with `<category> where ...`. The category (`process`,
+# `file`, `network`, etc.) IS the event type. Resolver extracts the
+# first token of the query for EQL rules and maps it here. Only applies
+# when `language: eql`.
+# ═══════════════════════════════════════════════════════════════════════
+eql_category_to_event_types:
+  process: process_creation
+  file: file_event
+  network: network_connection
+  registry: registry_event
+  dns: dns_query
+  library: image_load
+  api: api_call
+  authentication: authentication
+  iam: authentication
 
 # ═══════════════════════════════════════════════════════════════════════
 # RULE TYPES — fallback keyed on `rule.type` (from the TOML)

@@ -1,24 +1,43 @@
 """Elastic Detection Rules resolver.
 
-Elastic rules carry four structured signals about telemetry source, in
-descending order of precision:
+Four structured signals feed the taxonomy, in descending order of
+precision:
 
   1. `rule.index` — index patterns (`logs-aws.cloudtrail*`,
-     `logs-endpoint.events.process-*`) + ESQL `FROM` clauses extracted
-     by the parser.
-  2. `metadata.integration` — integration plugin names (`endpoint`,
-     `aws`, `crowdstrike`) — coarser than index, still structured.
-  3. `rule.tags` — structured tag vocabulary like `"OS: Windows"`,
-     `"Domain: Network"`, `"Data Source: Elastic Defend"`.
-  4. `rule.type` — for types like `machine_learning` that have neither
-     index nor FROM clause.
+     `logs-endpoint.events.process-*`) PLUS ESQL `FROM` clauses the
+     parser pulled out of the query text.
+  2. `metadata.integration` — integration names (`endpoint`, `aws`,
+     `crowdstrike`).
+  3. `rule.tags` — structured vocabulary (`"OS: Windows"`,
+     `"Domain: Network"`, `"Data Source: Elastic Defend"`).
+  4. `rule.type` — rule-level fallback (e.g. `machine_learning` rules
+     have no index or FROM).
 
-The resolver unions canonical values across all signals. A rule can
-legitimately span multiple sources (Elastic's cross-platform rules
-often list 6+ index patterns); tags tend to be authoritative when they
-specify an OS or Data Source; rule_type is the last resort.
+## Semantics
+
+**Platforms.** `OS: <name>` tags are AUTHORITATIVE when present.
+Elastic's rule authors use those tags to declare what OS the rule is
+written for; the index-pattern / integration platform lists reflect
+*capability*, not *intent*. So if a rule sits on `integration=endpoint`
+(supports windows+linux+macos) but is tagged `OS: Windows`, we report
+`[windows]` only. With no OS tags, we fall back to the union of
+everything the other signals support.
+
+**Event types.** UNION across all sources — index-pattern mappings,
+integration mappings, tag mappings, rule-type mappings, AND the EQL
+query head (`process where …` contributes `process_creation`). For
+rules with `metadata.promotion = true` (Elastic's "promotion" rule
+type — wraps EDR/external-SIEM alerts into Elastic alerts),
+`platform_alert` is added to distinguish them from raw-telemetry rules
+and from `alert_correlation` (the SIEM's OWN alert correlations, used
+by `.alerts-security-*` higher-order rules).
+
+**Data sources.** Straight union — a rule that queries endpoint events
+AND calls out Sysmon AND tags CrowdStrike genuinely draws from all of
+those sources.
 """
 
+import re
 from typing import TYPE_CHECKING
 
 from app.services.taxonomy._loader import load_mapping
@@ -28,6 +47,13 @@ if TYPE_CHECKING:
 
 
 _MAPPING = load_mapping("elastic")
+
+
+# EQL queries begin with an event category keyword and `where`, e.g.
+# `process where event.type == "start"` → event_type = process_creation.
+# This mirrors the extractor in `elastic_protections.py`; the two
+# resolvers share the same mapping key (`eql_category_to_event_types`).
+_EQL_HEAD = re.compile(r"^\s*([a-z_]+)\s+where\b", re.IGNORECASE)
 
 
 def resolve(parsed: "ParsedRule") -> dict:
@@ -47,9 +73,27 @@ def resolve(parsed: "ParsedRule") -> dict:
         integrations = [integrations]
 
     tags = parsed.tags or []
-    rule_type = extra.get("type") or ""
+    rule_type = (extra.get("type") or "").lower().strip()
+    language = (extra.get("language") or "").lower().strip()
+    promotion = bool(extra.get("promotion", False))
 
-    return _resolve_all_signals(indices, integrations, tags, rule_type)
+    query = parsed.detection_logic_raw
+    if isinstance(query, dict):
+        query_text = query.get("query") or ""
+    elif isinstance(query, str):
+        query_text = query
+    else:
+        query_text = ""
+
+    return _resolve_all_signals(
+        indices=indices,
+        integrations=integrations,
+        tags=tags,
+        rule_type=rule_type,
+        language=language,
+        query_text=query_text,
+        promotion=promotion,
+    )
 
 
 def _resolve_all_signals(
@@ -57,9 +101,16 @@ def _resolve_all_signals(
     integrations: list[str],
     tags: list[str],
     rule_type: str,
+    language: str,
+    query_text: str,
+    promotion: bool,
 ) -> dict:
-    """Walk every structured signal and union canonical values."""
-    platforms: set[str] = set()
+    """Walk every structured signal, union data_sources/event_types,
+    and apply OS-tag precedence for platforms."""
+    # Capability-scope set (widened by every matching signal).
+    cap_platforms: set[str] = set()
+    # Authoritative-intent set (populated only by `OS: *` tags).
+    os_tag_platforms: set[str] = set()
     data_sources: set[str] = set()
     event_types: set[str] = set()
 
@@ -67,12 +118,13 @@ def _resolve_all_signals(
     integration_map = _MAPPING.get("integrations", {})
     tag_map = _MAPPING.get("tags", {})
     rule_type_map = _MAPPING.get("rule_types", {})
+    eql_category_map = _MAPPING.get("eql_category_to_event_types", {})
 
+    # ── Index patterns ──
     for idx in indices:
         if not isinstance(idx, str):
             continue
         idx_lower = idx.lower().strip()
-        # Try exact match first, then prefix match (since patterns end in *)
         entry = index_map.get(idx_lower)
         if entry is None:
             for pattern, mapping in index_map.items():
@@ -80,40 +132,73 @@ def _resolve_all_signals(
                     entry = mapping
                     break
         if entry:
-            platforms.update(entry.get("platforms") or [])
+            cap_platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
 
+    # ── Integrations ──
     for integ in integrations:
         if not isinstance(integ, str):
             continue
         entry = integration_map.get(integ.lower().strip())
         if entry:
-            platforms.update(entry.get("platforms") or [])
+            cap_platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
 
+    # ── Tags ──
+    # `OS: X` tags contribute to `os_tag_platforms` (the authoritative
+    # override bucket) AND to data_sources / event_types via the normal
+    # tag-map entry. All other tag types (Domain, Data Source) feed the
+    # capability-scope set like any other signal.
     for tag in tags:
         if not isinstance(tag, str):
             continue
-        entry = tag_map.get(tag.lower().strip())
+        tag_key = tag.lower().strip()
+        entry = tag_map.get(tag_key)
         if entry:
-            platforms.update(entry.get("platforms") or [])
+            if tag_key.startswith("os:"):
+                os_tag_platforms.update(entry.get("platforms") or [])
+            else:
+                cap_platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
 
-    # Rule-type fallback: applies independently of the other signals so
-    # an ML rule that ALSO has an integration picks up both the
-    # integration's platform AND the ml_detection event_type.
+    # ── Rule-type fallback (machine_learning, etc.) ──
     if rule_type:
-        entry = rule_type_map.get(rule_type.lower().strip())
+        entry = rule_type_map.get(rule_type)
         if entry:
-            platforms.update(entry.get("platforms") or [])
+            cap_platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
+
+    # ── EQL query head: `process where ...` → process_creation ──
+    if language == "eql" and query_text:
+        match = _EQL_HEAD.match(query_text)
+        if match:
+            category = match.group(1).lower()
+            mapped = eql_category_map.get(category)
+            if mapped:
+                if isinstance(mapped, list):
+                    event_types.update(mapped)
+                else:
+                    event_types.add(str(mapped))
+
+    # ── Promotion rules (Elastic wrapping external alerts) ──
+    if promotion:
+        event_types.add("platform_alert")
+
+    # ── Platform resolution: OS tags override when present ──
+    # If any `OS: *` tag matched, use that set exclusively — the rule
+    # was authored for those specific OSes. Otherwise fall back to the
+    # union of what the index/integration/tag signals say is possible.
+    if os_tag_platforms:
+        final_platforms = os_tag_platforms
+    else:
+        final_platforms = cap_platforms
 
     return {
-        "platforms": platforms,
+        "platforms": final_platforms,
         "data_sources": data_sources,
         "event_types": event_types,
     }

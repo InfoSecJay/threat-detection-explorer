@@ -666,3 +666,117 @@ def test_elastic_filebeat_no_longer_bleeds_into_aws():
     assert "aws_cloudtrail" not in result["data_sources"]
     assert "network_appliance" in result["platforms"]
     assert "network_traffic_logs" in result["data_sources"]
+
+
+def test_elastic_os_tag_overrides_integration_platform_list():
+    """`OS: Windows` tag narrows platforms to [windows] even when the
+    integration (`endpoint` / `system`) supports more OSes. Tag declares
+    authorial intent; integration declares capability."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={
+            "integration": ["endpoint", "system"],
+            "index": ["logs-endpoint.events.process-*", "winlogbeat-*"],
+        },
+        tags=["Domain: Endpoint", "OS: Windows"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["windows"]
+    # Data sources + event types still union across the signals.
+    assert "elastic_defend" in result["data_sources"]
+    assert "windows_security_event_log" in result["data_sources"]
+
+
+def test_elastic_multi_os_tags_narrow_to_exact_set():
+    """`OS: Windows` + `OS: Linux` → [windows, linux]. macOS excluded
+    even though endpoint integration supports it."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"integration": ["endpoint"]},
+        tags=["OS: Windows", "OS: Linux"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert set(result["platforms"]) == {"windows", "linux"}
+
+
+def test_elastic_no_os_tag_keeps_integration_platform_union():
+    """Without any OS tag, fall back to the integration's capability set."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"integration": ["endpoint"]},
+        tags=["Domain: Endpoint"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert set(result["platforms"]) == {"windows", "linux", "macos"}
+
+
+def test_elastic_eql_head_extracts_event_type():
+    """EQL queries start with `<category> where ...` — that category
+    maps directly to a canonical event_type."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={
+            "type": "eql",
+            "language": "eql",
+            "integration": ["endpoint"],
+        },
+        tags=["OS: Linux"],
+        detection_logic_raw={"type": "eql", "query": 'process where process.name == "bash"'},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "process_creation" in result["event_types"]
+
+
+def test_elastic_eql_file_and_network_categories():
+    """EQL `file where ...` → file_event, `network where ...` → network_connection."""
+    for eql_cat, expected in [
+        ("file", "file_event"),
+        ("network", "network_connection"),
+        ("registry", "registry_event"),
+        ("dns", "dns_query"),
+    ]:
+        parsed = _make_parsed(
+            source="elastic",
+            extra={"type": "eql", "language": "eql", "integration": ["endpoint"]},
+            tags=["OS: Windows"],
+            detection_logic_raw={"type": "eql", "query": f'{eql_cat} where true'},
+        )
+        result = resolve_for_repo("elastic", parsed)
+        assert expected in result["event_types"], f"{eql_cat} did not produce {expected}"
+
+
+def test_elastic_promotion_rule_gets_platform_alert_event_type():
+    """`metadata.promotion = true` means the rule wraps an external
+    detection (Endgame / QRadar / CrowdStrike / another SIEM) into an
+    Elastic alert. It should emit `platform_alert` event_type, distinct
+    from `alert_correlation` (which is reserved for the SIEM consuming
+    its own alert stream)."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={
+            "type": "query",
+            "language": "kuery",
+            "index": ["endgame-*"],
+            "promotion": True,
+        },
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "platform_alert" in result["event_types"]
+    assert "elastic_endgame" in result["data_sources"]
+    # platform_alert (external alert ingested) is not the same as
+    # alert_correlation (SIEM alert-on-alert).
+    assert "alert_correlation" not in result["event_types"]
+
+
+def test_elastic_higher_order_rule_uses_alert_correlation_not_platform_alert():
+    """`.alerts-security-*` rules are the SIEM's OWN alert stream —
+    they should use alert_correlation, NOT platform_alert (which is
+    reserved for external-product alerts being ingested)."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"index": [".alerts-security.alerts-default"]},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "alert_correlation" in result["event_types"]
+    assert "platform_alert" not in result["event_types"]
+    assert "elastic_siem_alerts" in result["data_sources"]

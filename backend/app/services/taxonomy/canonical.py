@@ -240,11 +240,21 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "email_message",
         # ── Hunting query — broad exploration, not a single event type ─────
         "hunting_query",
-        # ── Alert correlation — rule consumes other alerts (higher-order).
-        # Elastic has rules that query `.alerts-security-*`; Sentinel has
-        # `SecurityAlert`-consuming rules. Distinct from raw event types
-        # because the input is already-detected activity.
+        # ── Alert correlation — rule consumes the SIEM's OWN alert stream.
+        # Elastic rules querying `.alerts-security-*` are the canonical
+        # case; Sentinel `SecurityAlert`-consuming rules are similar.
+        # This is distinct from `platform_alert` (below) which is the
+        # source alert from a security product BEFORE the SIEM correlates it.
         "alert_correlation",
+        # ── Platform alert — a detection alert emitted by a security
+        # product (EDR, AV, external SIEM) that is being INGESTED as a
+        # rule's input. Elastic "promotion" rules are the canonical case:
+        # Endgame / CrowdStrike / QRadar fire their own alerts and the
+        # promotion rule wraps them into Elastic alerts. Distinct from
+        # raw telemetry (process_creation etc.) because the input is
+        # already an alert, and distinct from alert_correlation because
+        # the alert originates OUTSIDE the SIEM.
+        "platform_alert",
         # ── ML-based anomaly detection — no specific event pivot, the
         # rule fires when an ML job scores the anomaly above threshold.
         "ml_detection",
