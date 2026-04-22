@@ -2,13 +2,27 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
 
 from app.parsers.base import BaseParser, ParsedRule
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_security_domain(value: Any) -> str:
+    """Coerce `tags.security_domain` to a single lowercase string.
+
+    Splunk YAML sometimes ships it as a scalar, sometimes as a list
+    (though only one value in practice). Taxonomy resolver does exact
+    lookup so we flatten here.
+    """
+    if not value:
+        return ""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    return str(value).lower().strip()
 
 
 class SplunkParser(BaseParser):
@@ -106,6 +120,14 @@ class SplunkParser(BaseParser):
                     "id": data.get("id"),
                     "type": data.get("type"),
                     "data_source": data.get("data_source", []),
+                    # Splunk's `tags.security_domain` is a coarse category
+                    # (endpoint/network/identity/cloud/access/threat) the
+                    # taxonomy resolver uses as a Tier 4 fallback. Value
+                    # can be scalar or list — normalize to lowercase
+                    # string for exact-match lookup.
+                    "security_domain": _normalize_security_domain(
+                        all_tags.get("security_domain")
+                    ),
                     "references": data.get("references", []),
                     "date": data.get("date"),
                     "cve": all_tags.get("cve", []),

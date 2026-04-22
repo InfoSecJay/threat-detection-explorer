@@ -818,6 +818,111 @@ def test_data_source_narrowing_is_noop_when_no_os_constraint():
     assert "windows_security_event_log" in result["data_sources"]
 
 
+def test_splunk_datamodel_is_authoritative_over_data_source_labels():
+    """`tstats ... datamodel=Endpoint.Processes` should produce
+    event_types=[process_creation] ONLY — not the 4-way union
+    (authentication + audit_event + network_connection + process_creation)
+    we were seeing before the tiered resolver. The datamodel overrides
+    capability signals from coarse feed labels."""
+    parsed = _make_parsed(
+        source="splunk",
+        extra={
+            "data_source": ["Sysmon EventID 1", "Windows Event Log Security", "CrowdStrike"],
+        },
+        detection_logic_raw={
+            "search": "| tstats count FROM datamodel=Endpoint.Processes WHERE Processes.process_name = 'cipher.exe'",
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    # event_type narrowed to what the datamodel says — no authentication
+    # / audit_event / network_connection leaking in.
+    assert "process_creation" in result["event_types"]
+    assert "authentication" not in result["event_types"]
+    assert "audit_event" not in result["event_types"]
+    assert "network_connection" not in result["event_types"]
+
+
+def test_splunk_macro_okta_authoritative():
+    """`okta` macro always means authentication — authoritative event_type."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={
+            "search": "`okta` eventType = security.threat.detected | stats count",
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "okta" in result["platforms"]
+    assert "okta_system_log" in result["data_sources"]
+    assert result["event_types"] == ["authentication"]
+
+
+def test_splunk_macro_mcp_server_maps_to_llm():
+    """MCP server macro maps to llm platform + llm_service_logs."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={"search": "`mcp_server` direction=inbound | stats count"},
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "llm" in result["platforms"]
+    assert "llm_service_logs" in result["data_sources"]
+    assert "api_call" in result["event_types"]
+
+
+def test_splunk_kubernetes_macro_maps_correctly():
+    """`kubernetes_container_controller` macro should NOT be unknown
+    anymore — previously showed [unknown]/[unknown]/[unknown]."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={"search": "`kubernetes_container_controller` | stats count"},
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "kubernetes" in result["platforms"]
+    assert "kubernetes_audit" in result["data_sources"]
+    assert "audit_event" in result["event_types"]
+
+
+def test_splunk_zscaler_proxy_macro_maps_correctly():
+    """`zscaler_proxy` macro previously unmapped."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={"search": "`zscaler_proxy` action=blocked | stats count"},
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "network_appliance" in result["platforms"]
+    assert "proxy_logs" in result["data_sources"]
+    assert result["event_types"] == ["http_request"]
+
+
+def test_splunk_from_datamodel_no_equals_syntax():
+    """`| from datamodel Web.Web` (no `=`) should still trigger the
+    Web datamodel mapping. Used by Log4Shell rules."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={
+            "search": "| from datamodel Web.Web | regex _raw=\"jndi\" | stats count",
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "network_appliance" in result["platforms"]
+    assert "http_request" in result["event_types"]
+
+
+def test_splunk_sysmon_macro_alone_does_not_force_event_type():
+    """Bare `sysmon` macro should contribute platforms + data_sources
+    but NOT force a single event_type (sysmon has 27 event codes)."""
+    # Use a search with no other signal except the macro.
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={"search": "`sysmon` TargetImage=lsass.exe | stats count"},
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "windows" in result["platforms"]
+    assert "sysmon" in result["data_sources"]
+    # No authoritative event_type came from the bare macro — should fall
+    # through to UNKNOWN (no capability signals set anything).
+    assert result["event_types"] == ["unknown"]
+
+
 def test_elastic_higher_order_rule_uses_alert_correlation_not_platform_alert():
     """`.alerts-security-*` rules are the SIEM's OWN alert stream —
     they should use alert_correlation, NOT platform_alert (which is

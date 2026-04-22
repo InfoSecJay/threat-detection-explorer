@@ -1,15 +1,360 @@
 # Splunk Security Content → canonical taxonomy mappings.
 #
-# Splunk's `data_source` field is a list of free-form labels like
-# "Sysmon EventID 10", "ASL AWS CloudTrail", "Cisco Duo Activity". They
-# include version/event-id details that we don't care about, so the
-# resolver does prefix/substring matching against the keys below.
+# Tiered model (see vendors/splunk.py for full docs):
 #
-# Keys are lowercase. They're matched against the lowercased data_source
-# label using both exact match and substring containment.
+#   1. datamodels   — authoritative event_type (`datamodel=Endpoint.Processes` IS process_creation)
+#   2. macros       — backtick shortcuts (`okta`, `sysmon`, `cloudtrail`, ...)
+#                     flagged `authoritative: true` override lower tiers
+#   3. data_source_labels — coarse feed names from the rule's `data_source`
+#                     field; capability-level for event_types
+#   4. security_domain    — coarse platform/event hint
+#   5. search_keywords    — last-resort substring scan of the SPL text
+#
+# Keys are lowercase. data_source labels support prefix/substring match
+# (the labels in Splunk rules carry version numbers we don't want to
+# enumerate). Datamodels / macros / keywords are exact match on the
+# parsed identifier.
 
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 1 — DATAMODELS (authoritative event_type)
+# Matched against `datamodel=X.Y` and `from datamodel X.Y` in the search.
+# If the full `root.node` key isn't in the map, the resolver falls back
+# to the top-level root (e.g. `web.web` → `web`).
+# ─────────────────────────────────────────────────────────────────────────
+datamodels:
+  endpoint.processes:
+    platforms: [windows, linux, macos]
+    data_sources: [sysmon, windows_security_event_log, crowdstrike_fdr, carbon_black, elastic_defend]
+    event_types: [process_creation]
+  endpoint.registry:
+    platforms: [windows]
+    data_sources: [sysmon, windows_security_event_log]
+    event_types: [registry_event]
+  endpoint.filesystem:
+    platforms: [windows, linux, macos]
+    data_sources: [sysmon, elastic_defend, crowdstrike_fdr]
+    event_types: [file_event]
+  endpoint.services:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  endpoint.ports:
+    platforms: [windows, linux, macos]
+    data_sources: [sysmon]
+    event_types: [network_connection]
+  endpoint:  # top-level fallback
+    platforms: [windows, linux, macos]
+    data_sources: [sysmon, windows_security_event_log, elastic_defend]
+    event_types: [process_creation]
+  network_resolution:
+    platforms: [network_appliance, windows]
+    data_sources: [sysmon, zeek, dns_query_logs]
+    event_types: [dns_query]
+  network_traffic:
+    platforms: [network_appliance]
+    data_sources: [zeek, suricata, palo_alto_firewall]
+    event_types: [network_connection]
+  network_sessions:
+    platforms: [network_appliance]
+    data_sources: [zeek, suricata]
+    event_types: [network_connection]
+  authentication:
+    data_sources: [windows_security_event_log, okta_system_log, duo_activity]
+    event_types: [authentication]
+  web:
+    platforms: [network_appliance]
+    data_sources: [webserver_logs, zeek, suricata, proxy_logs]
+    event_types: [http_request]
+  web.web:  # alias for the Splunk Web datamodel root
+    platforms: [network_appliance]
+    data_sources: [webserver_logs, zeek, suricata, proxy_logs]
+    event_types: [http_request]
+  change:
+    event_types: [audit_event]
+  risk:
+    event_types: [audit_event]
+  email:
+    platforms: [email]
+    data_sources: [email_message_metadata]
+    event_types: [email_message]
+  malware:
+    data_sources: [antivirus_logs]
+    event_types: [audit_event]
+  intrusion_detection:
+    platforms: [network_appliance]
+    data_sources: [suricata, snort]
+    event_types: [network_connection]
+  vulnerabilities:
+    event_types: [audit_event]
+
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 2 — MACROS (backtick-wrapped shortcuts)
+# `authoritative: true` means the macro IS a specific event-type signal
+# (e.g. `okta` always means authentication events). Generic macros like
+# `sysmon` (any of 27 event codes) stay non-authoritative and only
+# contribute capability — the event_type comes from a datamodel / query
+# keyword.
+# ─────────────────────────────────────────────────────────────────────────
+macros:
+  # ── Endpoint (Windows) ────────────────────────────────────────────────
+  sysmon:
+    platforms: [windows]
+    data_sources: [sysmon]
+    # Intentionally no event_types — bare `sysmon` covers 27 event codes.
+  wineventlog_security:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    # coarse — many event types
+  windows_security:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  powershell:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+    authoritative: true  # PowerShell ScriptBlock is always process-adjacent
+  windows_powershell:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [process_creation]
+    authoritative: true
+  windefend:
+    platforms: [windows]
+    data_sources: [windows_defender_event_log]
+    event_types: [audit_event]
+  windows_defender:
+    platforms: [windows]
+    data_sources: [windows_defender_event_log]
+    event_types: [audit_event]
+  # ── Endpoint (Linux / macOS) ──────────────────────────────────────────
+  linux_auditd:
+    platforms: [linux]
+    data_sources: [auditd]
+    event_types: [audit_event]
+    authoritative: true
+  linux_secure:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [authentication]
+    authoritative: true
+  linux_hosts:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+  osquery_process:
+    platforms: [windows, linux, macos]
+    data_sources: [osquery]
+    event_types: [process_creation]
+    authoritative: true
+  # ── EDR products ──────────────────────────────────────────────────────
+  crowdstrike:
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+    # no event_types — CrowdStrike FDR emits many categories
+  crowdstrike_process:
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+    event_types: [process_creation]
+    authoritative: true
+  sentinelone:
+    platforms: [windows, linux, macos]
+    data_sources: [sentinelone]
+  carbon_black:
+    platforms: [windows]
+    data_sources: [carbon_black]
+  # ── AWS ───────────────────────────────────────────────────────────────
+  cloudtrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+    authoritative: true
+  aws_cloudtrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+    authoritative: true
+  amazon_security_lake:
+    platforms: [aws]
+    data_sources: [aws_security_lake]
+    event_types: [api_call]
+    authoritative: true
+  aws_securityhub:
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [audit_event]
+    authoritative: true
+  # ── Azure / M365 ──────────────────────────────────────────────────────
+  azure_monitor_aad:
+    platforms: [azure]
+    data_sources: [entra_id_audit, entra_id_signin]
+    event_types: [audit_event]
+    authoritative: true
+  azure_audit:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+    authoritative: true
+  o365_management_activity:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+    authoritative: true
+  ms_defender:
+    platforms: [windows, microsoft_365]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+    authoritative: true
+  # ── GCP ───────────────────────────────────────────────────────────────
+  gcp_pubsub_message:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+    authoritative: true
+  google_gcp_pubsub_message:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+    authoritative: true
+  # ── Identity / SaaS ──────────────────────────────────────────────────
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+    authoritative: true
+  cisco_duo:
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+    authoritative: true
+  cisco_duo_administrator:
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+    authoritative: true
+  pingid:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [authentication]
+    authoritative: true
+  google_workspace:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+    authoritative: true
+  github:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+    authoritative: true
+  github_enterprise_audit:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+    authoritative: true
+  # ── Network / appliances ──────────────────────────────────────────────
+  cisco_secure_firewall:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+    # no event_types — covers intrusion/connection/file events; let the
+    # EventType=... clause or datamodel differentiate.
+  cisco_asa:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+  cisco_ios:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+  cisco_sdwan:
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall]
+  palo_alto:
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+  fortinet:
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+  zeek:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+  suricata:
+    platforms: [network_appliance]
+    data_sources: [suricata]
+  stream_http:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [http_request]
+    authoritative: true
+  stream_dns:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [dns_query]
+    authoritative: true
+  zscaler_proxy:
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+    authoritative: true
+  # ── Container / K8s ───────────────────────────────────────────────────
+  kubernetes:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+    authoritative: true
+  kubernetes_container_controller:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+    authoritative: true
+  # ── Virtualization ────────────────────────────────────────────────────
+  esxi_syslog:
+    platforms: [cross_platform]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+    authoritative: true
+  vmware_vcenter:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── LLM / AI ──────────────────────────────────────────────────────────
+  mcp_server:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+    authoritative: true
+  ollama:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+    authoritative: true
+  ollama_server:
+    platforms: [llm]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+    authoritative: true
+  # ── File transfer / apps ──────────────────────────────────────────────
+  crushftp:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+    authoritative: true
+  circleci:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+    authoritative: true
+  # ── SIEM / hunting helpers ────────────────────────────────────────────
+  security_content_summariesonly:
+    # Macro used on every tstats rule — no signal value, ignored.
+
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 3 — DATA_SOURCE FIELD LABELS
+# Splunk rule metadata carries `data_source: [...]` — the feeds the rule
+# queries. These contribute platforms + data_sources freely; event_types
+# here are capability-level (NOT authoritative — a coarse feed like
+# "Windows Security Event Log" can produce dozens of event IDs).
+# ─────────────────────────────────────────────────────────────────────────
 data_source_labels:
-  # ── Sysmon (multiple event IDs) ───────────────────────────────────────
+  # ── Sysmon (per-event-ID) — authoritative in intent because the label
+  # names the event code explicitly. Still stored here (not in macros)
+  # because they come from the structured `data_source` field.
   "sysmon eventid 1":
     platforms: [windows]
     data_sources: [sysmon]
@@ -42,31 +387,29 @@ data_source_labels:
     platforms: [windows]
     data_sources: [sysmon]
     event_types: [dns_query]
-  "sysmon":  # generic sysmon prefix match
+  "sysmon":  # bare prefix match
     platforms: [windows]
     data_sources: [sysmon]
-    event_types: [process_creation]
-  # ── Windows event logs ────────────────────────────────────────────────
+    # no event_types — sysmon covers many event IDs
+
+  # ── Windows event logs (capability only for event_type) ──────────────
   "windows event log security":
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    event_types: [authentication, audit_event]
+    # event_types intentionally omitted — too broad
   "windows event log system":
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    event_types: [audit_event]
   "windows event log application":
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    event_types: [audit_event]
   "windows event log":
     platforms: [windows]
     data_sources: [windows_security_event_log]
-    event_types: [audit_event]
   "windows powershell":
     platforms: [windows]
     data_sources: [windows_powershell]
-    event_types: [process_creation]
+    event_types: [process_creation]  # ScriptBlock
   "powershell":
     platforms: [windows]
     data_sources: [windows_powershell]
@@ -75,8 +418,9 @@ data_source_labels:
     platforms: [windows]
     data_sources: [windows_defender_event_log]
     event_types: [audit_event]
+
   # ── AWS / Cloud ───────────────────────────────────────────────────────
-  "asl aws cloudtrail":  # Amazon Security Lake CloudTrail (OCSF schema)
+  "asl aws cloudtrail":
     platforms: [aws]
     data_sources: [aws_security_lake, aws_cloudtrail]
     event_types: [api_call]
@@ -92,7 +436,7 @@ data_source_labels:
     platforms: [aws]
     data_sources: [aws_security_hub]
     event_types: [audit_event]
-  "asl":  # Amazon Security Lake (generic)
+  "asl":
     platforms: [aws]
     data_sources: [aws_security_lake]
     event_types: [api_call]
@@ -104,12 +448,6 @@ data_source_labels:
     platforms: [azure]
     data_sources: [azure_activity]
     event_types: [api_call]
-  # Entra ID / Azure AD variants. Splunk's data_source labels are verbose
-  # and inconsistent ("azure ad" vs "azure active directory" vs more
-  # specific per-event variants). Exact-match-first means each must be
-  # listed explicitly. Audit activity (member/role/consent/service
-  # principal/app) goes to `entra_id_audit`; sign-in events to
-  # `entra_id_signin`.
   "azure ad":
     platforms: [azure]
     data_sources: [entra_id_signin]
@@ -117,7 +455,6 @@ data_source_labels:
   "azure active directory":
     platforms: [azure]
     data_sources: [entra_id_signin, entra_id_audit]
-    event_types: [authentication, audit_event]
   "azure active directory sign-in activity":
     platforms: [azure]
     data_sources: [entra_id_signin]
@@ -162,6 +499,7 @@ data_source_labels:
     platforms: [gcp]
     data_sources: [gcp_audit]
     event_types: [api_call]
+
   # ── Identity ─────────────────────────────────────────────────────────
   "okta":
     platforms: [okta]
@@ -175,39 +513,37 @@ data_source_labels:
     platforms: [duo]
     data_sources: [duo_activity]
     event_types: [authentication]
+  "pingid":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [authentication]
+
   # ── Linux ────────────────────────────────────────────────────────────
   "linux audit":
     platforms: [linux]
     data_sources: [auditd]
-    event_types: [process_creation, audit_event]
+    event_types: [audit_event]
   "auditd":
     platforms: [linux]
     data_sources: [auditd]
-    event_types: [process_creation, audit_event]
+    event_types: [audit_event]
   "linux":
     platforms: [linux]
     data_sources: [linux_syslog]
-    event_types: [audit_event]
-  # ── Network ──────────────────────────────────────────────────────────
+
+  # ── Network appliances (capability only) ─────────────────────────────
   "zeek":
     platforms: [network_appliance]
     data_sources: [zeek]
-    event_types: [network_connection, dns_query]
   "suricata":
     platforms: [network_appliance]
     data_sources: [suricata]
-    event_types: [network_connection]
   "palo alto":
     platforms: [network_appliance]
     data_sources: [palo_alto_firewall]
-    event_types: [network_connection]
-  "stream":  # Splunk Stream (network analyzer)
+  "stream":
     platforms: [network_appliance]
     data_sources: [zeek]
-    event_types: [network_connection]
-  # Cisco Secure Firewall (née Firepower / FTD — Threat Defense). Multiple
-  # event types surface as distinct labels; each resolves to the same
-  # firewall data_source with an appropriate event_type.
   "cisco secure firewall threat defense intrusion event":
     platforms: [network_appliance]
     data_sources: [cisco_firewall]
@@ -223,43 +559,41 @@ data_source_labels:
   "cisco asa":
     platforms: [network_appliance]
     data_sources: [cisco_firewall]
-    event_types: [network_connection]
   "cisco ios":
     platforms: [network_appliance]
     data_sources: [cisco_firewall]
-    event_types: [audit_event]
   "cisco sd-wan":
     platforms: [network_appliance]
     data_sources: [cisco_firewall]
-    event_types: [network_connection]
   "nginx access":
     platforms: [network_appliance]
     data_sources: [webserver_logs]
     event_types: [http_request]
-  # VMware ESXi ships audit events over syslog. Not OS-specific telemetry
-  # so platform=cross_platform (hypervisor layer) + linux_syslog format.
   "vmware esxi syslog":
     platforms: [cross_platform]
     data_sources: [linux_syslog]
     event_types: [audit_event]
+
   # ── Container ────────────────────────────────────────────────────────
   "kubernetes":
     platforms: [kubernetes]
     data_sources: [kubernetes_audit]
     event_types: [audit_event]
+
   # ── EDR ──────────────────────────────────────────────────────────────
+  # event_types trimmed — a process-oriented rule already knows it's
+  # process_creation via the datamodel or macro. Leaving these broad
+  # caused the 4-event_type explosion.
   "crowdstrike":
     platforms: [windows, linux, macos]
     data_sources: [crowdstrike_fdr]
-    event_types: [process_creation, network_connection]
   "carbon black":
     platforms: [windows]
     data_sources: [carbon_black]
-    event_types: [process_creation, network_connection]
   "osquery":
     platforms: [windows, linux, macos]
     data_sources: [osquery]
-    event_types: [audit_event]
+
   # ── SaaS / DevOps ────────────────────────────────────────────────────
   "github enterprise audit":
     platforms: [github]
@@ -273,6 +607,7 @@ data_source_labels:
     platforms: [cross_platform]
     data_sources: [application_logs]
     event_types: [audit_event]
+
   # ── M365 / Copilot ───────────────────────────────────────────────────
   "m365 exported ediscovery prompts":
     platforms: [microsoft_365]
@@ -282,33 +617,32 @@ data_source_labels:
     platforms: [microsoft_365]
     data_sources: [m365_audit]
     event_types: [api_call]
+
   # ── LLM service logs ─────────────────────────────────────────────────
   "ollama server":
     platforms: [llm]
     data_sources: [llm_service_logs]
     event_types: [api_call]
-  "mcp server":  # Model Context Protocol
+  "mcp server":
     platforms: [llm]
     data_sources: [llm_service_logs]
     event_types: [api_call]
-  # ── Misc apps / identity / file-transfer ─────────────────────────────
+
+  # ── Misc apps / file transfer ────────────────────────────────────────
   "crushftp":
     platforms: [cross_platform]
     data_sources: [application_logs]
     event_types: [audit_event]
-  "pingid":
-    platforms: [cross_platform]
-    data_sources: [application_logs]
-    event_types: [authentication]
-  # Windows AD Monitor (admon) — directory-object audit feed
+
+  # ── AD tooling ───────────────────────────────────────────────────────
   "windows active directory admon":
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
 
-# Coarse fallback from `tags.security_domain`. Helpful when no explicit
-# data_source label was set. Note: we don't populate data_sources from
-# this — the labels are too coarse to be useful as a data_source.
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 4 — security_domain (coarse fallback)
+# ─────────────────────────────────────────────────────────────────────────
 security_domain:
   endpoint:
     platforms: [windows]
@@ -324,14 +658,11 @@ security_domain:
   access:
     event_types: [authentication]
 
-# Last-resort: if no data_source label and no security_domain match,
-# scan the search query for these keywords to fill in any still-empty
-# dimension (platforms / data_sources / event_types). Each entry can
-# contribute to multiple dimensions. Keyword matches are checked via
-# substring so the query `| from datamodel=Network_Resolution` hits
-# both `datamodel=network_resolution` and `network_resolution`.
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 5 — Search-text keyword substrings (last-resort)
+# Fill gaps only. Datamodel/macro tiers usually fire first.
+# ─────────────────────────────────────────────────────────────────────────
 search_keywords:
-  # ── Endpoint / Windows ───────────────────────────────────────────────
   "process_name":
     event_types: [process_creation]
   "wineventlog":
@@ -340,17 +671,8 @@ search_keywords:
     event_types: [audit_event]
   "tstats":
     event_types: [process_creation]
-  "datamodel=endpoint.processes":
-    platforms: [windows]
-    event_types: [process_creation]
-  "datamodel=network_resolution":
-    event_types: [dns_query]
-  "datamodel=authentication":
-    event_types: [authentication]
   "logon":
     event_types: [authentication]
-  # ── Zeek / Suricata network analyzers (search text often references
-  # the Zeek log type like `zeek:ssl`, `zeek:x509`, `zeek:conn`, etc.) ─
   "zeek:":
     platforms: [network_appliance]
     data_sources: [zeek]
@@ -363,12 +685,10 @@ search_keywords:
     platforms: [network_appliance]
     data_sources: [suricata]
     event_types: [network_connection]
-  # ── osquery (endpoint monitoring) — shows up as `index=osquery` etc. ─
   "osquery":
     platforms: [windows, linux, macos]
     data_sources: [osquery]
     event_types: [audit_event]
-  # ── Cloud platforms (when search references their API/audit tables) ─
   "cloudtrail":
     platforms: [aws]
     data_sources: [aws_cloudtrail]
@@ -380,7 +700,4 @@ search_keywords:
   "azureactivity":
     platforms: [azure]
     data_sources: [azure_activity]
-    event_types: [api_call]
-  "datamodel=cloud":
-    platforms: [aws]
     event_types: [api_call]
