@@ -923,6 +923,116 @@ def test_splunk_sysmon_macro_alone_does_not_force_event_type():
     assert result["event_types"] == ["unknown"]
 
 
+def test_elastic_eql_sequence_extracts_event_types_from_brackets():
+    """EQL `sequence ... [<cat> where ...]` blocks should contribute
+    event_types. Elastic Defend rules use this heavily; the previous
+    regex only matched the query head and missed all sequence rules."""
+    query = (
+        'sequence by host.id with maxspan=5m '
+        '[process where event.action == "start"] '
+        '[network where event.type == "connection_attempt"]'
+    )
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"type": "eql", "language": "eql", "integration": ["endpoint"]},
+        tags=["OS: Windows"],
+        detection_logic_raw={"type": "eql", "query": query},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "process_creation" in result["event_types"]
+    assert "network_connection" in result["event_types"]
+
+
+def test_elastic_protections_sequence_extracts_event_types():
+    """Elastic Protections (agent rules) use EQL sequence heavily.
+    Previously ~451 rules had event_types=[unknown] because the
+    extractor only matched `<cat> where` at the query head."""
+    query = (
+        'sequence with maxspan=1m '
+        '[process where event.action == "start"] '
+        '[file where event.action == "modification"]'
+    )
+    parsed = _make_parsed(
+        source="elastic_protections",
+        detection_logic_raw=query,
+    )
+    result = resolve_for_repo("elastic_protections", parsed)
+    assert "process_creation" in result["event_types"]
+    assert "file_event" in result["event_types"]
+
+
+def test_elastic_kql_event_category_extraction():
+    """KQL rules use `event.category:process` instead of EQL's
+    `process where`. Our KQL extractor should pull the category."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"type": "query", "language": "kuery"},
+        tags=["OS: Linux"],
+        detection_logic_raw={
+            "type": "query",
+            "query": 'host.os.type:linux and event.category:process and event.action:exec',
+        },
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "process_creation" in result["event_types"]
+
+
+def test_elastic_alerts_security_has_cross_platform_now():
+    """Higher-order rules querying `.alerts-security-*` used to show
+    platforms=[unknown] because no signal set a platform. The index
+    pattern now provides cross_platform explicitly."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"index": [".alerts-security.alerts-default"]},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "cross_platform" in result["platforms"]
+    assert "alert_correlation" in result["event_types"]
+
+
+def test_splunk_aws_cloudwatchlogs_eks_macro():
+    """`aws_cloudwatchlogs_eks` macro (EKS audit logs) previously
+    unmapped — was the rule the user reported as broken."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={
+            "search": '`aws_cloudwatchlogs_eks` "user.username"="system:anonymous" | stats count',
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "kubernetes" in result["platforms"]
+    assert "kubernetes_audit" in result["data_sources"]
+    assert "audit_event" in result["event_types"]
+
+
+def test_splunk_cisco_isovalent_process_exec_macro():
+    """Cisco Isovalent (Cilium Tetragon) eBPF process-exec feed."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={
+            "search": '`cisco_isovalent_process_exec` process_name="curl" | stats count',
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "kubernetes" in result["platforms"]
+    assert result["event_types"] == ["process_creation"]
+
+
+def test_splunk_risk_datamodel_is_alert_correlation():
+    """`tstats ... datamodel=Risk` aggregates risk scores across other
+    rules — that's alert-on-alert correlation, not raw telemetry."""
+    parsed = _make_parsed(
+        source="splunk",
+        detection_logic_raw={
+            "search": '| tstats sum(All_Risk.calculated_risk_score) FROM datamodel=Risk',
+        },
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert "cross_platform" in result["platforms"]
+    assert "siem_alert" in result["data_sources"]
+    assert "alert_correlation" in result["event_types"]
+
+
 def test_elastic_higher_order_rule_uses_alert_correlation_not_platform_alert():
     """`.alerts-security-*` rules are the SIEM's OWN alert stream —
     they should use alert_correlation, NOT platform_alert (which is

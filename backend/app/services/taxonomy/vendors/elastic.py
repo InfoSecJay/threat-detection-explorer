@@ -49,11 +49,27 @@ if TYPE_CHECKING:
 _MAPPING = load_mapping("elastic")
 
 
-# EQL queries begin with an event category keyword and `where`, e.g.
-# `process where event.type == "start"` → event_type = process_creation.
-# This mirrors the extractor in `elastic_protections.py`; the two
-# resolvers share the same mapping key (`eql_category_to_event_types`).
-_EQL_HEAD = re.compile(r"^\s*([a-z_]+)\s+where\b", re.IGNORECASE)
+# EQL queries begin with an event category keyword + `where`, e.g.
+#   process where event.type == "start"
+# OR they use `sequence` syntax with category blocks in brackets:
+#   sequence by host.id with maxspan=5m
+#     [process where event.action == "start"]
+#     [network where event.type == "connection_attempt"]
+# We need both forms. The regex matches EITHER the start of the query
+# OR the inside of a `[` bracket — captures `process`, `file`,
+# `network`, `registry`, `dns`, `library`, `authentication`, etc.
+_EQL_CATEGORIES = re.compile(
+    r"(?:^\s*|\[\s*)([a-z_]+)\s+where\b",
+    re.IGNORECASE,
+)
+
+# KQL queries use `event.category:process` (structured field-colon
+# syntax) instead of EQL's `<cat> where ...`. Extract the category
+# value so KQL rules get a proper event_type.
+_KQL_EVENT_CATEGORY = re.compile(
+    r"event\.category\s*:\s*\"?([a-z_]+)\"?",
+    re.IGNORECASE,
+)
 
 
 def resolve(parsed: "ParsedRule") -> dict:
@@ -172,10 +188,27 @@ def _resolve_all_signals(
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
 
-    # ── EQL query head: `process where ...` → process_creation ──
+    # ── EQL query categories ──
+    # Elastic EQL rules express the event category in the query head
+    # (`process where ...`) OR as blocks inside a `sequence` query
+    # (`sequence ... [process where ...] [file where ...]`). Extract
+    # all occurrences and map each to an event_type.
     if language == "eql" and query_text:
-        match = _EQL_HEAD.match(query_text)
-        if match:
+        for match in _EQL_CATEGORIES.finditer(query_text):
+            category = match.group(1).lower()
+            mapped = eql_category_map.get(category)
+            if mapped:
+                if isinstance(mapped, list):
+                    event_types.update(mapped)
+                else:
+                    event_types.add(str(mapped))
+
+    # ── KQL event.category: extraction ──
+    # KQL queries (language=kuery / kql) don't have the EQL `<cat> where`
+    # structure. They reference the category via `event.category:<x>`.
+    # Same mapping applies.
+    if language in ("kql", "kuery") and query_text:
+        for match in _KQL_EVENT_CATEGORY.finditer(query_text):
             category = match.group(1).lower()
             mapped = eql_category_map.get(category)
             if mapped:

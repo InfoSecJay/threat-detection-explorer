@@ -178,13 +178,20 @@ index_patterns:
   # fired alerts — Elastic calls these "higher-order" rules. The input
   # isn't raw telemetry; it's detected activity.
   # ═══════════════════════════════════════════════════════════════════════
+  # Higher-order rules query the SIEM's own alert stream. Platform is
+  # `cross_platform` because the SIEM sits across all telemetry sources —
+  # an alert-on-alert rule may correlate alerts from Windows, Linux,
+  # cloud, etc. Without this the rules show platforms=[unknown].
   ".alerts-security.alerts-*":
+    platforms: [cross_platform]
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
   ".alerts-security*":
+    platforms: [cross_platform]
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
   ".alerts-*":
+    platforms: [cross_platform]
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
 

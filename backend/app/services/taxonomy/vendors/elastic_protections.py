@@ -18,9 +18,15 @@ if TYPE_CHECKING:
 
 _MAPPING = load_mapping("elastic_protections")
 
-# Match the EQL "category" keyword at the start of the query, e.g.
-# `process where ...` or `network where ...` or `file where ...`.
-_EQL_HEAD = re.compile(r"^\s*([a-z_]+)\s+where\b", re.IGNORECASE)
+# Extract EQL category keywords — from the query head (`process where
+# ...`) OR from category blocks inside a `sequence` query
+# (`sequence ... [process where ...] [file where ...]`). Elastic
+# Protections uses sequence syntax heavily, so missing this was why
+# ~451 rules had event_types=[unknown].
+_EQL_CATEGORIES = re.compile(
+    r"(?:^\s*|\[\s*)([a-z_]+)\s+where\b",
+    re.IGNORECASE,
+)
 
 
 def resolve(parsed: "ParsedRule") -> dict:
@@ -51,13 +57,15 @@ def resolve(parsed: "ParsedRule") -> dict:
             else:
                 platforms.add(canonical)
 
-    # Event type from EQL query head
+    # Event type from EQL query — extracts from both simple `<cat> where`
+    # queries and from `sequence ... [<cat> where ...]` blocks. Elastic
+    # Defend rules use sequence heavily; without the bracket match, ~451
+    # rules had event_types=[unknown].
     raw_query = parsed.detection_logic_raw
     if isinstance(raw_query, str):
-        match = _EQL_HEAD.match(raw_query)
-        if match:
+        event_type_map = _MAPPING.get("eql_category_to_event_types") or {}
+        for match in _EQL_CATEGORIES.finditer(raw_query):
             eql_category = match.group(1).lower()
-            event_type_map = _MAPPING.get("eql_category_to_event_types") or {}
             mapped = event_type_map.get(eql_category)
             if mapped:
                 if isinstance(mapped, list):

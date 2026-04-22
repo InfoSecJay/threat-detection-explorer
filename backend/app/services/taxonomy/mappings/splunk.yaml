@@ -71,7 +71,20 @@ datamodels:
     event_types: [http_request]
   change:
     event_types: [audit_event]
+  # Risk datamodel aggregates risk scores across other rules. It's a
+  # SIEM-internal abstraction (Splunk's Risk-Based Alerting), not a
+  # raw feed. Rules `tstats ... datamodel=Risk` correlate scored events
+  # into higher-confidence detections — that's alert_correlation territory.
   risk:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  updates:
+    platforms: [windows, linux, macos]
+    event_types: [audit_event]
+  ueba:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
     event_types: [audit_event]
   email:
     platforms: [email]
@@ -339,6 +352,63 @@ macros:
     platforms: [cross_platform]
     data_sources: [application_logs]
     event_types: [audit_event]
+    authoritative: true
+  # ── AWS / Cloud macros ────────────────────────────────────────────────
+  aws_cloudwatchlogs_eks:
+    # EKS control-plane audit logs shipped through CloudWatch. It's the
+    # Kubernetes API server's audit log living in AWS.
+    platforms: [kubernetes, aws]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+    authoritative: true
+  # ── Cisco AI Defense (Splunk app) ────────────────────────────────────
+  cisco_ai_defense:
+    platforms: [llm, network_appliance]
+    data_sources: [llm_service_logs]
+    event_types: [api_call]
+    authoritative: true
+  # ── Cisco Isovalent (Cilium Tetragon) — eBPF container visibility ────
+  cisco_isovalent:
+    platforms: [kubernetes, linux]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+  cisco_isovalent_process_exec:
+    platforms: [kubernetes, linux]
+    data_sources: [kubernetes_audit]
+    event_types: [process_creation]
+    authoritative: true
+  cisco_isovalent_process_connect:
+    platforms: [kubernetes, linux]
+    data_sources: [kubernetes_audit]
+    event_types: [network_connection]
+    authoritative: true
+  # ── Cisco NVM (Network Visibility Module — endpoint flow data) ───────
+  cisco_network_visibility_module_flowdata:
+    platforms: [windows, linux, macos]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+    authoritative: true
+  # ── Splunk AppDynamics ───────────────────────────────────────────────
+  splunk_appdynamics:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+    authoritative: true
+  # ── Google Workspace (Gsuite) ────────────────────────────────────────
+  gsuite_calendar:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+    authoritative: true
+  gsuite_drive:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+    authoritative: true
+  gsuite_gmail:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [email_message]
     authoritative: true
   # ── SIEM / hunting helpers ────────────────────────────────────────────
   security_content_summariesonly:
