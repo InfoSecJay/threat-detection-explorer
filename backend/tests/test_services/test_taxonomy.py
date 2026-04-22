@@ -768,6 +768,56 @@ def test_elastic_promotion_rule_gets_platform_alert_event_type():
     assert "alert_correlation" not in result["event_types"]
 
 
+def test_elastic_os_tag_also_narrows_data_sources():
+    """When OS tag narrows platforms, data_sources that can't produce
+    telemetry on those platforms are pruned. Elastic's `system`
+    integration supports both linux_syslog AND windows_security_event_log;
+    a Windows-tagged rule should drop linux_syslog."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"integration": ["system", "endpoint"]},
+        tags=["OS: Windows"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["windows"]
+    # linux_syslog can't produce Windows telemetry — must be dropped.
+    assert "linux_syslog" not in result["data_sources"]
+    # Cross-platform endpoint agents still apply on Windows — kept.
+    assert "elastic_defend" in result["data_sources"]
+    # Windows-specific source stays.
+    assert "windows_security_event_log" in result["data_sources"]
+
+
+def test_data_source_narrowing_preserves_cross_platform_sources():
+    """Cross-OS sources (osquery, elastic_defend) apply on any of
+    their supported platforms. A Linux rule using elastic_defend
+    should keep it, not drop it."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"integration": ["endpoint"]},
+        tags=["OS: Linux"],
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["linux"]
+    assert "elastic_defend" in result["data_sources"]
+
+
+def test_data_source_narrowing_is_noop_when_no_os_constraint():
+    """Without an OS tag, platforms come from the full integration
+    capability list. Data sources all intersect with at least one of
+    those platforms, so none should be pruned."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"integration": ["system"]},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    # system → platforms [windows, linux], data_sources [linux_syslog,
+    # windows_security_event_log]. Both still apply (linux_syslog on
+    # linux, windows_security_event_log on windows).
+    assert "linux_syslog" in result["data_sources"]
+    assert "windows_security_event_log" in result["data_sources"]
+
+
 def test_elastic_higher_order_rule_uses_alert_correlation_not_platform_alert():
     """`.alerts-security-*` rules are the SIEM's OWN alert stream —
     they should use alert_correlation, NOT platform_alert (which is

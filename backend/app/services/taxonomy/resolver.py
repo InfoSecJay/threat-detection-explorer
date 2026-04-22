@@ -24,7 +24,7 @@ It's the key input to coverage metrics + drift notifications.
 
 from typing import TYPE_CHECKING, Callable
 
-from app.services.taxonomy.canonical import UNKNOWN
+from app.services.taxonomy.canonical import UNKNOWN, data_source_applies
 from app.services.taxonomy.vendors import (
     elastic,
     elastic_hunting,
@@ -102,13 +102,41 @@ def resolve_for_repo(repo_name: str, parsed: "ParsedRule") -> dict:
     raw_event_types = result.get("event_types") or []
     matched = bool(raw_platforms or raw_data_sources or raw_event_types)
 
+    # Narrow data_sources to those whose producing-platforms intersect
+    # with the rule's final platform set. Fixes the "capability bleed"
+    # where an integration that supports both windows + linux telemetry
+    # (e.g., Elastic `system` → [linux_syslog, windows_security_event_log])
+    # leaked the non-applicable data_source onto a Windows-scoped rule.
+    # See canonical.data_source_applies for the semantics — permissive
+    # on unknown/cross_platform to avoid over-pruning.
+    platform_set = set(raw_platforms) if isinstance(raw_platforms, (list, set, frozenset)) else set()
+    narrowed_data_sources = [
+        ds for ds in _iter_strings(raw_data_sources)
+        if data_source_applies(ds, platform_set)
+    ]
+    # Defensive: if narrowing would leave data_sources empty (and we
+    # originally had some), keep the originals. Better to show a
+    # capability list than to lose data entirely because our mapping
+    # was incomplete for an edge case.
+    if raw_data_sources and not narrowed_data_sources:
+        narrowed_data_sources = list(_iter_strings(raw_data_sources))
+
     return {
         "platforms": _ensure_list(raw_platforms),
-        "data_sources": _ensure_list(raw_data_sources),
+        "data_sources": _ensure_list(narrowed_data_sources),
         "event_types": _ensure_list(raw_event_types),
         "matched": matched,
         "fingerprint": _compute_fingerprint(repo_name, parsed),
     }
+
+
+def _iter_strings(value) -> list[str]:
+    """Coerce a possibly-set / possibly-list value to a list of strings."""
+    if not value:
+        return []
+    if isinstance(value, (set, frozenset, list)):
+        return [str(v) for v in value]
+    return [str(value)]
 
 
 def _ensure_list(value) -> list[str]:

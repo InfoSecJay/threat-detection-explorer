@@ -264,6 +264,130 @@ EVENT_TYPES: frozenset[str] = frozenset(
 
 
 # ---------------------------------------------------------------------------
+# DATA_SOURCE_PLATFORMS — which platforms each data_source can produce
+# telemetry for. Used to intersect-narrow data_sources against a rule's
+# final platform set. Example: a rule tagged `OS: Windows` that inherits
+# a `linux_syslog` data_source from its integration (because the Elastic
+# `system` integration supports both Windows Event Log AND Linux syslog)
+# correctly drops `linux_syslog` — a Windows rule can't consume Linux
+# syslog.
+#
+# An EMPTY set (`frozenset()`) means the data_source is universal: it
+# can apply to any platform. Used for generic categories like
+# `application_logs`, `webserver_logs`, `siem_alert` that aren't bound
+# to a specific OS/cloud.
+#
+# Data sources not in this map default to empty (universal) — safer to
+# be permissive than over-prune. Filter logic in resolver.py treats
+# `cross_platform` and `unknown` in the platform set as "don't narrow".
+# ---------------------------------------------------------------------------
+
+DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
+    # ── Windows-specific endpoint ───────────────────────────────────────
+    "sysmon": frozenset({"windows"}),
+    "windows_security_event_log": frozenset({"windows"}),
+    "windows_powershell": frozenset({"windows"}),
+    "windows_defender_event_log": frozenset({"windows"}),
+    "defender_endpoint": frozenset({"windows"}),
+    # ── Linux-specific endpoint ─────────────────────────────────────────
+    "auditd": frozenset({"linux"}),
+    "linux_syslog": frozenset({"linux"}),
+    # ── macOS-specific endpoint ─────────────────────────────────────────
+    "jamf_protect": frozenset({"macos"}),
+    # ── Cross-OS endpoint agents (Windows + Linux + macOS) ──────────────
+    "osquery": frozenset({"windows", "linux", "macos"}),
+    "elastic_defend": frozenset({"windows", "linux", "macos"}),
+    "elastic_endgame": frozenset({"windows", "linux", "macos"}),
+    "crowdstrike_fdr": frozenset({"windows", "linux", "macos"}),
+    "sentinelone": frozenset({"windows", "linux", "macos"}),
+    "carbon_black": frozenset({"windows", "linux", "macos"}),
+    "endpoint_behavior": frozenset({"windows", "linux", "macos"}),
+    # Microsoft Defender spans both Windows endpoints and M365 services.
+    "m365_defender": frozenset({"microsoft_365", "windows"}),
+    # ── Container / K8s ─────────────────────────────────────────────────
+    "cloud_defend": frozenset({"kubernetes"}),
+    "kubernetes_audit": frozenset({"kubernetes"}),
+    # ── AWS ─────────────────────────────────────────────────────────────
+    "aws_cloudtrail": frozenset({"aws"}),
+    "aws_security_hub": frozenset({"aws"}),
+    "aws_guardduty": frozenset({"aws"}),
+    "aws_vpc_flow": frozenset({"aws"}),
+    "aws_security_lake": frozenset({"aws"}),
+    # ── Azure ───────────────────────────────────────────────────────────
+    "azure_activity": frozenset({"azure"}),
+    "azure_audit": frozenset({"azure"}),
+    "azure_risk_detection": frozenset({"azure"}),
+    "azure_pim": frozenset({"azure"}),
+    "defender_cloud": frozenset({"azure"}),
+    "entra_id_signin": frozenset({"azure"}),
+    "entra_id_audit": frozenset({"azure"}),
+    # ── GCP ─────────────────────────────────────────────────────────────
+    "gcp_audit": frozenset({"gcp"}),
+    "gcp_vpc_flow": frozenset({"gcp"}),
+    # ── M365 / SaaS identity ────────────────────────────────────────────
+    "m365_audit": frozenset({"microsoft_365"}),
+    "m365_exchange_audit": frozenset({"microsoft_365"}),
+    "okta_system_log": frozenset({"okta"}),
+    "onelogin_events": frozenset({"onelogin"}),
+    "duo_activity": frozenset({"duo"}),
+    "google_workspace_audit": frozenset({"google_workspace"}),
+    # ── Network appliances ──────────────────────────────────────────────
+    "zeek": frozenset({"network_appliance"}),
+    "suricata": frozenset({"network_appliance"}),
+    "snort": frozenset({"network_appliance"}),
+    "palo_alto_firewall": frozenset({"network_appliance"}),
+    "fortinet_firewall": frozenset({"network_appliance"}),
+    "cisco_firewall": frozenset({"network_appliance"}),
+    "cisco_aaa": frozenset({"network_appliance"}),
+    "huawei_network": frozenset({"network_appliance"}),
+    "juniper_network": frozenset({"network_appliance"}),
+    "dns_query_logs": frozenset({"network_appliance"}),
+    "proxy_logs": frozenset({"network_appliance"}),
+    "network_traffic_logs": frozenset({"network_appliance"}),
+    # ── Email ───────────────────────────────────────────────────────────
+    "email_message_metadata": frozenset({"email"}),
+    # ── DevOps / source control ─────────────────────────────────────────
+    "github_audit": frozenset({"github"}),
+    "gitlab_audit": frozenset({"gitlab"}),
+    "bitbucket_audit": frozenset({"bitbucket"}),
+    # ── LLM ─────────────────────────────────────────────────────────────
+    "llm_service_logs": frozenset({"llm"}),
+    # ── Universal (applies to any platform) ─────────────────────────────
+    # Generic categories that can be produced on any OS/cloud:
+    "application_logs": frozenset(),
+    "webserver_logs": frozenset(),
+    "antivirus_logs": frozenset(),
+    "database_logs": frozenset(),
+    # Alert streams don't belong to a single platform:
+    "siem_alert": frozenset(),
+    "elastic_siem_alerts": frozenset(),
+    "elastic_ml": frozenset(),
+    # CyberArk PAM — privileged access sits across infrastructure:
+    "cyberark_audit": frozenset(),
+    UNKNOWN: frozenset(),
+}
+
+
+def data_source_applies(data_source: str, platforms: set[str]) -> bool:
+    """True if `data_source` can produce telemetry on any of `platforms`.
+
+    Used by the resolver to prune data_sources that can't logically be
+    producing events for a rule's final platform set. Conservative: if
+    we have no mapping for the data_source (or platforms is empty /
+    unresolved / contains `cross_platform`), return True — don't narrow.
+    """
+    if not platforms:
+        return True
+    if UNKNOWN in platforms or "cross_platform" in platforms:
+        return True
+    allowed = DATA_SOURCE_PLATFORMS.get(data_source)
+    # Not in the map → treat as universal (safe default).
+    if allowed is None or not allowed:
+        return True
+    return bool(allowed & platforms)
+
+
+# ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
 
