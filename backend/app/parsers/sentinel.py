@@ -1,6 +1,7 @@
 """Microsoft Sentinel detection rule parser."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,89 @@ import yaml
 from app.parsers.base import BaseParser, ParsedRule
 
 logger = logging.getLogger(__name__)
+
+
+# First token in a KQL query is the table name (or a `let` binding /
+# comment). We extract the first identifier that isn't a KQL keyword.
+# KQL table names follow the pattern `[A-Za-z][A-Za-z0-9_]*`; custom
+# logs end in `_CL`. The resolver uses this as the authoritative
+# data-source signal.
+_KQL_LEADING_KEYWORDS = frozenset({
+    "let", "print", "search", "find", "union", "range",
+    "//", "#", "exec",
+})
+
+# Strip KQL comments (`// ...` to end of line, `/* ... */` blocks) and
+# `let X = ...;` bindings so we can find the first actual table query.
+_KQL_LINE_COMMENT = re.compile(r"//[^\n]*")
+_KQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_KQL_LET_BINDING = re.compile(
+    r"\blet\s+\w+\s*=\s*[^;]*;",
+    re.IGNORECASE | re.DOTALL,
+)
+_KQL_TABLE_IDENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
+
+
+def _extract_kql_tables(query: str) -> list[str]:
+    """Return up to 3 distinct table names referenced at statement heads.
+
+    KQL statements begin with a table name followed by `|`. We find
+    identifiers that appear at the start of a line and are NOT KQL
+    keywords like `let` or `print`. Duplicates removed, order preserved.
+    """
+    if not query or not isinstance(query, str):
+        return []
+    # Strip comments + let bindings so we don't pick up `let` target names.
+    cleaned = _KQL_BLOCK_COMMENT.sub("", query)
+    cleaned = _KQL_LINE_COMMENT.sub("", cleaned)
+    cleaned = _KQL_LET_BINDING.sub("", cleaned)
+
+    seen: set[str] = set()
+    tables: list[str] = []
+    for match in _KQL_TABLE_IDENT.finditer(cleaned):
+        ident = match.group(1)
+        if ident.lower() in _KQL_LEADING_KEYWORDS:
+            continue
+        if ident not in seen:
+            seen.add(ident)
+            tables.append(ident)
+        if len(tables) >= 3:
+            break
+    return tables
+
+
+def _extract_solution_folder(file_path: str) -> str:
+    """Return the vendor folder under `Solutions/<vendor>/...`, else "".
+
+    Root-level Detections rules live in `Detections/<table>/…`; those
+    don't have a vendor folder (the table name IS the signal), so this
+    returns "" for them.
+    """
+    parts = str(file_path).replace("\\", "/").split("/")
+    if len(parts) >= 2 and parts[0] == "Solutions":
+        return parts[1]
+    return ""
+
+
+def _extract_entity_types(entity_mappings) -> list[str]:
+    """Return distinct `entityType` values from a rule's entityMappings.
+
+    Sentinel supports Account, Host, FileHash, IP, URL, MailMessage,
+    Process, CloudApplication, etc. Used as a last-resort fallback hint
+    in the resolver when higher-precedence signals didn't fire.
+    """
+    if not isinstance(entity_mappings, list):
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for em in entity_mappings:
+        if not isinstance(em, dict):
+            continue
+        et = em.get("entityType")
+        if isinstance(et, str) and et and et not in seen:
+            seen.add(et)
+            out.append(et)
+    return out
 
 
 class SentinelParser(BaseParser):
@@ -47,24 +131,49 @@ class SentinelParser(BaseParser):
         return "sentinel"
 
     def can_parse(self, file_path: Path) -> bool:
-        """Check if this is a Sentinel Analytics rule file."""
-        path_str = str(file_path).lower()
+        """Check if this is a Sentinel detection rule file.
+
+        Accepts rules from four locations:
+          - `Solutions/<vendor>/Analytic Rules/*.yaml` (primary — vendor packages)
+          - `Detections/<table>/*.yaml`               (root — grouped by KQL table name)
+          - `ASIM/*/*.yaml`                           (ASIM-based detections)
+          - `Summary rules/*.yaml`                    (alert-aggregation rules)
+
+        Hunting / exploration / parser / workbook YAMLs live in parallel
+        directories; we explicitly skip those because they're not detections.
+        """
+        path_str = str(file_path).replace("\\", "/").lower()
 
         # Must be YAML
         if not (path_str.endswith(".yml") or path_str.endswith(".yaml")):
             return False
 
-        # Must be in Solutions directory with Analytic Rules
-        if "solutions" not in path_str:
+        # Exclude non-rule YAMLs (hunting, workbooks, parsers, playbooks,
+        # data connectors, sample data, etc.) and any test/deprecated paths.
+        excluded = [
+            "tests", "deprecated", "test_", "/test/", ".git",
+            "sample data", "workbooks", "parsers", "playbooks",
+            "dataconnectors", "exploration queries",
+            "hunting queries",  # hunting is distinct from detection
+            "detection queries",  # same — these are hunting-style
+        ]
+        if any(ex in path_str for ex in excluded):
             return False
 
-        # Should be in Analytic Rules folder
-        if "analytic" not in path_str:
-            return False
+        # Accept any of the four rule-containing locations:
+        if "/solutions/" in path_str and "/analytic rules/" in path_str:
+            return True
+        if path_str.startswith("detections/") or "/detections/" in path_str:
+            # Guard against a rare `Solutions/<vendor>/Detections/` case —
+            # already accepted above via the main branch if "Analytic Rules"
+            # also appears. Only the root `Detections/` bucket gets here.
+            return True
+        if path_str.startswith("asim/") or "/asim/" in path_str:
+            return True
+        if "summary rules/" in path_str:
+            return True
 
-        # Exclude test and deprecated directories
-        excluded = ["tests", "deprecated", "test", ".git", "sample"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return False
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a Microsoft Sentinel Analytics YAML rule file."""
@@ -138,6 +247,15 @@ class SentinelParser(BaseParser):
                     "triggerThreshold": data.get("triggerThreshold"),
                     "requiredDataConnectors": data.get("requiredDataConnectors", []),
                     "entityMappings": data.get("entityMappings", []),
+                    # Taxonomy-resolver inputs (Sentinel-specific tiers):
+                    # Tier 1 — first KQL table names in the query head.
+                    "kql_tables": _extract_kql_tables(query),
+                    # Tier 4 — `Solutions/<vendor>/...` folder name.
+                    "solution_folder": _extract_solution_folder(str(file_path)),
+                    # Tier 5 — entity types (last-resort event_type hint).
+                    "entity_types": _extract_entity_types(
+                        data.get("entityMappings", [])
+                    ),
                 },
             )
 

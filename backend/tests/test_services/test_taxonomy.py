@@ -1033,6 +1033,121 @@ def test_splunk_risk_datamodel_is_alert_correlation():
     assert "alert_correlation" in result["event_types"]
 
 
+def test_sentinel_kql_table_name_is_authoritative():
+    """Sentinel resolver's Tier 1 — the query's first table name IS
+    the data source. `AWSCloudTrail | where ...` → aws + aws_cloudtrail
+    + api_call even without requiredDataConnectors declared."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            "requiredDataConnectors": [],
+            "kql_tables": ["AWSCloudTrail"],
+            "solution_folder": "Amazon Web Services",
+            "entity_types": [],
+        },
+        detection_logic_raw='AWSCloudTrail | where EventName == "DeleteTrail"',
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    assert result["platforms"] == ["aws"]
+    assert "aws_cloudtrail" in result["data_sources"]
+    assert result["event_types"] == ["api_call"]
+
+
+def test_sentinel_solution_folder_fallback_when_table_unmapped():
+    """Tier 4 — when KQL table isn't in kql_tables and there's no
+    connector, the `Solutions/<vendor>/` folder resolves."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            "requiredDataConnectors": [],
+            "kql_tables": ["SomeNotMappedTable"],
+            "solution_folder": "Acronis Cyber Protect Cloud",
+            "entity_types": [],
+        },
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    assert "cross_platform" in result["platforms"]
+    assert "antivirus_logs" in result["data_sources"]
+
+
+def test_sentinel_veeam_is_cross_platform_not_linux():
+    """Veeam Backup runs on Windows; only the syslog forwarder is
+    Linux-format. Previously ALL 132 Veeam rules showed platforms=[linux]
+    via the syslogama connector. Now the `Veeam_GetSecurityEvents` table
+    mapping + solution folder fix the classification."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            "requiredDataConnectors": [{"connectorId": "syslogama", "dataTypes": ["Syslog"]}],
+            "kql_tables": ["Veeam_GetSecurityEvents"],
+            "solution_folder": "Veeam",
+            "entity_types": [],
+        },
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    # Platform widened — now includes Windows (where Veeam runs).
+    assert "windows" in result["platforms"] or "cross_platform" in result["platforms"]
+    # Data source is application_logs (Veeam's own event stream), not
+    # a generic linux_syslog misclassification.
+    assert "application_logs" in result["data_sources"]
+
+
+def test_sentinel_custom_log_cl_fallback():
+    """`*_CL` custom-log tables (long tail of vendor marketplace
+    connectors) fall through to cross_platform + siem_alert."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            "requiredDataConnectors": [],
+            "kql_tables": ["SomeExoticVendor_CL"],
+            "solution_folder": "",
+            "entity_types": [],
+        },
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    assert "cross_platform" in result["platforms"]
+    assert "siem_alert" in result["data_sources"]
+
+
+def test_sentinel_entity_type_is_last_resort():
+    """Entity types contribute event_type ONLY when no other tier fired.
+    They never set platforms/data_sources."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            "requiredDataConnectors": [],
+            "kql_tables": [],
+            "solution_folder": "",
+            "entity_types": ["MailMessage"],
+        },
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    # entity_type=MailMessage → email_message event_type, but platforms
+    # and data_sources should still be unknown (entity doesn't describe
+    # the telemetry source).
+    assert "email_message" in result["event_types"]
+    assert result["platforms"] == ["unknown"]
+    assert result["data_sources"] == ["unknown"]
+
+
+def test_sentinel_kql_table_beats_connector_when_both_present():
+    """Tier 1 (table name) overrides Tier 2 (connector) for event_type
+    when they disagree — the table is what the rule actually queries."""
+    parsed = _make_parsed(
+        source="sentinel",
+        extra={
+            # Connector says authentication, table says api_call
+            "requiredDataConnectors": [{"connectorId": "azureactivedirectory", "dataTypes": []}],
+            "kql_tables": ["AzureActivity"],
+            "solution_folder": "",
+            "entity_types": [],
+        },
+    )
+    result = resolve_for_repo("sentinel", parsed)
+    # Table AzureActivity → api_call (Tier 1 authoritative)
+    assert "api_call" in result["event_types"]
+
+
 def test_elastic_higher_order_rule_uses_alert_correlation_not_platform_alert():
     """`.alerts-security-*` rules are the SIEM's OWN alert stream —
     they should use alert_correlation, NOT platform_alert (which is

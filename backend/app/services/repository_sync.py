@@ -38,9 +38,19 @@ ALL_REPOSITORY_NAMES: list[str] = [
 # Sparse checkout patterns for large repositories
 SPARSE_CHECKOUT_PATTERNS = {
     "sentinel": [
+        # Solutions subdir — vendor-specific detections
         "Solutions/*/Analytic Rules/*",
         "Solutions/*/Hunting Queries/*",
         "Solutions/*/Detection Queries/*",
+        # Root-level Detections/ — 483+ rules grouped by KQL table
+        # (AuditLogs, AWSCloudTrail, Syslog, etc.). Previously missed
+        # entirely; these are older-style rules still in active use.
+        "Detections/**",
+        # ASIM rules using Microsoft's Advanced Security Info Model
+        # parsers; ~67 rules (ASimProcess, ASimNetworkSession, etc.).
+        "ASIM/**",
+        # Summary rules (small — 7 rules that aggregate other alerts).
+        "Summary rules/*",
     ],
 }
 

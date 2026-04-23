@@ -1,9 +1,283 @@
 # Microsoft Sentinel → canonical taxonomy mappings.
 #
-# Sentinel rules carry `requiredDataConnectors` — a list of structured
-# entries with `connectorId` + `dataTypes`. We map by both connectorId
-# and dataType (some dataTypes like `SecurityAlert` come from many
-# different connectors but always represent SIEM alerts).
+# Five tiers, resolved in order (see vendors/sentinel.py for full docs):
+#   1. kql_tables       — first KQL table the rule queries (authoritative)
+#   2. connectors       — `requiredDataConnectors[].connectorId`
+#   3. data_types       — `requiredDataConnectors[].dataTypes[]`
+#   4. solution_folders — `Solutions/<vendor>/` vendor fallback
+#   5. entity_types     — `entityMappings[].entityType` last-resort hint
+#
+# Keys are lowercase. Tier 1 is the dominant signal; every Sentinel
+# rule starts with a table. Tier 4 covers the long tail of third-party
+# vendors from the Marketplace that don't declare requiredDataConnectors.
+
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 1 — KQL TABLE NAMES (authoritative event_type)
+# The first table referenced at the head of the query. This is the
+# most reliable data-source signal we have. `*_cl` catches any vendor
+# custom log; specific `_CL` tables (e.g. BHEAttackPathsData_CL) can be
+# listed explicitly if more precision is wanted.
+# ─────────────────────────────────────────────────────────────────────────
+kql_tables:
+  # ── Microsoft Entra / Azure AD ──────────────────────────────────────
+  auditlogs:
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  signinlogs:
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  aadnoninteractiveusersigninlogs:
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  aadprovisioninglogs:
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  aadservicepricinciplesigninlogs:  # typo that appears in some rules
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  aadserviceprincipalsigninlogs:
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  aadmanagedidentitysigninlogs:
+    platforms: [azure]
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  identityinfo:
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  # ── Azure platform ───────────────────────────────────────────────────
+  azureactivity:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  azurediagnostics:
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  # ── Microsoft 365 / Office ───────────────────────────────────────────
+  officeactivity:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  cloudappevents:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  emailevents:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [email_message]
+  emailattachmentinfo:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [email_message]
+  emailurlinfo:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [email_message]
+  dataverseactivity:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  # ── Microsoft Defender for Endpoint (Device* tables) ────────────────
+  deviceevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+  deviceprocessevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [process_creation]
+  devicenetworkevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [network_connection]
+  devicefileevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [file_event]
+  deviceregistryevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [registry_event]
+  deviceimageloadevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [image_load]
+  devicelogonevents:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [authentication]
+  deviceinfo:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [audit_event]
+  # ── Windows native / Syslog ──────────────────────────────────────────
+  securityevent:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windowsevent:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  windowsfirewall:
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [network_connection]
+  syslog:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  # ── CEF / Azure Monitor Agent ingest ─────────────────────────────────
+  commonsecuritylog:
+    # CEF pipe. Wide variety of appliances; platform left broad.
+    platforms: [network_appliance]
+    data_sources: [cisco_firewall, palo_alto_firewall, fortinet_firewall]
+    event_types: [network_connection]
+  # ── AWS ──────────────────────────────────────────────────────────────
+  awscloudtrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  awsguardduty:
+    platforms: [aws]
+    data_sources: [aws_guardduty]
+    event_types: [audit_event]
+  awscloudwatch:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  awsvpcflow:
+    platforms: [aws]
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  # ── GCP ──────────────────────────────────────────────────────────────
+  gcp_audit_logs:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  # ── SIEM alert streams (Sentinel's own + external) ───────────────────
+  securityalert:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  securityincident:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  securitynestedrecommendation:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  behavioranalytics:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  anomalies:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  # ── Threat intelligence ──────────────────────────────────────────────
+  threatintelligenceindicator:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  threatintelindicators:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  # ── Azure DevOps ─────────────────────────────────────────────────────
+  adoauditlogs:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── GitHub ───────────────────────────────────────────────────────────
+  githubauditlogpolling_cl:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  # ── Okta / SaaS identity ─────────────────────────────────────────────
+  okta_cl:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  oktav2_cl:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  # ── Dedicated third-party tables (avoid `_cl` fallback genericness) ──
+  bheattackpathsdata_cl:
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  cyfirmaindicators_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  cyblevisionalerts_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  aishield:  # table (no _CL suffix in this case)
+    platforms: [llm]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  aishield_cl:
+    platforms: [llm]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  theomalerts_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  authomize_v2_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  senservapro_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  cognniincidents_cl:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  cloudflare:
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [network_connection]
+  veeamonetriggeredalarms_cl:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # Veeam backup's own ingested syslog stream — Veeam server runs
+  # on Windows; the syslog IS application_logs, NOT linux_syslog.
+  veeam_getsecurityevents:
+    platforms: [windows, cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── Miscellaneous vendor tables we saw in the review ─────────────────
+  netbackupalerts_cl:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  sapbtpauditlog_cl:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── Custom log catch-all (any `*_CL` table not listed above) ────────
+  "*_cl":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
 
 connectors:
   # ── AWS ───────────────────────────────────────────────────────────────
@@ -259,6 +533,184 @@ data_types:
     platforms: [microsoft_365]
     data_sources: [m365_audit]
     event_types: [audit_event]
+
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 4 — SOLUTIONS FOLDER NAMES (vendor fallback)
+# When `requiredDataConnectors` is missing and the KQL table didn't
+# resolve, the `Solutions/<vendor>/` folder is an authoritative vendor
+# signal. Kept lowercase for case-insensitive lookup. Only the top
+# unmapped folders are listed here; long-tail vendors (single-rule
+# folders) fall through to the `*_cl` table bucket.
+# ─────────────────────────────────────────────────────────────────────────
+solution_folders:
+  # ── Acronis ─────────────────────────────────────────────────────────
+  "acronis cyber protect cloud":
+    platforms: [cross_platform]
+    data_sources: [antivirus_logs]
+    event_types: [audit_event]
+  # ── Azure DevOps ────────────────────────────────────────────────────
+  "azuredevopsauditing":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── CTERA (edge filers) ─────────────────────────────────────────────
+  "ctera":
+    platforms: [cross_platform]
+    data_sources: [antivirus_logs]
+    event_types: [audit_event]
+  # ── Veritas NetBackup ───────────────────────────────────────────────
+  "veritas netbackup":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── VMware appliances ───────────────────────────────────────────────
+  "vmware esxi":
+    platforms: [cross_platform]
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  "vmware sd-wan and sase":
+    platforms: [network_appliance]
+    data_sources: [application_logs]
+    event_types: [network_connection]
+  # ── Entra ID (falls through kql_tables already, but in case) ────────
+  "microsoft entra id":
+    platforms: [azure]
+    data_sources: [entra_id_signin, entra_id_audit]
+    event_types: [authentication, audit_event]
+  # ── Microsoft Business Applications (Dataverse / PowerPlatform) ─────
+  "microsoft business applications":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  # ── Microsoft 365 misc ──────────────────────────────────────────────
+  "microsoft 365":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  # ── Threat intelligence groups ──────────────────────────────────────
+  "threat intelligence":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "threat intelligence (new)":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  # ── AWS ─────────────────────────────────────────────────────────────
+  "amazon web services":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  # ── GitHub ──────────────────────────────────────────────────────────
+  "github":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  # ── Endpoint detection vendors (fold to siem_alert by convention) ───
+  "bloodhound enterprise":
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  "cyble vision":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "cyfirma cyber intelligence":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "cyfirma digital risk":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "cyfirma attack surface":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "aishield ai security monitoring":
+    platforms: [llm]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "authomize":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "theom":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "senservapro":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "cognni":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "alsid for ad":
+    platforms: [windows]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  # ── Veeam (backup software — Windows server running the backup,
+  # forwarding events over syslog) ───────────────────────────────────
+  "veeam":
+    platforms: [windows, cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── Windows Security Events (Microsoft native) ──────────────────────
+  "windows security events":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  # ── FalconFriday (CrowdStrike) ──────────────────────────────────────
+  "falconfriday":
+    platforms: [windows, linux, macos]
+    data_sources: [crowdstrike_fdr]
+  # ── Azure Activity ──────────────────────────────────────────────────
+  "azure activity":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  # ── SAP BTP ─────────────────────────────────────────────────────────
+  "sap btp":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  # ── IoT / OT ────────────────────────────────────────────────────────
+  "iotottreatmonitoringwithdefenderforiot":
+    platforms: [cross_platform]
+    data_sources: [defender_cloud]
+    event_types: [audit_event]
+
+# ─────────────────────────────────────────────────────────────────────────
+# TIER 5 — ENTITY TYPES (last-resort event_type hint)
+# Only consulted when no higher tier set any event_type. Entity types
+# describe what the rule RETURNS, not where data comes from — so we
+# never let them set platforms or data_sources.
+# ─────────────────────────────────────────────────────────────────────────
+entity_types:
+  mailmessage:
+    event_types: [email_message]
+  mailbox:
+    event_types: [email_message]
+  process:
+    event_types: [process_creation]
+  file:
+    event_types: [file_event]
+  filehash:
+    event_types: [file_event]
+  account:
+    event_types: [authentication]
+  registrykey:
+    event_types: [registry_event]
+  registryvalue:
+    event_types: [registry_event]
+  ip:
+    event_types: [network_connection]
+  dnsresolution:
+    event_types: [dns_query]
+  url:
+    event_types: [http_request]
 
 # Sentinel rules are SIEM correlation queries by definition — every rule
 # is examining audit/api activity at minimum.
