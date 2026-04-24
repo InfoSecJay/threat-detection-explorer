@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { DetectionList } from './pages/DetectionList';
 import { DetectionDetail } from './pages/DetectionDetail';
@@ -213,13 +213,8 @@ function App() {
             <div className="flex items-center gap-1">
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
-              <NavDropdown
-                label="Compare"
-                items={[
-                  { to: '/compare', label: 'Rule Comparison' },
-                  { to: '/compare/mitre-coverage', label: 'MITRE Coverage' },
-                ]}
-              />
+              <NavLink to="/compare">Comparison</NavLink>
+              <NavLink to="/mitre">MITRE</NavLink>
               <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
@@ -249,7 +244,11 @@ function App() {
           <Route path="/detections/:id" element={<DetectionDetail />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/compare/side-by-side" element={<SideBySide />} />
-          <Route path="/compare/mitre-coverage" element={<MitreCoverage />} />
+          {/* New top-level MITRE section. The old /compare/mitre-coverage
+              path redirects here so shared bookmarks don't 404. */}
+          <Route path="/mitre" element={<MitreCoverage />} />
+          <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
+          <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
           <Route path="/intel" element={<IndustryIntel />} />
           <Route path="/about" element={<About />} />
           {/* /changelog route temporarily hidden */}
