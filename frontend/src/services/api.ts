@@ -392,6 +392,11 @@ export const trendingApi = {
     );
     return response.data;
   },
+
+  getThreatPulse: async (limit: number = 8): Promise<ThreatPulseResponse> => {
+    const response = await api.get(`/trending/threats?limit=${limit}`);
+    return response.data;
+  },
 };
 
 export interface RecentRuleItem {
@@ -408,6 +413,36 @@ export interface RecentRuleItem {
 export interface RecentRulesResponse {
   most_recently_created: RecentRuleItem[];
   most_recently_modified: RecentRuleItem[];
+}
+
+// Threat pulse — named threats (Splunk analytic_story + Sublime Malfam)
+// and CVE mentions extracted across tags/title/description.
+export interface ThreatExample {
+  id: string;
+  title: string;
+  source: string;
+}
+
+export interface NamedThreat {
+  name: string;
+  kind: string; // "campaign" | "malware"
+  count: number;
+  sources: string[];
+  examples: ThreatExample[];
+}
+
+export interface CveMention {
+  cve: string;
+  count: number;
+  sources: string[];
+  examples: ThreatExample[];
+}
+
+export interface ThreatPulseResponse {
+  period_days: number;
+  cutoff_date: string;
+  named_threats: NamedThreat[];
+  cves: CveMention[];
 }
 
 export default api;

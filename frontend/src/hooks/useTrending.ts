@@ -40,3 +40,11 @@ export function useRecentRules(limit: number = 20, filters: ActivityFilters = {}
     staleTime: 1000 * 60 * 5,
   });
 }
+
+export function useThreatPulse(limit: number = 8) {
+  return useQuery({
+    queryKey: ['threat-pulse', limit],
+    queryFn: () => trendingApi.getThreatPulse(limit),
+    staleTime: 1000 * 60 * 10, // 10 minutes — this scans the full corpus
+  });
+}
