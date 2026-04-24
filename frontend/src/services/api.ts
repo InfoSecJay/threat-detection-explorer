@@ -336,15 +336,45 @@ export interface TrendingSummaryResponse {
   by_source: Record<string, number>;
 }
 
+// Activity filters — shared by trending + recent-rules. Optional
+// comma-separated narrowing so the Intel page can answer questions like
+// "top techniques in new O365 rules" or "new Splunk rules this month".
+export interface ActivityFilters {
+  sources?: string[];
+  platforms?: string[];
+  event_types?: string[];
+}
+
+function activityFilterParams(filters: ActivityFilters): string {
+  const parts: string[] = [];
+  if (filters.sources?.length) parts.push(`sources=${filters.sources.join(',')}`);
+  if (filters.platforms?.length) parts.push(`platforms=${filters.platforms.join(',')}`);
+  if (filters.event_types?.length) parts.push(`event_types=${filters.event_types.join(',')}`);
+  return parts.length ? `&${parts.join('&')}` : '';
+}
+
 // Trending endpoints
 export const trendingApi = {
-  getTechniques: async (days: number = 90, limit: number = 15): Promise<TrendingTechniquesResponse> => {
-    const response = await api.get(`/trending/techniques?days=${days}&limit=${limit}`);
+  getTechniques: async (
+    days: number = 90,
+    limit: number = 15,
+    filters: ActivityFilters = {},
+  ): Promise<TrendingTechniquesResponse> => {
+    const response = await api.get(
+      `/trending/techniques?days=${days}&limit=${limit}${activityFilterParams(filters)}`,
+    );
     return response.data;
   },
 
-  getPlatforms: async (days: number = 90, limit: number = 15): Promise<TrendingPlatformsResponse> => {
-    const response = await api.get(`/trending/platforms?days=${days}&limit=${limit}`);
+  getPlatforms: async (
+    days: number = 90,
+    limit: number = 15,
+    filters: Omit<ActivityFilters, 'platforms'> = {},
+  ): Promise<TrendingPlatformsResponse> => {
+    // `platforms` would be circular here (it's the grouping key).
+    const response = await api.get(
+      `/trending/platforms?days=${days}&limit=${limit}${activityFilterParams(filters)}`,
+    );
     return response.data;
   },
 
@@ -353,8 +383,13 @@ export const trendingApi = {
     return response.data;
   },
 
-  getRecentRules: async (limit: number = 20): Promise<RecentRulesResponse> => {
-    const response = await api.get(`/trending/recent-rules?limit=${limit}`);
+  getRecentRules: async (
+    limit: number = 20,
+    filters: ActivityFilters = {},
+  ): Promise<RecentRulesResponse> => {
+    const response = await api.get(
+      `/trending/recent-rules?limit=${limit}${activityFilterParams(filters)}`,
+    );
     return response.data;
   },
 };

@@ -7,8 +7,9 @@ import {
   useTrendingPlatforms,
   useRecentRules,
 } from '../hooks/useTrending';
+import { useFilterOptions } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
-import type { Release, RecentRuleItem } from '../services/api';
+import type { Release, RecentRuleItem, ActivityFilters } from '../services/api';
 
 // Source display names and colors
 const sourceConfig: Record<
@@ -139,8 +140,16 @@ function TrendingRow({
   );
 }
 
-function TrendingTechniquesSection({ days, limit = 10 }: { days: number; limit?: number }) {
-  const { data, isLoading, error } = useTrendingTechniques(days, limit);
+function TrendingTechniquesSection({
+  days,
+  limit = 10,
+  filters,
+}: {
+  days: number;
+  limit?: number;
+  filters: ActivityFilters;
+}) {
+  const { data, isLoading, error } = useTrendingTechniques(days, limit, filters);
   const { getTechniqueName } = useMitre();
 
   if (isLoading)
@@ -168,8 +177,16 @@ function TrendingTechniquesSection({ days, limit = 10 }: { days: number; limit?:
   );
 }
 
-function TrendingPlatformsSection({ days, limit = 10 }: { days: number; limit?: number }) {
-  const { data, isLoading, error } = useTrendingPlatforms(days, limit);
+function TrendingPlatformsSection({
+  days,
+  limit = 10,
+  filters,
+}: {
+  days: number;
+  limit?: number;
+  filters: Omit<ActivityFilters, 'platforms'>;
+}) {
+  const { data, isLoading, error } = useTrendingPlatforms(days, limit, filters);
 
   if (isLoading)
     return <SkeletonRows count={limit} />;
@@ -246,8 +263,8 @@ function RecentRuleRow({ rule }: { rule: RecentRuleItem }) {
   );
 }
 
-function RecentCreatedSection({ limit = 10 }: { limit?: number }) {
-  const { data, isLoading, error } = useRecentRules(limit);
+function RecentCreatedSection({ limit = 10, filters }: { limit?: number; filters: ActivityFilters }) {
+  const { data, isLoading, error } = useRecentRules(limit, filters);
   if (isLoading) return <SkeletonRows count={limit} />;
   if (error || !data?.most_recently_created?.length)
     return <EmptyState label="NO_RECENT_DATA" />;
@@ -260,8 +277,8 @@ function RecentCreatedSection({ limit = 10 }: { limit?: number }) {
   );
 }
 
-function RecentModifiedSection({ limit = 10 }: { limit?: number }) {
-  const { data, isLoading, error } = useRecentRules(limit);
+function RecentModifiedSection({ limit = 10, filters }: { limit?: number; filters: ActivityFilters }) {
+  const { data, isLoading, error } = useRecentRules(limit, filters);
   if (isLoading) return <SkeletonRows count={limit} />;
   if (error || !data?.most_recently_modified?.length)
     return <EmptyState label="NO_RECENT_DATA" />;
@@ -270,6 +287,89 @@ function RecentModifiedSection({ limit = 10 }: { limit?: number }) {
       {data.most_recently_modified.slice(0, limit).map((r) => (
         <RecentRuleRow key={`modified-${r.id}`} rule={r} />
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Activity filter bar — narrows all 4 tables in the strip
+// ---------------------------------------------------------------------------
+
+function ActivityFilterBar({
+  filters,
+  setFilters,
+}: {
+  filters: ActivityFilters;
+  setFilters: (f: ActivityFilters) => void;
+}) {
+  const { data: options } = useFilterOptions();
+
+  const sources = options?.sources || [];
+  const platforms = options?.platforms || [];
+
+  const toggleSource = (src: string) => {
+    const current = filters.sources || [];
+    const next = current.includes(src) ? current.filter((s) => s !== src) : [...current, src];
+    setFilters({ ...filters, sources: next.length ? next : undefined });
+  };
+
+  const setPlatform = (plat: string | null) => {
+    setFilters({ ...filters, platforms: plat ? [plat] : undefined });
+  };
+
+  const activeCount =
+    (filters.sources?.length || 0) + (filters.platforms?.length || 0) + (filters.event_types?.length || 0);
+
+  return (
+    <div className="bg-void-850 border border-void-700 px-3 py-2 flex items-center gap-3 flex-wrap">
+      {/* Source chips */}
+      <div className="flex items-center gap-1 flex-wrap">
+        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">src:</span>
+        {sources.map((src) => {
+          const cfg = sourceConfig[src];
+          const active = filters.sources?.includes(src);
+          return (
+            <button
+              key={src}
+              onClick={() => toggleSource(src)}
+              className={`px-2 py-0.5 text-[10px] font-mono uppercase transition-colors border ${
+                active
+                  ? `${cfg?.bgColor || 'bg-matrix-500/20'} ${cfg?.color || 'text-matrix-400'} ${cfg?.borderColor || 'border-matrix-500/30'}`
+                  : 'bg-void-800 text-gray-400 border-void-600 hover:text-white'
+              }`}
+              title={cfg?.name || src}
+            >
+              {(cfg?.name || src).replace(' Protections', ' Prot').replace(' Hunting', ' Hunt')}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Platform dropdown */}
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">plat:</span>
+        <select
+          value={filters.platforms?.[0] || ''}
+          onChange={(e) => setPlatform(e.target.value || null)}
+          className="bg-void-800 border border-void-600 text-xs text-gray-300 px-2 py-0.5 font-mono focus:outline-none focus:border-matrix-500/50 hover:text-white cursor-pointer"
+        >
+          <option value="">all platforms</option>
+          {platforms.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.value} ({p.count})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {activeCount > 0 && (
+        <button
+          onClick={() => setFilters({})}
+          className="ml-auto text-[10px] font-mono text-gray-500 hover:text-breach-400 transition-colors uppercase tracking-wider"
+        >
+          [ clear ]
+        </button>
+      )}
     </div>
   );
 }
@@ -465,6 +565,14 @@ function EmptyState({ label }: { label: string }) {
 
 export function IndustryIntel() {
   const [trendingPeriod, setTrendingPeriod] = useState(90);
+  const [activityFilters, setActivityFilters] = useState<ActivityFilters>({});
+
+  // Drop `platforms` before passing filters to the platforms-trending
+  // query — filtering by the grouping key would return only that key.
+  const platformsTrendingFilters = useMemo(() => {
+    const { platforms: _p, ...rest } = activityFilters;
+    return rest;
+  }, [activityFilters]);
 
   return (
     <div className="space-y-5">
@@ -493,7 +601,7 @@ export function IndustryIntel() {
         <UnifiedReleaseFeed />
       </section>
 
-      {/* Activity strip — 4 tables side-by-side */}
+      {/* Activity strip — 4 tables side-by-side, shared filter bar */}
       <section>
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,18 +628,22 @@ export function IndustryIntel() {
           </div>
         </div>
 
+        <div className="mb-3">
+          <ActivityFilterBar filters={activityFilters} setFilters={setActivityFilters} />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <CompactCard title="Recently Created" accent="matrix">
-            <RecentCreatedSection limit={10} />
+            <RecentCreatedSection limit={10} filters={activityFilters} />
           </CompactCard>
           <CompactCard title="Recently Modified" accent="cyan">
-            <RecentModifiedSection limit={10} />
+            <RecentModifiedSection limit={10} filters={activityFilters} />
           </CompactCard>
           <CompactCard title="Trending Techniques" accent="matrix">
-            <TrendingTechniquesSection days={trendingPeriod} limit={10} />
+            <TrendingTechniquesSection days={trendingPeriod} limit={10} filters={activityFilters} />
           </CompactCard>
           <CompactCard title="Trending Platforms" accent="cyan">
-            <TrendingPlatformsSection days={trendingPeriod} limit={10} />
+            <TrendingPlatformsSection days={trendingPeriod} limit={10} filters={platformsTrendingFilters} />
           </CompactCard>
         </div>
       </section>

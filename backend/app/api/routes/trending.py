@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, cast, String, and_
+from sqlalchemy import select, func, cast, String, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,25 +14,65 @@ from app.services.repository_sync import ALL_REPOSITORY_NAMES
 router = APIRouter(prefix="/trending", tags=["trending"])
 
 
+def _parse_csv(raw: Optional[str]) -> list[str]:
+    """Split a comma-separated query value into a trimmed list."""
+    if not raw:
+        return []
+    return [v.strip() for v in raw.split(",") if v.strip()]
+
+
+def _apply_trending_filters(
+    conditions: list,
+    sources: list[str],
+    platforms: list[str],
+    event_types: list[str],
+) -> None:
+    """Append source / platform / event-type filters to a condition list.
+
+    Shared between all three trending endpoints so the filter semantics
+    stay identical: source is an exact-match on the enum column, while
+    platform + event_type use the same JSON-array `ilike` trick the
+    search service uses (portable across SQLite + Postgres).
+    """
+    if sources:
+        conditions.append(Detection.source.in_(sources))
+    if platforms:
+        plat_conds = [
+            cast(Detection.taxonomy_platforms, String).ilike(f'%"{v}"%')
+            for v in platforms
+        ]
+        conditions.append(or_(*plat_conds))
+    if event_types:
+        et_conds = [
+            cast(Detection.taxonomy_event_types, String).ilike(f'%"{v}"%')
+            for v in event_types
+        ]
+        conditions.append(or_(*et_conds))
+
+
 @router.get("/techniques")
 async def get_trending_techniques(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of techniques to return"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter"),
+    platforms: Optional[str] = Query(None, description="Comma-separated canonical-platform filter (e.g. 'o365,windows')"),
+    event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get trending MITRE techniques based on recently created/modified rules.
 
     Returns techniques ordered by the number of rules created/modified in the time period.
+    Optional filters narrow the corpus before counting (e.g. "top techniques in new O365 rules").
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-    # Get all detections modified/created after cutoff date
-    query = select(Detection).where(
-        and_(
-            Detection.rule_modified_date.isnot(None),
-            Detection.rule_modified_date >= cutoff_date,
-        )
-    )
+    conditions = [
+        Detection.rule_modified_date.isnot(None),
+        Detection.rule_modified_date >= cutoff_date,
+    ]
+    _apply_trending_filters(conditions, _parse_csv(sources), _parse_csv(platforms), _parse_csv(event_types))
+
+    query = select(Detection).where(and_(*conditions))
 
     result = await db.execute(query)
     detections = result.scalars().all()
@@ -83,6 +123,8 @@ async def get_trending_techniques(
 async def get_trending_platforms(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of platforms to return"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter"),
+    event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get trending platforms based on recently created/modified rules.
@@ -90,16 +132,19 @@ async def get_trending_platforms(
     Reads the canonical `taxonomy_platforms` array column so multi-OS
     rules count toward every platform they target (a rule tagged
     [windows, linux] counts for both). The `unknown` sentinel is
-    filtered out so it doesn't dominate.
+    filtered out so it doesn't dominate. Note: a `platforms` filter
+    here would be circular (it's the grouping key), so only source +
+    event_type are exposed.
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-    query = select(Detection).where(
-        and_(
-            Detection.rule_modified_date.isnot(None),
-            Detection.rule_modified_date >= cutoff_date,
-        )
-    )
+    conditions = [
+        Detection.rule_modified_date.isnot(None),
+        Detection.rule_modified_date >= cutoff_date,
+    ]
+    _apply_trending_filters(conditions, _parse_csv(sources), [], _parse_csv(event_types))
+
+    query = select(Detection).where(and_(*conditions))
 
     result = await db.execute(query)
     detections = result.scalars().all()
@@ -148,6 +193,9 @@ async def get_trending_platforms(
 @router.get("/recent-rules")
 async def get_recent_rules(
     limit: int = Query(20, ge=5, le=50, description="Number of rules per list"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter"),
+    platforms: Optional[str] = Query(None, description="Comma-separated canonical-platform filter (e.g. 'o365,windows')"),
+    event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
     db: AsyncSession = Depends(get_db),
 ):
     """Return the most recently created + most recently modified rules.
@@ -155,7 +203,8 @@ async def get_recent_rules(
     Two parallel lists, each ordered by the respective date descending.
     Powers the "Recent activity" section of the Intel page. Rules
     without a date stamp are excluded (would pollute the top of the
-    list with deterministic-but-meaningless ordering).
+    list with deterministic-but-meaningless ordering). Optional filters
+    narrow the corpus (e.g. sources=sigma&platforms=o365).
     """
     def _format(d: Detection, date_field: str) -> dict:
         date_value = getattr(d, date_field, None)
@@ -170,15 +219,24 @@ async def get_recent_rules(
             "date": date_value.isoformat() if date_value else None,
         }
 
+    src_list = _parse_csv(sources)
+    plat_list = _parse_csv(platforms)
+    et_list = _parse_csv(event_types)
+
+    created_conds = [Detection.rule_created_date.isnot(None)]
+    _apply_trending_filters(created_conds, src_list, plat_list, et_list)
     created_q = (
         select(Detection)
-        .where(Detection.rule_created_date.isnot(None))
+        .where(and_(*created_conds))
         .order_by(Detection.rule_created_date.desc())
         .limit(limit)
     )
+
+    modified_conds = [Detection.rule_modified_date.isnot(None)]
+    _apply_trending_filters(modified_conds, src_list, plat_list, et_list)
     modified_q = (
         select(Detection)
-        .where(Detection.rule_modified_date.isnot(None))
+        .where(and_(*modified_conds))
         .order_by(Detection.rule_modified_date.desc())
         .limit(limit)
     )
