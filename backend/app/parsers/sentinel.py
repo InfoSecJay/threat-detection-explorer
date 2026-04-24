@@ -179,21 +179,10 @@ class SentinelParser(BaseParser):
         """Parse a Microsoft Sentinel Analytics YAML rule file."""
         try:
             data = yaml.safe_load(content)
-
-            if not isinstance(data, dict):
+            validated = self._validate_rule_shape(data, file_path, "name", "query")
+            if validated is None:
                 return None
-
-            # Required field: name
-            name = data.get("name")
-            if not name:
-                logger.debug(f"Skipping {file_path}: no name")
-                return None
-
-            # Required field: query (detection logic)
-            query = data.get("query")
-            if not query:
-                logger.debug(f"Skipping {file_path}: no query")
-                return None
+            name, query = validated
 
             # Must be a Scheduled rule (not hunting query)
             kind = data.get("kind", "")

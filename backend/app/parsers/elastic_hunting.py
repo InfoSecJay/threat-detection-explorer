@@ -42,17 +42,12 @@ class ElasticHuntingParser(BaseParser):
         try:
             data = tomllib.loads(content)
 
-            # Get the hunt section (different from [rule] used in detection rules)
+            # Elastic Hunting rules live under [hunt], not [rule].
             hunt = data.get("hunt", {})
-            if not hunt:
-                logger.debug(f"Skipping {file_path}: no hunt section")
+            validated = self._validate_rule_shape(hunt, file_path, "name")
+            if validated is None:
                 return None
-
-            # Required field: name
-            name = hunt.get("name")
-            if not name:
-                logger.debug(f"Skipping {file_path}: no name")
-                return None
+            name = validated[0]
 
             # Get query (detection logic) - it's a list of queries
             query_list = hunt.get("query", [])

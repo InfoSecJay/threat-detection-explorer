@@ -55,23 +55,20 @@ class ElasticParser(BaseParser):
         """Parse an Elastic TOML rule file."""
         try:
             data = toml.loads(content)
-
             if not isinstance(data, dict):
                 return None
 
-            # Get metadata section
+            # Get metadata + rule sections
             metadata = data.get("metadata", {})
-
-            # Get rule section
             rule = data.get("rule", {})
 
-            # Required field: name
-            title = rule.get("name")
-            if not title:
-                logger.debug(f"Skipping {file_path}: no name")
+            validated = self._validate_rule_shape(rule, file_path, "name")
+            if validated is None:
                 return None
+            title = validated[0]
 
-            # Extract query/detection logic
+            # Detection logic is assembled from multiple TOML fields —
+            # validate separately from _validate_rule_shape.
             detection_logic = self._extract_detection_logic(rule)
             if not detection_logic:
                 logger.debug(f"Skipping {file_path}: no detection logic")

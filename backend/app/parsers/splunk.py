@@ -52,21 +52,10 @@ class SplunkParser(BaseParser):
         """Parse a Splunk YAML detection rule file."""
         try:
             data = yaml.safe_load(content)
-
-            if not isinstance(data, dict):
+            validated = self._validate_rule_shape(data, file_path, "name", "search")
+            if validated is None:
                 return None
-
-            # Required field: name
-            title = data.get("name")
-            if not title:
-                logger.debug(f"Skipping {file_path}: no name")
-                return None
-
-            # Required field: search
-            search = data.get("search")
-            if not search:
-                logger.debug(f"Skipping {file_path}: no search")
-                return None
+            title, search = validated
 
             # Extract MITRE ATT&CK
             mitre_attack = self._extract_mitre(data)

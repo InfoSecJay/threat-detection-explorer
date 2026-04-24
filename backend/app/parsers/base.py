@@ -1,5 +1,6 @@
 """Base parser interface for detection rules."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,6 +76,45 @@ class BaseParser(ABC):
             True if this parser handles this file type
         """
         pass
+
+    def _validate_rule_shape(
+        self,
+        rule: Any,
+        file_path: Path,
+        title_key: str,
+        logic_key: Optional[str] = None,
+    ) -> Optional[tuple[str, Any]]:
+        """Validate a parsed rule has the minimum shape this source expects.
+
+        Folds the three checks every parser duplicates — dict-shape,
+        required title, optionally required detection logic — into one
+        call with consistent debug logging. Emits log lines under the
+        calling parser's module so messages still attribute correctly.
+
+        Pass ``logic_key=None`` when the logic field is allowed to be
+        empty (e.g. elastic_protections permits an empty query) or
+        when logic is assembled from multiple fields and the caller
+        handles its own validation.
+        """
+        if not isinstance(rule, dict):
+            return None
+
+        log = logging.getLogger(type(self).__module__)
+
+        title = rule.get(title_key)
+        if not title:
+            log.debug(f"Skipping {file_path}: no {title_key}")
+            return None
+
+        if logic_key is None:
+            return title, None
+
+        logic = rule.get(logic_key)
+        if not logic:
+            log.debug(f"Skipping {file_path}: no {logic_key}")
+            return None
+
+        return title, logic
 
     def _safe_get(self, data: dict, *keys: str, default: Any = None) -> Any:
         """Safely get nested dictionary values.

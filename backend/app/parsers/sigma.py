@@ -43,20 +43,10 @@ class SigmaParser(BaseParser):
                 return None
             rule = data[0]
 
-            if not isinstance(rule, dict):
+            validated = self._validate_rule_shape(rule, file_path, "title", "detection")
+            if validated is None:
                 return None
-
-            # Required field: title
-            title = rule.get("title")
-            if not title:
-                logger.debug(f"Skipping {file_path}: no title")
-                return None
-
-            # Required field: detection
-            detection = rule.get("detection")
-            if not detection:
-                logger.debug(f"Skipping {file_path}: no detection")
-                return None
+            title, detection = validated
 
             # Extract log source
             logsource = rule.get("logsource", {})

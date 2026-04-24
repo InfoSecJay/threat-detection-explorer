@@ -42,17 +42,11 @@ class ElasticProtectionsParser(BaseParser):
         try:
             data = tomllib.loads(content)
 
-            # Get the rule section
             rule = data.get("rule", {})
-            if not rule:
-                logger.debug(f"Skipping {file_path}: no rule section")
+            validated = self._validate_rule_shape(rule, file_path, "name")
+            if validated is None:
                 return None
-
-            # Required field: name
-            name = rule.get("name")
-            if not name:
-                logger.debug(f"Skipping {file_path}: no name")
-                return None
+            name = validated[0]
 
             # Get query (detection logic)
             query = rule.get("query", "")

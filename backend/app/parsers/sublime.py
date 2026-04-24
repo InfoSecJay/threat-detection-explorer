@@ -39,20 +39,10 @@ class SublimeParser(BaseParser):
         """Parse a Sublime YAML rule file."""
         try:
             data = yaml.safe_load(content)
-            if not isinstance(data, dict):
+            validated = self._validate_rule_shape(data, file_path, "name", "source")
+            if validated is None:
                 return None
-
-            # Required field: name
-            name = data.get("name")
-            if not name:
-                logger.debug(f"Skipping {file_path}: no name")
-                return None
-
-            # Required field: source (detection logic)
-            source_logic = data.get("source")
-            if not source_logic:
-                logger.debug(f"Skipping {file_path}: no source")
-                return None
+            name, source_logic = validated
 
             # Extract MITRE tactics and techniques
             mitre_attack = self._extract_mitre(data)
