@@ -338,28 +338,51 @@ async def get_coverage_matrix(
                 "technique_count": len(tactic_techniques),
             })
 
-    # Calculate summary statistics
-    total_techniques = sum(t["technique_count"] for t in tactics_data)
-    techniques_with_coverage = len([t for t in coverage.keys() if sum(coverage[t].values()) > 0])
+    # ── Summary statistics ────────────────────────────────────────────
+    # Stats must be computed over the UNIQUE set of techniques that
+    # are actually in the tactic listings — NOT `coverage.keys()`
+    # (which contains sub-technique → parent rollups that aren't in
+    # any tactic's techniques[] list) and NOT sum-across-tactics
+    # (which double-counts techniques tagged to multiple tactics).
+    # A prior version produced stats like "Overall 223.2% coverage".
+    unique_techniques: set[str] = set()
+    unique_techniques_with_coverage: set[str] = set()
+    unique_per_source: dict[str, set[str]] = {src: set() for src in sources}
 
-    # Coverage by source
-    source_coverage = {}
-    for src in sources:
-        covered = len([t for t in coverage.keys() if coverage[t].get(src, 0) > 0])
-        source_coverage[src] = {
-            "covered_techniques": covered,
-            "total_techniques": total_techniques,
-            "coverage_percent": round((covered / total_techniques * 100) if total_techniques > 0 else 0, 1),
+    for t in tactics_data:
+        for tech in t["techniques"]:
+            tech_id = tech["id"]
+            unique_techniques.add(tech_id)
+            if tech["total_detections"] > 0:
+                unique_techniques_with_coverage.add(tech_id)
+            for src in sources:
+                if tech["coverage"].get(src, 0) > 0:
+                    unique_per_source[src].add(tech_id)
+
+    total_unique = len(unique_techniques)
+    covered_unique = len(unique_techniques_with_coverage)
+
+    source_coverage = {
+        src: {
+            "covered_techniques": len(covered_set),
+            "total_techniques": total_unique,
+            "coverage_percent": round(
+                (len(covered_set) / total_unique * 100) if total_unique else 0, 1
+            ),
         }
+        for src, covered_set in unique_per_source.items()
+    }
 
     return {
         "sources": sources,
         "tactics": tactics_data,
         "summary": {
             "total_tactics": len(tactics_data),
-            "total_techniques": total_techniques,
-            "techniques_with_any_coverage": techniques_with_coverage,
-            "overall_coverage_percent": round((techniques_with_coverage / total_techniques * 100) if total_techniques > 0 else 0, 1),
+            "total_techniques": total_unique,
+            "techniques_with_any_coverage": covered_unique,
+            "overall_coverage_percent": round(
+                (covered_unique / total_unique * 100) if total_unique else 0, 1
+            ),
             "source_coverage": source_coverage,
             "unmapped_techniques": sorted(list(unmapped_techniques)) if unmapped_techniques else [],
         },

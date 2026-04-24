@@ -197,6 +197,7 @@ class MitreAttackService:
                         "id": tactic_id,
                         "name": tactic_name,
                         "short_name": short_name,
+                        "description": obj.get("description", ""),
                         "url": f"https://attack.mitre.org/tactics/{tactic_id}/",
                         "deprecated": obj.get("x_mitre_deprecated", False),
                     }
@@ -223,14 +224,32 @@ class MitreAttackService:
                             if phase_name in tactic_id_map:
                                 technique_tactics.append(tactic_id_map[phase_name])
 
+                    # Extract richer metadata for the detail page — these
+                    # come directly from the STIX object. Storing them
+                    # lets the frontend render a proper "What is this
+                    # technique?" card without a round-trip to
+                    # attack.mitre.org.
+                    raw_platforms = obj.get("x_mitre_platforms") or []
+                    raw_data_sources = obj.get("x_mitre_data_sources") or []
+                    parent_id = (
+                        technique_id.split(".", 1)[0]
+                        if "." in technique_id else None
+                    )
+
                     techniques[technique_id] = {
                         "id": technique_id,
                         "name": obj.get("name", ""),
+                        "description": obj.get("description", ""),
                         "tactics": technique_tactics,
                         "url": technique_url,
                         "deprecated": obj.get("x_mitre_deprecated", False),
                         "revoked": obj.get("revoked", False),
                         "is_subtechnique": "." in technique_id,
+                        "parent_id": parent_id,
+                        "platforms": raw_platforms,
+                        "data_sources": raw_data_sources,
+                        "detection": obj.get("x_mitre_detection", ""),
+                        "version": obj.get("x_mitre_version"),
                     }
 
         self._tactics = tactics
