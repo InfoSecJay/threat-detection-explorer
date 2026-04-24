@@ -226,6 +226,14 @@ export interface MitreTechnique {
   url: string;
   deprecated: boolean;
   is_subtechnique: boolean;
+  // Enriched metadata (populated by backend v1.4+). Optional because
+  // older cached payloads may predate the enrichment.
+  description?: string;
+  platforms?: string[];
+  data_sources?: string[];
+  detection?: string;
+  parent_id?: string | null;
+  version?: string | null;
 }
 
 export interface MitreData {
