@@ -259,62 +259,15 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             </div>
           </div>
 
-          {/* Platform & Event Category */}
+          {/* Canonical taxonomy — the official platform / data source /
+              event type fields. Multi-value because a single rule can
+              legitimately span multiple OSes, data feeds, or event
+              categories. The legacy single-value fields (platform,
+              event_category, data_source_normalized) are no longer
+              displayed; they remain in the API for backwards-compat. */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Platform</label>
-              {detection.platform ? (
-                <span className="inline-flex px-3 py-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm font-medium border border-cyan-500/30">
-                  {detection.platform.replace(/_/g, ' ').toUpperCase()}
-                </span>
-              ) : (
-                <span className="text-gray-500 text-sm italic">Not specified</span>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Event Category</label>
-              {detection.event_category ? (
-                <span className="inline-flex px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-sm font-medium border border-orange-500/30">
-                  {detection.event_category.replace(/_/g, ' ').toUpperCase()}
-                </span>
-              ) : (
-                <span className="text-gray-500 text-sm italic">Not specified</span>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Data Source</label>
-              {detection.data_source_normalized ? (
-                <span className="inline-flex px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium border border-emerald-500/30">
-                  {detection.data_source_normalized.replace(/_/g, ' ').toUpperCase()}
-                </span>
-              ) : (
-                <span className="text-gray-500 text-sm italic">Not specified</span>
-              )}
-            </div>
-          </div>
-
-          {/*
-            Normalized Taxonomy (Issue 2 Phase 1 — PREVIEW).
-            These multi-value fields come from the new canonical taxonomy
-            resolver. They coexist with the three legacy single-value fields
-            above until Phase 3 of the migration. This section exists so a
-            reviewer can visually compare legacy vs. new and audit the
-            mapping YAML files. It will be removed/replaced in Phase 2
-            when the FilterPanel UI is rebuilt around these fields.
-          */}
-          <div className="border border-purple-500/30 bg-purple-500/5 rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
-                Normalized Taxonomy <span className="text-purple-500/60">// Preview</span>
-              </h3>
-              <span className="text-[10px] text-purple-400/70 uppercase tracking-wide">
-                Issue 2 Phase 1
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Platforms
                 </label>
                 {detection.taxonomy_platforms && detection.taxonomy_platforms.length > 0 ? (
@@ -338,7 +291,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Data Sources
                 </label>
                 {detection.taxonomy_data_sources && detection.taxonomy_data_sources.length > 0 ? (
@@ -362,7 +315,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Event Types
                 </label>
                 {detection.taxonomy_event_types && detection.taxonomy_event_types.length > 0 ? (
@@ -384,7 +337,6 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                   <span className="text-gray-500 text-xs italic">(not populated)</span>
                 )}
               </div>
-            </div>
           </div>
 
           {/* Extracted Observables */}
