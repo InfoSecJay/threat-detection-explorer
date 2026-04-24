@@ -431,17 +431,10 @@ function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
 function NotableNewRulesSection({ filters }: { filters: ActivityFilters }) {
   const { data, isLoading, error } = useRecentRules(12, filters);
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-        {[...Array(6)].map((_, i) => <SkeletonRow key={i} height="h-24" />)}
-      </div>
-    );
-  }
-  if (error || !data) return <EmptyLabel label="NO_RECENT_DATA" />;
-
-  // Merge created + modified, dedupe by id, take newest 6 by date
+  // useMemo must run on every render — never conditionally. Guarded
+  // against undefined `data` instead of hidden behind early returns.
   const merged = useMemo(() => {
+    if (!data) return [] as RecentRuleItem[];
     const byId = new Map<string, RecentRuleItem>();
     for (const r of [...data.most_recently_created, ...data.most_recently_modified]) {
       const existing = byId.get(r.id);
@@ -454,6 +447,14 @@ function NotableNewRulesSection({ filters }: { filters: ActivityFilters }) {
       .slice(0, 6);
   }, [data]);
 
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {[...Array(6)].map((_, i) => <SkeletonRow key={i} height="h-24" />)}
+      </div>
+    );
+  }
+  if (error || !data) return <EmptyLabel label="NO_RECENT_DATA" />;
   if (merged.length === 0) return <EmptyLabel label="NO_RECENT_DATA" />;
 
   return (
