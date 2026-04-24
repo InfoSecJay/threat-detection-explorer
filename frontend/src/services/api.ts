@@ -107,6 +107,9 @@ export const detectionsApi = {
     statuses: string[];
     severities: string[];
     languages: string[];
+    platforms: Array<{ value: string; count: number }>;
+    data_sources: Array<{ value: string; count: number }>;
+    event_types: Array<{ value: string; count: number }>;
   }> => {
     const response = await api.get('/detections/filters');
     return response.data;

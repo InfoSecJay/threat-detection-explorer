@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FilterPanel } from '../components/FilterPanel';
+import { ActiveFilterPills } from '../components/ActiveFilterPills';
 import { RuleList } from '../components/RuleList';
 import { ExportModal } from '../components/ExportModal';
 import { useDetections } from '../hooks/useDetections';
@@ -181,6 +182,7 @@ export function DetectionList() {
 
         {/* Detection List */}
         <div className="flex-1 min-w-0">
+          <ActiveFilterPills filters={filters} onFiltersChange={setFilters} />
           <RuleList
             detections={data?.items || []}
             total={data?.total || 0}
