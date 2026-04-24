@@ -12,6 +12,7 @@ export function DetectionList() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Parse filters from URL
   const parseFilters = (): SearchFilters => ({
@@ -173,11 +174,49 @@ export function DetectionList() {
         )}
       </form>
 
+      {/* Mobile filter toggle — hidden on desktop (md+). The sidebar
+          is always visible on desktop, slides in as a drawer on
+          narrow viewports so the results table gets the full width. */}
+      <button
+        onClick={() => setMobileFiltersOpen(true)}
+        className="md:hidden mb-4 w-full px-4 py-2 bg-void-850 border border-void-700 text-sm font-display font-semibold text-gray-300 uppercase tracking-wider hover:border-matrix-500/50 transition-colors flex items-center justify-center gap-2"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+        Filters
+      </button>
+
       {/* Main Content Area */}
       <div className="flex gap-6">
-        {/* Filters Sidebar */}
-        <div className="w-64 flex-shrink-0">
-          <FilterPanel filters={filters} onFiltersChange={setFilters} />
+        {/* Filters Sidebar — desktop always-visible, mobile drawer */}
+        <div
+          className={`
+            ${mobileFiltersOpen ? 'block' : 'hidden'} md:block
+            fixed md:static inset-0 z-40 md:z-auto
+            bg-void-950/95 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none
+            md:w-64 md:flex-shrink-0
+          `}
+          onClick={(e) => {
+            // Click the backdrop (not the inner panel) to close on mobile.
+            if (e.target === e.currentTarget) setMobileFiltersOpen(false);
+          }}
+        >
+          <div className="h-full md:h-auto w-80 md:w-full max-w-[90vw] md:max-w-none bg-void-950 md:bg-transparent p-4 md:p-0 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 md:hidden">
+              <span className="text-xs font-display font-semibold text-gray-400 uppercase tracking-wider">
+                Filters
+              </span>
+              <button
+                onClick={() => setMobileFiltersOpen(false)}
+                className="text-gray-500 hover:text-matrix-500"
+                aria-label="Close filters"
+              >
+                ✕
+              </button>
+            </div>
+            <FilterPanel filters={filters} onFiltersChange={setFilters} />
+          </div>
         </div>
 
         {/* Detection List */}

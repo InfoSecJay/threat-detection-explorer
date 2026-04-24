@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFilterOptions } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
 import { TelemetryFilter } from './TelemetryFilter';
+import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
 
 interface FilterPanelProps {
@@ -22,7 +23,7 @@ const sourceColors: Record<string, string> = {
 };
 
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
-  const { tactics } = useMitre();
+  const { tactics, techniques } = useMitre();
 
   // Convert tactics from context into sorted options array
   const tacticOptions = useMemo(() => {
@@ -33,6 +34,16 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     // Sort by tactic ID to maintain consistent order
     return options.sort((a, b) => a.value.localeCompare(b.value));
   }, [tactics]);
+
+  // MITRE technique suggestions for the autocomplete filter.
+  const techniqueSuggestions = useMemo(
+    () =>
+      Object.values(techniques)
+        .filter((t) => !t.deprecated)
+        .map((t) => ({ value: t.id, label: t.name }))
+        .sort((a, b) => a.value.localeCompare(b.value)),
+    [techniques],
+  );
   const { data: filterOptions } = useFilterOptions();
   const [showAllTactics, setShowAllTactics] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -323,55 +334,21 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* MITRE Technique filter */}
+      {/* MITRE Technique filter — autocomplete from MitreContext */}
       <div className="mb-3">
         <SectionHeader title="MITRE Technique" section="techniques" count={filters.mitre_techniques?.length} />
         {expandedSections.has('techniques') && (
           <div className="mt-2">
-            <input
-              type="text"
-              placeholder="e.g., T1059"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim().toUpperCase();
-                  if (value && !filters.mitre_techniques?.includes(value)) {
-                    onFiltersChange({
-                      ...filters,
-                      mitre_techniques: [...(filters.mitre_techniques || []), value],
-                      offset: 0,
-                    });
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+            <TagInputFilter
+              values={filters.mitre_techniques || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, mitre_techniques: values, offset: 0 })
+              }
+              placeholder="Search technique ID or name…"
+              suggestions={techniqueSuggestions}
+              normalize={(raw) => raw.trim().toUpperCase()}
+              accent="purple"
             />
-            {filters.mitre_techniques?.length ? (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filters.mitre_techniques.map((tech) => (
-                  <span
-                    key={tech}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-matrix-500/10 text-matrix-500 text-xs font-mono border border-matrix-500/30"
-                  >
-                    {tech}
-                    <button
-                      onClick={() =>
-                        onFiltersChange({
-                          ...filters,
-                          mitre_techniques: filters.mitre_techniques?.filter(
-                            (t) => t !== tech
-                          ),
-                          offset: 0,
-                        })
-                      }
-                      className="hover:text-breach-400 transition-colors"
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
@@ -411,50 +388,15 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Log Sources" section="logsources" count={filters.log_sources?.length} />
         {expandedSections.has('logsources') && (
           <div className="mt-2">
-            <input
-              type="text"
+            <TagInputFilter
+              values={filters.log_sources || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, log_sources: values, offset: 0 })
+              }
               placeholder="e.g., windows"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim().toLowerCase();
-                  if (value && !filters.log_sources?.includes(value)) {
-                    onFiltersChange({
-                      ...filters,
-                      log_sources: [...(filters.log_sources || []), value],
-                      offset: 0,
-                    });
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+              normalize={(raw) => raw.trim().toLowerCase()}
+              accent="orange"
             />
-            {filters.log_sources?.length ? (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filters.log_sources.map((src) => (
-                  <span
-                    key={src}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-pulse-500/10 text-pulse-500 text-xs font-mono border border-pulse-500/30"
-                  >
-                    {src}
-                    <button
-                      onClick={() =>
-                        onFiltersChange({
-                          ...filters,
-                          log_sources: filters.log_sources?.filter(
-                            (s) => s !== src
-                          ),
-                          offset: 0,
-                        })
-                      }
-                      className="hover:text-breach-400 transition-colors"
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
@@ -464,48 +406,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Event IDs" section="eventids" count={filters.event_ids?.length} />
         {expandedSections.has('eventids') && (
           <div className="mt-2">
-            <input
-              type="text"
+            <TagInputFilter
+              values={filters.event_ids || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, event_ids: values, offset: 0 })
+              }
               placeholder="e.g., 4688"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim();
-                  if (value && !filters.event_ids?.includes(value)) {
-                    onFiltersChange({
-                      ...filters,
-                      event_ids: [...(filters.event_ids || []), value],
-                      offset: 0,
-                    });
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+              accent="orange"
             />
-            {filters.event_ids?.length ? (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filters.event_ids.map((eid) => (
-                  <span
-                    key={eid}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 text-xs font-mono border border-amber-500/30"
-                  >
-                    {eid}
-                    <button
-                      onClick={() =>
-                        onFiltersChange({
-                          ...filters,
-                          event_ids: filters.event_ids?.filter((e) => e !== eid),
-                          offset: 0,
-                        })
-                      }
-                      className="hover:text-breach-400 transition-colors"
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
@@ -515,48 +423,15 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Process Names" section="processnames" count={filters.process_names?.length} />
         {expandedSections.has('processnames') && (
           <div className="mt-2">
-            <input
-              type="text"
+            <TagInputFilter
+              values={filters.process_names || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, process_names: values, offset: 0 })
+              }
               placeholder="e.g., powershell.exe"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim().toLowerCase();
-                  if (value && !filters.process_names?.includes(value)) {
-                    onFiltersChange({
-                      ...filters,
-                      process_names: [...(filters.process_names || []), value],
-                      offset: 0,
-                    });
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+              normalize={(raw) => raw.trim().toLowerCase()}
+              accent="matrix"
             />
-            {filters.process_names?.length ? (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filters.process_names.map((pname) => (
-                  <span
-                    key={pname}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-400 text-xs font-mono border border-red-500/30"
-                  >
-                    {pname}
-                    <button
-                      onClick={() =>
-                        onFiltersChange({
-                          ...filters,
-                          process_names: filters.process_names?.filter((p) => p !== pname),
-                          offset: 0,
-                        })
-                      }
-                      className="hover:text-breach-400 transition-colors"
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
@@ -601,48 +476,14 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="API Actions" section="apiactions" count={filters.api_actions?.length} />
         {expandedSections.has('apiactions') && (
           <div className="mt-2">
-            <input
-              type="text"
+            <TagInputFilter
+              values={filters.api_actions || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, api_actions: values, offset: 0 })
+              }
               placeholder="e.g., CreateUser"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim();
-                  if (value && !filters.api_actions?.includes(value)) {
-                    onFiltersChange({
-                      ...filters,
-                      api_actions: [...(filters.api_actions || []), value],
-                      offset: 0,
-                    });
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-              className="w-full px-3 py-2 bg-void-900 border border-void-700 text-sm text-white placeholder-gray-500 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+              accent="cyan"
             />
-            {filters.api_actions?.length ? (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {filters.api_actions.map((action) => (
-                  <span
-                    key={action}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-500/10 text-cyan-400 text-xs font-mono border border-cyan-500/30"
-                  >
-                    {action}
-                    <button
-                      onClick={() =>
-                        onFiltersChange({
-                          ...filters,
-                          api_actions: filters.api_actions?.filter((a) => a !== action),
-                          offset: 0,
-                        })
-                      }
-                      className="hover:text-breach-400 transition-colors"
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         )}
       </div>
