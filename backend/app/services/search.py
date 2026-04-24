@@ -304,6 +304,46 @@ class SearchService:
 
         return [r for r in result.scalars().all() if r]
 
+    async def get_taxonomy_facet(self, column_name: str) -> list[dict]:
+        """Return a faceted count for one canonical-taxonomy JSON column.
+
+        Args:
+            column_name: `taxonomy_platforms`, `taxonomy_data_sources`,
+                         or `taxonomy_event_types`.
+
+        Returns:
+            List of `{"value": str, "count": int}` sorted by descending
+            count. Skips the `"unknown"` sentinel unless explicitly
+            desired — we surface it separately so it doesn't pollute
+            the top of the real-value list.
+
+        The implementation loads the column across all detections and
+        aggregates in Python. This is portable across SQLite + Postgres
+        and cheap at current corpus size (~12k rows). If the corpus
+        grows past ~100k, swap to native JSON unnesting (Postgres
+        `jsonb_array_elements_text`, SQLite `json_each`).
+        """
+        allowed = {"taxonomy_platforms", "taxonomy_data_sources", "taxonomy_event_types"}
+        if column_name not in allowed:
+            raise ValueError(f"Not a taxonomy column: {column_name!r}")
+        column = getattr(Detection, column_name)
+        result = await self.db.execute(select(column))
+        counts: dict[str, int] = {}
+        for row in result.scalars().all():
+            if not row:
+                continue
+            values = row if isinstance(row, list) else []
+            for v in values:
+                if not isinstance(v, str):
+                    continue
+                counts[v] = counts.get(v, 0) + 1
+
+        facet = [
+            {"value": v, "count": c}
+            for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        ]
+        return facet
+
     def _build_conditions(self, filters: SearchFilters) -> list:
         """Build SQLAlchemy filter conditions from search filters."""
         conditions = []
@@ -377,17 +417,35 @@ class SearchService:
             if log_source_conditions:
                 conditions.append(or_(*log_source_conditions))
 
-        # Platform filter (standardized taxonomy)
+        # Canonical-taxonomy filters — match against the JSON array
+        # columns (`taxonomy_platforms`, `taxonomy_data_sources`,
+        # `taxonomy_event_types`). Any-match within a dimension, AND
+        # across dimensions. The text-based `ilike` trick is portable
+        # across SQLite (local dev) and Postgres (prod); the quoted
+        # match prevents substring false positives because canonical
+        # values are stored as JSON strings ("windows", not windows).
         if filters.platforms:
-            conditions.append(Detection.platform.in_(filters.platforms))
+            plat_conds = [
+                cast(Detection.taxonomy_platforms, String).ilike(f'%"{v}"%')
+                for v in filters.platforms
+            ]
+            conditions.append(or_(*plat_conds))
 
-        # Event category filter (standardized taxonomy)
         if filters.event_categories:
-            conditions.append(Detection.event_category.in_(filters.event_categories))
+            # `event_categories` filter key is retained for URL
+            # backwards-compat but now matches `taxonomy_event_types`.
+            et_conds = [
+                cast(Detection.taxonomy_event_types, String).ilike(f'%"{v}"%')
+                for v in filters.event_categories
+            ]
+            conditions.append(or_(*et_conds))
 
-        # Data source normalized filter (standardized taxonomy)
         if filters.data_sources_normalized:
-            conditions.append(Detection.data_source_normalized.in_(filters.data_sources_normalized))
+            ds_conds = [
+                cast(Detection.taxonomy_data_sources, String).ilike(f'%"{v}"%')
+                for v in filters.data_sources_normalized
+            ]
+            conditions.append(or_(*ds_conds))
 
         # Extracted Event IDs filter (JSON array, text-based matching)
         if filters.event_ids:

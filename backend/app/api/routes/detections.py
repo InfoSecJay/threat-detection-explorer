@@ -144,14 +144,27 @@ async def get_statistics(db: AsyncSession = Depends(get_db)):
 
 @router.get("/filters")
 async def get_filter_options(db: AsyncSession = Depends(get_db)):
-    """Get available filter options for dropdowns."""
+    """Get available filter options for dropdowns.
+
+    Returns both the legacy single-value facets (sources, statuses,
+    severities, languages) AND the new canonical taxonomy facets —
+    platforms, data_sources, event_types — each as [{value, count}]
+    sorted by descending count. Counts come directly from the corpus
+    so the UI always reflects what's actually stored.
+    """
     search_service = SearchService(db)
 
     return {
+        # Legacy single-value facets (kept for backwards-compat)
         "sources": await search_service.get_unique_values("source"),
         "statuses": await search_service.get_unique_values("status"),
         "severities": await search_service.get_unique_values("severity"),
         "languages": await search_service.get_unique_values("language"),
+        # Canonical array facets powered by corpus counts. These are
+        # what the FilterSidebar UI consumes.
+        "platforms": await search_service.get_taxonomy_facet("taxonomy_platforms"),
+        "data_sources": await search_service.get_taxonomy_facet("taxonomy_data_sources"),
+        "event_types": await search_service.get_taxonomy_facet("taxonomy_event_types"),
     }
 
 
