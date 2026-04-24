@@ -44,12 +44,30 @@ class RuleDiscoveryService:
         },
         "sentinel": {
             "include_patterns": [
+                # Solutions/<vendor>/ packages — the main source
                 "Solutions/**/Analytic Rules/*.yaml",
                 "Solutions/**/Analytic Rules/*.yml",
+                # NOTE: Hunting/Detection Queries are sparse-cloned so
+                # they exist on disk, but `can_parse()` filters them out
+                # — we don't ingest hunting queries as detection rules.
+                # Keeping the globs here is harmless + lets can_parse()
+                # reject them at parse time.
                 "Solutions/**/Hunting Queries/*.yaml",
                 "Solutions/**/Hunting Queries/*.yml",
                 "Solutions/**/Detection Queries/*.yaml",
                 "Solutions/**/Detection Queries/*.yml",
+                # Root-level Detections/<table>/*.yaml — ~483 rules
+                # grouped by KQL table name (AuditLogs, AWSCloudTrail,
+                # Syslog, etc.). Previously missed entirely.
+                "Detections/**/*.yaml",
+                "Detections/**/*.yml",
+                # ASIM rules using Microsoft's Advanced Security Info
+                # Model parsers — ~67 rules.
+                "ASIM/**/*.yaml",
+                "ASIM/**/*.yml",
+                # Summary rules — 7 alert-aggregation rules.
+                "Summary rules/*.yaml",
+                "Summary rules/*.yml",
             ],
             "exclude_dirs": ["deprecated", "tests", "test", ".git", "sample", "Sample"],
         },
