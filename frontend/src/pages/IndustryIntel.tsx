@@ -139,12 +139,12 @@ function TrendingRow({
   );
 }
 
-function TrendingTechniquesSection({ days }: { days: number }) {
-  const { data, isLoading, error } = useTrendingTechniques(days, 10);
+function TrendingTechniquesSection({ days, limit = 10 }: { days: number; limit?: number }) {
+  const { data, isLoading, error } = useTrendingTechniques(days, limit);
   const { getTechniqueName } = useMitre();
 
   if (isLoading)
-    return <SkeletonRows count={10} />;
+    return <SkeletonRows count={limit} />;
   if (error || !data?.techniques?.length)
     return <EmptyState label="NO_TRENDING_DATA" />;
 
@@ -160,7 +160,7 @@ function TrendingTechniquesSection({ days }: { days: number }) {
           count={t.count}
           maxCount={maxCount}
           sources={t.sources}
-          href={`/compare?technique=${t.technique_id}`}
+          href={`/mitre/${t.technique_id}`}
           accent="matrix"
         />
       ))}
@@ -168,11 +168,11 @@ function TrendingTechniquesSection({ days }: { days: number }) {
   );
 }
 
-function TrendingPlatformsSection({ days }: { days: number }) {
-  const { data, isLoading, error } = useTrendingPlatforms(days, 10);
+function TrendingPlatformsSection({ days, limit = 10 }: { days: number; limit?: number }) {
+  const { data, isLoading, error } = useTrendingPlatforms(days, limit);
 
   if (isLoading)
-    return <SkeletonRows count={10} />;
+    return <SkeletonRows count={limit} />;
   if (error || !data?.platforms?.length)
     return <EmptyState label="NO_TRENDING_DATA" />;
 
@@ -246,29 +246,30 @@ function RecentRuleRow({ rule }: { rule: RecentRuleItem }) {
   );
 }
 
-function RecentRulesSection() {
-  const { data, isLoading, error } = useRecentRules(20);
-
-  if (isLoading) return <SkeletonRows count={8} />;
-  if (error || !data)
+function RecentCreatedSection({ limit = 10 }: { limit?: number }) {
+  const { data, isLoading, error } = useRecentRules(limit);
+  if (isLoading) return <SkeletonRows count={limit} />;
+  if (error || !data?.most_recently_created?.length)
     return <EmptyState label="NO_RECENT_DATA" />;
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <CompactCard title="Recently Created" accent="matrix">
-        <div>
-          {data.most_recently_created.map((r) => (
-            <RecentRuleRow key={`created-${r.id}`} rule={r} />
-          ))}
-        </div>
-      </CompactCard>
-      <CompactCard title="Recently Modified" accent="cyan">
-        <div>
-          {data.most_recently_modified.map((r) => (
-            <RecentRuleRow key={`modified-${r.id}`} rule={r} />
-          ))}
-        </div>
-      </CompactCard>
+    <div>
+      {data.most_recently_created.slice(0, limit).map((r) => (
+        <RecentRuleRow key={`created-${r.id}`} rule={r} />
+      ))}
+    </div>
+  );
+}
+
+function RecentModifiedSection({ limit = 10 }: { limit?: number }) {
+  const { data, isLoading, error } = useRecentRules(limit);
+  if (isLoading) return <SkeletonRows count={limit} />;
+  if (error || !data?.most_recently_modified?.length)
+    return <EmptyState label="NO_RECENT_DATA" />;
+  return (
+    <div>
+      {data.most_recently_modified.slice(0, limit).map((r) => (
+        <RecentRuleRow key={`modified-${r.id}`} rule={r} />
+      ))}
     </div>
   );
 }
@@ -473,34 +474,36 @@ export function IndustryIntel() {
           Industry Intelligence
         </h1>
         <p className="text-xs text-gray-500 mt-0.5 font-mono">
-          RECENT_ACTIVITY // TRENDING_TECHNIQUES // PLATFORM_ACTIVITY // RELEASES
+          OPEN_SOURCE_REPO_UPDATES // RECENT_RULES // TRENDING_TTPS_AND_PLATFORMS
         </p>
       </div>
 
-      {/* Recent Rules — NEW, at the top (most actionable signal) */}
+      {/* Hero — upstream releases (the main signal: what did Sigma,
+          Splunk, Elastic, etc. just ship?) */}
       <section>
         <div className="flex items-center gap-2 mb-2">
           <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
           </svg>
           <h2 className="text-sm font-display font-bold text-white tracking-wider uppercase">
-            Recent Activity
+            Upstream Repo Releases
           </h2>
-          <span className="text-[10px] text-gray-500 font-mono ml-auto">latest 20 per list</span>
+          <span className="text-[10px] text-gray-500 font-mono ml-auto">sigma · splunk · elastic</span>
         </div>
-        <RecentRulesSection />
+        <UnifiedReleaseFeed />
       </section>
 
-      {/* Trending */}
+      {/* Activity strip — 4 tables side-by-side */}
       <section>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
           <h2 className="text-sm font-display font-bold text-white tracking-wider uppercase">
-            Trending
+            Catalog Activity
           </h2>
           <div className="ml-auto flex items-center gap-1">
+            <span className="text-[10px] text-gray-500 font-mono mr-1">trending window:</span>
             {periodOptions.map((opt) => (
               <button
                 key={opt.value}
@@ -517,27 +520,20 @@ export function IndustryIntel() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <CompactCard title="MITRE Techniques" accent="matrix">
-            <TrendingTechniquesSection days={trendingPeriod} />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <CompactCard title="Recently Created" accent="matrix">
+            <RecentCreatedSection limit={10} />
           </CompactCard>
-          <CompactCard title="Platforms" accent="cyan">
-            <TrendingPlatformsSection days={trendingPeriod} />
+          <CompactCard title="Recently Modified" accent="cyan">
+            <RecentModifiedSection limit={10} />
+          </CompactCard>
+          <CompactCard title="Trending Techniques" accent="matrix">
+            <TrendingTechniquesSection days={trendingPeriod} limit={10} />
+          </CompactCard>
+          <CompactCard title="Trending Platforms" accent="cyan">
+            <TrendingPlatformsSection days={trendingPeriod} limit={10} />
           </CompactCard>
         </div>
-      </section>
-
-      {/* Releases */}
-      <section>
-        <div className="flex items-center gap-2 mb-2">
-          <svg className="w-4 h-4 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-          <h2 className="text-sm font-display font-bold text-white tracking-wider uppercase">
-            Latest Releases
-          </h2>
-        </div>
-        <UnifiedReleaseFeed />
       </section>
     </div>
   );
