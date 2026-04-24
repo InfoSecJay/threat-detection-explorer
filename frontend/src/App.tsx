@@ -8,7 +8,9 @@ import { SideBySide } from './pages/SideBySide';
 import { MitreCoverage } from './pages/MitreCoverage';
 import { IndustryIntel } from './pages/IndustryIntel';
 import { About } from './pages/About';
-import { ChangeLog } from './pages/ChangeLog';
+// ChangeLog page is temporarily hidden — route + nav link removed
+// below. Keep the file in the tree so it's easy to re-enable later.
+// import { ChangeLog } from './pages/ChangeLog';
 import { Integrations } from './pages/Integrations';
 
 // Status indicator component
@@ -223,7 +225,6 @@ function App() {
                 label="Resources"
                 items={[
                   { to: '/about', label: 'About' },
-                  { to: '/changelog', label: 'Change Log' },
                   { to: '/integrations', label: 'Integrations' },
                 ]}
               />
@@ -251,7 +252,7 @@ function App() {
           <Route path="/compare/mitre-coverage" element={<MitreCoverage />} />
           <Route path="/intel" element={<IndustryIntel />} />
           <Route path="/about" element={<About />} />
-          <Route path="/changelog" element={<ChangeLog />} />
+          {/* /changelog route temporarily hidden */}
           <Route path="/integrations" element={<Integrations />} />
         </Routes>
       </main>
