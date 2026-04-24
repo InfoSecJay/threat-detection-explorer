@@ -87,53 +87,49 @@ async def get_trending_platforms(
 ):
     """Get trending platforms based on recently created/modified rules.
 
-    Returns platforms ordered by the number of rules created/modified in the time period.
+    Reads the canonical `taxonomy_platforms` array column so multi-OS
+    rules count toward every platform they target (a rule tagged
+    [windows, linux] counts for both). The `unknown` sentinel is
+    filtered out so it doesn't dominate.
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-    # Get all detections modified/created after cutoff date
     query = select(Detection).where(
         and_(
             Detection.rule_modified_date.isnot(None),
             Detection.rule_modified_date >= cutoff_date,
-            Detection.platform.isnot(None),
-            Detection.platform != "",
         )
     )
 
     result = await db.execute(query)
     detections = result.scalars().all()
 
-    # Count platforms
     platform_counts: dict[str, dict] = {}
     for detection in detections:
-        platform = detection.platform
-        if not platform:
-            continue
+        platforms = detection.taxonomy_platforms or []
+        for platform in platforms:
+            if not platform or platform == "unknown":
+                continue
+            if platform not in platform_counts:
+                platform_counts[platform] = {
+                    "platform": platform,
+                    "count": 0,
+                    "sources": set(),
+                    "latest_date": None,
+                }
+            platform_counts[platform]["count"] += 1
+            platform_counts[platform]["sources"].add(detection.source)
 
-        if platform not in platform_counts:
-            platform_counts[platform] = {
-                "platform": platform,
-                "count": 0,
-                "sources": set(),
-                "latest_date": None,
-            }
-        platform_counts[platform]["count"] += 1
-        platform_counts[platform]["sources"].add(detection.source)
+            if detection.rule_modified_date:
+                current_latest = platform_counts[platform]["latest_date"]
+                if current_latest is None or detection.rule_modified_date > current_latest:
+                    platform_counts[platform]["latest_date"] = detection.rule_modified_date
 
-        # Track the most recent rule date for this platform
-        if detection.rule_modified_date:
-            current_latest = platform_counts[platform]["latest_date"]
-            if current_latest is None or detection.rule_modified_date > current_latest:
-                platform_counts[platform]["latest_date"] = detection.rule_modified_date
-
-    # Sort by count and return top N
     sorted_platforms = sorted(
         platform_counts.values(),
         key=lambda x: (-x["count"], x["platform"]),
     )[:limit]
 
-    # Convert sets to lists and format dates
     return {
         "period_days": days,
         "cutoff_date": cutoff_date.isoformat(),
@@ -146,6 +142,53 @@ async def get_trending_platforms(
             }
             for p in sorted_platforms
         ],
+    }
+
+
+@router.get("/recent-rules")
+async def get_recent_rules(
+    limit: int = Query(20, ge=5, le=50, description="Number of rules per list"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the most recently created + most recently modified rules.
+
+    Two parallel lists, each ordered by the respective date descending.
+    Powers the "Recent activity" section of the Intel page. Rules
+    without a date stamp are excluded (would pollute the top of the
+    list with deterministic-but-meaningless ordering).
+    """
+    def _format(d: Detection, date_field: str) -> dict:
+        date_value = getattr(d, date_field, None)
+        return {
+            "id": d.id,
+            "rule_id": d.rule_id,
+            "title": d.title,
+            "source": d.source,
+            "severity": d.severity,
+            "platforms": d.taxonomy_platforms or [],
+            "event_types": d.taxonomy_event_types or [],
+            "date": date_value.isoformat() if date_value else None,
+        }
+
+    created_q = (
+        select(Detection)
+        .where(Detection.rule_created_date.isnot(None))
+        .order_by(Detection.rule_created_date.desc())
+        .limit(limit)
+    )
+    modified_q = (
+        select(Detection)
+        .where(Detection.rule_modified_date.isnot(None))
+        .order_by(Detection.rule_modified_date.desc())
+        .limit(limit)
+    )
+
+    created = (await db.execute(created_q)).scalars().all()
+    modified = (await db.execute(modified_q)).scalars().all()
+
+    return {
+        "most_recently_created": [_format(d, "rule_created_date") for d in created],
+        "most_recently_modified": [_format(d, "rule_modified_date") for d in modified],
     }
 
 

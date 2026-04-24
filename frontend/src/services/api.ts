@@ -344,6 +344,27 @@ export const trendingApi = {
     const response = await api.get(`/trending/summary?days=${days}`);
     return response.data;
   },
+
+  getRecentRules: async (limit: number = 20): Promise<RecentRulesResponse> => {
+    const response = await api.get(`/trending/recent-rules?limit=${limit}`);
+    return response.data;
+  },
 };
+
+export interface RecentRuleItem {
+  id: string;
+  rule_id: string | null;
+  title: string;
+  source: string;
+  severity: string;
+  platforms: string[];
+  event_types: string[];
+  date: string | null;
+}
+
+export interface RecentRulesResponse {
+  most_recently_created: RecentRuleItem[];
+  most_recently_modified: RecentRuleItem[];
+}
 
 export default api;

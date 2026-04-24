@@ -24,3 +24,11 @@ export function useTrendingSummary(days: number = 90) {
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
+
+export function useRecentRules(limit: number = 20) {
+  return useQuery({
+    queryKey: ['recent-rules', limit],
+    queryFn: () => trendingApi.getRecentRules(limit),
+    staleTime: 1000 * 60 * 5,
+  });
+}
