@@ -3,6 +3,7 @@ import { useStatistics } from '../hooks/useDetections';
 import { ThreatRadar } from '../components/graphics/ThreatRadar';
 import { HexShield } from '../components/graphics/HexShield';
 import { DataSourceIcon } from '../components/graphics/DataSourceIcon';
+import { clipMd, clipLg } from '../constants/style';
 
 // External link icon
 function ExternalLinkIcon({ size = 16 }: { size?: number }) {
@@ -134,7 +135,7 @@ function StatCard({
       <div
         className="relative bg-void-850 border border-void-700 p-4 transition-all duration-300 group-hover:border-opacity-50 overflow-hidden"
         style={{
-          clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
+          ...clipMd,
           borderColor: `${color}30`,
         }}
       >
@@ -187,7 +188,7 @@ function FeatureCard({
     <div
       className="group relative bg-void-850 border border-void-700 p-6 transition-all duration-500 hover:border-matrix-500/30 card-lift"
       style={{
-        clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
+        ...clipLg,
         animationDelay: `${index * 100}ms`,
       }}
     >
@@ -376,9 +377,7 @@ export function Home() {
               >
                 <div
                   className="relative bg-void-850 border border-matrix-500/30 p-6 h-full transition-all duration-300 group-hover:border-matrix-500/50 overflow-hidden"
-                  style={{
-                    clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-                  }}
+                  style={clipLg}
                 >
                   {/* Background glow */}
                   <div

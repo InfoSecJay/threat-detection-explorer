@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { sourceColors, sourceLabelsShort as sourceLabels } from '../constants/sources';
 import type { Detection, SideBySideResponse } from '../types';
 
 function CopyButton({ text, label = 'COPY' }: { text: string; label?: string }) {
@@ -57,29 +58,6 @@ function CopyButton({ text, label = 'COPY' }: { text: string; label?: string }) 
 interface SideBySideComparisonProps {
   data: SideBySideResponse;
 }
-
-// Source brand colors
-const sourceColors: Record<string, string> = {
-  sigma: '#a855f7',
-  elastic: '#3b82f6',
-  splunk: '#f97316',
-  sublime: '#ec4899',
-  elastic_protections: '#06b6d4',
-  lolrmm: '#22c55e',
-  elastic_hunting: '#8b5cf6',
-  sentinel: '#0078d4',
-};
-
-const sourceLabels: Record<string, string> = {
-  sigma: 'SIGMA',
-  elastic: 'ELASTIC',
-  splunk: 'SPLUNK',
-  sublime: 'SUBLIME',
-  elastic_protections: 'ELASTIC PROTECT',
-  lolrmm: 'LOLRMM',
-  elastic_hunting: 'ELASTIC HUNT',
-  sentinel: 'SENTINEL',
-};
 
 const severityConfig: Record<string, { color: string; glow: string }> = {
   critical: { color: '#ef4444', glow: '0 0 20px rgba(239, 68, 68, 0.4)' },

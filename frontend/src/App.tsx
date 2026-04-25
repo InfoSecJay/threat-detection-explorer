@@ -12,6 +12,7 @@ import { About } from './pages/About';
 // below. Keep the file in the tree so it's easy to re-enable later.
 // import { ChangeLog } from './pages/ChangeLog';
 import { Integrations } from './pages/Integrations';
+import { clipSm } from './constants/style';
 
 // Status indicator component
 function StatusIndicator() {
@@ -38,9 +39,7 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
           ? 'text-matrix-500 bg-matrix-500/10 border border-matrix-500/30'
           : 'text-gray-400 hover:text-matrix-400 hover:bg-void-800 border border-transparent'
       }`}
-      style={{
-        clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-      }}
+      style={clipSm}
     >
       {isActive && (
         <span className="absolute top-0 left-0 w-2 h-2 bg-matrix-500" />
@@ -86,9 +85,7 @@ function NavDropdown({ label, items }: { label: string; items: { to: string; lab
             ? 'text-matrix-500 bg-matrix-500/10 border border-matrix-500/30'
             : 'text-gray-400 hover:text-matrix-400 hover:bg-void-800 border border-transparent'
         }`}
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-        }}
+        style={clipSm}
       >
         {isActive && (
           <span className="absolute top-0 left-0 w-2 h-2 bg-matrix-500" />
@@ -107,9 +104,7 @@ function NavDropdown({ label, items }: { label: string; items: { to: string; lab
       {isOpen && (
         <div
           className="absolute top-full left-0 mt-1 bg-void-900 border border-void-700 py-1 min-w-[180px] z-50"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-          }}
+          style={clipSm}
         >
           {items.map((item) => {
             const itemActive = location.pathname === item.to || location.pathname.startsWith(item.to + '/');

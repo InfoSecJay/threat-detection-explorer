@@ -3,29 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useCoverageMatrix } from '../hooks/useCompare';
 import { useDetections } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
+import { sourceTheme as sourceColors, clipSm as clipCornerSm, clipMd as clipCornerMd } from '../constants/style';
 import type { TechniqueCoverage, TacticCoverage } from '../services/api';
-
-const sourceColors: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  sigma:               { bg: 'bg-blue-500/20',   text: 'text-blue-400',   border: 'border-blue-500/30',   dot: 'bg-blue-500' },
-  elastic:             { bg: 'bg-amber-500/20',  text: 'text-amber-400',  border: 'border-amber-500/30',  dot: 'bg-amber-500' },
-  splunk:              { bg: 'bg-green-500/20',  text: 'text-green-400',  border: 'border-green-500/30',  dot: 'bg-green-500' },
-  sublime:             { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-500' },
-  elastic_protections: { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30', dot: 'bg-orange-500' },
-  lolrmm:              { bg: 'bg-pink-500/20',   text: 'text-pink-400',   border: 'border-pink-500/30',   dot: 'bg-pink-500' },
-  elastic_hunting:     { bg: 'bg-violet-500/20', text: 'text-violet-400', border: 'border-violet-500/30', dot: 'bg-violet-500' },
-  sentinel:            { bg: 'bg-sky-500/20',    text: 'text-sky-400',    border: 'border-sky-500/30',    dot: 'bg-sky-500' },
-};
-
-const sourceDisplayNames: Record<string, string> = {
-  sigma: 'Sigma',
-  elastic: 'Elastic',
-  splunk: 'Splunk',
-  sublime: 'Sublime',
-  elastic_protections: 'Elastic Prot.',
-  lolrmm: 'LOLRMM',
-  elastic_hunting: 'Elastic Hunt',
-  sentinel: 'Sentinel',
-};
 
 const severityColors: Record<string, string> = {
   critical: 'text-breach-400 border-breach-500/30 bg-breach-500/10',
@@ -34,9 +13,6 @@ const severityColors: Record<string, string> = {
   low: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
   unknown: 'text-gray-500 border-gray-600/30 bg-void-800',
 };
-
-const clipCornerSm = { clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))' };
-const clipCornerMd = { clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))' };
 
 // ── Summary stat card ─────────────────────────────────────────────────
 function StatCard({ label, value, sublabel, accent }: { label: string; value: string; sublabel?: string; accent?: string }) {
@@ -249,7 +225,7 @@ function SummaryPane({ data }: { data: NonNullable<ReturnType<typeof useCoverage
               <div key={src} className="flex items-center gap-3">
                 <div className="flex items-center gap-2 w-32 flex-shrink-0">
                   <span className={`w-2 h-2 ${colors.dot}`} />
-                  <span className="text-xs text-gray-400">{sourceDisplayNames[src] || src}</span>
+                  <span className="text-xs text-gray-400">{sourceColors[src]?.name || src}</span>
                 </div>
                 <div className="flex-1 h-2 bg-void-900 rounded-sm overflow-hidden">
                   <div
@@ -527,7 +503,7 @@ function TechniqueDetailPane({
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className={`w-2 h-2 ${colors.dot}`} />
                     <span className={`text-[11px] font-mono uppercase tracking-wider ${colors.text}`}>
-                      {sourceDisplayNames[src] || src}
+                      {colors.name || src}
                     </span>
                     <span className="text-[10px] font-mono text-gray-500">({srcRules.length})</span>
                   </div>

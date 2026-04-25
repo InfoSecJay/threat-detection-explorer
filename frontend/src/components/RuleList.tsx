@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { sourceColors, sourceLabelsShort as sourceLabels } from '../constants/sources';
 import type { Detection, SearchFilters } from '../types';
+import { clipMd, clipLg } from '../constants/style';
 
 interface RuleListProps {
   detections: Detection[];
@@ -19,28 +21,6 @@ const severityColors: Record<string, { bg: string; text: string; border: string 
   medium: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/30' },
   low: { bg: 'bg-pulse-500/10', text: 'text-pulse-400', border: 'border-pulse-500/30' },
   unknown: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/30' },
-};
-
-const sourceColors: Record<string, string> = {
-  sigma: '#a855f7',
-  elastic: '#3b82f6',
-  splunk: '#f97316',
-  sublime: '#ec4899',
-  elastic_protections: '#06b6d4',
-  lolrmm: '#22c55e',
-  elastic_hunting: '#8b5cf6',
-  sentinel: '#0078d4',
-};
-
-const sourceLabels: Record<string, string> = {
-  sigma: 'SIGMA',
-  elastic: 'ELASTIC',
-  splunk: 'SPLUNK',
-  sublime: 'SUBLIME',
-  elastic_protections: 'EL_PROTECT',
-  lolrmm: 'LOLRMM',
-  elastic_hunting: 'EL_HUNT',
-  sentinel: 'SENTINEL',
 };
 
 // Sort options
@@ -189,9 +169,7 @@ export function RuleList({
     return (
       <div
         className="text-center py-12 bg-void-850 border border-void-700"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-        }}
+        style={clipLg}
       >
         <svg className="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -288,9 +266,7 @@ export function RuleList({
       {/* Table */}
       <div
         className="bg-void-850 border border-void-700 overflow-hidden"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-        }}
+        style={clipMd}
       >
         <div className="overflow-x-auto">
           <table className="min-w-full">

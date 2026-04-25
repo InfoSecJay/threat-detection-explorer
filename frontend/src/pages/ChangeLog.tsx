@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { clipMd } from '../constants/style';
 
 interface ChangeLogEntry {
   version: string;
@@ -120,9 +121,7 @@ export function ChangeLog() {
               {/* Version card */}
               <div
                 className="bg-void-850 border border-void-700 p-6"
-                style={{
-                  clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-                }}
+                style={clipMd}
               >
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">

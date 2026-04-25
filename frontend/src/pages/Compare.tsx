@@ -6,6 +6,7 @@ import { TechniqueAutocomplete } from '../components/TechniqueAutocomplete';
 import { useCompare } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
 import { sourceColors, sourceLabelsShort } from '../constants/sources';
+import { clipSm, clipMd, clipLg } from '../constants/style';
 
 // Platform options for comparison dropdown
 const platformOptions = [
@@ -110,9 +111,7 @@ export function Compare() {
         <Link
           to="/compare/side-by-side"
           className="px-4 py-2 bg-void-800 border border-void-600 text-gray-300 font-display text-sm uppercase tracking-wider hover:bg-void-700 hover:text-matrix-500 hover:border-matrix-500/30 transition-all"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-          }}
+          style={clipSm}
         >
           Side-by-Side
         </Link>
@@ -121,9 +120,7 @@ export function Compare() {
       {/* Search Form */}
       <div
         className="bg-void-850 border border-void-700 p-6"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-        }}
+        style={clipLg}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Query Type Selection */}
@@ -250,9 +247,7 @@ export function Compare() {
       {compareError && (
         <div
           className="bg-breach-500/10 border border-breach-500/30 p-6"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-          }}
+          style={clipMd}
         >
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-breach-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,9 +262,7 @@ export function Compare() {
       {compareData && (
         <div
           className="flex items-center justify-between px-4 py-3 bg-void-850 border border-void-700"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-          }}
+          style={clipMd}
         >
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-mono text-gray-600">QUERY:</span>

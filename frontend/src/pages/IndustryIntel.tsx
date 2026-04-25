@@ -11,27 +11,10 @@ import {
 } from '../hooks/useTrending';
 import { useFilterOptions } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
+import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import type {
   Release, RecentRuleItem, ActivityFilters, NamedThreat, CveMention,
 } from '../services/api';
-
-// ---------------------------------------------------------------------------
-// Source display metadata
-// ---------------------------------------------------------------------------
-
-const sourceConfig: Record<
-  string,
-  { name: string; color: string; bgColor: string; borderColor: string; dot: string }
-> = {
-  sigma:               { name: 'SigmaHQ',            color: 'text-blue-400',   bgColor: 'bg-blue-500/20',   borderColor: 'border-blue-500/30',   dot: 'bg-blue-500' },
-  elastic:             { name: 'Elastic',            color: 'text-amber-400',  bgColor: 'bg-amber-500/20',  borderColor: 'border-amber-500/30',  dot: 'bg-amber-500' },
-  splunk:              { name: 'Splunk',             color: 'text-green-400',  bgColor: 'bg-green-500/20',  borderColor: 'border-green-500/30',  dot: 'bg-green-500' },
-  sublime:             { name: 'Sublime',            color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30', dot: 'bg-purple-500' },
-  elastic_protections: { name: 'Elastic Prot.',      color: 'text-orange-400', bgColor: 'bg-orange-500/20', borderColor: 'border-orange-500/30', dot: 'bg-orange-500' },
-  lolrmm:              { name: 'LOLRMM',             color: 'text-pink-400',   bgColor: 'bg-pink-500/20',   borderColor: 'border-pink-500/30',   dot: 'bg-pink-500' },
-  elastic_hunting:     { name: 'Elastic Hunt',       color: 'text-indigo-400', bgColor: 'bg-indigo-500/20', borderColor: 'border-indigo-500/30', dot: 'bg-indigo-500' },
-  sentinel:            { name: 'Sentinel',           color: 'text-sky-400',    bgColor: 'bg-sky-500/20',    borderColor: 'border-sky-500/30',    dot: 'bg-sky-500' },
-};
 
 const severityColor: Record<string, string> = {
   critical: 'text-red-400 border-red-500/40 bg-red-500/10',
@@ -41,9 +24,6 @@ const severityColor: Record<string, string> = {
   informational: 'text-gray-400 border-gray-600/40 bg-void-800',
   unknown: 'text-gray-500 border-gray-600/40 bg-void-800',
 };
-
-const clipSm = { clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))' };
-const clipMd = { clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))' };
 
 interface ReleaseWithSource extends Release {
   source: string;
@@ -147,7 +127,7 @@ function PulseBanner({ days }: { days: number }) {
                   style={{ height: `${pct * 0.4}px` }}
                 />
                 <div className="text-[9px] font-mono text-gray-500 uppercase">{src.slice(0, 3)}</div>
-                <div className={`text-[10px] font-mono ${cfg.color} tabular-nums`}>{count}</div>
+                <div className={`text-[10px] font-mono ${cfg.text} tabular-nums`}>{count}</div>
               </div>
             );
           })}
@@ -330,7 +310,7 @@ function UpstreamReleases() {
           <div
             key={`${release.source}-${release.id}`}
             className={`bg-void-850 border transition-colors ${
-              expanded ? cfg.borderColor : 'border-void-700 hover:border-void-600'
+              expanded ? cfg.border : 'border-void-700 hover:border-void-600'
             }`}
             style={clipSm}
           >
@@ -338,7 +318,7 @@ function UpstreamReleases() {
               onClick={() => setExpandedId(expanded ? null : release.id)}
               className="w-full px-3 py-2.5 text-left flex items-center gap-2.5"
             >
-              <span className={`px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider shrink-0 ${cfg.bgColor} ${cfg.color} border ${cfg.borderColor}`}>
+              <span className={`px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider shrink-0 ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
                 {cfg.name}
               </span>
               <span className="font-mono text-xs text-matrix-500 shrink-0">{release.tag_name}</span>
@@ -397,7 +377,7 @@ function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
       style={clipSm}
     >
       <div className="flex items-center gap-2 mb-1.5">
-        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${cfg?.bgColor || ''} ${cfg?.color || ''} ${cfg?.borderColor || ''}`}>
+        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${cfg?.bg || ''} ${cfg?.text || ''} ${cfg?.border || ''}`}>
           {cfg?.name || rule.source}
         </span>
         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${sev}`}>
@@ -604,7 +584,7 @@ function ActivityFilterBar({
               onClick={() => toggleSource(src)}
               className={`px-2 py-0.5 text-[10px] font-mono uppercase transition-colors border ${
                 active
-                  ? `${cfg?.bgColor || 'bg-matrix-500/20'} ${cfg?.color || 'text-matrix-400'} ${cfg?.borderColor || 'border-matrix-500/30'}`
+                  ? `${cfg?.bg || 'bg-matrix-500/20'} ${cfg?.text || 'text-matrix-400'} ${cfg?.border || 'border-matrix-500/30'}`
                   : 'bg-void-800 text-gray-400 border-void-600 hover:text-white'
               }`}
               title={cfg?.name || src}

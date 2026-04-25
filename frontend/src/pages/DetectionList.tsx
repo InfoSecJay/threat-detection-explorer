@@ -6,6 +6,7 @@ import { RuleList } from '../components/RuleList';
 import { ExportModal } from '../components/ExportModal';
 import { useDetections } from '../hooks/useDetections';
 import type { SearchFilters } from '../types';
+import { clipSm, clipMd } from '../constants/style';
 
 export function DetectionList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,9 +82,7 @@ export function DetectionList() {
   if (error) {
     return (
       <div className="bg-breach-500/10 text-breach-400 border border-breach-500/30 p-6"
-        style={{
-          clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-        }}
+        style={clipMd}
       >
         <div className="flex items-center gap-3">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,9 +112,7 @@ export function DetectionList() {
         <button
           onClick={() => setIsExportModalOpen(true)}
           className="px-4 py-2 bg-pulse-500 text-void-950 font-display font-semibold text-sm uppercase tracking-wider hover:bg-pulse-400 transition-colors"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
-          }}
+          style={clipSm}
         >
           <span className="flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,9 +138,7 @@ export function DetectionList() {
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by title, description, detection logic, author..."
               className="w-full pl-12 pr-10 py-3 bg-void-850 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50 transition-all"
-              style={{
-                clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-              }}
+              style={clipMd}
             />
             {searchInput && (
               <button

@@ -1,26 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useFilterOptions } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
+import { sourceColors } from '../constants/sources';
 import { TelemetryFilter } from './TelemetryFilter';
 import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
+import { clipMd } from '../constants/style';
 
 interface FilterPanelProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
 }
-
-// Source color mapping
-const sourceColors: Record<string, string> = {
-  sigma: '#a855f7',
-  elastic: '#3b82f6',
-  splunk: '#f97316',
-  sublime: '#ec4899',
-  elastic_protections: '#06b6d4',
-  lolrmm: '#22c55e',
-  elastic_hunting: '#8b5cf6',
-  sentinel: '#0078d4',
-};
 
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const { tactics, techniques } = useMitre();
@@ -125,9 +115,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   return (
     <div
       className="bg-void-850 border border-void-700 p-4"
-      style={{
-        clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))',
-      }}
+      style={clipMd}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-void-700">

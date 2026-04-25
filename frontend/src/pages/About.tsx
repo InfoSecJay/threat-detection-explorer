@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { clipLg, clipXl } from '../constants/style';
 
 export function About() {
   return (
@@ -17,9 +18,7 @@ export function About() {
       <section className="relative">
         <div
           className="bg-void-850 border border-void-700 p-8 lg:p-10"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))',
-          }}
+          style={clipXl}
         >
           {/* Corner decorations */}
           <div className="absolute top-0 right-0 w-6 h-6 bg-matrix-500/20" />
@@ -116,9 +115,7 @@ export function About() {
       <section>
         <div
           className="bg-void-850 border border-void-700 p-8"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-          }}
+          style={clipLg}
         >
           <div className="flex items-center gap-4 mb-6">
             <h2 className="text-xl font-display font-bold text-white tracking-wider uppercase">
@@ -164,9 +161,7 @@ export function About() {
       <section>
         <div
           className="bg-threat-500/5 border border-threat-500/30 p-6 lg:p-8"
-          style={{
-            clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))',
-          }}
+          style={clipLg}
         >
           <div className="flex items-center gap-3 mb-4">
             <svg className="w-5 h-5 text-threat-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
