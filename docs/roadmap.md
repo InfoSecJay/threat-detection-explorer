@@ -22,6 +22,23 @@ different product — see [Deferred](#deferred) below.
 
 Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- **Foundation pay-down cycle** — eight stability/perf items in one push.
+  `datetime.utcnow()` deprecated → naive `utcnow()` helper across 33 call
+  sites (`a571a6e`). Trending routes column-scoped, no more loading the
+  full Detection row when 3–4 columns suffice (`439eb4a`). Splunk
+  normalizer preserves the `story:` prefix and drops asset/domain noise
+  (`7a3a28b`). `sourceConfig` redefined in 6 files + `clipPath` inlined
+  30× → centralized in `constants/style.ts` (`0284891`). Route-level
+  `React.lazy` — initial bundle **1.5 MB → 283 KB** (`1ecf6c1`). Parser
+  `can_parse()` substring bug (filename `test.toml` matched the `test`
+  exclusion) → path-parts match; 5 broken parser tests fixed (`6d7c2a0`).
+  Vitest + jsdom + 5 first tests including a render-smoke for IndustryIntel
+  that catches the hook-order class of bug (`e598c01`). Parser date
+  backfill confirmed shipped — was local-DB drift, not a prod bug
+  (`837bca9`).
+- **Roadmap consolidation** — three planning docs merged into a single
+  `docs/roadmap.md`. `REVIEW_AND_ROADMAP.md` + `docs/intel-roadmap.md`
+  deleted (`91a05b7`).
 - **Intel page rebuilt around industry signal** — Pulse banner, Threat Pulse
   (named threats from Splunk `analytic_story` + Sublime `Malfam:` tags, no
   hardcoded list), CVE Watch, restyled Upstream Releases, demoted trending
@@ -47,69 +64,36 @@ Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
-## Now — foundation pay-down (next 2 weeks)
+## Now — finishing foundation pay-down
 
-**No new pages.** Spend the cycle making the existing system honest, fast, and
-testable. Sequenced for blast-radius and dependency.
+The bulk of the foundation cycle landed (see Recently shipped). What's
+left from that effort:
 
 ### Backend
 
-- [x] **Parser date backfill** — verified populated in production for
-  every source (Splunk 2026-04-17, Sentinel 2025-08-21, Sublime
-  2026-04-06, Elastic Protections 2025-11-26, Elastic Hunting 2024-09-13,
-  LOLRMM 2026-03-03 — sampled live). The earlier "6/8 sources null"
-  finding was local-dev DB drift, not a production bug. Every
-  normalizer correctly calls `_resolve_rule_dates()` which falls back
-  to `git_service` when the rule body has no date field.
-- [ ] **Re-introduce `days` filter on `/trending/threats`** — currently
-  scans the full corpus because it was the right call when we thought
-  dates were missing. Now that dates are confirmed present, the
-  endpoint can accept `days=N` again to give a time-windowed industry-
-  pulse signal alongside (or replacing) the catalog-wide scan.
-- [ ] **`datetime.utcnow()` mass replace** — 31 call sites across 13 files.
-  Python 3.12 deprecation. Migrate to `datetime.now(timezone.utc)`.
-- [ ] **Trending routes — column-scoped queries** —
-  [`routes/trending.py:76,148,239`](../backend/app/api/routes/trending.py#L76)
-  load full `Detection` rows when 3–4 columns suffice. `detection_logic` is
-  big; this matters at 12 k rows × repeated polls.
-- [ ] **Splunk normalizer prefix preservation** —
-  [`normalizers/splunk.py:178-184`](../backend/app/normalizers/splunk.py#L178)
-  strips `story:` / `asset:` / `domain:` prefixes; threat-pulse extraction
-  works around it but the right fix is one line. Requires Splunk re-ingest
-  after deploy.
-- [ ] **Backend test gaps** — currently 22 test files for 68 source files.
-  No tests for: ingestion service, scheduler, trending routes, export
-  routes, search service, repository_sync, git_service. Pick the two
+- [ ] **Re-introduce `days` filter on `/trending/threats`** — endpoint
+  currently scans the full corpus because that was the right call when we
+  thought dates were missing. Dates are confirmed present in production now;
+  add `days=N` back so the Threat Pulse can be time-windowed.
+- [ ] **Backend test gaps** — 22 test files vs 68 source files. No tests
+  for: ingestion service, scheduler, trending routes, export routes,
+  search service, repository_sync, git_service. Pick the two
   highest-blast-radius (ingestion + search) for this cycle.
-- [ ] **Fix the 5 Windows-path parser tests** — pre-existing for over a month.
-  Hides regressions every time `pytest` is run locally.
 
 ### Frontend
 
-- [ ] **vitest infrastructure + smoke tests** — currently zero test config on
-  9,924 lines of TSX. The hook-order bug last deploy would've been caught by
-  one render test. Start with a smoke render per page, expand from there.
-- [ ] **Centralize `sourceConfig`** — redefined in `IndustryIntel`,
-  `MitreCoverage`, `FilterPanel`, `RuleList`, `RuleDetail`, `RuleComparison`
-  despite [`constants/sources.ts`](../frontend/src/constants/sources.ts)
-  existing. Drift hazard.
-- [ ] **Centralize `clipPath`** — same polygon inlined ~41 times. Extract to
-  `constants/clips.ts` (`clipSm`, `clipMd`).
-- [ ] **Route-level code splitting** — `vite.config.ts` has no `manualChunks`;
-  single 1.5 MB JS chunk. Wrap each page in `React.lazy()` in `App.tsx`
-  for trivial 50 % reduction.
-- [ ] **Decompose god-components** — IndustryIntel 754 L, MitreCoverage 730 L,
-  RuleDetail 654 L, RuleComparison 605 L, RuleList 549 L, RulePreviewModal
-  521 L, Home 500 L. Pick one per cycle. Extract data-fetching hooks
-  separate from rendering. Don't rewrite — refactor.
+- [ ] **Decompose god-components** — IndustryIntel 754 L, MitreCoverage
+  730 L, RuleDetail 654 L, RuleComparison 605 L, RuleList 549 L,
+  RulePreviewModal 521 L, Home 500 L. Pick one per cycle. Extract
+  data-fetching hooks separate from rendering. Don't rewrite — refactor.
+- [ ] **Grow vitest coverage** — infrastructure is in place. Add render
+  smokes for the other big pages (MitreCoverage, DetectionList, Compare)
+  to lock in the same hook-order safety net.
 
 ### Hygiene
 
-- [x] **Roadmap consolidation** — *this doc*. `REVIEW_AND_ROADMAP.md` and
-  `docs/intel-roadmap.md` folded in and deleted.
 - [ ] **README rule-count placeholders** — six `<!-- TODO: add count -->`
-  placeholders. Wire to `/api/detections/statistics` or hard-code the
-  current 12 k.
+  placeholders. Wire to `/api/detections/statistics` or hard-code 12 k.
 - [ ] **`docs/screenshot.png`** — referenced from README but missing.
 
 ---
