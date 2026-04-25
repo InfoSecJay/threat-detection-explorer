@@ -74,15 +74,21 @@ async def get_trending_techniques(
     ]
     _apply_trending_filters(conditions, _parse_csv(sources), _parse_csv(platforms), _parse_csv(event_types))
 
-    query = select(Detection).where(and_(*conditions))
+    # Column-scoped query: avoid loading detection_logic / raw_content /
+    # the dozen extracted_* JSON columns we never read here.
+    query = select(
+        Detection.source,
+        Detection.mitre_techniques,
+        Detection.rule_modified_date,
+    ).where(and_(*conditions))
 
-    result = await db.execute(query)
-    detections = result.scalars().all()
+    rows = (await db.execute(query)).all()
 
-    # Count techniques
     technique_counts: dict[str, dict] = {}
-    for detection in detections:
-        for technique in detection.mitre_techniques:
+    for source, techniques, modified_date in rows:
+        if not techniques:
+            continue
+        for technique in techniques:
             if technique not in technique_counts:
                 technique_counts[technique] = {
                     "technique_id": technique,
@@ -91,13 +97,12 @@ async def get_trending_techniques(
                     "latest_date": None,
                 }
             technique_counts[technique]["count"] += 1
-            technique_counts[technique]["sources"].add(detection.source)
+            technique_counts[technique]["sources"].add(source)
 
-            # Track the most recent rule date for this technique
-            if detection.rule_modified_date:
+            if modified_date:
                 current_latest = technique_counts[technique]["latest_date"]
-                if current_latest is None or detection.rule_modified_date > current_latest:
-                    technique_counts[technique]["latest_date"] = detection.rule_modified_date
+                if current_latest is None or modified_date > current_latest:
+                    technique_counts[technique]["latest_date"] = modified_date
 
     # Sort by count and return top N
     sorted_techniques = sorted(
@@ -146,15 +151,17 @@ async def get_trending_platforms(
     ]
     _apply_trending_filters(conditions, _parse_csv(sources), [], _parse_csv(event_types))
 
-    query = select(Detection).where(and_(*conditions))
+    query = select(
+        Detection.source,
+        Detection.taxonomy_platforms,
+        Detection.rule_modified_date,
+    ).where(and_(*conditions))
 
-    result = await db.execute(query)
-    detections = result.scalars().all()
+    rows = (await db.execute(query)).all()
 
     platform_counts: dict[str, dict] = {}
-    for detection in detections:
-        platforms = detection.taxonomy_platforms or []
-        for platform in platforms:
+    for source, taxonomy_platforms, modified_date in rows:
+        for platform in taxonomy_platforms or []:
             if not platform or platform == "unknown":
                 continue
             if platform not in platform_counts:
@@ -165,12 +172,12 @@ async def get_trending_platforms(
                     "latest_date": None,
                 }
             platform_counts[platform]["count"] += 1
-            platform_counts[platform]["sources"].add(detection.source)
+            platform_counts[platform]["sources"].add(source)
 
-            if detection.rule_modified_date:
+            if modified_date:
                 current_latest = platform_counts[platform]["latest_date"]
-                if current_latest is None or detection.rule_modified_date > current_latest:
-                    platform_counts[platform]["latest_date"] = detection.rule_modified_date
+                if current_latest is None or modified_date > current_latest:
+                    platform_counts[platform]["latest_date"] = modified_date
 
     sorted_platforms = sorted(
         platform_counts.values(),
@@ -208,16 +215,31 @@ async def get_recent_rules(
     list with deterministic-but-meaningless ordering). Optional filters
     narrow the corpus (e.g. sources=sigma&platforms=o365).
     """
-    def _format(d: Detection, date_field: str) -> dict:
-        date_value = getattr(d, date_field, None)
+    # Column-scoped: only what _format() actually reads. Skips
+    # detection_logic, raw_content, and the extracted_* JSON columns
+    # which are large and never used for the activity strip.
+    columns = (
+        Detection.id,
+        Detection.rule_id,
+        Detection.title,
+        Detection.source,
+        Detection.severity,
+        Detection.taxonomy_platforms,
+        Detection.taxonomy_event_types,
+        Detection.rule_created_date,
+        Detection.rule_modified_date,
+    )
+
+    def _format(row, date_index: int) -> dict:
+        date_value = row[date_index]
         return {
-            "id": d.id,
-            "rule_id": d.rule_id,
-            "title": d.title,
-            "source": d.source,
-            "severity": d.severity,
-            "platforms": d.taxonomy_platforms or [],
-            "event_types": d.taxonomy_event_types or [],
+            "id": row[0],
+            "rule_id": row[1],
+            "title": row[2],
+            "source": row[3],
+            "severity": row[4],
+            "platforms": row[5] or [],
+            "event_types": row[6] or [],
             "date": date_value.isoformat() if date_value else None,
         }
 
@@ -228,7 +250,7 @@ async def get_recent_rules(
     created_conds = [Detection.rule_created_date.isnot(None)]
     _apply_trending_filters(created_conds, src_list, plat_list, et_list)
     created_q = (
-        select(Detection)
+        select(*columns)
         .where(and_(*created_conds))
         .order_by(Detection.rule_created_date.desc())
         .limit(limit)
@@ -237,18 +259,19 @@ async def get_recent_rules(
     modified_conds = [Detection.rule_modified_date.isnot(None)]
     _apply_trending_filters(modified_conds, src_list, plat_list, et_list)
     modified_q = (
-        select(Detection)
+        select(*columns)
         .where(and_(*modified_conds))
         .order_by(Detection.rule_modified_date.desc())
         .limit(limit)
     )
 
-    created = (await db.execute(created_q)).scalars().all()
-    modified = (await db.execute(modified_q)).scalars().all()
+    created = (await db.execute(created_q)).all()
+    modified = (await db.execute(modified_q)).all()
 
+    # rule_created_date is column index 7, rule_modified_date is 8
     return {
-        "most_recently_created": [_format(d, "rule_created_date") for d in created],
-        "most_recently_modified": [_format(d, "rule_modified_date") for d in modified],
+        "most_recently_created": [_format(r, 7) for r in created],
+        "most_recently_modified": [_format(r, 8) for r in modified],
     }
 
 
@@ -479,8 +502,7 @@ async def get_threat_pulse(
     sorted_cves = sorted(cves.values(), key=lambda x: (-x["count"], x["cve"]))[:limit]
 
     return {
-        "period_days": days,
-        "cutoff_date": cutoff.isoformat(),
+        "scope": "full_catalog",
         "named_threats": [
             {**t, "sources": sorted(t["sources"])} for t in sorted_threats
         ],
