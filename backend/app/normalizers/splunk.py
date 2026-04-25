@@ -171,15 +171,29 @@ class SplunkNormalizer(BaseNormalizer):
         return search
 
     def _normalize_tags(self, tags: list) -> list[str]:
-        """Normalize Splunk tags to consistent format."""
+        """Normalize Splunk tags to a consistent format.
+
+        Splunk's parser emits tags like ``story:scattered_lapsus$_hunters``
+        (analytic_story name), ``asset:endpoint``, ``domain:identity``.
+        The ``story:`` prefix is high-signal — it's how the Threat Pulse
+        feature distinguishes campaign/actor names from the small finite
+        set of asset/domain values. Preserve it; drop the others (asset
+        and domain duplicate information already in the canonical
+        ``taxonomy_platforms`` / ``taxonomy_event_types`` columns and
+        only add noise to the tag list).
+        """
         normalized = []
         for tag in tags:
-            if tag and isinstance(tag, str):
-                # Remove prefixes like "story:", "asset:" for cleaner tags
-                if ":" in tag:
-                    prefix, value = tag.split(":", 1)
-                    # Keep the value, lowercase and underscore-separated
-                    normalized.append(value.lower().replace(" ", "_"))
-                else:
-                    normalized.append(tag.lower().replace(" ", "_"))
+            if not (tag and isinstance(tag, str)):
+                continue
+            if tag.startswith("story:"):
+                # Keep the prefix verbatim — downstream extraction
+                # (api/routes/trending.py) keys off it.
+                _, value = tag.split(":", 1)
+                normalized.append(f"story:{value.lower().replace(' ', '_')}")
+            elif tag.startswith(("asset:", "domain:")):
+                # Drop entirely — captured by canonical taxonomy columns.
+                continue
+            else:
+                normalized.append(tag.lower().replace(" ", "_"))
         return normalized
