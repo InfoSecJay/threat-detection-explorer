@@ -92,12 +92,14 @@ inventory.
 Sequencing: 1 + 2 (test the pipeline), then 5 (first new
 user-facing signal in a while — leverages the pipeline depth).
 
-- [ ] **1. Per-normalizer tests** — Only `BaseNormalizer` is tested;
-  the 8 vendor normalizers (`sigma`, `elastic`, `splunk`, `sublime`,
-  `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`)
-  each round-trip a real-format `ParsedRule` and pin the canonical
-  taxonomy + extracted observables + status/severity normalization.
-  Sigma template landed; copy the pattern to the other 7. ~2-3 h.
+- [x] **1. Per-normalizer tests** — All 8 vendor normalizers
+  (`sigma` 18, `elastic` 15, `splunk` 11, `sentinel` 10, `sublime` 9,
+  `elastic_protections` 8, `elastic_hunting` 9, `lolrmm` 10 — 90
+  tests total) each round-trip a real-format `ParsedRule` and pin
+  the canonical taxonomy + extracted observables + status/severity
+  normalization + vendor-specific quirks (Splunk story-prefix
+  preservation, Sentinel KQL-table → m365 mapping, Elastic Hunting
+  ES|QL → esql language token, etc.).
 - [ ] **2. End-to-end ingestion smoke** — One representative real
   rule per source through parse → normalize → extract → store, asserts
   on the resulting `Detection` row. Catches wiring bugs (the Splunk
