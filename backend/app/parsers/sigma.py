@@ -31,8 +31,7 @@ class SigmaParser(BaseParser):
             return False
 
         # Exclude test and deprecated directories
-        excluded = ["tests", "deprecated", "test"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(file_path, {"tests", "test", "deprecated"})
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a Sigma YAML rule file."""

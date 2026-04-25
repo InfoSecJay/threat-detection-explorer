@@ -48,7 +48,7 @@ class TestSplunkParser:
         assert result is not None
         assert result.source == "splunk"
         assert result.title == "Suspicious PowerShell Command"
-        assert "suspicious PowerShell" in result.description.lower()
+        assert "suspicious powershell" in result.description.lower()
         assert result.author == "Test Author"
         assert "T1059.001" in result.mitre_attack.get("techniques", [])
 

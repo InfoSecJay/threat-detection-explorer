@@ -45,8 +45,7 @@ class SplunkParser(BaseParser):
             return False
 
         # Exclude deprecated and test directories
-        excluded = ["deprecated", "tests", "test"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(file_path, {"deprecated", "tests", "test"})
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a Splunk YAML detection rule file."""

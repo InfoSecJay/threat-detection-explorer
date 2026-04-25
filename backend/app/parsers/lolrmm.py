@@ -32,8 +32,7 @@ class LOLRMMParser(BaseParser):
             return False
 
         # Exclude test directories
-        excluded = ["tests", "test"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(file_path, {"tests", "test"})
 
     def _preprocess_yaml(self, content: str) -> str:
         """Preprocess YAML content to fix common issues in LOLRMM rules.

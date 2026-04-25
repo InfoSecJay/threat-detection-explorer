@@ -48,7 +48,7 @@ class TestElasticParser:
         assert result is not None
         assert result.source == "elastic"
         assert result.title == "Suspicious PowerShell Execution"
-        assert "suspicious PowerShell execution" in result.description.lower()
+        assert "suspicious powershell execution" in result.description.lower()
         assert result.severity == "high"
         assert result.status == "stable"  # production -> stable
         assert "T1059" in result.mitre_attack.get("techniques", [])

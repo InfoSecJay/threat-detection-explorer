@@ -34,8 +34,7 @@ class ElasticHuntingParser(BaseParser):
             return False
 
         # Exclude deprecated and test directories
-        excluded = ["deprecated", "tests", "test", ".git"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(file_path, {"deprecated", "tests", "test", ".git"})
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse an Elastic Hunting TOML rule file."""

@@ -32,8 +32,7 @@ class SublimeParser(BaseParser):
             return False
 
         # Exclude test directories
-        excluded = ["tests", "test"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(file_path, {"tests", "test"})
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a Sublime YAML rule file."""

@@ -77,6 +77,19 @@ class BaseParser(ABC):
         """
         pass
 
+    def _is_in_excluded_dir(self, file_path: Path, excluded: set[str]) -> bool:
+        """Return True if any path component (case-insensitive) is in ``excluded``.
+
+        Replaces the old substring-on-stringified-path check several
+        parsers used. The substring approach matched a file named
+        ``test.yml`` against the directory exclusion ``"test"``, which
+        wrongly skipped legitimate rules with "test" in their filename.
+        Path-component matching only triggers on exact directory
+        segments.
+        """
+        parts_lower = {p.lower() for p in file_path.parts}
+        return bool(parts_lower & excluded)
+
     def _validate_rule_shape(
         self,
         rule: Any,

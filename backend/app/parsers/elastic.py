@@ -48,8 +48,10 @@ class ElasticParser(BaseParser):
             return False
 
         # Exclude deprecated and test directories
-        excluded = ["_deprecated", "deprecated", "tests", "test", "_building_block"]
-        return not any(ex in path_str.lower() for ex in excluded)
+        return not self._is_in_excluded_dir(
+            file_path,
+            {"_deprecated", "deprecated", "tests", "test", "_building_block"},
+        )
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse an Elastic TOML rule file."""

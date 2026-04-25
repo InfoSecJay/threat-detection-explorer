@@ -150,14 +150,20 @@ class SentinelParser(BaseParser):
 
         # Exclude non-rule YAMLs (hunting, workbooks, parsers, playbooks,
         # data connectors, sample data, etc.) and any test/deprecated paths.
-        excluded = [
-            "tests", "deprecated", "test_", "/test/", ".git",
+        # Path-component match — substring matching falsely excluded
+        # rule files that merely contained "test" in their filename.
+        excluded_parts = {
+            "tests", "test", "deprecated", ".git",
             "sample data", "workbooks", "parsers", "playbooks",
             "dataconnectors", "exploration queries",
             "hunting queries",  # hunting is distinct from detection
             "detection queries",  # same — these are hunting-style
-        ]
-        if any(ex in path_str for ex in excluded):
+        }
+        if self._is_in_excluded_dir(file_path, excluded_parts):
+            return False
+        # Files explicitly prefixed `test_` are also skipped — sentinel
+        # repos sometimes ship sample/test fixtures next to real rules.
+        if file_path.name.lower().startswith("test_"):
             return False
 
         # Accept any of the four rule-containing locations:
