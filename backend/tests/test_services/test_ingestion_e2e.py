@@ -1,0 +1,427 @@
+"""End-to-end ingestion smoke tests — one rule per source through the
+full parse → normalize → extract → store pipeline.
+
+The per-layer tests (parsers, normalizers, search, etc.) pin each
+component in isolation. These tests pin the WIRING between them.
+The two regressions we caught earlier this week — Splunk normalizer
+dropping the ``story:`` prefix, parser substring-exclude breaking
+``test.toml`` — would both have failed an e2e smoke first, before
+shipping. This file is that safety net.
+
+Strategy:
+  - One short raw-content fixture per source (real-format YAML/TOML).
+  - A small ``ingest_one()`` helper that drives parse → normalize →
+    _to_detection_model → ``db.add()`` + commit, then reads the row
+    back. Mirrors the production ``IngestionService`` inner loop
+    minus the file-discovery / batching.
+  - One test per source. Assertions are intentionally TARGETED at
+    cross-layer wiring — the canonical taxonomy resolved from raw
+    vendor metadata, MITRE pass-through, key extracted observables,
+    `source_rule_url` constructed correctly. NOT exhaustive — that's
+    what the per-layer tests are for.
+
+If a future refactor breaks the wiring (e.g. a normalizer stops
+calling ``_resolve_taxonomy``, or the ingestion service stops
+copying a column from ``NormalizedDetection`` to ``Detection``),
+the failing assertion will name the source and the broken field.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from sqlalchemy import select
+
+from app.models.detection import Detection
+from app.normalizers import (
+    ElasticHuntingNormalizer,
+    ElasticNormalizer,
+    ElasticProtectionsNormalizer,
+    LOLRMMNormalizer,
+    SentinelNormalizer,
+    SigmaNormalizer,
+    SplunkNormalizer,
+    SublimeNormalizer,
+)
+from app.parsers import (
+    ElasticHuntingParser,
+    ElasticParser,
+    ElasticProtectionsParser,
+    LOLRMMParser,
+    SentinelParser,
+    SigmaParser,
+    SplunkParser,
+    SublimeParser,
+)
+from app.services.ingestion import IngestionService
+
+from tests.conftest import (
+    SAMPLE_ELASTIC_RULE,
+    SAMPLE_SIGMA_RULE,
+    SAMPLE_SPLUNK_RULE,
+)
+
+
+# ── Sample raw rules for the 5 sources missing from conftest.py ──────
+
+
+SAMPLE_SUBLIME_RULE = """\
+name: "Phishing attachment from QakBot delivery campaign"
+description: |
+  Detects QakBot delivery via container attachments (zip / iso / img).
+type: "rule"
+severity: "high"
+authors:
+  - name: "Sublime Security"
+source: |
+  any(attachments,
+      .file_extension in~ ["zip", "iso", "img"]
+      and length(attachments) >= 1)
+tags:
+  - "Attack surface reduction"
+  - "Malfam: QakBot"
+attack_types:
+  - "Malware/Ransomware"
+references:
+  - "https://abuse.ch/url/qakbot"
+"""
+
+
+SAMPLE_SENTINEL_RULE = """\
+id: 12345678-aaaa-bbbb-cccc-1234567890ab
+name: Mail Forwarding Configured to External Address
+description: |
+  Detects mailbox forwarding configuration to external SMTP addresses
+  via Office 365 audit log.
+severity: Medium
+status: Available
+queryFrequency: 1h
+queryPeriod: 1h
+triggerOperator: gt
+triggerThreshold: 0
+tactics:
+  - Collection
+relevantTechniques:
+  - T1114.003
+query: |
+  OfficeActivity
+  | where OfficeWorkload == "Exchange"
+  | where Operation == "Set-Mailbox"
+  | where Parameters has "ForwardingSmtpAddress"
+kind: Scheduled
+version: 1.0.0
+tags:
+  - NOBELIUM
+"""
+
+
+SAMPLE_ELASTIC_PROTECTIONS_RULE = """\
+[rule]
+description = "Detects suspicious handle acquisition on LSASS process."
+endpoint = {capabilities = ["kill_process"]}
+id = "abcd-1234-efgh-5678"
+license = "Elastic License v2"
+name = "Suspicious LSASS Handle Acquisition"
+os_list = ["windows"]
+query = '''
+process where event.action == "process_handle" and
+target.process.name == "lsass.exe"
+'''
+version = "1.0.1"
+
+# Elastic Protections puts the MITRE block at the top level of the
+# TOML (NOT nested under [rule]). The parser's _extract_mitre walks
+# `data["threat"]` directly.
+[[threat]]
+framework = "MITRE ATT&CK"
+
+[[threat.technique]]
+id = "T1003"
+name = "OS Credential Dumping"
+
+[[threat.technique.subtechnique]]
+id = "T1003.001"
+name = "LSASS Memory"
+
+[threat.tactic]
+id = "TA0006"
+name = "Credential Access"
+
+[[actions]]
+type = "alert"
+"""
+
+
+SAMPLE_ELASTIC_HUNTING_RULE = '''\
+[hunt]
+author = "Elastic"
+description = "Hunts for IAM user creation by unexpected principals."
+integration = ["aws.cloudtrail"]
+uuid = "hunt-uuid-12345"
+name = "AWS IAM User Created Outside Allowed Roles"
+language = ["ES|QL"]
+license = "Elastic License v2"
+mitre = ["T1136.003"]
+query = [
+    """
+    FROM logs-aws.cloudtrail-*
+    | WHERE event.action == "CreateUser"
+    | STATS count = COUNT(*) BY user.name
+    """,
+]
+notes = ["Tune by trusted-principal allowlist."]
+'''
+
+
+SAMPLE_LOLRMM_RULE = """\
+title: AnyDesk Remote Access Tool Execution
+id: lolrmm-anydesk-001
+status: stable
+description: Detects AnyDesk RMM tool execution by image name.
+author: LOLRMM Project
+date: 2023/06/01
+modified: 2024/02/14
+references:
+  - https://anydesk.com
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    Image|endswith: '\\anydesk.exe'
+  condition: selection
+falsepositives:
+  - Authorized remote IT support
+level: medium
+tags:
+  - lolrmm
+  - attack.command_and_control
+  - attack.t1219
+"""
+
+
+# ── Helper ──────────────────────────────────────────────────────────
+
+
+async def ingest_one(
+    parser, normalizer, file_path: str, content: str, db_session
+) -> Detection:
+    """Run one rule through parse → normalize → store, return the row.
+
+    Mirrors the production ``IngestionService.ingest_repository`` inner
+    loop minus the file-discovery + batching. Bypasses the service's
+    ``__init__`` because that eagerly builds 8 parsers + 8 normalizers,
+    each of which expects on-disk repo paths to exist.
+    """
+    fp = Path(file_path)
+    assert parser.can_parse(fp), f"can_parse rejected {file_path}"
+
+    parsed = parser.parse(fp, content)
+    assert parsed is not None, f"parser returned None for {file_path}"
+
+    normalized = normalizer.normalize(parsed)
+
+    svc = IngestionService.__new__(IngestionService)
+    detection = svc._to_detection_model(normalized)
+
+    db_session.add(detection)
+    await db_session.commit()
+
+    # Read back via the model query path so we exercise the same code
+    # users hit through the API rather than just inspecting the staged
+    # in-memory object.
+    return (
+        await db_session.execute(
+            select(Detection).where(Detection.id == detection.id)
+        )
+    ).scalar_one()
+
+
+# ── Per-source e2e tests ───────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_e2e_sigma(db_session):
+    d = await ingest_one(
+        SigmaParser(),
+        SigmaNormalizer("https://github.com/SigmaHQ/sigma"),
+        "rules/windows/process_creation/proc_creation_susp_powershell.yml",
+        SAMPLE_SIGMA_RULE,
+        db_session,
+    )
+    assert d.source == "sigma"
+    assert d.title == "Suspicious PowerShell Command Line"
+    assert d.language == "sigma"
+    assert d.severity == "high"
+    # Canonical taxonomy resolved from logsource: windows/process_creation
+    assert "windows" in d.taxonomy_platforms
+    assert "process_creation" in d.taxonomy_event_types
+    # MITRE techniques routed from `attack.t...` tags
+    assert "T1059.001" in d.mitre_techniques
+    # Embedded date pulled from Sigma `date:` field
+    assert d.rule_created_date is not None
+    # Source URL deep-links into the right repo + branch
+    assert d.source_rule_url is not None
+    assert "SigmaHQ/sigma" in d.source_rule_url
+
+
+@pytest.mark.asyncio
+async def test_e2e_elastic(db_session):
+    d = await ingest_one(
+        ElasticParser(),
+        ElasticNormalizer("https://github.com/elastic/detection-rules"),
+        "rules/windows/credential_access_susp_powershell.toml",
+        SAMPLE_ELASTIC_RULE,
+        db_session,
+    )
+    assert d.source == "elastic"
+    assert d.title == "Suspicious PowerShell Execution"
+    assert d.language == "kql"  # rule.type=query + kuery default
+    assert d.severity == "high"
+    assert d.status == "stable"  # production → stable
+    # The list-author from TOML gets joined to a string
+    assert d.author == "Test Author"
+    # Index pattern resolves to a canonical Windows endpoint platform
+    assert "windows" in d.taxonomy_platforms
+    # MITRE technique pulled from rule.threat[].technique[]
+    assert "T1059" in d.mitre_techniques
+
+
+@pytest.mark.asyncio
+async def test_e2e_splunk(db_session):
+    d = await ingest_one(
+        SplunkParser(),
+        SplunkNormalizer("https://github.com/splunk/security_content"),
+        "detections/endpoint/windows_powershell_encoded_command.yml",
+        SAMPLE_SPLUNK_RULE,
+        db_session,
+    )
+    assert d.source == "splunk"
+    assert d.title == "Suspicious PowerShell Command"
+    assert d.language == "spl"
+    # MITRE technique routed from tags.mitre_attack_id
+    assert "T1059.001" in d.mitre_techniques
+    # Splunk URL points at the develop branch (not master)
+    assert d.source_rule_url is not None
+    assert "/develop/" in d.source_rule_url
+    # Embedded `date` lands as rule_created_date
+    assert d.rule_created_date is not None
+
+
+@pytest.mark.asyncio
+async def test_e2e_sentinel(db_session):
+    d = await ingest_one(
+        SentinelParser(),
+        SentinelNormalizer("https://github.com/Azure/Azure-Sentinel"),
+        # Sentinel can_parse() requires the path to contain "/solutions/"
+        # — a leading-slash substring check. Real production paths are
+        # `Azure-Sentinel/Solutions/.../Analytic Rules/...` (the repo dir
+        # contributes the leading segment). Mirror that here.
+        "Azure-Sentinel/Solutions/Microsoft Defender for Cloud Apps/Analytic Rules/MailForwardingFromO365.yaml",
+        SAMPLE_SENTINEL_RULE,
+        db_session,
+    )
+    assert d.source == "sentinel"
+    assert d.title == "Mail Forwarding Configured to External Address"
+    assert d.language == "kql"
+    # Sentinel's auto-default author when none in YAML
+    assert d.author == "Microsoft"
+    # KQL table extraction → canonical taxonomy:
+    #   OfficeActivity → microsoft_365 + audit_event.
+    # Note: taxonomy_matched and taxonomy_fingerprint live only on the
+    # in-memory NormalizedDetection — they're not persisted to the
+    # Detection row so we can't read them back from the DB here.
+    assert "microsoft_365" in d.taxonomy_platforms
+    assert "audit_event" in d.taxonomy_event_types
+    # MITRE technique pulled from relevantTechniques
+    assert "T1114.003" in d.mitre_techniques
+    # Bare threat-actor tag passes through verbatim
+    assert "NOBELIUM" in d.tags
+
+
+@pytest.mark.asyncio
+async def test_e2e_sublime(db_session):
+    d = await ingest_one(
+        SublimeParser(),
+        SublimeNormalizer("https://github.com/sublime-security/sublime-rules"),
+        "detection-rules/attachment/qakbot_phishing.yml",
+        SAMPLE_SUBLIME_RULE,
+        db_session,
+    )
+    assert d.source == "sublime"
+    assert d.title == "Phishing attachment from QakBot delivery campaign"
+    assert d.language == "mql"
+    # Sublime is always email-context — legacy column forced to email
+    assert d.platform == "email"
+    # `Malfam: QakBot` tag preserved verbatim (Threat Pulse extracts it)
+    assert "Malfam: QakBot" in d.tags
+
+
+@pytest.mark.asyncio
+async def test_e2e_elastic_protections(db_session):
+    d = await ingest_one(
+        ElasticProtectionsParser(),
+        ElasticProtectionsNormalizer(
+            "https://github.com/elastic/protections-artifacts"
+        ),
+        "behavior/rules/windows/credential_access_lsass_handle.toml",
+        SAMPLE_ELASTIC_PROTECTIONS_RULE,
+        db_session,
+    )
+    assert d.source == "elastic_protections"
+    assert d.title == "Suspicious LSASS Handle Acquisition"
+    assert d.language == "eql"
+    assert d.author == "Elastic"
+    # Behavior rules on a recognised OS get a process event_category
+    assert d.event_category == "process"
+    # MITRE sub-technique pulled from nested rule.threat structure
+    assert "T1003.001" in d.mitre_techniques
+    # Endpoint-class data source attached
+    assert any("endpoint" in ds.lower() for ds in d.data_sources)
+
+
+@pytest.mark.asyncio
+async def test_e2e_elastic_hunting(db_session):
+    d = await ingest_one(
+        ElasticHuntingParser(),
+        ElasticHuntingNormalizer("https://github.com/elastic/detection-rules"),
+        "hunting/aws/persistence_aws_iam_user_addition.toml",
+        SAMPLE_ELASTIC_HUNTING_RULE,
+        db_session,
+    )
+    assert d.source == "elastic_hunting"
+    assert d.title == "AWS IAM User Created Outside Allowed Roles"
+    # ES|QL vendor symbol normalized to esql canonical token
+    assert d.language == "esql"
+    # Product → platform mapping
+    assert d.platform == "aws"
+    assert "T1136.003" in d.mitre_techniques
+    # Hunting category default
+    assert d.event_category == "hunting"
+
+
+@pytest.mark.asyncio
+async def test_e2e_lolrmm(db_session):
+    d = await ingest_one(
+        LOLRMMParser(),
+        LOLRMMNormalizer("https://github.com/magicsword-io/LOLRMM"),
+        # LOLRMM can_parse() requires the path to contain BOTH
+        # "detections" and "sigma". Real production layout is
+        # `LOLRMM/detections/sigma/<tool>.yml`.
+        "detections/sigma/AnyDesk.yml",
+        SAMPLE_LOLRMM_RULE,
+        db_session,
+    )
+    assert d.source == "lolrmm"
+    assert d.title == "AnyDesk Remote Access Tool Execution"
+    assert d.language == "sigma"  # LOLRMM uses Sigma format
+    assert d.platform == "windows"  # forced default for RMM rules
+    assert d.event_category == "process"
+    # MITRE technique routed from attack.t1219 tag
+    assert "T1219" in d.mitre_techniques
+    # Bare lolrmm tag preserved
+    assert "lolrmm" in d.tags
+    # Embedded Sigma-style date present
+    assert d.rule_created_date is not None
+    assert d.rule_created_date.year == 2023

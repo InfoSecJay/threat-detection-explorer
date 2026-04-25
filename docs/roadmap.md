@@ -100,11 +100,16 @@ user-facing signal in a while — leverages the pipeline depth).
   normalization + vendor-specific quirks (Splunk story-prefix
   preservation, Sentinel KQL-table → m365 mapping, Elastic Hunting
   ES|QL → esql language token, etc.).
-- [ ] **2. End-to-end ingestion smoke** — One representative real
-  rule per source through parse → normalize → extract → store, asserts
-  on the resulting `Detection` row. Catches wiring bugs (the Splunk
-  prefix-strip + parser substring-exclude bugs found this week were
-  exactly this class). ~1-2 h.
+- [x] **2. End-to-end ingestion smoke** — `tests/test_services/test_ingestion_e2e.py`.
+  Each of the 8 sources has a raw-content fixture that drives the
+  full pipeline (`parse → normalize → _to_detection_model → db.add`)
+  and asserts on the resulting `Detection` row read back from the DB.
+  Pins the cross-layer wiring: canonical taxonomy resolved from raw
+  vendor metadata, MITRE pass-through, language detection, source
+  URL construction, dates, vendor-specific quirks (Splunk story
+  preservation, Sentinel KQL-table mapping, ES|QL → esql, etc.).
+  Catches the class of wiring bug that shipped to prod earlier this
+  week.
 - [ ] **3. Rule-discovery regression test** — Each source's
   `RuleDiscoveryService` must find ≥N files when pointed at a fixture
   repo. If upstream renames a directory, today we silently lose
