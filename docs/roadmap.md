@@ -110,10 +110,16 @@ user-facing signal in a while — leverages the pipeline depth).
   preservation, Sentinel KQL-table mapping, ES|QL → esql, etc.).
   Catches the class of wiring bug that shipped to prod earlier this
   week.
-- [ ] **3. Rule-discovery regression test** — Each source's
-  `RuleDiscoveryService` must find ≥N files when pointed at a fixture
-  repo. If upstream renames a directory, today we silently lose
-  rules. ~1 h.
+- [x] **3. Rule-discovery regression test** —
+  `tests/test_services/test_rule_discovery.py`. Each source has a
+  fixture mini-repo with representative file paths + traps in excluded
+  dirs / wrong extensions. `discover_rules()` must hit the minimum
+  count, return the canonical paths, and exclude the traps. Plus
+  cross-cutting checks: unknown sources return empty, missing repo
+  paths return empty, every source in `ALL_REPOSITORY_NAMES` has a
+  `DISCOVERY_PATTERNS` entry. Catches the silent-coverage-drop class
+  of bug (Sentinel `Detections/` and `ASIM/` were missing from
+  discovery for weeks before someone noticed).
 - [ ] **4. Field extractor edge-case expansion** — 110 tests on a
   1,266-line file is good but uneven; gaps likely in MQL + ES|QL
   (newer parsers). ~1-2 h.
