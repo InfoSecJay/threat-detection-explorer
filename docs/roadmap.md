@@ -80,11 +80,47 @@ Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
-## Now — what's open
+## Now — harden the pipeline (the actual moat)
 
-Foundation pay-down complete. Open items are lower-priority hygiene
-and the still-unaddressed god-components. Pick from these as fill-in
-work between flagship pushes.
+The user-facing UI is in good shape. The REAL moat — the
+parse-→-normalize-→-extract-→-store pipeline that turns 8 vendor
+formats into one searchable schema — has uneven test coverage. Each
+of these items locks in correctness so future refactors can't break
+a vendor silently. The site is the storefront; this code is the
+inventory.
+
+Sequencing: 1 + 2 (test the pipeline), then 5 (first new
+user-facing signal in a while — leverages the pipeline depth).
+
+- [ ] **1. Per-normalizer tests** — Only `BaseNormalizer` is tested;
+  the 8 vendor normalizers (`sigma`, `elastic`, `splunk`, `sublime`,
+  `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`)
+  each round-trip a real-format `ParsedRule` and pin the canonical
+  taxonomy + extracted observables + status/severity normalization.
+  Sigma template landed; copy the pattern to the other 7. ~2-3 h.
+- [ ] **2. End-to-end ingestion smoke** — One representative real
+  rule per source through parse → normalize → extract → store, asserts
+  on the resulting `Detection` row. Catches wiring bugs (the Splunk
+  prefix-strip + parser substring-exclude bugs found this week were
+  exactly this class). ~1-2 h.
+- [ ] **3. Rule-discovery regression test** — Each source's
+  `RuleDiscoveryService` must find ≥N files when pointed at a fixture
+  repo. If upstream renames a directory, today we silently lose
+  rules. ~1 h.
+- [ ] **4. Field extractor edge-case expansion** — 110 tests on a
+  1,266-line file is good but uneven; gaps likely in MQL + ES|QL
+  (newer parsers). ~1-2 h.
+- [ ] **5. Deterministic quality scoring** — Schema already exists
+  (`quality_score`, `quality_details` columns sit empty). Five
+  dimensions: metadata completeness, detection specificity, MITRE
+  mapping quality, documentation quality, query complexity. New
+  `services/quality_scorer.py`. Surface as a sortable column on the
+  Detections list. **First fundamentally new user-facing signal in
+  a while — leverages the moat.** ~3 h.
+
+## Later — non-blocking polish
+
+Lower-priority items. Pick from these as fill-in work between flagship pushes.
 
 ### Frontend
 
