@@ -1,18 +1,33 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { clipSm } from './constants/style';
+
+// Route-level code splitting. Each page becomes its own chunk so the
+// initial bundle only ships shared shell + the page the user lands on.
+// Vite emits a separate JS file per lazy() target. Keep Home eager —
+// it's the most common entry point and avoiding the loading flash on
+// landing matters more than shaving a few KB off the first chunk.
 import { Home } from './pages/Home';
-import { DetectionList } from './pages/DetectionList';
-import { DetectionDetail } from './pages/DetectionDetail';
-import { Compare } from './pages/Compare';
-import { SideBySide } from './pages/SideBySide';
-import { MitreCoverage } from './pages/MitreCoverage';
-import { IndustryIntel } from './pages/IndustryIntel';
-import { About } from './pages/About';
+const DetectionList   = lazy(() => import('./pages/DetectionList').then(m => ({ default: m.DetectionList })));
+const DetectionDetail = lazy(() => import('./pages/DetectionDetail').then(m => ({ default: m.DetectionDetail })));
+const Compare         = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
+const SideBySide      = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
+const MitreCoverage   = lazy(() => import('./pages/MitreCoverage').then(m => ({ default: m.MitreCoverage })));
+const IndustryIntel   = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
+const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
+const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
 // ChangeLog page is temporarily hidden — route + nav link removed
 // below. Keep the file in the tree so it's easy to re-enable later.
-// import { ChangeLog } from './pages/ChangeLog';
-import { Integrations } from './pages/Integrations';
-import { clipSm } from './constants/style';
+
+// Lightweight loading state shown while a lazy route's chunk fetches.
+// Plain pulse — kept minimal so the layout doesn't shift.
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-xs font-mono text-gray-500 animate-pulse">LOADING_MODULE…</div>
+    </div>
+  );
+}
 
 // Status indicator component
 function StatusIndicator() {
@@ -233,22 +248,24 @@ function App() {
 
       {/* Main content */}
       <main className="flex-1 max-w-[1800px] w-full mx-auto px-4 py-6">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/detections" element={<DetectionList />} />
-          <Route path="/detections/:id" element={<DetectionDetail />} />
-          <Route path="/compare" element={<Compare />} />
-          <Route path="/compare/side-by-side" element={<SideBySide />} />
-          {/* New top-level MITRE section. The old /compare/mitre-coverage
-              path redirects here so shared bookmarks don't 404. */}
-          <Route path="/mitre" element={<MitreCoverage />} />
-          <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
-          <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
-          <Route path="/intel" element={<IndustryIntel />} />
-          <Route path="/about" element={<About />} />
-          {/* /changelog route temporarily hidden */}
-          <Route path="/integrations" element={<Integrations />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/detections" element={<DetectionList />} />
+            <Route path="/detections/:id" element={<DetectionDetail />} />
+            <Route path="/compare" element={<Compare />} />
+            <Route path="/compare/side-by-side" element={<SideBySide />} />
+            {/* New top-level MITRE section. The old /compare/mitre-coverage
+                path redirects here so shared bookmarks don't 404. */}
+            <Route path="/mitre" element={<MitreCoverage />} />
+            <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
+            <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
+            <Route path="/intel" element={<IndustryIntel />} />
+            <Route path="/about" element={<About />} />
+            {/* /changelog route temporarily hidden */}
+            <Route path="/integrations" element={<Integrations />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* Footer */}
