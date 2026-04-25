@@ -54,20 +54,18 @@ testable. Sequenced for blast-radius and dependency.
 
 ### Backend
 
-- [ ] **Parser date backfill** — `rule_modified_date` is null for 6/8 sources
-  (Splunk, Sentinel, Sublime, Elastic Protections, Elastic Hunting, LOLRMM).
-  Every time-windowed metric (trending techniques, trending platforms,
-  pulse banner, recent-rules) is silently biased — `/trending/threats`
-  currently scans the full catalog as a workaround. Per-parser work:
-  - **Splunk** — YAML has `date`; extract into `rule_created_date`. No
-    modified date in the body; fall back to git commit date.
-  - **Sentinel** — ARM YAML has no date field. Use git history via
-    `services/git_service.py` for both created + modified.
-  - **Sublime** — check for `created_at` / `modified_at` in rule YAML.
-  - **Elastic Protections / Hunting** — TOML `metadata` section may
-    include `updated_date`; fall back to git.
-  - **LOLRMM** — git-history only.
-  After landing, re-introduce a `days` filter on `/trending/threats`.
+- [x] **Parser date backfill** — verified populated in production for
+  every source (Splunk 2026-04-17, Sentinel 2025-08-21, Sublime
+  2026-04-06, Elastic Protections 2025-11-26, Elastic Hunting 2024-09-13,
+  LOLRMM 2026-03-03 — sampled live). The earlier "6/8 sources null"
+  finding was local-dev DB drift, not a production bug. Every
+  normalizer correctly calls `_resolve_rule_dates()` which falls back
+  to `git_service` when the rule body has no date field.
+- [ ] **Re-introduce `days` filter on `/trending/threats`** — currently
+  scans the full corpus because it was the right call when we thought
+  dates were missing. Now that dates are confirmed present, the
+  endpoint can accept `days=N` again to give a time-windowed industry-
+  pulse signal alongside (or replacing) the catalog-wide scan.
 - [ ] **`datetime.utcnow()` mass replace** — 31 call sites across 13 files.
   Python 3.12 deprecation. Migrate to `datetime.now(timezone.utc)`.
 - [ ] **Trending routes — column-scoped queries** —
