@@ -148,31 +148,17 @@ After syncing, ingest the rules into the database:
 
 ### Normalized Schema
 
-Each detection is normalized to:
+Every rule from every source ends up looking the same — ~40 canonical
+fields covering identity, status/severity, the canonical
+platform/data-source/event-type taxonomy, MITRE mapping, and observables
+extracted from the detection logic itself.
 
-```json
-{
-  "id": "uuid",
-  "source": "sigma | elastic | splunk | sublime | elastic_protections | lolrmm",
-  "title": "Detection title",
-  "description": "Detection description",
-  "author": "Author name",
-  "status": "stable | experimental | deprecated | unknown",
-  "severity": "low | medium | high | critical | unknown",
-  "log_sources": ["windows", "linux", ...],
-  "data_sources": ["sysmon", "security_event", ...],
-  "mitre_tactics": ["TA0002", ...],
-  "mitre_techniques": ["T1059", "T1059.001", ...],
-  "detection_logic": "Human-readable detection logic",
-  "tags": ["tag1", "tag2", ...],
-  "false_positives": ["Known false positive scenarios", ...],
-  "references": ["https://...", ...],
-  "source_file": "path/to/rule.yml",
-  "source_repo_url": "https://github.com/...",
-  "rule_created_date": "2024-01-15",
-  "rule_modified_date": "2024-06-20"
-}
-```
+**Full reference: [`docs/schema.md`](./docs/schema.md)** — field-by-field
+table, per-source vendor → canonical mapping, and a worked round-trip
+example.
+
+For depth on how the canonical taxonomy resolver works per vendor, see
+[`docs/taxonomy.md`](./docs/taxonomy.md).
 
 ### Running Tests
 
