@@ -22,7 +22,23 @@ different product — see [Deferred](#deferred) below.
 
 Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
-- **Foundation pay-down cycle** — eight stability/perf items in one push.
+- **Foundation pay-down cycle II** — six items finishing the foundation
+  work. `/trending/threats` accepts an optional `days` filter
+  (`a9688da`); the IndustryIntel page threads its existing period
+  selector into Threat Pulse so all four trending sections share one
+  user-controlled window. SearchService now has 26 integration tests
+  covering every filter dimension, including the JSON-array
+  quoted-substring guard that prevents `T1059` from false-positiving
+  onto `T1059.001` (`21e97a2`). IngestionService gets 10 tests pinning
+  the atomic-swap pattern and proving that a crash before cleanup
+  preserves old rows (`423da10`). Vitest render-smokes added for
+  MitreCoverage (`423da10`), DetectionList, and Compare (`61653dd`) —
+  page-render coverage now spans the four most state-heavy pages.
+  IndustryIntel decomposed from a 754-line god-component into a
+  116-line composition + 8 sub-modules under `pages/intel/` with
+  behavior preserved (covered by the existing render smoke).
+  Backend totals: 275 tests. Frontend: 10 tests.
+- **Foundation pay-down cycle I** — eight stability/perf items in one push.
   `datetime.utcnow()` deprecated → naive `utcnow()` helper across 33 call
   sites (`a571a6e`). Trending routes column-scoped, no more loading the
   full Detection row when 3–4 columns suffice (`439eb4a`). Splunk
@@ -64,37 +80,38 @@ Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
-## Now — finishing foundation pay-down
+## Now — what's open
 
-The bulk of the foundation cycle landed (see Recently shipped). What's
-left from that effort:
-
-### Backend
-
-- [ ] **Re-introduce `days` filter on `/trending/threats`** — endpoint
-  currently scans the full corpus because that was the right call when we
-  thought dates were missing. Dates are confirmed present in production now;
-  add `days=N` back so the Threat Pulse can be time-windowed.
-- [ ] **Backend test gaps** — 22 test files vs 68 source files. No tests
-  for: ingestion service, scheduler, trending routes, export routes,
-  search service, repository_sync, git_service. Pick the two
-  highest-blast-radius (ingestion + search) for this cycle.
+Foundation pay-down complete. Open items are lower-priority hygiene
+and the still-unaddressed god-components. Pick from these as fill-in
+work between flagship pushes.
 
 ### Frontend
 
-- [ ] **Decompose god-components** — IndustryIntel 754 L, MitreCoverage
-  730 L, RuleDetail 654 L, RuleComparison 605 L, RuleList 549 L,
-  RulePreviewModal 521 L, Home 500 L. Pick one per cycle. Extract
-  data-fetching hooks separate from rendering. Don't rewrite — refactor.
-- [ ] **Grow vitest coverage** — infrastructure is in place. Add render
-  smokes for the other big pages (MitreCoverage, DetectionList, Compare)
-  to lock in the same hook-order safety net.
+- [ ] **Decompose remaining god-components** — IndustryIntel done
+  (754 → 116 lines). Still oversized: MitreCoverage 730 L,
+  RuleDetail 654 L, RuleComparison 605 L, RuleList 549 L,
+  RulePreviewModal 521 L, Home 500 L. Pick one per cycle. Same
+  pattern as `pages/intel/`: extract sub-components into a folder
+  under `components/<page>/` (or `pages/<page>/`), keep page file
+  thin.
+- [ ] **Grow vitest coverage further** — render smokes exist for
+  IndustryIntel, MitreCoverage, DetectionList, Compare. Lower-risk
+  pages without smokes: Home, About, Integrations, RuleDetail,
+  SideBySide. Add as time permits.
+
+### Backend
+
+- [ ] **More backend test coverage** — search + ingestion done.
+  Lower-priority gaps: scheduler, trending routes, export routes,
+  repository_sync, git_service. Pick when they next get touched.
 
 ### Hygiene
 
 - [ ] **README rule-count placeholders** — six `<!-- TODO: add count -->`
   placeholders. Wire to `/api/detections/statistics` or hard-code 12 k.
 - [ ] **`docs/screenshot.png`** — referenced from README but missing.
+  (User task — needs a live-site screenshot.)
 
 ---
 
