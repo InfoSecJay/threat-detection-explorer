@@ -393,8 +393,16 @@ export const trendingApi = {
     return response.data;
   },
 
-  getThreatPulse: async (limit: number = 8): Promise<ThreatPulseResponse> => {
-    const response = await api.get(`/trending/threats?limit=${limit}`);
+  getThreatPulse: async (
+    limit: number = 8,
+    days?: number,
+  ): Promise<ThreatPulseResponse> => {
+    // Pass `days` for a time-windowed pulse; omit for the full-catalog
+    // scan. Backend caps at 7-730 — we don't enforce client-side; the
+    // 422 from the API is informative enough.
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (days != null) params.set('days', String(days));
+    const response = await api.get(`/trending/threats?${params}`);
     return response.data;
   },
 };
@@ -439,8 +447,8 @@ export interface CveMention {
 }
 
 export interface ThreatPulseResponse {
-  period_days: number;
-  cutoff_date: string;
+  scope: 'window' | 'full_catalog';
+  period_days: number | null;
   named_threats: NamedThreat[];
   cves: CveMention[];
 }

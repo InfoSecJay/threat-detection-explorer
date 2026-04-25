@@ -41,10 +41,12 @@ export function useRecentRules(limit: number = 20, filters: ActivityFilters = {}
   });
 }
 
-export function useThreatPulse(limit: number = 8) {
+export function useThreatPulse(limit: number = 8, days?: number) {
   return useQuery({
-    queryKey: ['threat-pulse', limit],
-    queryFn: () => trendingApi.getThreatPulse(limit),
-    staleTime: 1000 * 60 * 10, // 10 minutes — this scans the full corpus
+    queryKey: ['threat-pulse', limit, days ?? null],
+    queryFn: () => trendingApi.getThreatPulse(limit, days),
+    // 10 min for full-catalog scans (heavier query, slower-moving signal),
+    // 5 min for windowed scans (lighter query, fresher data is the point).
+    staleTime: days != null ? 1000 * 60 * 5 : 1000 * 60 * 10,
   });
 }

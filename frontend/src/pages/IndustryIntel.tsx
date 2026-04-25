@@ -230,8 +230,8 @@ function CveCard({ cve }: { cve: CveMention }) {
   );
 }
 
-function ThreatPulseSection() {
-  const { data, isLoading, error } = useThreatPulse(12);
+function ThreatPulseSection({ days }: { days?: number }) {
+  const { data, isLoading, error } = useThreatPulse(12, days);
 
   if (isLoading) {
     return (
@@ -244,13 +244,16 @@ function ThreatPulseSection() {
 
   const threats = data.named_threats.slice(0, 12);
   const cves = data.cves.slice(0, 6);
+  const scopeLabel = data.scope === 'window'
+    ? `last ${data.period_days}d`
+    : 'full catalog';
 
   return (
     <div className="space-y-3">
       {threats.length > 0 && (
         <div>
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-2">
-            named threats · {threats.length} specific campaigns &amp; malware families
+            named threats · {threats.length} specific campaigns &amp; malware families · {scopeLabel}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
             {threats.map((t) => <ThreatCard key={t.name} threat={t} />)}
@@ -658,12 +661,14 @@ export function IndustryIntel() {
       {/* Pulse banner */}
       <PulseBanner days={trendingPeriod} />
 
-      {/* Threat Pulse — the main "what is industry watching" signal */}
+      {/* Threat Pulse — the main "what is industry watching" signal.
+          Threads the page-level period selector so the named-threat /
+          CVE windows align with the trending charts below. */}
       <Section
         title="Threat Pulse"
-        subtitle="extracted from vendor story tags + CVE mentions across the full catalog"
+        subtitle="named threats from vendor story tags · CVEs across all sources"
       >
-        <ThreatPulseSection />
+        <ThreatPulseSection days={trendingPeriod} />
       </Section>
 
       {/* Upstream releases + Notable new rules — two columns */}

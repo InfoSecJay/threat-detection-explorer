@@ -428,6 +428,16 @@ def _extract_named_threat(tag: str, source: str) -> Optional[tuple[str, str]]:
 @router.get("/threats")
 async def get_threat_pulse(
     limit: int = Query(8, ge=3, le=30, description="Items per list"),
+    days: Optional[int] = Query(
+        None,
+        ge=7,
+        le=730,
+        description=(
+            "Optional lookback window in days. When set, only rules with "
+            "rule_modified_date OR rule_created_date within the window "
+            "contribute. Omit for a full-catalog scan (default)."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Industry threat pulse: named threats + newly covered CVEs.
@@ -437,12 +447,12 @@ async def get_threat_pulse(
     Sublime `Malfam:`). CVEs are regex-extracted across tags, title,
     and description from every source.
 
-    Scans the full corpus — NOT filtered by ``rule_modified_date`` —
-    because that column is only populated for Elastic + Sigma today
-    (Splunk, Sentinel, Sublime, Elastic Protections/Hunting parsers
-    don't extract a modified date yet). Filtering would silently drop
-    every Splunk ``analytic_story`` tag. Roadmap item: backfill parser
-    date extraction, then re-introduce a time window here.
+    By default scans the full corpus (no time filter). Pass ``days=N``
+    to constrain to rules touched in the window — useful for the "what
+    is the industry watching RIGHT NOW" framing on the Intel page. The
+    filter accepts a hit on either ``rule_modified_date`` or
+    ``rule_created_date``: a rule that was created last week with no
+    later edits should still count as recent activity.
     """
     # Only pull columns we actually scan — detection_logic is large
     # and irrelevant to threat-name extraction.
@@ -453,6 +463,16 @@ async def get_threat_pulse(
         Detection.description,
         Detection.tags,
     )
+    if days is not None:
+        cutoff = utcnow() - timedelta(days=days)
+        # Hit on either modified or created — rules created in-window
+        # with no later edits should still count as recent activity.
+        q = q.where(
+            or_(
+                Detection.rule_modified_date >= cutoff,
+                Detection.rule_created_date >= cutoff,
+            )
+        )
     rows = (await db.execute(q)).all()
 
     threats: dict[str, dict] = {}
@@ -502,7 +522,8 @@ async def get_threat_pulse(
     sorted_cves = sorted(cves.values(), key=lambda x: (-x["count"], x["cve"]))[:limit]
 
     return {
-        "scope": "full_catalog",
+        "scope": "window" if days is not None else "full_catalog",
+        "period_days": days,
         "named_threats": [
             {**t, "sources": sorted(t["sources"])} for t in sorted_threats
         ],
