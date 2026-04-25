@@ -20,6 +20,7 @@ from app.config import settings
 from app.models.sync_job import SyncJob
 from app.services.job_queue import JobQueueService
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
+from app.utils.datetime_utils import utcnow
 from app.services.scheduler import (
     get_last_successful_sync,
     get_sync_job_history,
@@ -102,7 +103,7 @@ async def get_scheduler_status(db: AsyncSession = Depends(get_db)):
     schedule hour/minute, next run time) plus the timestamp of the most
     recent scheduled run observed in the database.
     """
-    now = datetime.utcnow()
+    now = utcnow()
 
     last_scheduled_result = await db.execute(
         select(SyncJob.started_at)

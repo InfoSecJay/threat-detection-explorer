@@ -8,6 +8,7 @@ from sqlalchemy import String, DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.datetime_utils import utcnow
 
 
 class Repository(Base):
@@ -45,7 +46,7 @@ class Repository(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
 
     def __repr__(self) -> str:

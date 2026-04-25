@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from app.utils.datetime_utils import utcnow
+
 
 class ErrorStage(str, Enum):
     """Stage where the error occurred."""
@@ -30,7 +32,7 @@ class IngestionError:
     severity: ErrorSeverity
     message: str
     details: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=utcnow)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

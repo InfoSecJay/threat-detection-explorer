@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.detection import Detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
+from app.utils.datetime_utils import utcnow
 
 router = APIRouter(prefix="/trending", tags=["trending"])
 
@@ -65,7 +66,7 @@ async def get_trending_techniques(
     Returns techniques ordered by the number of rules created/modified in the time period.
     Optional filters narrow the corpus before counting (e.g. "top techniques in new O365 rules").
     """
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = utcnow() - timedelta(days=days)
 
     conditions = [
         Detection.rule_modified_date.isnot(None),
@@ -137,7 +138,7 @@ async def get_trending_platforms(
     here would be circular (it's the grouping key), so only source +
     event_type are exposed.
     """
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = utcnow() - timedelta(days=days)
 
     conditions = [
         Detection.rule_modified_date.isnot(None),
@@ -257,7 +258,7 @@ async def get_trending_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a summary of recent activity across all sources."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = utcnow() - timedelta(days=days)
 
     # Count total rules modified in period
     total_query = select(func.count(Detection.id)).where(

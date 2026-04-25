@@ -8,6 +8,7 @@ from sqlalchemy import String, Text, DateTime, JSON, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.datetime_utils import utcnow
 
 
 class Detection(Base):
@@ -144,13 +145,13 @@ class Detection(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utcnow,
+        onupdate=utcnow,
     )
 
     # Indexes for common queries

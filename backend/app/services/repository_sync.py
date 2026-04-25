@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.repository import Repository
+from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,7 @@ class RepositorySyncService:
 
             # Update repository metadata
             repo_db.last_commit_hash = commit_hash
-            repo_db.last_sync_at = datetime.utcnow()
+            repo_db.last_sync_at = utcnow()
             repo_db.status = "idle"
             await self.db.commit()
 

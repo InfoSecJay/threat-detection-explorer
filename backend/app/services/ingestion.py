@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from app.utils.datetime_utils import utcnow
+
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -107,7 +109,7 @@ class IngestionService:
             raise ValueError(f"Unknown repository: {repo_name}")
 
         stats = IngestionStats()
-        stats.start_time = datetime.utcnow()
+        stats.start_time = utcnow()
         ingest_start = stats.start_time
 
         logger.info(f"Starting ingestion for {repo_name}")
@@ -208,7 +210,7 @@ class IngestionService:
         # Update repository rule count
         await self._update_repository_count(repo_name, stats.stored)
 
-        stats.end_time = datetime.utcnow()
+        stats.end_time = utcnow()
 
         logger.info(
             f"Ingestion complete for {repo_name}: "
@@ -312,7 +314,7 @@ class IngestionService:
     @staticmethod
     def _validate_date(dt: datetime | None) -> datetime | None:
         """Return None if a rule date is in the future (author typo)."""
-        if dt and dt > datetime.utcnow():
+        if dt and dt > utcnow():
             return None
         return dt
 
@@ -362,8 +364,8 @@ class IngestionService:
             taxonomy_platforms=normalized.taxonomy_platforms,
             taxonomy_data_sources=normalized.taxonomy_data_sources,
             taxonomy_event_types=normalized.taxonomy_event_types,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utcnow(),
+            updated_at=utcnow(),
         )
 
     async def get_ingestion_stats(self) -> dict:

@@ -8,6 +8,8 @@ from typing import Optional
 
 import httpx
 
+from app.utils.datetime_utils import utcnow
+
 logger = logging.getLogger(__name__)
 
 # MITRE ATT&CK Enterprise data URL
@@ -99,7 +101,7 @@ class MitreAttackService:
         """Check if the in-memory cache is still valid."""
         if self._last_fetch is None:
             return False
-        return datetime.utcnow() - self._last_fetch < timedelta(hours=CACHE_DURATION_HOURS)
+        return utcnow() - self._last_fetch < timedelta(hours=CACHE_DURATION_HOURS)
 
     def _load_from_cache(self) -> bool:
         """Load MITRE data from disk cache."""
@@ -109,7 +111,7 @@ class MitreAttackService:
         try:
             # Check file age
             file_mtime = datetime.fromtimestamp(CACHE_FILE.stat().st_mtime)
-            if datetime.utcnow() - file_mtime > timedelta(hours=CACHE_DURATION_HOURS):
+            if utcnow() - file_mtime > timedelta(hours=CACHE_DURATION_HOURS):
                 logger.info("MITRE cache file is stale, will refresh")
                 return False
 
@@ -134,7 +136,7 @@ class MitreAttackService:
                 json.dump({
                     "tactics": self._tactics,
                     "techniques": self._techniques,
-                    "fetched_at": datetime.utcnow().isoformat(),
+                    "fetched_at": utcnow().isoformat(),
                 }, f, indent=2)
             logger.info(f"Saved MITRE data to cache: {CACHE_FILE}")
         except Exception as e:
@@ -151,7 +153,7 @@ class MitreAttackService:
                 mitre_data = response.json()
 
             self._parse_mitre_data(mitre_data)
-            self._last_fetch = datetime.utcnow()
+            self._last_fetch = utcnow()
             self._loaded = True
             self._save_to_cache()
 

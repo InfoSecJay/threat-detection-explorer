@@ -19,6 +19,7 @@ import pytest
 
 from app.models.sync_job import SyncJob
 from app.services.job_queue import JobQueueService
+from app.utils.datetime_utils import utcnow
 
 
 async def test_create_pending_job_inserts_row(db_session) -> None:
@@ -144,8 +145,8 @@ async def test_mark_failed_truncates_long_error_messages(db_session) -> None:
 
 async def test_reset_stuck_jobs_only_affects_old_running_rows(db_session) -> None:
     """A stuck-job sweep should reset old running rows but leave fresh ones."""
-    old_started = datetime.utcnow() - timedelta(hours=2)
-    fresh_started = datetime.utcnow() - timedelta(seconds=10)
+    old_started = utcnow() - timedelta(hours=2)
+    fresh_started = utcnow() - timedelta(seconds=10)
 
     # One stuck job (old started_at), one fresh running job
     stuck = SyncJob(
@@ -179,7 +180,7 @@ async def test_reset_stuck_jobs_only_affects_old_running_rows(db_session) -> Non
 
 async def test_reset_stuck_jobs_ignores_pending_and_completed(db_session) -> None:
     """Rows that aren't in `running` state are never touched."""
-    old = datetime.utcnow() - timedelta(hours=2)
+    old = utcnow() - timedelta(hours=2)
 
     pending_old = SyncJob(
         job_type="full",

@@ -37,6 +37,7 @@ from typing import Optional
 import httpx
 
 from app.config import settings
+from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ def _format_drift_body(repo_name: str, result: dict, sync_job_id: str) -> str:
 
     lines = [
         f"**Sync job:** `{sync_job_id}`",
-        f"**Timestamp (UTC):** {datetime.utcnow().isoformat()}",
+        f"**Timestamp (UTC):** {utcnow().isoformat()}",
         f"**Repo:** `{repo_name}`",
         "",
         f"- Rules normalized: **{total}**",

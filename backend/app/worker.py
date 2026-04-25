@@ -32,6 +32,8 @@ import logging
 import os
 import signal
 from datetime import datetime
+
+from app.utils.datetime_utils import utcnow
 from typing import Optional
 
 import uvicorn
@@ -215,7 +217,7 @@ class Worker:
         sits forever. Running the sweep periodically from the poll
         loop closes that window.
         """
-        now = datetime.utcnow()
+        now = utcnow()
         if (
             self._last_sweep_at is not None
             and (now - self._last_sweep_at).total_seconds()

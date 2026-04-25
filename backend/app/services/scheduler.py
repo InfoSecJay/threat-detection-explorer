@@ -34,6 +34,7 @@ from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
+from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ async def run_full_sync_job(
             if job.status != "running":
                 # Defensive: if caller forgot to claim, claim now.
                 job.status = "running"
-                job.started_at = job.started_at or datetime.utcnow()
+                job.started_at = job.started_at or utcnow()
                 await db.commit()
         else:
             # Inline path: create a fresh row (tests, ad-hoc scripts).
@@ -80,7 +81,7 @@ async def run_full_sync_job(
                 repository=repository,
                 triggered_by=triggered_by,
                 status="running",
-                started_at=datetime.utcnow(),
+                started_at=utcnow(),
             )
             db.add(job)
             await db.commit()
@@ -170,7 +171,7 @@ async def run_full_sync_job(
             # Persist final results on the job row.
             job = await db.get(SyncJob, job_id)
             job.status = "completed"
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             if job.started_at:
                 job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
             job.rules_discovered = total_discovered
@@ -202,7 +203,7 @@ async def run_full_sync_job(
             logger.error(f"Sync job {job_id} failed: {e}", exc_info=True)
             job = await db.get(SyncJob, job_id)
             job.status = "failed"
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             if job.started_at:
                 job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
             job.error_message = str(e)[:2000]

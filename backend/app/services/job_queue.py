@@ -31,6 +31,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sync_job import SyncJob
+from app.utils.datetime_utils import utcnow
 
 
 class JobQueueService:
@@ -86,7 +87,7 @@ class JobQueueService:
             return None
 
         job_id = row[0]
-        now = datetime.utcnow()
+        now = utcnow()
 
         # The `status='pending'` guard is what makes this safe against
         # concurrent claim attempts. Whichever worker's UPDATE lands first
@@ -119,7 +120,7 @@ class JobQueueService:
         `duration_seconds` are computed here so the caller doesn't have
         to remember to set them.
         """
-        now = datetime.utcnow()
+        now = utcnow()
         job = await self.db.get(SyncJob, job_id)
         duration = None
         if job and job.started_at:
@@ -144,7 +145,7 @@ class JobQueueService:
         the caller is responsible for including enough context to
         diagnose without exposing secrets (stack traces are OK).
         """
-        now = datetime.utcnow()
+        now = utcnow()
         job = await self.db.get(SyncJob, job_id)
         duration = None
         if job and job.started_at:
@@ -173,14 +174,14 @@ class JobQueueService:
 
         Returns the number of rows that were reset.
         """
-        cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+        cutoff = utcnow() - timedelta(minutes=timeout_minutes)
         result = await self.db.execute(
             update(SyncJob)
             .where(SyncJob.status == "running")
             .where(SyncJob.started_at < cutoff)
             .values(
                 status="failed",
-                completed_at=datetime.utcnow(),
+                completed_at=utcnow(),
                 error_message=(
                     f"Job reset by worker startup — exceeded "
                     f"{timeout_minutes}m timeout (previous worker likely crashed)"
