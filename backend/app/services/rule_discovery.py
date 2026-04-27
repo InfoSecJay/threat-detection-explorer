@@ -19,7 +19,21 @@ class RuleDiscoveryService:
             "exclude_dirs": ["tests", "deprecated", "test", ".git"],
         },
         "elastic": {
-            "include_patterns": ["rules/**/*.toml"],
+            # Two trees:
+            #   `rules/`                — production detection rules.
+            #   `rules_building_block/` — sub-detections that don't fire
+            #                             alerts on their own; consumed by
+            #                             other rules. We ingest them with
+            #                             a `building_block` tag so users
+            #                             can filter in/out.
+            "include_patterns": [
+                "rules/**/*.toml",
+                "rules_building_block/**/*.toml",
+            ],
+            # The `_building_block` exclusion is the LEGACY upstream dir
+            # name (singular, leading underscore). Upstream renamed it to
+            # `rules_building_block/` (plural, no underscore prefix). Kept
+            # here for safety in case an old fork still uses it.
             "exclude_dirs": ["_deprecated", "deprecated", "tests", "test", ".git", "_building_block"],
         },
         "splunk": {

@@ -148,6 +148,47 @@ def test_normalize_lowercases_tags_and_underscores_spaces(normalizer):
     assert "use_case:_threat_detection" in n.tags
 
 
+def test_normalize_injects_building_block_tag_when_field_set(normalizer):
+    """A rule whose TOML carries `rule.building_block_type` gets a
+    `building_block` tag (plus a `building_block_type:<value>` tag) so
+    users can filter the catalog. Per
+    https://github.com/elastic/detection-rules/tree/main/rules_building_block —
+    these don't fire alerts directly, only feed other rules."""
+    overrides = {
+        "extra": {
+            "rule_id": "x",
+            "type": "eql",
+            "language": None,
+            "index": [],
+            "integration": [],
+            "promotion": False,
+            "building_block_type": "default",
+        },
+    }
+    n = normalizer.normalize(_parsed(**overrides))
+    assert "building_block" in n.tags
+    assert "building_block_type:default" in n.tags
+
+
+def test_normalize_injects_building_block_tag_from_path(normalizer):
+    """Rules under `rules_building_block/` are building blocks by
+    convention even when the TOML doesn't carry the field. Path-based
+    detection is the safety net."""
+    n = normalizer.normalize(_parsed(
+        file_path="rules_building_block/credential_access/lsass_signal.toml",
+    ))
+    assert "building_block" in n.tags
+
+
+def test_normalize_omits_building_block_tag_for_regular_rules(normalizer):
+    """Regular rules do NOT get the building_block tag (default fixture
+    has no building_block_type, and lives under `rules/`, not
+    `rules_building_block/`)."""
+    n = normalizer.normalize(_parsed())
+    assert "building_block" not in n.tags
+    assert not any(t.startswith("building_block_type:") for t in n.tags)
+
+
 # ── Canonical taxonomy ──────────────────────────────────────────────
 
 

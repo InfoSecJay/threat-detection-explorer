@@ -149,6 +149,14 @@ class ElasticParser(BaseParser):
                     # the catalog distinguishes these from raw-telemetry
                     # rules and from SIEM-internal alert_correlation.
                     "promotion": bool(metadata.get("promotion", False)),
+                    # Building-block rules don't fire alerts directly —
+                    # they emit signal that other rules correlate. The
+                    # field is set on the rule TOML when the author
+                    # wants the rule treated this way; rules under the
+                    # `rules_building_block/` tree are also building
+                    # blocks by convention even when the field is unset.
+                    # The normalizer combines both signals into a tag.
+                    "building_block_type": rule.get("building_block_type"),
                 },
             )
 

@@ -1,6 +1,6 @@
 """Elastic detection rule normalizer."""
 
-from typing import Any
+from typing import Any, Optional
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
@@ -18,6 +18,17 @@ class ElasticNormalizer(BaseNormalizer):
         author = parsed.author
         if isinstance(author, list):
             author = ", ".join(author) if author else None
+
+        # Building-block detection: either the TOML carries the field, OR
+        # the file lives under `rules_building_block/`. Both are signals
+        # that this rule produces sub-detection signal rather than firing
+        # alerts directly. We surface this with a `building_block` tag so
+        # users can filter in/out of the catalog. Also injects the
+        # original ``building_block_type`` value (e.g. "default") so the
+        # tag carries the vendor's chosen sub-category.
+        is_building_block = bool(extra.get("building_block_type")) or (
+            "rules_building_block" in parsed.file_path
+        )
 
         # Get log sources and index patterns for taxonomy
         log_sources_list = self._normalize_log_sources(parsed.log_source)
@@ -71,7 +82,7 @@ class ElasticNormalizer(BaseNormalizer):
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=query_str,
             language=lang,
-            tags=self._normalize_tags(parsed.tags),
+            tags=self._build_tags(parsed.tags, is_building_block, extra.get("building_block_type")),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
@@ -199,6 +210,30 @@ class ElasticNormalizer(BaseNormalizer):
             if tag:
                 # Convert to lowercase and replace spaces
                 normalized.append(tag.lower().replace(" ", "_"))
+        return normalized
+
+    def _build_tags(
+        self,
+        raw_tags: list,
+        is_building_block: bool,
+        building_block_type: Optional[str] = None,
+    ) -> list[str]:
+        """Normalize tags + inject ``building_block`` markers when applicable.
+
+        Building-block rules get two tags: a flat ``building_block``
+        flag for cheap filtering, and ``building_block_type:<value>``
+        when the TOML specified a subtype (e.g. "default"). Both are
+        appended after normalization so they don't collide with the
+        lowercase + underscore transform.
+        """
+        normalized = self._normalize_tags(raw_tags)
+        if is_building_block:
+            if "building_block" not in normalized:
+                normalized.append("building_block")
+            if building_block_type:
+                subtype_tag = f"building_block_type:{building_block_type.lower()}"
+                if subtype_tag not in normalized:
+                    normalized.append(subtype_tag)
         return normalized
 
     def _determine_language(self, detection: Any, extra: dict) -> str:

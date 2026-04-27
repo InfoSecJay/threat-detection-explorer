@@ -100,19 +100,26 @@ def test_discover_elastic(discovery):
         "rules/windows/cred_access.toml",
         "rules/linux/persist.toml",
         "rules/cross-platform/exec.toml",
+        # Building-block rules live under a SIBLING tree —
+        # `rules_building_block/` (plural, no underscore prefix). They
+        # ARE discovered; the normalizer tags them as building blocks.
+        "rules_building_block/network/lateral_movement.toml",
+        "rules_building_block/credential/cred_dumping_signal.toml",
         # Traps
         "rules/_deprecated/old.toml",
-        "rules/_building_block/bb.toml",
+        "rules/_building_block/bb.toml",            # legacy upstream name
         "rules/tests/test_rule.toml",
         "rules/windows/cred_access.yml",            # wrong extension
     ])
     found = {str(p).replace("\\", "/") for p in service.discover_rules("elastic")}
 
-    assert len(found) >= 3
+    assert len(found) >= 5  # 3 regular + 2 building-block
     assert "rules/windows/cred_access.toml" in found
     assert "rules/cross-platform/exec.toml" in found
+    assert "rules_building_block/network/lateral_movement.toml" in found
+    assert "rules_building_block/credential/cred_dumping_signal.toml" in found
     assert not any("_deprecated" in p for p in found)
-    assert not any("_building_block" in p for p in found)
+    assert not any("rules/_building_block/" in p for p in found)  # legacy dir excluded
     assert not any("/tests/" in p for p in found)
     assert not any(p.endswith(".yml") for p in found)
 
