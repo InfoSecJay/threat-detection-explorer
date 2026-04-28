@@ -75,10 +75,15 @@ class RuleDiscoveryService:
                 # Syslog, etc.). Previously missed entirely.
                 "Detections/**/*.yaml",
                 "Detections/**/*.yml",
-                # ASIM rules using Microsoft's Advanced Security Info
-                # Model parsers — ~67 rules.
-                "ASIM/**/*.yaml",
-                "ASIM/**/*.yml",
+                # NOTE: ASIM/ used to be in this list but it contains
+                # ZERO analytic rules — only parser library functions
+                # (`ASIM/lib/`), schema definitions (`ASIM/schemas/`),
+                # dev scaffolding (`ASIM/dev/`), deploy templates
+                # (`ASIM/deploy/`), tooling. The "ASIM rules" referenced
+                # in older comments are actually under
+                # `Solutions/.../Analytic Rules/` files that USE ASIM
+                # parsers in their KQL queries. Discovered via the
+                # coverage audit (382 PARSE_NONE files all under ASIM).
                 # Summary rules — 7 alert-aggregation rules.
                 "Summary rules/*.yaml",
                 "Summary rules/*.yml",

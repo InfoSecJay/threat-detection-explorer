@@ -158,6 +158,12 @@ class SentinelParser(BaseParser):
             "dataconnectors", "exploration queries",
             "hunting queries",  # hunting is distinct from detection
             "detection queries",  # same — these are hunting-style
+            # ASIM ships parser templates / testers / convert-from
+            # examples under `ASIM/dev/...` — scaffolding, not rules.
+            # Audit surfaced 406 PARSE_NONE samples here; discovery
+            # legitimately walks ASIM/** so the parser's exclusion is
+            # the right place to skip them.
+            "dev",
         }
         if self._is_in_excluded_dir(file_path, excluded_parts):
             return False

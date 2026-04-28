@@ -242,9 +242,11 @@ def test_discover_elastic_hunting(discovery):
 
 
 def test_discover_sentinel(discovery):
-    """Sentinel pulls from FOUR distinct location patterns. Regression
-    on this layout already shipped — root-level Detections/ + ASIM/
-    were silently excluded for weeks."""
+    """Sentinel pulls from THREE distinct location patterns. ASIM/
+    used to be a fourth but contains no analytic rules (audit
+    surfaced 382 PARSE_NONE files there — all parser library code).
+    Discovery patterns regressed once before — root-level Detections/
+    was silently excluded for weeks."""
     service, build_repo = discovery
     build_repo("sentinel", [
         # Tier 1: Solutions/<vendor>/Analytic Rules/
@@ -255,28 +257,30 @@ def test_discover_sentinel(discovery):
         # Tier 2: root-level Detections/<table>/
         "Detections/AuditLogs/account_creation.yaml",
         "Detections/AWSCloudTrail/anomalous_api.yaml",
-        # Tier 3: ASIM/
-        "ASIM/Network Session/network_anomaly.yaml",
-        # Tier 4: Summary rules/
+        # Tier 3: Summary rules/
         "Summary rules/aggregate_alerts.yaml",
         # Traps
         "Solutions/Sample/Analytic Rules/skip_me.yaml",  # 'sample' excluded
         "Workbooks/some_workbook.yaml",                  # outside known dirs
         "Solutions/MyVendor/Analytic Rules/test/skip.yaml",  # 'test' dir
+        # ASIM/ scaffolding must not be discovered (no analytic rules
+        # live there — only parser library code).
+        "ASIM/lib/functions/ASIM_FillNull.yaml",
+        "ASIM/dev/Parser YAML templates/template.yaml",
     ])
     found = {str(p).replace("\\", "/") for p in service.discover_rules("sentinel")}
 
-    # Six expected paths from the four legitimate location patterns.
-    assert len(found) >= 6, f"Expected ≥6 sentinel rules, got {found}"
+    # Five expected paths from the three legitimate location patterns.
+    assert len(found) >= 5, f"Expected ≥5 sentinel rules, got {found}"
     assert "Solutions/Microsoft Defender/Analytic Rules/mailforward.yaml" in found
     assert "Detections/AuditLogs/account_creation.yaml" in found
     assert "Detections/AWSCloudTrail/anomalous_api.yaml" in found
-    assert "ASIM/Network Session/network_anomaly.yaml" in found
     assert "Summary rules/aggregate_alerts.yaml" in found
     # Traps must NOT appear
     assert not any("Sample" in p for p in found)
     assert not any(p.startswith("Workbooks/") for p in found)
     assert not any("/test/" in p for p in found)
+    assert not any(p.startswith("ASIM/") for p in found)
 
 
 # ── Cross-cutting checks ─────────────────────────────────────────────

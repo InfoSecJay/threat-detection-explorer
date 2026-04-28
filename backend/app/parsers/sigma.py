@@ -31,7 +31,14 @@ class SigmaParser(BaseParser):
             return False
 
         # Exclude test and deprecated directories
-        return not self._is_in_excluded_dir(file_path, {"tests", "test", "deprecated"})
+        # `regression_data` is Sigma's test-fixture tree under the
+        # repo root (`regression_data/rules/<vendor>/.../info.yml`).
+        # Discovery's `rules/**` glob doesn't reach it in production
+        # but the audit walked it and surfaced 170 PARSE_NONE samples.
+        # Excluding here keeps can_parse honest if anything ever hits it.
+        return not self._is_in_excluded_dir(
+            file_path, {"tests", "test", "deprecated", "regression_data"}
+        )
 
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse a Sigma YAML rule file."""
