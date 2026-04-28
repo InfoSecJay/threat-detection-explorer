@@ -9,8 +9,7 @@
 
 🌐 **Live Site: [detectionexplorer.io](https://detectionexplorer.io)**
 
-<!-- TODO: Add screenshot here -->
-![Detection Explorer Screenshot](./docs/screenshot.png)
+<img width="1911" height="908" alt="image" src="https://github.com/user-attachments/assets/1fae0424-e2fa-4ced-a456-d04682ff37e2" />
 
 ---
 
