@@ -288,6 +288,85 @@ async def test_e2e_elastic(db_session):
     assert "T1059" in d.mitre_techniques
 
 
+# Regression: real Elastic AWS rules use multiline triple-quoted
+# strings for description / false_positives / setup. The legacy `toml`
+# package (PyPI `toml`) chokes on these with `IndexError: string index
+# out of range` and silently dropped ~70 production rules at sync time.
+# Switched to stdlib `tomllib` (Python 3.11+). This fixture mirrors the
+# exact structural shape that broke the old parser.
+SAMPLE_ELASTIC_AWS_MULTILINE_RULE = '''\
+[metadata]
+creation_date = "2020/06/10"
+integration = ["aws"]
+maturity = "production"
+updated_date = "2026/04/10"
+
+[rule]
+author = ["Elastic"]
+description = """
+Detects creation of a new AWS CloudTrail trail via CreateTrail API. While legitimate during onboarding or auditing
+improvements, adversaries can create trails that write to attacker-controlled destinations, limit regions, or otherwise
+subvert monitoring objectives.
+"""
+false_positives = [
+    """
+    Trail creations may be made by a system or network administrator. Verify whether the user identity should be making
+    changes in your environment.
+    """,
+]
+from = "now-6m"
+index = ["filebeat-*", "logs-aws.cloudtrail-*"]
+language = "kuery"
+license = "Elastic License v2"
+name = "AWS CloudTrail Log Created"
+note = """
+## Triage and analysis
+Investigate ...
+"""
+references = ["https://docs.aws.amazon.com/awscloudtrail/latest/APIReference/API_CreateTrail.html"]
+risk_score = 21
+rule_id = "594e0cbf-86cc-45aa-9ff7-ff27db27d3ed"
+severity = "low"
+tags = ["Domain: Cloud", "Data Source: AWS"]
+type = "query"
+query = "event.dataset:aws.cloudtrail and event.provider:cloudtrail.amazonaws.com and event.action:CreateTrail and event.outcome:success"
+
+[[rule.threat]]
+framework = "MITRE ATT&CK"
+
+[[rule.threat.technique]]
+id = "T1530"
+name = "Data from Cloud Storage"
+reference = "https://attack.mitre.org/techniques/T1530/"
+
+[rule.threat.tactic]
+id = "TA0009"
+name = "Collection"
+reference = "https://attack.mitre.org/tactics/TA0009/"
+'''
+
+
+@pytest.mark.asyncio
+async def test_e2e_elastic_multiline_strings_regression(db_session):
+    """A rule with multiline triple-quoted ``description`` /
+    ``false_positives`` / ``note`` blocks must parse cleanly. Legacy
+    `toml` package raised IndexError on these; stdlib `tomllib` does
+    not. Regression for the silent-drop-70-AWS-rules incident."""
+    d = await ingest_one(
+        ElasticParser(),
+        ElasticNormalizer("https://github.com/elastic/detection-rules"),
+        "rules/integrations/aws/collection_cloudtrail_logging_created.toml",
+        SAMPLE_ELASTIC_AWS_MULTILINE_RULE,
+        db_session,
+    )
+    assert d.source == "elastic"
+    assert d.title == "AWS CloudTrail Log Created"
+    assert "T1530" in d.mitre_techniques
+    assert "TA0009" in d.mitre_tactics
+    # Multiline description body should be intact, not truncated.
+    assert "CreateTrail API" in (d.description or "")
+
+
 @pytest.mark.asyncio
 async def test_e2e_splunk(db_session):
     d = await ingest_one(

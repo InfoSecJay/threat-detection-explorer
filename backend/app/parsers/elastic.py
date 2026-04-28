@@ -2,10 +2,9 @@
 
 import logging
 import re
+import tomllib
 from pathlib import Path
 from typing import Optional
-
-import toml
 
 from app.parsers.base import BaseParser, ParsedRule
 
@@ -56,7 +55,11 @@ class ElasticParser(BaseParser):
     def parse(self, file_path: Path, content: str) -> Optional[ParsedRule]:
         """Parse an Elastic TOML rule file."""
         try:
-            data = toml.loads(content)
+            # tomllib (Python 3.11+ stdlib) handles modern TOML constructs
+            # the legacy `toml` package chokes on with `IndexError: string
+            # index out of range`. Switching recovered ~70 silently-dropped
+            # AWS / cross-platform rules at first re-sync.
+            data = tomllib.loads(content)
             if not isinstance(data, dict):
                 return None
 
@@ -160,7 +163,7 @@ class ElasticParser(BaseParser):
                 },
             )
 
-        except toml.TomlDecodeError as e:
+        except tomllib.TOMLDecodeError as e:
             logger.warning(f"TOML parse error in {file_path}: {e}")
             return None
         except Exception as e:
