@@ -1,9 +1,10 @@
 # Detection Explorer Roadmap
 
 **Single source of truth.** Anything that contradicts this doc is wrong or
-stale. For shipped work, see [`CHANGELOG.md`](../CHANGELOG.md). This doc
-replaces both the old `REVIEW_AND_ROADMAP.md` and the Intel-page-specific
-`intel-roadmap.md` — everything load-bearing from those is folded in here.
+stale. Recently-shipped work lives in the section below; older history
+lives in `git log`. This doc replaces both the old `REVIEW_AND_ROADMAP.md`
+and the Intel-page-specific `intel-roadmap.md` — everything load-bearing
+from those is folded in here.
 
 ---
 
@@ -20,7 +21,8 @@ different product — see [Deferred](#deferred) below.
 
 ## Recently shipped (last 30 days)
 
-Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
+Top items only. Older shipped work rolls off this section — `git log`
+is the authoritative history.
 
 - **Pipeline audits, Phase 2 (normalization)** —
   `scripts/audit_normalization.py` paginates the production API and
@@ -208,6 +210,18 @@ Lower-priority items. Pick from these as fill-in work between flagship pushes.
 - [ ] **More backend test coverage** — search + ingestion done.
   Lower-priority gaps: scheduler, trending routes, export routes,
   repository_sync, git_service. Pick when they next get touched.
+- [ ] **Taxonomy Phase 3 — drop legacy single-value columns** — the
+  `Detection` model still carries `platform`, `event_category`,
+  `data_source_normalized` from before the canonical
+  `taxonomy_platforms` / `taxonomy_data_sources` /
+  `taxonomy_event_types` lists landed. The Phase 2 audit's
+  legacy-canonical disagreement metric already calls out the drift
+  (Sentinel 83.2%, Elastic 17.7%, Splunk 11.0% as of 2026-05-13).
+  Phase 3 work: drop the legacy columns from the model, rename
+  `taxonomy_*` to final names (`platforms`, `data_sources`,
+  `event_types`), DB migration, strip legacy refs from search service
+  + API schemas + FilterPanel. Gated on the recent Sentinel mapping
+  fix stabilizing (one nightly sync cycle).
 
 ### Hygiene
 
@@ -398,8 +412,9 @@ above. Not on the calendar this quarter.
   this, this doc wins. Open a PR to update.
 - **The `Now` section is the only commitment.** `Next` is the plan.
   `Later` is the parking lot. `Deferred` is "not this quarter."
-- **`Recently shipped` rolls.** When something lands, move it out of the
-  active section into a `CHANGELOG.md` entry.
+- **`Recently shipped` rolls.** Move landed items into the section.
+  Items older than ~30 days roll off — `git log` is the authoritative
+  long-tail history.
 - **Sub-docs only for deep architecture references** —
   [`docs/taxonomy.md`](./taxonomy.md) is the canonical taxonomy spec.
   Roadmap items belong here, not in a parallel doc.

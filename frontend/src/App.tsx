@@ -16,11 +16,9 @@ const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ d
 // Temporarily hidden — pages need rework before they're re-exposed.
 // Files stay in the tree; just don't import / route / link them.
 // Track re-enable work in docs/roadmap.md under "Hidden pages".
-//   ChangeLog    — earlier
 //   Intel        — needs rework
 //   Compare      — cross-vendor comparison needs rework
 //   SideBySide   — depends on Compare; hidden together
-// const ChangeLog      = lazy(() => import('./pages/ChangeLog').then(m => ({ default: m.ChangeLog })));
 // const Compare        = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
 // const SideBySide     = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
 // const IndustryIntel  = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
@@ -269,7 +267,6 @@ function App() {
             <Route path="/compare" element={<Navigate to="/" replace />} />
             <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />
-            {/* /changelog route temporarily hidden */}
             <Route path="/integrations" element={<Integrations />} />
           </Routes>
         </Suspense>
