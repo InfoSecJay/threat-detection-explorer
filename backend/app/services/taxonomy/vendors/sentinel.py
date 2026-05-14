@@ -110,8 +110,11 @@ def resolve(parsed: "ParsedRule") -> dict:
                 else:
                     authoritative_ets.update(dt_entry.get("event_types") or [])
             elif dtk.endswith("_cl"):
-                # Third-party custom log bucket.
-                platforms.add("cross_platform")
+                # Third-party custom log bucket. Platforms deliberately
+                # not set -- the connector and solution_folders tiers
+                # are the right place to determine platform. Adding
+                # `cross_platform` here was poisoning ~50% of Sentinel's
+                # platform distribution (audit Phase 2 finding).
                 data_sources.add("siem_alert")
                 capability_ets.add("audit_event")
 

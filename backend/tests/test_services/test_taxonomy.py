@@ -1094,7 +1094,12 @@ def test_sentinel_veeam_is_cross_platform_not_linux():
 
 def test_sentinel_custom_log_cl_fallback():
     """`*_CL` custom-log tables (long tail of vendor marketplace
-    connectors) fall through to cross_platform + siem_alert."""
+    connectors) get the `siem_alert` data_source but NOT a
+    cross_platform platform tag -- the `*_cl` catch-all bucket used to
+    poison platforms with `cross_platform`, which the Phase 2 audit
+    flagged as a 50% mis-classification rate on Sentinel. When no tier
+    resolves a platform, the result is `[unknown]` (more honest than
+    silently `cross_platform`)."""
     parsed = _make_parsed(
         source="sentinel",
         extra={
@@ -1105,7 +1110,7 @@ def test_sentinel_custom_log_cl_fallback():
         },
     )
     result = resolve_for_repo("sentinel", parsed)
-    assert "cross_platform" in result["platforms"]
+    assert "cross_platform" not in result["platforms"]
     assert "siem_alert" in result["data_sources"]
 
 

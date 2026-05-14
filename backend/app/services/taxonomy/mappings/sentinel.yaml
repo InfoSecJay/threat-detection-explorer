@@ -165,38 +165,50 @@ kql_tables:
     data_sources: [gcp_audit]
     event_types: [api_call]
   # ── SIEM alert streams (Sentinel's own + external) ───────────────────
+  # SecurityAlert is Sentinel's central alert table. Sources include
+  # Defender for Endpoint (windows), Defender for Cloud (azure),
+  # Defender for Cloud Apps + M365 Defender + Defender for Identity
+  # (microsoft_365). AWS Security Hub findings can land here too via
+  # connector but the overwhelmingly common case is Microsoft.
   securityalert:
-    platforms: [cross_platform]
+    platforms: [microsoft_365, azure, windows]
     data_sources: [siem_alert]
     event_types: [audit_event]
   securityincident:
-    platforms: [cross_platform]
+    platforms: [microsoft_365, azure, windows]
     data_sources: [siem_alert]
     event_types: [alert_correlation]
+  # Defender for Cloud security recommendations (Azure-resident).
   securitynestedrecommendation:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [siem_alert]
     event_types: [audit_event]
+  # Sentinel UEBA -- analyzes Entra / SecurityEvent / signinlogs data
+  # but the table itself is an Azure-resident feature.
   behavioranalytics:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [siem_alert]
     event_types: [audit_event]
+  # Sentinel ML anomalies -- Azure-resident detection service.
   anomalies:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [siem_alert]
     event_types: [audit_event]
   # ── Threat intelligence ──────────────────────────────────────────────
+  # MS Sentinel TI / MDTI ingest -- Azure-resident table. Describes
+  # IOCs that apply to many platforms; the table itself lives in Azure.
   threatintelligenceindicator:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [siem_alert]
     event_types: [audit_event]
   threatintelindicators:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [siem_alert]
     event_types: [audit_event]
   # ── Azure DevOps ─────────────────────────────────────────────────────
+  # Azure DevOps audit logs -- Azure service.
   adoauditlogs:
-    platforms: [cross_platform]
+    platforms: [azure]
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── GitHub ───────────────────────────────────────────────────────────
@@ -260,8 +272,9 @@ kql_tables:
     event_types: [audit_event]
   # Veeam backup's own ingested syslog stream — Veeam server runs
   # on Windows; the syslog IS application_logs, NOT linux_syslog.
+  # (Previously also tagged cross_platform; redundant -- dropped.)
   veeam_getsecurityevents:
-    platforms: [windows, cross_platform]
+    platforms: [windows]
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── Miscellaneous vendor tables we saw in the review ─────────────────
@@ -274,8 +287,13 @@ kql_tables:
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── Custom log catch-all (any `*_CL` table not listed above) ────────
+  # Platform deliberately empty -- let connectors / solution_folders
+  # tiers determine platform. Tagging every unknown _CL table as
+  # `cross_platform` was poisoning ~50% of Sentinel's distribution.
+  # If no tier resolves a platform, the rule lands on `[unknown]`
+  # which is more honest and easier to triage.
   "*_cl":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
 

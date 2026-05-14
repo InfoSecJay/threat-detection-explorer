@@ -127,3 +127,82 @@ def test_normalize_query_string_lands_as_detection_logic(normalizer):
     n = normalizer.normalize(_parsed())
     assert "OfficeActivity" in n.detection_logic
     assert "ForwardingSmtpAddress" in n.detection_logic
+
+
+def test_security_alert_maps_to_microsoft_platforms_not_cross_platform(normalizer):
+    """SecurityAlert is Sentinel's central alert table -- sources are
+    overwhelmingly Microsoft Defender services (XDR, MDC, MDE, MDI,
+    MCAS). Audit Phase 2 surfaced this as the dominant cross_platform
+    contributor; the correct mapping is the actual Microsoft platforms."""
+    n = normalizer.normalize(_parsed(
+        detection_logic_raw="SecurityAlert | where ProviderName == 'MDATP'",
+        extra={"id": "x", "kql_tables": ["SecurityAlert"]},
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "microsoft_365" in n.taxonomy_platforms
+    assert "azure" in n.taxonomy_platforms
+    assert "windows" in n.taxonomy_platforms
+
+
+def test_behavior_analytics_maps_to_azure_not_cross_platform(normalizer):
+    """Sentinel UEBA is an Azure-resident feature."""
+    n = normalizer.normalize(_parsed(
+        detection_logic_raw="BehaviorAnalytics | where ActivityType == 'LogOn'",
+        extra={"id": "x", "kql_tables": ["BehaviorAnalytics"]},
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "azure" in n.taxonomy_platforms
+
+
+def test_ado_audit_logs_maps_to_azure_not_cross_platform(normalizer):
+    """Azure DevOps audit logs are an Azure service."""
+    n = normalizer.normalize(_parsed(
+        detection_logic_raw="ADOAuditLogs | where ActivityType == 'ProjectCreated'",
+        extra={"id": "x", "kql_tables": ["ADOAuditLogs"]},
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "azure" in n.taxonomy_platforms
+
+
+def test_threat_intel_indicator_maps_to_azure(normalizer):
+    """Sentinel TI ingest table -- Azure-resident."""
+    n = normalizer.normalize(_parsed(
+        detection_logic_raw="ThreatIntelligenceIndicator | where ConfidenceScore > 75",
+        extra={"id": "x", "kql_tables": ["ThreatIntelligenceIndicator"]},
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "azure" in n.taxonomy_platforms
+
+
+def test_unknown_cl_table_does_not_inject_cross_platform(normalizer):
+    """An unrecognized custom-log `*_CL` table shouldn't poison the
+    rule's platform with `cross_platform`. The `*_cl` catch-all
+    contributes a `siem_alert` data_source but no platform; the rule
+    falls back to whatever connectors / solution_folders resolve. If
+    nothing resolves, it lands on [unknown], not cross_platform."""
+    n = normalizer.normalize(_parsed(
+        file_path="Solutions/Unknown Vendor/Analytic Rules/whatever.yaml",
+        detection_logic_raw="SomeUnknownVendorTable_CL | where Severity == 'High'",
+        extra={"id": "x", "kql_tables": ["SomeUnknownVendorTable_CL"]},
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "siem_alert" in n.taxonomy_data_sources
+
+
+def test_unknown_cl_data_type_does_not_inject_cross_platform(normalizer):
+    """The resolver's dataType `_cl` fallback (in vendors/sentinel.py)
+    previously added `cross_platform` for any *_CL dataType -- same
+    poisoning class as the kql_tables `*_cl` catch-all. Should now
+    contribute siem_alert only."""
+    n = normalizer.normalize(_parsed(
+        detection_logic_raw="MyVendorTable_CL | where Field1 == 'x'",
+        extra={
+            "id": "x",
+            "kql_tables": [],  # force resolver to fall through to dataTypes
+            "requiredDataConnectors": [
+                {"connectorId": "MyVendorConnector", "dataTypes": ["MyVendor_CL"]}
+            ],
+        },
+    ))
+    assert "cross_platform" not in n.taxonomy_platforms
+    assert "siem_alert" in n.taxonomy_data_sources
