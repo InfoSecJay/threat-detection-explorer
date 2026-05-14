@@ -47,9 +47,15 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         # Get language from extra (default to ES|QL)
         language_list = extra.get("language", ["ES|QL"])
         language = language_list[0] if language_list else "ES|QL"
-        # Normalize language name
+        # Normalize language name. Elastic hunting rules use language tokens
+        # in their raw TOML; map them to canonical lowercase tokens.
+        # `SQL` is OSQuery (Elastic's OSQuery Manager integration uses SQL
+        # syntax against OSQuery virtual tables) -- canonicalize to `osquery`
+        # so it filters separately from generic SQL.
         if language == "ES|QL":
             language = "esql"
+        elif language == "SQL":
+            language = "osquery"
         elif language.lower() in ["eql", "kql", "lucene"]:
             language = language.lower()
 

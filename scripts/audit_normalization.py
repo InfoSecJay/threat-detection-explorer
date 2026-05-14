@@ -68,7 +68,9 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     # Elastic rules can be query (kql/kuery/lucene), eql, esql, ml
     # (Machine Learning jobs), threat_match, threshold, new_terms.
     "elastic":             {"eql", "esql", "kql", "kuery", "lucene", "ml", "threat_match", "threshold", "new_terms"},
-    "elastic_hunting":     {"esql", "eql", "kql", "lucene"},
+    # `osquery` is the canonical token for Elastic OSQuery Manager hunts
+    # (raw TOML carries language=["SQL"]; normalizer maps to `osquery`).
+    "elastic_hunting":     {"esql", "eql", "kql", "lucene", "osquery"},
     "elastic_protections": {"eql"},
     "splunk":              {"spl"},
     "sublime":             {"mql"},

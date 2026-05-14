@@ -72,6 +72,11 @@ class ElasticHuntingParser(BaseParser):
                 for integ in integration:
                     if isinstance(integ, str):
                         tags.append(integ.lower())
+            # OSQuery hunts use language=["SQL"] -- tag explicitly so they're
+            # filterable (the bare integration tag `endpoint` doesn't
+            # distinguish OSQuery from Elastic Defend events).
+            if any(isinstance(l, str) and l.upper() == "SQL" for l in language_list):
+                tags.append("osquery")
 
             # Notes can serve as additional context
             notes = hunt.get("notes", [])

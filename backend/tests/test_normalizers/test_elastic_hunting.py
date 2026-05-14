@@ -118,3 +118,48 @@ def test_normalize_query_lands_in_detection_logic(normalizer):
     n = normalizer.normalize(_parsed())
     assert "CreateUser" in n.detection_logic
     assert "logs-aws.cloudtrail" in n.detection_logic
+
+
+def test_normalize_osquery_language_canonicalized(normalizer):
+    """`SQL` (Elastic's raw token for OSQuery Manager hunts) maps to the
+    canonical `osquery` language so OSQuery rules filter separately from
+    generic SQL and from ES|QL."""
+    n = normalizer.normalize(_parsed(
+        file_path="hunting/linux/queries/privilege_escalation_via_suid_binaries.toml",
+        title="OSQuery SUID Hunting",
+        detection_logic_raw="SELECT * FROM suid_bin",
+        log_source={"product": "linux"},
+        tags=["hunting_query", "threat_hunting", "endpoint", "osquery"],
+        extra={
+            "uuid": "osq-uuid",
+            "language": ["SQL"],
+            "integration": ["endpoint"],
+            "references": [],
+        },
+    ))
+    assert n.language == "osquery"
+
+
+def test_normalize_osquery_data_source_overrides_auditd(normalizer):
+    """OSQuery hunts on Linux must NOT inherit `auditd` from the
+    by_product mapping or `elastic_defend` from the `endpoint`
+    integration -- they query OSQuery virtual tables, not those.
+    Canonical data_sources should be exactly {osquery}."""
+    n = normalizer.normalize(_parsed(
+        file_path="hunting/linux/queries/privilege_escalation_via_suid_binaries.toml",
+        title="OSQuery SUID Hunting",
+        detection_logic_raw="SELECT * FROM suid_bin",
+        log_source={"product": "linux"},
+        tags=["hunting_query", "threat_hunting", "endpoint", "osquery"],
+        extra={
+            "uuid": "osq-uuid",
+            "language": ["SQL"],
+            "integration": ["endpoint"],
+            "references": [],
+        },
+    ))
+    assert n.taxonomy_data_sources == ["osquery"]
+    # Platforms still resolve from by_product (linux is correct).
+    assert "linux" in n.taxonomy_platforms
+    # Event type still `hunting_query` from always_includes.
+    assert "hunting_query" in n.taxonomy_event_types

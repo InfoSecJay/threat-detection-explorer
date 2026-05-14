@@ -32,6 +32,15 @@ def resolve(parsed: "ParsedRule") -> dict:
     if isinstance(integrations, str):
         integrations = [integrations]
 
+    # OSQuery rules (language=["SQL"]) query OSQuery virtual tables, not
+    # auditd / elastic_defend telemetry. The data_source override avoids
+    # by_product["linux"] -> auditd and integrations["endpoint"] ->
+    # elastic_defend, both of which mis-classify these rules.
+    language_list = extra.get("language") or []
+    is_osquery = any(
+        isinstance(l, str) and l.upper() == "SQL" for l in language_list
+    )
+
     # Extract `FROM <index>` patterns from the ES|QL query body
     indices: list[str] = []
     raw_query = parsed.detection_logic_raw
@@ -89,6 +98,12 @@ def resolve(parsed: "ParsedRule") -> dict:
     platforms.update(always.get("platforms") or [])
     data_sources.update(always.get("data_sources") or [])
     event_types.update(always.get("event_types") or [])
+
+    # OSQuery override: replace data_sources with the single `osquery`
+    # value -- the by_product / integrations mappings above pull in
+    # auditd / elastic_defend which mis-describe OSQuery hunts.
+    if is_osquery:
+        data_sources = {"osquery"}
 
     return {
         "platforms": platforms,
