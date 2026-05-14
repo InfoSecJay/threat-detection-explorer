@@ -468,6 +468,18 @@ export function Home() {
                 color="#0078d4"
                 delay={400}
               />
+              <StatCard
+                value={stats.by_source.google_secops || 0}
+                label="Google SecOps"
+                color="#84cc16"
+                delay={450}
+              />
+              <StatCard
+                value={stats.by_source.okta || 0}
+                label="Okta"
+                color="#14b8a6"
+                delay={500}
+              />
             </div>
           </div>
         </section>
