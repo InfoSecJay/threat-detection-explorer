@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta_custom_detections';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta';
   className?: string;
   size?: number;
 }) {
@@ -18,7 +18,7 @@ export function DataSourceIcon({
     elastic_hunting: '#8b5cf6',
     sentinel: '#0078d4',
     google_secops: '#84cc16',
-    okta_custom_detections: '#14b8a6',
+    okta: '#14b8a6',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -176,7 +176,7 @@ export function DataSourceIcon({
         </g>
       )}
 
-      {source === 'okta_custom_detections' && (
+      {source === 'okta' && (
         // Okta - identity/ID badge with concentric ring (auth focus)
         <g filter={`url(#glow-${source})`}>
           {/* Outer ID-card */}

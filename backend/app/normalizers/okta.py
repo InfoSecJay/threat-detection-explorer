@@ -1,16 +1,16 @@
 """Okta customer-detections rule normalizer.
 
-Converts ParsedRule output from `OktaCustomDetectionsParser` into the
-canonical `NormalizedDetection`. Always Okta platform; canonical
-data source is `okta_system_log`. Severity defaulted to `medium`
-because the upstream YAML never carries severity.
+Converts ParsedRule output from `OktaParser` into the canonical
+`NormalizedDetection`. Always Okta platform; canonical data source
+is `okta_system_log`. Severity defaulted to `medium` because the
+upstream YAML never carries severity.
 """
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 
 
-class OktaCustomDetectionsNormalizer(BaseNormalizer):
+class OktaNormalizer(BaseNormalizer):
     """Normalizer for Okta customer-detections."""
 
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:

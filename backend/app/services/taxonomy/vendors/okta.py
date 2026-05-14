@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.parsers.base import ParsedRule
 
 
-_MAPPING = load_mapping("okta_custom_detections")
+_MAPPING = load_mapping("okta")
 
 
 def resolve(parsed: "ParsedRule") -> dict:

@@ -1,4 +1,4 @@
-"""Per-vendor normalizer tests for OktaCustomDetectionsNormalizer.
+"""Per-vendor normalizer tests for OktaNormalizer.
 
 Okta customer-detections specifics to pin:
   - language picks primary by priority (OIE > spl > datadog)
@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.normalizers.okta_custom_detections import OktaCustomDetectionsNormalizer
+from app.normalizers.okta import OktaNormalizer
 from app.parsers.base import ParsedRule
 
 
 def _parsed(**overrides) -> ParsedRule:
     defaults = dict(
-        source="okta_custom_detections",
+        source="okta",
         file_path="detections/access_to_admin_console_denied.yml",
         raw_content="placeholder yaml",
         title="Access to Admin Console Denied",
@@ -54,14 +54,14 @@ def _parsed(**overrides) -> ParsedRule:
 
 @pytest.fixture
 def normalizer():
-    return OktaCustomDetectionsNormalizer(
+    return OktaNormalizer(
         "https://github.com/okta/customer-detections"
     )
 
 
 def test_normalize_preserves_metadata(normalizer):
     n = normalizer.normalize(_parsed())
-    assert n.source == "okta_custom_detections"
+    assert n.source == "okta"
     assert n.title == "Access to Admin Console Denied"
     assert n.rule_id == "e6e88bfdbc27a65cddf1225c9ff0fb12"
 

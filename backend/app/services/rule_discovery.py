@@ -64,7 +64,7 @@ class RuleDiscoveryService:
             "include_patterns": ["rules/community/**/*.yaral"],
             "exclude_dirs": ["_deprecated", "deprecated", "tests", "test", ".git"],
         },
-        "okta_custom_detections": {
+        "okta": {
             # Okta-authored detections live under `detections/`.
             # Sibling dirs (`hunts/`, `logs/`, `sample_osquery_checks/`,
             # `tests/`, `workflows/`) are intentionally NOT ingested --

@@ -40,7 +40,7 @@ from app.normalizers import (
     ElasticProtectionsNormalizer,
     GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
-    OktaCustomDetectionsNormalizer,
+    OktaNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
     SplunkNormalizer,
@@ -51,7 +51,7 @@ from app.parsers import (
     ElasticParser,
     ElasticProtectionsParser,
     GoogleSecOpsParser,
-    OktaCustomDetectionsParser,
+    OktaParser,
     LOLRMMParser,
     SentinelParser,
     SigmaParser,
@@ -178,7 +178,7 @@ notes = ["Tune by trusted-principal allowlist."]
 '''
 
 
-SAMPLE_OKTA_CUSTOM_DETECTIONS_RULE = """\
+SAMPLE_OKTA_RULE = """\
 title: Access to Admin Console with Weak MFA Factor
 id: 65ca8dcc6f50976012b74700e6067ba6
 description: |
@@ -610,15 +610,15 @@ async def test_e2e_google_secops(db_session):
 
 
 @pytest.mark.asyncio
-async def test_e2e_okta_custom_detections(db_session):
+async def test_e2e_okta(db_session):
     d = await ingest_one(
-        OktaCustomDetectionsParser(),
-        OktaCustomDetectionsNormalizer("https://github.com/okta/customer-detections"),
+        OktaParser(),
+        OktaNormalizer("https://github.com/okta/customer-detections"),
         "detections/admin_console_login_weak_mfa.yml",
-        SAMPLE_OKTA_CUSTOM_DETECTIONS_RULE,
+        SAMPLE_OKTA_RULE,
         db_session,
     )
-    assert d.source == "okta_custom_detections"
+    assert d.source == "okta"
     assert d.title == "Access to Admin Console with Weak MFA Factor"
     # Multi-query rule with OIE + Datadog -- primary picks OIE (priority
     # OIE > spl > datadog), so the canonical language tag is `oie`.

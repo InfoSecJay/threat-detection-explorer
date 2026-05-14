@@ -92,7 +92,7 @@ const dataSources = [
     color: '#84cc16',
   },
   {
-    id: 'okta_custom_detections' as const,
+    id: 'okta' as const,
     name: 'Okta',
     description: 'Okta-authored detections for Okta Identity Engine (OIE) and Splunk SIEM queries.',
     repoUrl: 'https://github.com/okta/customer-detections',

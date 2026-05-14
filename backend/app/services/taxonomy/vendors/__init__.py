@@ -12,7 +12,7 @@ from app.services.taxonomy.vendors import (  # noqa: F401
     elastic_protections,
     google_secops,
     lolrmm,
-    okta_custom_detections,
+    okta,
     sentinel,
     sigma,
     splunk,

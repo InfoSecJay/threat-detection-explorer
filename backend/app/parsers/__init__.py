@@ -10,7 +10,7 @@ from app.parsers.lolrmm import LOLRMMParser
 from app.parsers.elastic_hunting import ElasticHuntingParser
 from app.parsers.sentinel import SentinelParser
 from app.parsers.google_secops import GoogleSecOpsParser
-from app.parsers.okta_custom_detections import OktaCustomDetectionsParser
+from app.parsers.okta import OktaParser
 
 __all__ = [
     "BaseParser",
@@ -24,5 +24,5 @@ __all__ = [
     "ElasticHuntingParser",
     "SentinelParser",
     "GoogleSecOpsParser",
-    "OktaCustomDetectionsParser",
+    "OktaParser",
 ]

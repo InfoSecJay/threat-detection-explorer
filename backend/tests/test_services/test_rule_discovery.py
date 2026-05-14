@@ -317,13 +317,13 @@ def test_discover_google_secops(discovery):
 # ── Okta customer-detections ─────────────────────────────────────────
 
 
-def test_discover_okta_custom_detections(discovery):
+def test_discover_okta(discovery):
     """Okta detections live under `detections/*.yml`. Sibling top-level
     dirs (`hunts/`, `logs/`, `sample_osquery_checks/`, `tests/`,
     `workflows/`) are reference material, not analytic rules, and
     must NOT be ingested."""
     service, build_repo = discovery
-    build_repo("okta_custom_detections", [
+    build_repo("okta", [
         # Real detection files
         "detections/access_to_admin_console_denied.yml",
         "detections/api_token_excessive_network_access.yml",
@@ -338,7 +338,7 @@ def test_discover_okta_custom_detections(discovery):
         # because the glob is single-segment (no recursive **).
         "detections/sub/nested.yml",
     ])
-    found = {str(p).replace("\\", "/") for p in service.discover_rules("okta_custom_detections")}
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("okta")}
 
     assert len(found) >= 3
     assert "detections/access_to_admin_console_denied.yml" in found

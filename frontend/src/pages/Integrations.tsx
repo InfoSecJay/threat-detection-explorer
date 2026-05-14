@@ -71,7 +71,7 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
     repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
     color: '#84cc16',
   },
-  okta_custom_detections: {
+  okta: {
     displayName: 'Okta',
     description: 'Okta-authored detections for Okta Identity Engine (OIE) and Splunk SIEM queries.',
     repoUrl: 'https://github.com/okta/customer-detections',
@@ -124,7 +124,7 @@ function IntegrationCard({ repo }: { repo: Repository }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta_custom_detections'} size={40} />
+          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta'} size={40} />
           <div>
             <h3 className="font-display font-semibold tracking-wide" style={{ color: config.color }}>
               {config.displayName}

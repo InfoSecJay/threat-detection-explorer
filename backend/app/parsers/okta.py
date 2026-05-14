@@ -66,12 +66,12 @@ _TACTIC_NAME_TO_ID: dict[str, str] = {
 _TECHNIQUE_ID = re.compile(r"^T\d{4}(?:\.\d{3})?$")
 
 
-class OktaCustomDetectionsParser(BaseParser):
+class OktaParser(BaseParser):
     """Parser for Okta customer-detections YAML rules."""
 
     @property
     def source_name(self) -> str:
-        return "okta_custom_detections"
+        return "okta"
 
     def can_parse(self, file_path: Path) -> bool:
         """Okta detections live under `detections/*.yml` at the repo

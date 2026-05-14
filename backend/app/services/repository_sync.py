@@ -35,8 +35,18 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "elastic_hunting",
     "sentinel",
     "google_secops",
-    "okta_custom_detections",
+    "okta",
 ]
+
+# Default branch per source -- used by the sparse-clone path which
+# has to fetch + checkout a specific branch name. The regular
+# (full) clone path auto-detects via Repo.clone_from. Sources NOT
+# listed here default to "master" for back-compat with Sentinel.
+SPARSE_CHECKOUT_BRANCHES: dict[str, str] = {
+    # Chronicle's default branch is `main`, not `master`.
+    "google_secops": "main",
+}
+
 
 # Sparse checkout patterns for large repositories
 SPARSE_CHECKOUT_PATTERNS = {
@@ -105,9 +115,9 @@ class RepositorySyncService:
             "url": settings.google_secops_repo_url,
             "name": "google_secops",
         },
-        "okta_custom_detections": {
-            "url": settings.okta_custom_detections_repo_url,
-            "name": "okta_custom_detections",
+        "okta": {
+            "url": settings.okta_repo_url,
+            "name": "okta",
         },
     }
 
@@ -180,8 +190,9 @@ class RepositorySyncService:
             # Clone repository (fresh clone ensures we have latest)
             # Use sparse checkout for large repos like sentinel
             if name in SPARSE_CHECKOUT_PATTERNS:
+                branch = SPARSE_CHECKOUT_BRANCHES.get(name, "master")
                 commit_hash = await self._sparse_clone_repository(
-                    config["url"], repo_path, SPARSE_CHECKOUT_PATTERNS[name]
+                    config["url"], repo_path, SPARSE_CHECKOUT_PATTERNS[name], branch,
                 )
                 message = f"Sparse cloned {name} repository"
             else:
@@ -238,7 +249,7 @@ class RepositorySyncService:
         return repo.head.commit.hexsha
 
     async def _sparse_clone_repository(
-        self, url: str, path: Path, patterns: list[str]
+        self, url: str, path: Path, patterns: list[str], branch: str = "master"
     ) -> str:
         """Clone a git repository using sparse checkout for large repos.
 
@@ -246,6 +257,7 @@ class RepositorySyncService:
             url: Repository URL
             path: Local path to clone to
             patterns: List of sparse checkout patterns
+            branch: Default branch name (master for Sentinel, main for Chronicle, etc.)
 
         Returns:
             Current commit hash
@@ -289,7 +301,7 @@ class RepositorySyncService:
                 "fetch",
                 "--depth=2000",
                 "origin",
-                "master",
+                branch,
             ],
             cwd=path,
             check=True,
@@ -298,7 +310,7 @@ class RepositorySyncService:
 
         # Checkout
         subprocess.run(
-            ["git", "checkout", "master"],
+            ["git", "checkout", branch],
             cwd=path, check=True, capture_output=True
         )
 
