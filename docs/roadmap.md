@@ -22,6 +22,19 @@ different product — see [Deferred](#deferred) below.
 
 Top items only. Full history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- **Pipeline audits, Phase 2 (normalization)** —
+  `scripts/audit_normalization.py` paginates the production API and
+  measures per-source classification quality: taxonomy distributions,
+  `cross_platform` / `[unknown]` rates, no-observables, no-MITRE,
+  legacy-vs-canonical disagreement, and language-sanity. Heuristic
+  thresholds flag anomalies. First run surfaced three issues worth
+  fixing: Sentinel `cross_platform` 50.1%, Sentinel `unknown_platform`
+  14.2%, and 4 elastic_hunting rules with an unexpected `SQL` language
+  tag. Findings tabulated in [`docs/audit.md`](./audit.md).
+- **Intel + Compare pages hidden from nav/routes** — both pages need
+  rework before re-exposure; routes redirect to `/` so bookmarks don't
+  404; render-smokes still pass (`7199d83`). See
+  [Hidden pages](#hidden-pages--restore-when-reworked).
 - **Foundation pay-down cycle II** — six items finishing the foundation
   work. `/trending/threats` accepts an optional `days` filter
   (`a9688da`); the IndustryIntel page threads its existing period
@@ -89,8 +102,10 @@ of these items locks in correctness so future refactors can't break
 a vendor silently. The site is the storefront; this code is the
 inventory.
 
-Sequencing: 1 + 2 (test the pipeline), then 5 (first new
-user-facing signal in a while — leverages the pipeline depth).
+Sequencing: 1 + 2 + 3 done. 4 + 5 are pure backend hygiene (no
+user-facing change). 6 is the first new user-facing signal in a while
+and leverages the pipeline depth — start there after 5 if a bigger
+deliverable is wanted.
 
 - [x] **1. Per-normalizer tests** — All 8 vendor normalizers
   (`sigma` 18, `elastic` 15, `splunk` 11, `sentinel` 10, `sublime` 9,
@@ -123,7 +138,19 @@ user-facing signal in a while — leverages the pipeline depth).
 - [ ] **4. Field extractor edge-case expansion** — 110 tests on a
   1,266-line file is good but uneven; gaps likely in MQL + ES|QL
   (newer parsers). ~1-2 h.
-- [ ] **5. Deterministic quality scoring** — Schema already exists
+- [ ] **5. Sentinel taxonomy mapping fix** — Phase 2 audit surfaces
+  Sentinel as the only source with serious normalization issues:
+  50.1% of rules tagged `cross_platform`, 14.2% with
+  `taxonomy_platforms == [unknown]`, 83.2% legacy/canonical
+  disagreement. Root cause: the canonical resolver maps the most
+  common Sentinel data tables (`SecurityAlert`, `SecurityIncident`,
+  `BehaviorAnalytics`, `Anomalies`, `ThreatIntelligenceIndicator`)
+  to `cross_platform` instead of a specific upstream platform.
+  Extend `app/services/taxonomy/mappings/sentinel.yaml` so meta-tables
+  map to the platform they describe (Defender alerts → `microsoft_365`,
+  Azure AD behaviour → `azure`, etc.), rebuild indexes, re-run Phase 2
+  audit to confirm rates drop. ~2 h.
+- [ ] **6. Deterministic quality scoring** — Schema already exists
   (`quality_score`, `quality_details` columns sit empty). Five
   dimensions: metadata completeness, detection specificity, MITRE
   mapping quality, documentation quality, query complexity. New
