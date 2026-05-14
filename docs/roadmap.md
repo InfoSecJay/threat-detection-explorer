@@ -131,6 +131,33 @@ user-facing signal in a while — leverages the pipeline depth).
   Detections list. **First fundamentally new user-facing signal in
   a while — leverages the moat.** ~3 h.
 
+## Hidden pages — restore when reworked
+
+Pages are temporarily hidden from nav + routes (still on disk + still
+have render-smoke tests, just unreachable from the UI). Each is hidden
+because the surface needs rework before we re-expose it. Bookmarked
+URLs redirect to `/` so users don't 404.
+
+- [ ] **Intel page** (`/intel`) — `IndustryIntel.tsx`. Hidden because
+  the Pulse / Threat Pulse / Trending strip layered too many half-baked
+  signals on top of a corpus that still has normalization issues
+  (Sentinel `cross_platform` etc.). Restore after the normalization
+  audit (Phase 2) lands and we know what signals are actually clean
+  enough to surface. Restoration plan probably starts from scratch
+  rather than re-enabling the existing layout.
+- [ ] **Compare page** (`/compare`, `/compare/side-by-side`) —
+  `Compare.tsx` + `SideBySide.tsx`. Hidden because cross-vendor
+  comparison was conceptually clean but practically limited — users
+  filter by technique/keyword/platform and see N source columns, but
+  the comparison logic doesn't lean on the extracted observables (the
+  real moat) and so it's just a side-by-side rule list. Restore as
+  an **observable-level diff** that highlights "Rule A checks
+  `process.name` and `parent.process.name`; Rule B only checks
+  `process.name`" — leverages what we extract.
+
+Both pages still have vitest render-smokes; tests pass while pages
+are hidden, so re-enabling them later is low-risk.
+
 ## Later — non-blocking polish
 
 Lower-priority items. Pick from these as fill-in work between flagship pushes.

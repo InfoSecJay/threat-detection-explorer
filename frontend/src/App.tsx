@@ -10,14 +10,20 @@ import { clipSm } from './constants/style';
 import { Home } from './pages/Home';
 const DetectionList   = lazy(() => import('./pages/DetectionList').then(m => ({ default: m.DetectionList })));
 const DetectionDetail = lazy(() => import('./pages/DetectionDetail').then(m => ({ default: m.DetectionDetail })));
-const Compare         = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
-const SideBySide      = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
 const MitreCoverage   = lazy(() => import('./pages/MitreCoverage').then(m => ({ default: m.MitreCoverage })));
-const IndustryIntel   = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
-// ChangeLog page is temporarily hidden — route + nav link removed
-// below. Keep the file in the tree so it's easy to re-enable later.
+// Temporarily hidden — pages need rework before they're re-exposed.
+// Files stay in the tree; just don't import / route / link them.
+// Track re-enable work in docs/roadmap.md under "Hidden pages".
+//   ChangeLog    — earlier
+//   Intel        — needs rework
+//   Compare      — cross-vendor comparison needs rework
+//   SideBySide   — depends on Compare; hidden together
+// const ChangeLog      = lazy(() => import('./pages/ChangeLog').then(m => ({ default: m.ChangeLog })));
+// const Compare        = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
+// const SideBySide     = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
+// const IndustryIntel  = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 
 // Lightweight loading state shown while a lazy route's chunk fetches.
 // Plain pulse — kept minimal so the layout doesn't shift.
@@ -219,13 +225,12 @@ function App() {
           <div className="flex items-center justify-between">
             <Logo />
 
-            {/* Navigation links */}
+            {/* Navigation links. Intel + Comparison temporarily hidden
+                pending rework — see docs/roadmap.md. */}
             <div className="flex items-center gap-1">
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
-              <NavLink to="/compare">Comparison</NavLink>
               <NavLink to="/mitre">MITRE</NavLink>
-              <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
                 items={[
@@ -253,14 +258,16 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/detections" element={<DetectionList />} />
             <Route path="/detections/:id" element={<DetectionDetail />} />
-            <Route path="/compare" element={<Compare />} />
-            <Route path="/compare/side-by-side" element={<SideBySide />} />
-            {/* New top-level MITRE section. The old /compare/mitre-coverage
-                path redirects here so shared bookmarks don't 404. */}
             <Route path="/mitre" element={<MitreCoverage />} />
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
+            {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
-            <Route path="/intel" element={<IndustryIntel />} />
+            {/* Temporarily hidden pages — redirect to home so existing
+                bookmarks don't 404. Restore routes when the pages are
+                reworked (tracked in docs/roadmap.md). */}
+            <Route path="/intel" element={<Navigate to="/" replace />} />
+            <Route path="/compare" element={<Navigate to="/" replace />} />
+            <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />
             {/* /changelog route temporarily hidden */}
             <Route path="/integrations" element={<Integrations />} />

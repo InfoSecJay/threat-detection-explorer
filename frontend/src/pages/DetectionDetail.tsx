@@ -55,10 +55,10 @@ export function DetectionDetail() {
             {detection.mitre_techniques.slice(0, 5).map((tech) => (
               <Link
                 key={tech}
-                to={`/compare?technique=${tech}`}
+                to={`/mitre/${tech}`}
                 className="px-3 py-1 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full text-sm hover:bg-cyan-500/30 transition-colors"
               >
-                Compare {tech} across vendors
+                Browse {tech} on MITRE
               </Link>
             ))}
           </div>
