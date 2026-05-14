@@ -13,13 +13,13 @@
 
 ---
 
-Detection Explorer ingests and normalizes detection rules from 6 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
+Detection Explorer ingests and normalizes detection rules from 8 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
 
 ### Why?
 
 Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
 
-- **Search & filter** across 6 vendors with full-text search, severity, status, and MITRE tactic/technique filters
+- **Search & filter** across 8 vendors with full-text search, severity, status, and MITRE tactic/technique filters
 - **Compare coverage** across vendors for any MITRE technique or keyword
 - **Identify gaps** — find techniques covered by one vendor but missing from another
 - **Stay current** — sync and re-ingest to pull the latest rules from each repo
@@ -27,14 +27,16 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 
 ### Supported Sources
 
-| Repository | Format | Rules |
-|---|---|---|
-| [SigmaHQ](https://github.com/SigmaHQ/sigma) | YAML | <!-- TODO: add count --> |
-| [Elastic Detection Rules](https://github.com/elastic/detection-rules) | TOML | <!-- TODO: add count --> |
-| [Splunk Security Content](https://github.com/splunk/security_content) | YAML | <!-- TODO: add count --> |
-| [Sublime Rules](https://github.com/sublime-security/sublime-rules) | YAML | <!-- TODO: add count --> |
-| [Elastic Protections](https://github.com/elastic/protections-artifacts) | TOML | <!-- TODO: add count --> |
-| [LOLRMM](https://github.com/magicsword-io/LOLRMM) | YAML | <!-- TODO: add count --> |
+| Repository | Format |
+|---|---|
+| [SigmaHQ](https://github.com/SigmaHQ/sigma) | YAML |
+| [Elastic Detection Rules](https://github.com/elastic/detection-rules) | TOML |
+| [Elastic Hunting Queries](https://github.com/elastic/detection-rules/tree/main/hunting) | TOML |
+| [Elastic Protections](https://github.com/elastic/protections-artifacts) | TOML |
+| [Splunk Security Content](https://github.com/splunk/security_content) | YAML |
+| [Sublime Rules](https://github.com/sublime-security/sublime-rules) | YAML |
+| [LOLRMM](https://github.com/magicsword-io/LOLRMM) | YAML |
+| [Microsoft Sentinel](https://github.com/Azure/Azure-Sentinel) | YAML |
 
 ---
 

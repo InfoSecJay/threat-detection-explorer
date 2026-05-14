@@ -211,10 +211,9 @@ Lower-priority items. Pick from these as fill-in work between flagship pushes.
 
 ### Hygiene
 
-- [ ] **README rule-count placeholders** — six `<!-- TODO: add count -->`
-  placeholders. Wire to `/api/detections/statistics` or hard-code 12 k.
-- [ ] **`docs/screenshot.png`** — referenced from README but missing.
-  (User task — needs a live-site screenshot.)
+(Nothing currently pending — README screenshot + supported-source list
+shipped; rule-count placeholders dropped from the README rather than
+filled, since the README is positioned to stay free of drift-prone data.)
 
 ---
 
