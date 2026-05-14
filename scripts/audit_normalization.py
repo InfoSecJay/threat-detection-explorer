@@ -76,6 +76,7 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     "sublime":             {"mql"},
     "lolrmm":              {"sigma"},
     "sentinel":            {"kql"},
+    "google_secops":       {"yaral"},
 }
 
 # Sources where "no MITRE techniques" is expected behaviour, not a bug.

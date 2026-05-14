@@ -20,6 +20,7 @@ describe('style constants', () => {
     const required = [
       'sigma', 'elastic', 'splunk', 'sublime',
       'elastic_protections', 'lolrmm', 'elastic_hunting', 'sentinel',
+      'google_secops',
     ];
     for (const src of required) {
       const theme = sourceTheme[src];

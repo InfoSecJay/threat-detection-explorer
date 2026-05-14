@@ -283,6 +283,37 @@ def test_discover_sentinel(discovery):
     assert not any(p.startswith("ASIM/") for p in found)
 
 
+# ── Google SecOps (Chronicle) ────────────────────────────────────────
+
+
+def test_discover_google_secops(discovery):
+    """Chronicle community rules live under `rules/community/<vendor>/`.
+    `rules/_deprecated/` must NOT appear -- it contains a Windows-
+    invalid filename (`...?__sysmon.yaral`) that breaks Windows
+    checkout entirely; sparse-checkout + discovery exclusion both
+    enforce this."""
+    service, build_repo = discovery
+    build_repo("google_secops", [
+        "rules/community/aws/cloudtrail/aws_console_login_without_mfa.yaral",
+        "rules/community/microsoft/m365_audit_anomaly.yaral",
+        "rules/community/gcp/bigquery_public_dataset.yaral",
+        # Traps
+        "rules/_deprecated/old_rule.yaral",
+        "rules/community/aws/tests/test_fixture.yaral",
+        "rules/community/microsoft/deprecated/legacy.yaral",
+        "docs/example.yaral",  # outside rules/community/
+    ])
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("google_secops")}
+
+    assert len(found) >= 3
+    assert "rules/community/aws/cloudtrail/aws_console_login_without_mfa.yaral" in found
+    assert "rules/community/microsoft/m365_audit_anomaly.yaral" in found
+    assert not any("_deprecated" in p for p in found)
+    assert not any("/tests/" in p for p in found)
+    assert not any("/deprecated/" in p for p in found)
+    assert not any(p.startswith("docs/") for p in found)
+
+
 # ── Cross-cutting checks ─────────────────────────────────────────────
 
 

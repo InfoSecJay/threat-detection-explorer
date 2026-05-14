@@ -13,13 +13,13 @@
 
 ---
 
-Detection Explorer ingests and normalizes detection rules from 8 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
+Detection Explorer ingests and normalizes detection rules from 9 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
 
 ### Why?
 
 Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
 
-- **Search & filter** across 8 vendors with full-text search, severity, status, and MITRE tactic/technique filters
+- **Search & filter** across 9 vendors with full-text search, severity, status, and MITRE tactic/technique filters
 - **Compare coverage** across vendors for any MITRE technique or keyword
 - **Identify gaps** — find techniques covered by one vendor but missing from another
 - **Stay current** — sync and re-ingest to pull the latest rules from each repo
@@ -37,6 +37,7 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 | [Sublime Rules](https://github.com/sublime-security/sublime-rules) | YAML |
 | [LOLRMM](https://github.com/magicsword-io/LOLRMM) | YAML |
 | [Microsoft Sentinel](https://github.com/Azure/Azure-Sentinel) | YAML |
+| [Google SecOps](https://github.com/chronicle/detection-rules/tree/main/rules/community) | YARA-L |
 
 ---
 

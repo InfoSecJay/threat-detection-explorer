@@ -54,4 +54,5 @@ export const sourceTheme: Record<string, SourceTheme> = {
   lolrmm:              { name: 'LOLRMM',        dot: 'bg-pink-500',   text: 'text-pink-400',   border: 'border-pink-500/30',   bg: 'bg-pink-500/20' },
   elastic_hunting:     { name: 'Elastic Hunt',  dot: 'bg-violet-500', text: 'text-violet-400', border: 'border-violet-500/30', bg: 'bg-violet-500/20' },
   sentinel:            { name: 'Sentinel',      dot: 'bg-sky-500',    text: 'text-sky-400',    border: 'border-sky-500/30',    bg: 'bg-sky-500/20' },
+  google_secops:       { name: 'Google SecOps', dot: 'bg-lime-500',   text: 'text-lime-400',   border: 'border-lime-500/30',   bg: 'bg-lime-500/20' },
 };

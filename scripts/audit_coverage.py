@@ -62,6 +62,7 @@ from app.normalizers import (  # noqa: E402
     ElasticHuntingNormalizer,
     ElasticNormalizer,
     ElasticProtectionsNormalizer,
+    GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
@@ -73,6 +74,7 @@ from app.parsers import (  # noqa: E402
     ElasticHuntingParser,
     ElasticParser,
     ElasticProtectionsParser,
+    GoogleSecOpsParser,
     LOLRMMParser,
     SentinelParser,
     SigmaParser,
@@ -170,6 +172,16 @@ SOURCES: list[SourceConfig] = [
         # ASIM/ used to be a fourth but contains no analytic rules —
         # see the comment in app/services/rule_discovery.py.
         walk_roots=("Solutions", "Detections", "Summary rules"),
+    ),
+    SourceConfig(
+        name="google_secops",
+        repo_url="https://github.com/chronicle/detection-rules",
+        parser_factory=GoogleSecOpsParser,
+        normalizer_factory=GoogleSecOpsNormalizer,
+        extensions=(".yaral",),
+        # Chronicle community rules only. `rules/_deprecated/` contains
+        # a Windows-invalid filename so we never walk it.
+        walk_roots=("rules/community",),
     ),
 ]
 

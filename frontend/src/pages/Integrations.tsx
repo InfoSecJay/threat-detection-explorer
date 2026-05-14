@@ -65,6 +65,12 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
     repoUrl: 'https://github.com/Azure/Azure-Sentinel',
     color: '#0078d4',
   },
+  google_secops: {
+    displayName: 'Google SecOps',
+    description: 'Community detection rules for Google SecOps (Chronicle) using YARA-L 2.0.',
+    repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
+    color: '#84cc16',
+  },
 };
 
 function formatDate(dateString: string | null): string {
@@ -112,7 +118,7 @@ function IntegrationCard({ repo }: { repo: Repository }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel'} size={40} />
+          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops'} size={40} />
           <div>
             <h3 className="font-display font-semibold tracking-wide" style={{ color: config.color }}>
               {config.displayName}

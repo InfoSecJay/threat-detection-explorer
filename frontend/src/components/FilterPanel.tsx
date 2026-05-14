@@ -149,6 +149,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               { value: 'lolrmm', label: 'LOLRMM' },
               { value: 'elastic_hunting', label: 'Elastic Hunting' },
               { value: 'sentinel', label: 'Microsoft Sentinel' },
+              { value: 'google_secops', label: 'Google SecOps' },
             ].map((source) => (
               <label
                 key={source.value}

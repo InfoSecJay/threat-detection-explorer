@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops';
   className?: string;
   size?: number;
 }) {
@@ -17,6 +17,7 @@ export function DataSourceIcon({
     lolrmm: '#22c55e',
     elastic_hunting: '#8b5cf6',
     sentinel: '#0078d4',
+    google_secops: '#84cc16',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -148,6 +149,29 @@ export function DataSourceIcon({
           {/* Inner eye/radar */}
           <circle cx="24" cy="22" r="4" fill="none" stroke={color} strokeWidth="1.5" />
           <circle cx="24" cy="22" r="1.5" fill={color} />
+        </g>
+      )}
+
+      {source === 'google_secops' && (
+        // Google SecOps - stylized "G" inside hex (Chronicle/SecOps)
+        <g filter={`url(#glow-${source})`}>
+          {/* Hex shield */}
+          <path
+            d="M24,8 L38,16 L38,32 L24,40 L10,32 L10,16 Z"
+            fill="none"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          {/* Stylized G */}
+          <path
+            d="M30,21 A6,6 0 1,0 30,27 L25,27 L25,24 L30,24"
+            fill="none"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </g>
       )}
     </svg>

@@ -1,5 +1,5 @@
 // Detection types
-export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel';
+export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops';
 
 export interface Detection {
   id: string;

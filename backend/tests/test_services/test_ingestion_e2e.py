@@ -38,6 +38,7 @@ from app.normalizers import (
     ElasticHuntingNormalizer,
     ElasticNormalizer,
     ElasticProtectionsNormalizer,
+    GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
@@ -48,6 +49,7 @@ from app.parsers import (
     ElasticHuntingParser,
     ElasticParser,
     ElasticProtectionsParser,
+    GoogleSecOpsParser,
     LOLRMMParser,
     SentinelParser,
     SigmaParser,
@@ -172,6 +174,41 @@ query = [
 ]
 notes = ["Tune by trusted-principal allowlist."]
 '''
+
+
+SAMPLE_GOOGLE_SECOPS_RULE = """\
+rule aws_console_login_without_mfa {
+
+    meta:
+      author = "Google Cloud Security"
+      description = "Detect when a user logs into AWS console without MFA."
+      rule_id = "mr_b03d1e57-7ed0-49e7-b125-6c18b364ae8c"
+      rule_name = "AWS Console Login Without MFA"
+      mitre_attack_tactic = "Initial Access"
+      mitre_attack_technique = "Valid Accounts: Cloud Accounts"
+      mitre_attack_url = "https://attack.mitre.org/techniques/T1078/004/"
+      mitre_attack_version = "v13.1"
+      type = "Alert"
+      data_source = "AWS CloudTrail"
+      platform = "AWS"
+      severity = "Low"
+      priority = "Low"
+
+    events:
+      $login.metadata.vendor_name = "AMAZON"
+      $login.metadata.event_type = "USER_LOGIN"
+      $login.extensions.auth.auth_details = "MFAUsed: No"
+
+    match:
+      $account_id over 1h
+
+    outcome:
+      $risk_score = max(35)
+
+    condition:
+      $login
+}
+"""
 
 
 SAMPLE_LOLRMM_RULE = """\
@@ -504,3 +541,37 @@ async def test_e2e_lolrmm(db_session):
     # Embedded Sigma-style date present
     assert d.rule_created_date is not None
     assert d.rule_created_date.year == 2023
+
+
+@pytest.mark.asyncio
+async def test_e2e_google_secops(db_session):
+    d = await ingest_one(
+        GoogleSecOpsParser(),
+        GoogleSecOpsNormalizer("https://github.com/chronicle/detection-rules"),
+        "rules/community/aws/cloudtrail/aws_console_login_without_mfa.yaral",
+        SAMPLE_GOOGLE_SECOPS_RULE,
+        db_session,
+    )
+    assert d.source == "google_secops"
+    assert d.title == "AWS Console Login Without MFA"
+    # Chronicle rules are YARA-L 2.0 -- canonical language token.
+    assert d.language == "yaral"
+    # Explicit `platform = "AWS"` meta -> canonical `aws`.
+    assert d.platform == "aws"
+    assert "aws" in d.taxonomy_platforms
+    # Explicit `data_source = "AWS CloudTrail"` meta resolves the
+    # canonical data_source AND the implied api_call event_type.
+    assert d.data_source_normalized == "aws_cloudtrail"
+    assert "aws_cloudtrail" in d.taxonomy_data_sources
+    assert "api_call" in d.taxonomy_event_types
+    # MITRE technique extracted from the mitre_attack_url URL form.
+    assert "T1078.004" in d.mitre_techniques
+    # Tactic name in meta block -> canonical TA ID.
+    assert "TA0001" in d.mitre_tactics
+    # Title-case severity normalized to lowercase canonical.
+    assert d.severity == "low"
+    # `type = "Alert"` isn't a status; community rules are stable.
+    assert d.status == "stable"
+    # Source URL deep-links into the right repo + branch.
+    assert d.source_rule_url is not None
+    assert "chronicle/detection-rules" in d.source_rule_url

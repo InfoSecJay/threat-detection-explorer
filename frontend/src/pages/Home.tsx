@@ -84,6 +84,13 @@ const dataSources = [
     repoUrl: 'https://github.com/Azure/Azure-Sentinel',
     color: '#0078d4',
   },
+  {
+    id: 'google_secops' as const,
+    name: 'Google SecOps',
+    description: 'Community detection rules for Google SecOps (Chronicle) using YARA-L 2.0.',
+    repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
+    color: '#84cc16',
+  },
 ];
 
 // Feature cards configuration
@@ -91,7 +98,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 8 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 9 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {
