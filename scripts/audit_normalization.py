@@ -77,6 +77,10 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     "lolrmm":              {"sigma"},
     "sentinel":            {"kql"},
     "google_secops":       {"yaral"},
+    # Okta YAMLs carry OIE (Okta Identity Engine event filter) or
+    # Splunk SPL or Datadog log queries. We pick one primary per
+    # rule (OIE > spl > datadog).
+    "okta_custom_detections": {"oie", "spl", "datadog"},
 }
 
 # Sources where "no MITRE techniques" is expected behaviour, not a bug.

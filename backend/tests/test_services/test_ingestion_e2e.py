@@ -40,6 +40,7 @@ from app.normalizers import (
     ElasticProtectionsNormalizer,
     GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
+    OktaCustomDetectionsNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
     SplunkNormalizer,
@@ -50,6 +51,7 @@ from app.parsers import (
     ElasticParser,
     ElasticProtectionsParser,
     GoogleSecOpsParser,
+    OktaCustomDetectionsParser,
     LOLRMMParser,
     SentinelParser,
     SigmaParser,
@@ -174,6 +176,36 @@ query = [
 ]
 notes = ["Tune by trusted-principal allowlist."]
 '''
+
+
+SAMPLE_OKTA_CUSTOM_DETECTIONS_RULE = """\
+title: Access to Admin Console with Weak MFA Factor
+id: 65ca8dcc6f50976012b74700e6067ba6
+description: |
+  Detects when a user accesses the Okta Admin Console with a weak MFA factor.
+references:
+  - https://help.okta.com/en-us/content/topics/security/mfa/mfa-enable-admins.htm
+author:
+  - Datadog
+  - Okta
+created_date: "2025-01-06"
+modified_date: "2025-01-06"
+threat:
+  Tactic:
+    - Initial Access
+  Technique:
+    - T1078: Valid Accounts
+prevention:
+  - Configure an Admin App Policy to enable MFA for the Okta Admin Console.
+detection:
+  okta_systemlog:
+    OIE: |
+      eventType eq "user.authentication.verify" and outcome.result eq "SUCCESS"
+    datadog: |
+      source:okta @evt.name:user.authentication.verify @evt.outcome:SUCCESS
+false_positives:
+  - Legitimate administrative users require a break glass solution.
+"""
 
 
 SAMPLE_GOOGLE_SECOPS_RULE = """\
@@ -575,3 +607,40 @@ async def test_e2e_google_secops(db_session):
     # Source URL deep-links into the right repo + branch.
     assert d.source_rule_url is not None
     assert "chronicle/detection-rules" in d.source_rule_url
+
+
+@pytest.mark.asyncio
+async def test_e2e_okta_custom_detections(db_session):
+    d = await ingest_one(
+        OktaCustomDetectionsParser(),
+        OktaCustomDetectionsNormalizer("https://github.com/okta/customer-detections"),
+        "detections/admin_console_login_weak_mfa.yml",
+        SAMPLE_OKTA_CUSTOM_DETECTIONS_RULE,
+        db_session,
+    )
+    assert d.source == "okta_custom_detections"
+    assert d.title == "Access to Admin Console with Weak MFA Factor"
+    # Multi-query rule with OIE + Datadog -- primary picks OIE (priority
+    # OIE > spl > datadog), so the canonical language tag is `oie`.
+    assert d.language == "oie"
+    # Author is list-of-strings in YAML -> joined to display string.
+    assert "Okta" in d.author
+    # Always-includes contract: platform=okta, data_source=okta_system_log,
+    # event_type=authentication.
+    assert d.platform == "okta"
+    assert "okta" in d.taxonomy_platforms
+    assert "okta_system_log" in d.taxonomy_data_sources
+    assert "authentication" in d.taxonomy_event_types
+    # MITRE extracted from threat.Tactic (display names) + threat.Technique
+    # (Tnnnn: name dict keys).
+    assert "T1078" in d.mitre_techniques
+    assert "TA0001" in d.mitre_tactics
+    # Severity defaulted to medium (upstream YAML doesn't carry it).
+    assert d.severity == "medium"
+    # Embedded YAML dates round-trip through `parse_date`.
+    assert d.rule_created_date is not None
+    assert d.rule_created_date.year == 2025
+    # Source URL uses the `master` branch (Okta's default).
+    assert d.source_rule_url is not None
+    assert "okta/customer-detections" in d.source_rule_url
+    assert "/blob/master/detections/" in d.source_rule_url

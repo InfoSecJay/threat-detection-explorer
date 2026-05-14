@@ -10,6 +10,7 @@ from app.normalizers.lolrmm import LOLRMMNormalizer
 from app.normalizers.elastic_hunting import ElasticHuntingNormalizer
 from app.normalizers.sentinel import SentinelNormalizer
 from app.normalizers.google_secops import GoogleSecOpsNormalizer
+from app.normalizers.okta_custom_detections import OktaCustomDetectionsNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -23,4 +24,5 @@ __all__ = [
     "ElasticHuntingNormalizer",
     "SentinelNormalizer",
     "GoogleSecOpsNormalizer",
+    "OktaCustomDetectionsNormalizer",
 ]

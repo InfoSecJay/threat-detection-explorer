@@ -91,6 +91,13 @@ const dataSources = [
     repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
     color: '#84cc16',
   },
+  {
+    id: 'okta_custom_detections' as const,
+    name: 'Okta',
+    description: 'Okta-authored detections for Okta Identity Engine (OIE) and Splunk SIEM queries.',
+    repoUrl: 'https://github.com/okta/customer-detections',
+    color: '#14b8a6',
+  },
 ];
 
 // Feature cards configuration
@@ -98,7 +105,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 9 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 10 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {

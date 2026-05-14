@@ -314,6 +314,42 @@ def test_discover_google_secops(discovery):
     assert not any(p.startswith("docs/") for p in found)
 
 
+# ── Okta customer-detections ─────────────────────────────────────────
+
+
+def test_discover_okta_custom_detections(discovery):
+    """Okta detections live under `detections/*.yml`. Sibling top-level
+    dirs (`hunts/`, `logs/`, `sample_osquery_checks/`, `tests/`,
+    `workflows/`) are reference material, not analytic rules, and
+    must NOT be ingested."""
+    service, build_repo = discovery
+    build_repo("okta_custom_detections", [
+        # Real detection files
+        "detections/access_to_admin_console_denied.yml",
+        "detections/api_token_excessive_network_access.yml",
+        "detections/itp_brute_force.yml",
+        # Traps -- sibling top-level dirs that must not be picked up.
+        "hunts/some_hunting_query.yml",
+        "logs/some_log_sample.yml",
+        "sample_osquery_checks/check_x.yml",
+        "tests/test_something.yml",
+        "workflows/deploy.yml",
+        # And subfolder under detections/ should not be picked up
+        # because the glob is single-segment (no recursive **).
+        "detections/sub/nested.yml",
+    ])
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("okta_custom_detections")}
+
+    assert len(found) >= 3
+    assert "detections/access_to_admin_console_denied.yml" in found
+    assert "detections/api_token_excessive_network_access.yml" in found
+    assert not any(p.startswith("hunts/") for p in found)
+    assert not any(p.startswith("logs/") for p in found)
+    assert not any(p.startswith("tests/") for p in found)
+    assert not any(p.startswith("workflows/") for p in found)
+    assert not any(p.startswith("sample_osquery_checks/") for p in found)
+
+
 # ── Cross-cutting checks ─────────────────────────────────────────────
 
 

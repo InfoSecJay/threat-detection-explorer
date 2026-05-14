@@ -17,12 +17,14 @@ from app.models.repository import Repository
 from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
-    ElasticHuntingParser, SentinelParser, GoogleSecOpsParser, BaseParser
+    ElasticHuntingParser, SentinelParser, GoogleSecOpsParser,
+    OktaCustomDetectionsParser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
     ElasticHuntingNormalizer, SentinelNormalizer, GoogleSecOpsNormalizer,
+    OktaCustomDetectionsNormalizer,
     BaseNormalizer, NormalizedDetection
 )
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
@@ -53,6 +55,7 @@ class IngestionService:
             "elastic_hunting": ElasticHuntingParser(),
             "sentinel": SentinelParser(),
             "google_secops": GoogleSecOpsParser(),
+            "okta_custom_detections": OktaCustomDetectionsParser(),
         }
 
         # Initialize normalizers — pass local repo paths so they can fall back
@@ -75,6 +78,10 @@ class IngestionService:
             "google_secops": GoogleSecOpsNormalizer(
                 settings.google_secops_repo_url,
                 settings.get_repo_path("google_secops"),
+            ),
+            "okta_custom_detections": OktaCustomDetectionsNormalizer(
+                settings.okta_custom_detections_repo_url,
+                settings.get_repo_path("okta_custom_detections"),
             ),
         }
 

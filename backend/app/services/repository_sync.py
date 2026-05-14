@@ -35,6 +35,7 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "elastic_hunting",
     "sentinel",
     "google_secops",
+    "okta_custom_detections",
 ]
 
 # Sparse checkout patterns for large repositories
@@ -103,6 +104,10 @@ class RepositorySyncService:
         "google_secops": {
             "url": settings.google_secops_repo_url,
             "name": "google_secops",
+        },
+        "okta_custom_detections": {
+            "url": settings.okta_custom_detections_repo_url,
+            "name": "okta_custom_detections",
         },
     }
 

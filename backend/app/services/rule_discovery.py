@@ -64,6 +64,17 @@ class RuleDiscoveryService:
             "include_patterns": ["rules/community/**/*.yaral"],
             "exclude_dirs": ["_deprecated", "deprecated", "tests", "test", ".git"],
         },
+        "okta_custom_detections": {
+            # Okta-authored detections live under `detections/`.
+            # Sibling dirs (`hunts/`, `logs/`, `sample_osquery_checks/`,
+            # `tests/`, `workflows/`) are intentionally NOT ingested --
+            # they are reference material, not analytic rules.
+            "include_patterns": ["detections/*.yml", "detections/*.yaml"],
+            "exclude_dirs": [
+                "hunts", "logs", "sample_osquery_checks",
+                "tests", "test", "workflows", "deprecated", ".git",
+            ],
+        },
         "sentinel": {
             "include_patterns": [
                 # Solutions/<vendor>/ packages — the main source

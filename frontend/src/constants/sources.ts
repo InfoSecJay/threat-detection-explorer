@@ -13,6 +13,7 @@ export const ALL_SOURCES = [
   'elastic_hunting',
   'sentinel',
   'google_secops',
+  'okta_custom_detections',
 ] as const;
 
 export type SourceName = (typeof ALL_SOURCES)[number];
@@ -27,6 +28,7 @@ export const sourceColors: Record<string, string> = {
   elastic_hunting: '#8b5cf6',
   sentinel: '#0078d4',
   google_secops: '#84cc16',
+  okta_custom_detections: '#14b8a6',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -39,6 +41,7 @@ export const sourceLabels: Record<string, string> = {
   elastic_hunting: 'Elastic Hunting',
   sentinel: 'Sentinel',
   google_secops: 'Google SecOps',
+  okta_custom_detections: 'Okta',
 };
 
 export const sourceLabelsShort: Record<string, string> = {
@@ -51,6 +54,7 @@ export const sourceLabelsShort: Record<string, string> = {
   elastic_hunting: 'EL_HUNT',
   sentinel: 'SENTINEL',
   google_secops: 'G_SECOPS',
+  okta_custom_detections: 'OKTA',
 };
 
 export const sourceTailwind: Record<string, string> = {
@@ -63,6 +67,7 @@ export const sourceTailwind: Record<string, string> = {
   elastic_hunting: 'border-violet-500 bg-violet-500/10',
   sentinel: 'border-blue-400 bg-blue-400/10',
   google_secops: 'border-lime-500 bg-lime-500/10',
+  okta_custom_detections: 'border-teal-500 bg-teal-500/10',
 };
 
 export const severityColors: Record<string, string> = {

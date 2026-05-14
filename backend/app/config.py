@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     sentinel_repo_url: str = "https://github.com/Azure/Azure-Sentinel.git"
     # Google SecOps (Chronicle) community detection rules -- YARA-L 2.0.
     google_secops_repo_url: str = "https://github.com/chronicle/detection-rules.git"
+    # Okta customer-detections -- OIE + Splunk + Datadog queries.
+    okta_custom_detections_repo_url: str = "https://github.com/okta/customer-detections.git"
 
     # API settings
     api_prefix: str = "/api"

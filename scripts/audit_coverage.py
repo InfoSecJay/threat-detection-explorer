@@ -64,6 +64,7 @@ from app.normalizers import (  # noqa: E402
     ElasticProtectionsNormalizer,
     GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
+    OktaCustomDetectionsNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
     SplunkNormalizer,
@@ -76,6 +77,7 @@ from app.parsers import (  # noqa: E402
     ElasticProtectionsParser,
     GoogleSecOpsParser,
     LOLRMMParser,
+    OktaCustomDetectionsParser,
     SentinelParser,
     SigmaParser,
     SplunkParser,
@@ -182,6 +184,14 @@ SOURCES: list[SourceConfig] = [
         # Chronicle community rules only. `rules/_deprecated/` contains
         # a Windows-invalid filename so we never walk it.
         walk_roots=("rules/community",),
+    ),
+    SourceConfig(
+        name="okta_custom_detections",
+        repo_url="https://github.com/okta/customer-detections",
+        parser_factory=OktaCustomDetectionsParser,
+        normalizer_factory=OktaCustomDetectionsNormalizer,
+        extensions=(".yml", ".yaml"),
+        walk_roots=("detections",),
     ),
 ]
 

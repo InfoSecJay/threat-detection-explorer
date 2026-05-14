@@ -31,6 +31,7 @@ from app.services.taxonomy.vendors import (
     elastic_protections,
     google_secops,
     lolrmm,
+    okta_custom_detections,
     sentinel,
     sigma,
     splunk,
@@ -55,6 +56,7 @@ _VENDOR_RESOLVERS: dict[str, Callable[["ParsedRule"], dict]] = {
     "elastic_hunting": elastic_hunting.resolve,
     "sentinel": sentinel.resolve,
     "google_secops": google_secops.resolve,
+    "okta_custom_detections": okta_custom_detections.resolve,
 }
 
 

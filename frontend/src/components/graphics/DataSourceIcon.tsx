@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta_custom_detections';
   className?: string;
   size?: number;
 }) {
@@ -18,6 +18,7 @@ export function DataSourceIcon({
     elastic_hunting: '#8b5cf6',
     sentinel: '#0078d4',
     google_secops: '#84cc16',
+    okta_custom_detections: '#14b8a6',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -172,6 +173,26 @@ export function DataSourceIcon({
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+        </g>
+      )}
+
+      {source === 'okta_custom_detections' && (
+        // Okta - identity/ID badge with concentric ring (auth focus)
+        <g filter={`url(#glow-${source})`}>
+          {/* Outer ID-card */}
+          <rect
+            x="10" y="14" width="28" height="20" rx="3"
+            fill="none" stroke={color} strokeWidth="2"
+          />
+          {/* User silhouette circle */}
+          <circle cx="19" cy="22" r="3" fill="none" stroke={color} strokeWidth="1.5" />
+          <path
+            d="M14,32 Q14,26 19,26 Q24,26 24,32"
+            fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round"
+          />
+          {/* Auth lines */}
+          <line x1="28" y1="22" x2="34" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="28" y1="26" x2="34" y2="26" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
         </g>
       )}
     </svg>

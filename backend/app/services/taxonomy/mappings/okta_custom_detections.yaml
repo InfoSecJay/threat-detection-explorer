@@ -1,0 +1,14 @@
+# Okta customer-detections -> canonical taxonomy mappings.
+#
+# Every Okta rule targets Okta system logs (always one platform, one
+# data source). The interesting variability is in event_type, which
+# depends on the rule's primary query language. We don't have a
+# field extractor yet for OIE / Okta SPL so the event_type is
+# defaulted via `always_includes` (authentication is the dominant
+# class -- 18 of 25 OIE rules filter on `user.authentication.*` or
+# `user.session.*`).
+
+always_includes:
+  platforms: [okta]
+  data_sources: [okta_system_log]
+  event_types: [authentication]
