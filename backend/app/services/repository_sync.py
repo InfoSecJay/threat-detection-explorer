@@ -34,10 +34,18 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "lolrmm",
     "elastic_hunting",
     "sentinel",
+    "google_secops",
 ]
 
 # Sparse checkout patterns for large repositories
 SPARSE_CHECKOUT_PATTERNS = {
+    # Chronicle community rules only -- the `rules/_deprecated/` tree
+    # contains a Windows-invalid filename (`...?__sysmon.yaral`) that
+    # breaks `git checkout` on Windows. Sparse-checkout to community/
+    # avoids it entirely.
+    "google_secops": [
+        "rules/community/**",
+    ],
     "sentinel": [
         # Solutions subdir — vendor-specific detections
         "Solutions/*/Analytic Rules/*",
@@ -91,6 +99,10 @@ class RepositorySyncService:
         "sentinel": {
             "url": settings.sentinel_repo_url,
             "name": "sentinel",
+        },
+        "google_secops": {
+            "url": settings.google_secops_repo_url,
+            "name": "google_secops",
         },
     }
 

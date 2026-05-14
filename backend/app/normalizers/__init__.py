@@ -9,6 +9,7 @@ from app.normalizers.elastic_protections import ElasticProtectionsNormalizer
 from app.normalizers.lolrmm import LOLRMMNormalizer
 from app.normalizers.elastic_hunting import ElasticHuntingNormalizer
 from app.normalizers.sentinel import SentinelNormalizer
+from app.normalizers.google_secops import GoogleSecOpsNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -21,4 +22,5 @@ __all__ = [
     "LOLRMMNormalizer",
     "ElasticHuntingNormalizer",
     "SentinelNormalizer",
+    "GoogleSecOpsNormalizer",
 ]

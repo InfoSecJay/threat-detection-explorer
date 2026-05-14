@@ -56,6 +56,14 @@ class RuleDiscoveryService:
             "include_patterns": ["hunting/**/*.toml"],
             "exclude_dirs": ["deprecated", "tests", "test", ".git"],
         },
+        "google_secops": {
+            # Chronicle community rules -- YARA-L 2.0 (.yaral). The
+            # `rules/_deprecated/` tree carries a Windows-invalid
+            # filename (`...?__sysmon.yaral`) so we never glob into
+            # it. Sparse-checkout enforces this at clone time too.
+            "include_patterns": ["rules/community/**/*.yaral"],
+            "exclude_dirs": ["_deprecated", "deprecated", "tests", "test", ".git"],
+        },
         "sentinel": {
             "include_patterns": [
                 # Solutions/<vendor>/ packages — the main source

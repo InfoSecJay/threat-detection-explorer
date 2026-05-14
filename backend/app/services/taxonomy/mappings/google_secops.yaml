@@ -1,0 +1,150 @@
+# Google SecOps (Chronicle) -> canonical taxonomy mappings.
+#
+# Chronicle YARA-L rules carry explicit `platform` and `data_source`
+# meta fields. We map both directly. When a rule has neither (rare),
+# we fall back on the `rules/community/<vendor>/...` folder structure.
+#
+# Keys are lowercase. Values must come from app/services/taxonomy/canonical.py.
+
+# Tier 1: explicit `platform` meta value -> canonical platform.
+by_platform:
+  aws:
+    platforms: [aws]
+  azure:
+    platforms: [azure]
+  gcp:
+    platforms: [gcp]
+  "google cloud platform":
+    platforms: [gcp]
+  "google workspace":
+    platforms: [google_workspace]
+  workspace:
+    platforms: [google_workspace]
+  microsoft:
+    platforms: [microsoft_365]
+  "microsoft 365":
+    platforms: [microsoft_365]
+  "microsoft entra id":
+    platforms: [azure]
+  "entra id":
+    platforms: [azure]
+  "azure ad":
+    platforms: [azure]
+  github:
+    platforms: [github]
+  okta:
+    platforms: [okta]
+  onelogin:
+    platforms: [onelogin]
+  windows:
+    platforms: [windows]
+  linux:
+    platforms: [linux]
+  macos:
+    platforms: [macos]
+  network:
+    platforms: [network_appliance]
+  # SAP is a platform-agnostic enterprise app (runs on Windows / Linux /
+  # cloud). cross_platform is the honest answer.
+  sap:
+    platforms: [cross_platform]
+
+# Tier 2: explicit `data_source` meta value -> canonical data_source.
+by_data_source:
+  "aws cloudtrail":
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "aws guardduty":
+    data_sources: [aws_guardduty]
+    event_types: [audit_event]
+  "aws vpc flow logs":
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  "azure activity":
+    data_sources: [azure_activity]
+    event_types: [api_call]
+  "azure ad":
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "entra id":
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "microsoft entra id":
+    data_sources: [entra_id_signin]
+    event_types: [authentication]
+  "office 365":
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "google workspace":
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  "github audit log":
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  "okta system log":
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  okta:
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  onelogin:
+    data_sources: [onelogin_events]
+    event_types: [authentication]
+  "windows event log":
+    data_sources: [windows_security_event_log]
+    event_types: [audit_event]
+  sysmon:
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  "linux syslog":
+    data_sources: [linux_syslog]
+    event_types: [audit_event]
+  "gcp audit logs":
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+
+# Tier 3: folder-based fallback. The community rules tree is
+# `rules/community/<vendor>/<service?>/<rule>.yaral`. When the meta
+# block is missing platform/data_source, we use the top-level vendor
+# folder as a hint.
+by_folder:
+  aws:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  microsoft:
+    platforms: [microsoft_365, azure]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  gcp:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  workspace:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  github:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  okta:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  onelogin:
+    platforms: [onelogin]
+    data_sources: [onelogin_events]
+    event_types: [authentication]
+  network:
+    platforms: [network_appliance]
+  threat_intel:
+    # TI feeds describe IOCs that apply across platforms.
+    platforms: [cross_platform]
+  authentication:
+    # `authentication/` is a small generic-auth folder (~2 rules).
+    event_types: [authentication]
+  sap:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]

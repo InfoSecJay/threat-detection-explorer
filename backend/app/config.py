@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     elastic_hunting_repo_url: str = "https://github.com/elastic/detection-rules.git"
     # Microsoft Sentinel Analytics Rules
     sentinel_repo_url: str = "https://github.com/Azure/Azure-Sentinel.git"
+    # Google SecOps (Chronicle) community detection rules -- YARA-L 2.0.
+    google_secops_repo_url: str = "https://github.com/chronicle/detection-rules.git"
 
     # API settings
     api_prefix: str = "/api"

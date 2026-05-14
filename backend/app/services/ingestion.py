@@ -17,12 +17,13 @@ from app.models.repository import Repository
 from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
-    ElasticHuntingParser, SentinelParser, BaseParser
+    ElasticHuntingParser, SentinelParser, GoogleSecOpsParser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
-    ElasticHuntingNormalizer, SentinelNormalizer, BaseNormalizer, NormalizedDetection
+    ElasticHuntingNormalizer, SentinelNormalizer, GoogleSecOpsNormalizer,
+    BaseNormalizer, NormalizedDetection
 )
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.rule_discovery import RuleDiscoveryService
@@ -51,6 +52,7 @@ class IngestionService:
             "lolrmm": LOLRMMParser(),
             "elastic_hunting": ElasticHuntingParser(),
             "sentinel": SentinelParser(),
+            "google_secops": GoogleSecOpsParser(),
         }
 
         # Initialize normalizers — pass local repo paths so they can fall back
@@ -70,6 +72,10 @@ class IngestionService:
                 settings.get_repo_path("elastic_hunting"),
             ),
             "sentinel": SentinelNormalizer(settings.sentinel_repo_url, settings.get_repo_path("sentinel")),
+            "google_secops": GoogleSecOpsNormalizer(
+                settings.google_secops_repo_url,
+                settings.get_repo_path("google_secops"),
+            ),
         }
 
     async def ingest_repository(self, repo_name: str) -> IngestionStats:

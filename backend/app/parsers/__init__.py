@@ -9,6 +9,7 @@ from app.parsers.elastic_protections import ElasticProtectionsParser
 from app.parsers.lolrmm import LOLRMMParser
 from app.parsers.elastic_hunting import ElasticHuntingParser
 from app.parsers.sentinel import SentinelParser
+from app.parsers.google_secops import GoogleSecOpsParser
 
 __all__ = [
     "BaseParser",
@@ -21,4 +22,5 @@ __all__ = [
     "LOLRMMParser",
     "ElasticHuntingParser",
     "SentinelParser",
+    "GoogleSecOpsParser",
 ]

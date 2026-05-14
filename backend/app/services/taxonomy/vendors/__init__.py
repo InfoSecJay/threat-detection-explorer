@@ -10,6 +10,7 @@ from app.services.taxonomy.vendors import (  # noqa: F401
     elastic,
     elastic_hunting,
     elastic_protections,
+    google_secops,
     lolrmm,
     sentinel,
     sigma,
