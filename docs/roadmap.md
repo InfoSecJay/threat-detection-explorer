@@ -24,6 +24,30 @@ different product — see [Deferred](#deferred) below.
 Top items only. Older shipped work rolls off this section — `git log`
 is the authoritative history.
 
+- **Two new sources: Google SecOps + Okta** (now 10 total) —
+  Google SecOps (Chronicle) community rules: 379 YARA-L 2.0 rules
+  ingested with explicit `platform` / `data_source` meta + MITRE
+  URL parsing; sparse-checkout of `rules/community/**` to dodge a
+  Windows-invalid filename in `_deprecated/`. Okta
+  customer-detections: 34 rules, multi-language (25 OIE / 9 SPL /
+  some Datadog) with primary picked by priority (OIE > spl >
+  datadog). Both wired through parsers, normalizers, taxonomy
+  resolvers + mappings, ingestion + sync services, discovery
+  patterns, frontend constants (sources / icons / filters /
+  Integrations / Home StatCards), README + schema docs, audit
+  scripts. Commits: `ecf7aa4`, `48c6a80`, `efd1e93`, `64d3fe2`
+  (`okta_custom_detections` -> `okta` rename for the String(20)
+  source column constraint + Chronicle main-branch sparse-clone
+  fix), `c58b2b0` (Home StatCard tiles).
+- **Sentinel taxonomy mapping fix** (`c56ba27`) — Phase 2 audit
+  surfaced 50.1% cross_platform / 14.2% unknown for Sentinel.
+  Replaced SecurityAlert / SecurityIncident / BehaviorAnalytics /
+  Anomalies / TI / ADOAuditLogs / SecurityNestedRecommendation
+  cross_platform mappings with their actual upstream platforms
+  (microsoft_365 / azure / windows). Also fixed the `*_cl`
+  catch-all (yaml + resolver dataType fallback) to stop injecting
+  cross_platform. 6 new normalizer tests pin the contract.
+  **Production confirmation pending the next Sentinel sync.**
 - **Pipeline audits, Phase 2 (normalization)** —
   `scripts/audit_normalization.py` paginates the production API and
   measures per-source classification quality: taxonomy distributions,
@@ -140,18 +164,9 @@ deliverable is wanted.
 - [ ] **4. Field extractor edge-case expansion** — 110 tests on a
   1,266-line file is good but uneven; gaps likely in MQL + ES|QL
   (newer parsers). ~1-2 h.
-- [ ] **5. Sentinel taxonomy mapping fix** — Phase 2 audit surfaces
-  Sentinel as the only source with serious normalization issues:
-  50.1% of rules tagged `cross_platform`, 14.2% with
-  `taxonomy_platforms == [unknown]`, 83.2% legacy/canonical
-  disagreement. Root cause: the canonical resolver maps the most
-  common Sentinel data tables (`SecurityAlert`, `SecurityIncident`,
-  `BehaviorAnalytics`, `Anomalies`, `ThreatIntelligenceIndicator`)
-  to `cross_platform` instead of a specific upstream platform.
-  Extend `app/services/taxonomy/mappings/sentinel.yaml` so meta-tables
-  map to the platform they describe (Defender alerts → `microsoft_365`,
-  Azure AD behaviour → `azure`, etc.), rebuild indexes, re-run Phase 2
-  audit to confirm rates drop. ~2 h.
+- [x] **5. Sentinel taxonomy mapping fix** — shipped in `c56ba27`.
+  Mapping file + resolver updated; tests pin the new contract.
+  Production confirmation pending the next Sentinel sync cycle.
 - [ ] **6. Deterministic quality scoring** — Schema already exists
   (`quality_score`, `quality_details` columns sit empty). Five
   dimensions: metadata completeness, detection specificity, MITRE
@@ -294,14 +309,6 @@ documented previously: Postgres `tsvector` + `ts_rank`. Long-tail upgrade:
 Real user pain. Block on getting a Postgres dev environment set up locally
 to avoid SQLite/Postgres feature drift.
 
-### Rule Quality Scoring (deterministic)
-
-Schema already exists (`quality_score`, `quality_details` on `Detection`).
-Five dimensions: metadata completeness, detection specificity, MITRE
-mapping quality, documentation quality, query complexity. **No LLM** — keep
-it explainable and re-runnable. New file:
-`backend/app/services/quality_scorer.py`.
-
 ### Observable-level rule comparison
 
 Foundation already shipped (12 columns of extracted observables per rule).
@@ -339,11 +346,12 @@ tables. Schema is there; just the route + UI work. ~1 hour each.
 
 ### New rule sources
 
-- **Google SecOps (chronicle/detection-rules)** — YARA-L parser, ~1–2 days
-- **Panther (panther-analysis)** — Python + YAML, ~1–2 days
+Google SecOps and Okta customer-detections shipped in this cycle.
+Remaining candidates:
 
-CrowdStrike CQL Hub deferred — HTML scraper, no public git, ethics review
-needed.
+- **Panther (panther-analysis)** — Python + YAML, ~1–2 days
+- **CrowdStrike CQL Hub** deferred — HTML scraper, no public git,
+  ethics review needed.
 
 ### Sentinel threat-tag extraction
 
