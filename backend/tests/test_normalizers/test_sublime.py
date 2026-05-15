@@ -65,12 +65,14 @@ def test_normalize_platform_defaults_to_email(normalizer):
     """Sublime is always email-context — platform is `email` if the
     taxonomy resolver doesn't override."""
     n = normalizer.normalize(_parsed())
-    assert n.platform == "email"
+    assert "email" in n.platforms
 
 
 def test_normalize_event_category_defaults_to_email(normalizer):
+    """Sublime rules are email-security -- canonical event type
+    is `email_message`."""
     n = normalizer.normalize(_parsed())
-    assert n.event_category == "email"
+    assert "email_message" in n.event_types
 
 
 def test_normalize_passes_mitre_through(normalizer):
@@ -90,7 +92,7 @@ def test_normalize_canonical_taxonomy_resolves_to_email(normalizer):
     legacy `platform` column is forced to `email`. Asserts that
     behavior so future taxonomy changes don't accidentally drop it."""
     n = normalizer.normalize(_parsed())
-    assert n.platform == "email"
+    assert "email" in n.platforms
 
 
 def test_normalize_dates_are_none_without_git_fallback(normalizer):

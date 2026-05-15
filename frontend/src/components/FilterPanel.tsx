@@ -79,7 +79,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.languages?.length || 0) > 0 ||
     (filters.mitre_tactics?.length || 0) > 0 ||
     (filters.mitre_techniques?.length || 0) > 0 ||
-    (filters.log_sources?.length || 0) > 0 ||
     (filters.platforms?.length || 0) > 0 ||
     (filters.event_categories?.length || 0) > 0 ||
     (filters.event_ids?.length || 0) > 0 ||
@@ -368,24 +367,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 data_sources: filterOptions?.data_sources || [],
                 event_types: filterOptions?.event_types || [],
               }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Log Sources filter */}
-      <div className="mb-3">
-        <SectionHeader title="Log Sources" section="logsources" count={filters.log_sources?.length} />
-        {expandedSections.has('logsources') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.log_sources || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, log_sources: values, offset: 0 })
-              }
-              placeholder="e.g., windows"
-              normalize={(raw) => raw.trim().toLowerCase()}
-              accent="orange"
             />
           </div>
         )}

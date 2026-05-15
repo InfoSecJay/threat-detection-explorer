@@ -33,10 +33,10 @@ class SearchFilters:
     # Tag filter
     tags: list[str] = field(default_factory=list)
 
-    # Log source filter
-    log_sources: list[str] = field(default_factory=list)
-
-    # Standardized taxonomy filters
+    # Canonical taxonomy filters (Phase 3 final names).
+    # `event_categories` / `data_sources_normalized` keys retained
+    # for URL backwards-compat with the FilterPanel UI; they match
+    # the renamed `event_types` / `data_sources` columns.
     platforms: list[str] = field(default_factory=list)
     event_categories: list[str] = field(default_factory=list)
     data_sources_normalized: list[str] = field(default_factory=list)
@@ -217,7 +217,11 @@ class SearchService:
         Returns:
             Dict mapping source name to list of detections
         """
-        query = select(Detection).where(Detection.platform == platform.lower())
+        # Match the canonical platforms JSON-list column with the
+        # quoted-substring trick (portable across SQLite + Postgres).
+        query = select(Detection).where(
+            cast(Detection.platforms, String).ilike(f'%"{platform.lower()}"%')
+        )
 
         if sources:
             query = query.where(Detection.source.in_(sources))
@@ -308,8 +312,8 @@ class SearchService:
         """Return a faceted count for one canonical-taxonomy JSON column.
 
         Args:
-            column_name: `taxonomy_platforms`, `taxonomy_data_sources`,
-                         or `taxonomy_event_types`.
+            column_name: `platforms`, `data_sources`, or `event_types`
+                         (final post-Phase-3 names).
 
         Returns:
             List of `{"value": str, "count": int}` sorted by descending
@@ -323,7 +327,7 @@ class SearchService:
         grows past ~100k, swap to native JSON unnesting (Postgres
         `jsonb_array_elements_text`, SQLite `json_each`).
         """
-        allowed = {"taxonomy_platforms", "taxonomy_data_sources", "taxonomy_event_types"}
+        allowed = {"platforms", "data_sources", "event_types"}
         if column_name not in allowed:
             raise ValueError(f"Not a taxonomy column: {column_name!r}")
         column = getattr(Detection, column_name)
@@ -407,42 +411,34 @@ class SearchService:
             if tag_conditions:
                 conditions.append(or_(*tag_conditions))
 
-        # Log sources filter
-        if filters.log_sources:
-            log_source_conditions = []
-            for log_source in filters.log_sources:
-                log_source_conditions.append(
-                    cast(Detection.log_sources, String).ilike(f'%{log_source}%')
-                )
-            if log_source_conditions:
-                conditions.append(or_(*log_source_conditions))
-
         # Canonical-taxonomy filters — match against the JSON array
-        # columns (`taxonomy_platforms`, `taxonomy_data_sources`,
-        # `taxonomy_event_types`). Any-match within a dimension, AND
-        # across dimensions. The text-based `ilike` trick is portable
-        # across SQLite (local dev) and Postgres (prod); the quoted
-        # match prevents substring false positives because canonical
-        # values are stored as JSON strings ("windows", not windows).
+        # columns (`platforms`, `data_sources`, `event_types`).
+        # Any-match within a dimension, AND across dimensions. The
+        # text-based `ilike` trick is portable across SQLite (local
+        # dev) and Postgres (prod); the quoted match prevents
+        # substring false positives because canonical values are
+        # stored as JSON strings ("windows", not windows).
         if filters.platforms:
             plat_conds = [
-                cast(Detection.taxonomy_platforms, String).ilike(f'%"{v}"%')
+                cast(Detection.platforms, String).ilike(f'%"{v}"%')
                 for v in filters.platforms
             ]
             conditions.append(or_(*plat_conds))
 
         if filters.event_categories:
-            # `event_categories` filter key is retained for URL
-            # backwards-compat but now matches `taxonomy_event_types`.
+            # Filter key retained for URL backwards-compat; matches
+            # the renamed `event_types` column.
             et_conds = [
-                cast(Detection.taxonomy_event_types, String).ilike(f'%"{v}"%')
+                cast(Detection.event_types, String).ilike(f'%"{v}"%')
                 for v in filters.event_categories
             ]
             conditions.append(or_(*et_conds))
 
         if filters.data_sources_normalized:
+            # Filter key retained for URL backwards-compat; matches
+            # the renamed `data_sources` column.
             ds_conds = [
-                cast(Detection.taxonomy_data_sources, String).ilike(f'%"{v}"%')
+                cast(Detection.data_sources, String).ilike(f'%"{v}"%')
                 for v in filters.data_sources_normalized
             ]
             conditions.append(or_(*ds_conds))

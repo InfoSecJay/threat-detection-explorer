@@ -24,7 +24,6 @@ export function DetectionList() {
     mitre_tactics: searchParams.get('mitre_tactics')?.split(',').filter(Boolean) || [],
     mitre_techniques: searchParams.get('mitre_techniques')?.split(',').filter(Boolean) || [],
     tags: searchParams.get('tags')?.split(',').filter(Boolean) || [],
-    log_sources: searchParams.get('log_sources')?.split(',').filter(Boolean) || [],
     languages: searchParams.get('languages')?.split(',').filter(Boolean) || [],
     // Standardized taxonomy filters
     platforms: searchParams.get('platforms')?.split(',').filter(Boolean) || [],
@@ -48,7 +47,6 @@ export function DetectionList() {
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
-    if (filters.log_sources?.length) params.set('log_sources', filters.log_sources.join(','));
     if (filters.languages?.length) params.set('languages', filters.languages.join(','));
     // Standardized taxonomy filters
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));

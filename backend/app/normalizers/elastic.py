@@ -30,16 +30,6 @@ class ElasticNormalizer(BaseNormalizer):
             "rules_building_block" in parsed.file_path
         )
 
-        # Get log sources and index patterns for taxonomy
-        log_sources_list = self._normalize_log_sources(parsed.log_source)
-        index_patterns = extra.get("index", [])
-
-        # Apply taxonomy standardization
-        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
-            log_sources=log_sources_list,
-            index_patterns=index_patterns
-        )
-
         # Extract observable fields from detection query
         query_str = self._format_detection_logic(parsed.detection_logic_raw)
         lang = self._determine_language(parsed.detection_logic_raw, extra)
@@ -52,14 +42,8 @@ class ElasticNormalizer(BaseNormalizer):
             embedded_modified=self.parse_date(extra.get("updated_date")),
         )
 
-        # Canonical taxonomy (Issue 2)
-        (
-            tax_platforms,
-            tax_data_sources,
-            tax_event_types,
-            tax_matched,
-            tax_fingerprint,
-        ) = self._resolve_taxonomy(parsed)
+        # Canonical taxonomy
+        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -73,11 +57,6 @@ class ElasticNormalizer(BaseNormalizer):
             author=author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=log_sources_list,
-            data_sources=self._extract_data_sources(parsed),
-            platform=platform,
-            event_category=event_category,
-            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=query_str,
@@ -99,11 +78,11 @@ class ElasticNormalizer(BaseNormalizer):
             extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            taxonomy_platforms=tax_platforms,
-            taxonomy_data_sources=tax_data_sources,
-            taxonomy_event_types=tax_event_types,
-            taxonomy_matched=tax_matched,
-            taxonomy_fingerprint=tax_fingerprint,
+            platforms=platforms,
+            data_sources=data_sources,
+            event_types=event_types,
+            taxonomy_matched=matched,
+            taxonomy_fingerprint=fingerprint,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:

@@ -161,10 +161,10 @@ function RulePanel({ detection }: RulePanelProps) {
         </Link>
 
         {/* Platform Badge */}
-        {detection.platform && (
+        {detection.platforms && detection.platforms.length > 0 && (
           <div className="mt-3 flex items-center gap-2">
             <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">PLATFORM</span>
-            <span className="text-xs font-mono text-gray-400">{detection.platform}</span>
+            <span className="text-xs font-mono text-gray-400">{detection.platforms.filter(p => p !== 'unknown').join(', ') || detection.platforms[0]}</span>
           </div>
         )}
       </div>

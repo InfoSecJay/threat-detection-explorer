@@ -324,8 +324,8 @@ async def test_e2e_sigma(db_session):
     assert d.language == "sigma"
     assert d.severity == "high"
     # Canonical taxonomy resolved from logsource: windows/process_creation
-    assert "windows" in d.taxonomy_platforms
-    assert "process_creation" in d.taxonomy_event_types
+    assert "windows" in d.platforms
+    assert "process_creation" in d.event_types
     # MITRE techniques routed from `attack.t...` tags
     assert "T1059.001" in d.mitre_techniques
     # Embedded date pulled from Sigma `date:` field
@@ -352,7 +352,7 @@ async def test_e2e_elastic(db_session):
     # The list-author from TOML gets joined to a string
     assert d.author == "Test Author"
     # Index pattern resolves to a canonical Windows endpoint platform
-    assert "windows" in d.taxonomy_platforms
+    assert "windows" in d.platforms
     # MITRE technique pulled from rule.threat[].technique[]
     assert "T1059" in d.mitre_techniques
 
@@ -480,8 +480,8 @@ async def test_e2e_sentinel(db_session):
     # Note: taxonomy_matched and taxonomy_fingerprint live only on the
     # in-memory NormalizedDetection — they're not persisted to the
     # Detection row so we can't read them back from the DB here.
-    assert "microsoft_365" in d.taxonomy_platforms
-    assert "audit_event" in d.taxonomy_event_types
+    assert "microsoft_365" in d.platforms
+    assert "audit_event" in d.event_types
     # MITRE technique pulled from relevantTechniques
     assert "T1114.003" in d.mitre_techniques
     # Bare threat-actor tag passes through verbatim
@@ -501,7 +501,7 @@ async def test_e2e_sublime(db_session):
     assert d.title == "Phishing attachment from QakBot delivery campaign"
     assert d.language == "mql"
     # Sublime is always email-context — legacy column forced to email
-    assert d.platform == "email"
+    assert "email" in d.platforms
     # `Malfam: QakBot` tag preserved verbatim (Threat Pulse extracts it)
     assert "Malfam: QakBot" in d.tags
 
@@ -522,11 +522,11 @@ async def test_e2e_elastic_protections(db_session):
     assert d.language == "eql"
     assert d.author == "Elastic"
     # Behavior rules on a recognised OS get a process event_category
-    assert d.event_category == "process"
+    assert "process_creation" in d.event_types
     # MITRE sub-technique pulled from nested rule.threat structure
     assert "T1003.001" in d.mitre_techniques
-    # Endpoint-class data source attached
-    assert any("endpoint" in ds.lower() for ds in d.data_sources)
+    # Endpoint-class data source attached -- canonical token
+    assert "elastic_defend" in d.data_sources
 
 
 @pytest.mark.asyncio
@@ -543,10 +543,10 @@ async def test_e2e_elastic_hunting(db_session):
     # ES|QL vendor symbol normalized to esql canonical token
     assert d.language == "esql"
     # Product → platform mapping
-    assert d.platform == "aws"
+    assert "aws" in d.platforms
     assert "T1136.003" in d.mitre_techniques
     # Hunting category default
-    assert d.event_category == "hunting"
+    assert "hunting_query" in d.event_types
 
 
 @pytest.mark.asyncio
@@ -564,8 +564,8 @@ async def test_e2e_lolrmm(db_session):
     assert d.source == "lolrmm"
     assert d.title == "AnyDesk Remote Access Tool Execution"
     assert d.language == "sigma"  # LOLRMM uses Sigma format
-    assert d.platform == "windows"  # forced default for RMM rules
-    assert d.event_category == "process"
+    assert "windows" in d.platforms  # forced default for RMM rules
+    assert "process_creation" in d.event_types
     # MITRE technique routed from attack.t1219 tag
     assert "T1219" in d.mitre_techniques
     # Bare lolrmm tag preserved
@@ -589,13 +589,13 @@ async def test_e2e_google_secops(db_session):
     # Chronicle rules are YARA-L 2.0 -- canonical language token.
     assert d.language == "yaral"
     # Explicit `platform = "AWS"` meta -> canonical `aws`.
-    assert d.platform == "aws"
-    assert "aws" in d.taxonomy_platforms
+    assert "aws" in d.platforms
+    assert "aws" in d.platforms
     # Explicit `data_source = "AWS CloudTrail"` meta resolves the
     # canonical data_source AND the implied api_call event_type.
-    assert d.data_source_normalized == "aws_cloudtrail"
-    assert "aws_cloudtrail" in d.taxonomy_data_sources
-    assert "api_call" in d.taxonomy_event_types
+    assert "aws_cloudtrail" in d.data_sources
+    assert "aws_cloudtrail" in d.data_sources
+    assert "api_call" in d.event_types
     # MITRE technique extracted from the mitre_attack_url URL form.
     assert "T1078.004" in d.mitre_techniques
     # Tactic name in meta block -> canonical TA ID.
@@ -627,10 +627,10 @@ async def test_e2e_okta(db_session):
     assert "Okta" in d.author
     # Always-includes contract: platform=okta, data_source=okta_system_log,
     # event_type=authentication.
-    assert d.platform == "okta"
-    assert "okta" in d.taxonomy_platforms
-    assert "okta_system_log" in d.taxonomy_data_sources
-    assert "authentication" in d.taxonomy_event_types
+    assert "okta" in d.platforms
+    assert "okta" in d.platforms
+    assert "okta_system_log" in d.data_sources
+    assert "authentication" in d.event_types
     # MITRE extracted from threat.Tactic (display names) + threat.Technique
     # (Tnnnn: name dict keys).
     assert "T1078" in d.mitre_techniques

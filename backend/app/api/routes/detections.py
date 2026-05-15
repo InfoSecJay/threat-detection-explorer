@@ -31,7 +31,6 @@ async def list_detections(
     mitre_tactics: Optional[str] = Query(None, description="Comma-separated list of MITRE tactics"),
     mitre_techniques: Optional[str] = Query(None, description="Comma-separated list of MITRE techniques"),
     tags: Optional[str] = Query(None, description="Comma-separated list of tags"),
-    log_sources: Optional[str] = Query(None, description="Comma-separated list of log sources"),
     platforms: Optional[str] = Query(None, description="Comma-separated list of platforms (windows, linux, cloud, etc.)"),
     event_categories: Optional[str] = Query(None, description="Comma-separated list of event categories (process, file, network, etc.)"),
     data_sources_normalized: Optional[str] = Query(None, description="Comma-separated list of normalized data sources (sysmon, auditd, etc.)"),
@@ -56,7 +55,6 @@ async def list_detections(
         mitre_tactics=_parse_csv(mitre_tactics),
         mitre_techniques=_parse_csv(mitre_techniques),
         tags=_parse_csv(tags),
-        log_sources=_parse_csv(log_sources),
         platforms=_parse_csv(platforms),
         event_categories=_parse_csv(event_categories),
         data_sources_normalized=_parse_csv(data_sources_normalized),
@@ -109,7 +107,6 @@ async def search_detections(
         mitre_tactics=params.mitre_tactics,
         mitre_techniques=params.mitre_techniques,
         tags=params.tags,
-        log_sources=params.log_sources,
         platforms=params.platforms,
         event_categories=params.event_categories,
         data_sources_normalized=params.data_sources_normalized,
@@ -146,25 +143,24 @@ async def get_statistics(db: AsyncSession = Depends(get_db)):
 async def get_filter_options(db: AsyncSession = Depends(get_db)):
     """Get available filter options for dropdowns.
 
-    Returns both the legacy single-value facets (sources, statuses,
-    severities, languages) AND the new canonical taxonomy facets —
-    platforms, data_sources, event_types — each as [{value, count}]
-    sorted by descending count. Counts come directly from the corpus
-    so the UI always reflects what's actually stored.
+    Returns single-value facets (sources, statuses, severities,
+    languages) plus the canonical taxonomy facets — platforms,
+    data_sources, event_types — each as [{value, count}] sorted by
+    descending count. Counts come directly from the corpus so the UI
+    always reflects what's actually stored.
     """
     search_service = SearchService(db)
 
     return {
-        # Legacy single-value facets (kept for backwards-compat)
         "sources": await search_service.get_unique_values("source"),
         "statuses": await search_service.get_unique_values("status"),
         "severities": await search_service.get_unique_values("severity"),
         "languages": await search_service.get_unique_values("language"),
         # Canonical array facets powered by corpus counts. These are
         # what the FilterSidebar UI consumes.
-        "platforms": await search_service.get_taxonomy_facet("taxonomy_platforms"),
-        "data_sources": await search_service.get_taxonomy_facet("taxonomy_data_sources"),
-        "event_types": await search_service.get_taxonomy_facet("taxonomy_event_types"),
+        "platforms": await search_service.get_taxonomy_facet("platforms"),
+        "data_sources": await search_service.get_taxonomy_facet("data_sources"),
+        "event_types": await search_service.get_taxonomy_facet("event_types"),
     }
 
 

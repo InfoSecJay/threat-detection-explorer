@@ -80,7 +80,7 @@ def test_normalize_lowercases_other_languages(normalizer):
 def test_normalize_product_to_platform_mapping(normalizer):
     """`aws` product → `aws` platform on the legacy column."""
     n = normalizer.normalize(_parsed())
-    assert n.platform == "aws"
+    assert "aws" in n.platforms
 
 
 def test_normalize_passes_techniques_through(normalizer):
@@ -102,10 +102,10 @@ def test_normalize_derives_tactics_from_techniques(normalizer):
 
 
 def test_normalize_event_category_defaults_to_hunting(normalizer):
-    """Hunting queries get `hunting` event_category when nothing
-    more specific is detected."""
+    """Hunting queries get the canonical `hunting_query` event type
+    via the elastic_hunting mapping's always_includes."""
     n = normalizer.normalize(_parsed())
-    assert n.event_category == "hunting"
+    assert "hunting_query" in n.event_types
 
 
 def test_normalize_dates_are_none_without_git_fallback(normalizer):
@@ -158,8 +158,8 @@ def test_normalize_osquery_data_source_overrides_auditd(normalizer):
             "references": [],
         },
     ))
-    assert n.taxonomy_data_sources == ["osquery"]
+    assert n.data_sources == ["osquery"]
     # Platforms still resolve from by_product (linux is correct).
-    assert "linux" in n.taxonomy_platforms
+    assert "linux" in n.platforms
     # Event type still `hunting_query` from always_includes.
-    assert "hunting_query" in n.taxonomy_event_types
+    assert "hunting_query" in n.event_types

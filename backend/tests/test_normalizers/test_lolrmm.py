@@ -78,12 +78,14 @@ def test_normalize_platform_defaults_to_windows(normalizer):
     """Almost every RMM rule is Windows-context; the legacy `platform`
     column is forced to `windows` if the resolver doesn't pick anything."""
     n = normalizer.normalize(_parsed())
-    assert n.platform == "windows"
+    assert "windows" in n.platforms
 
 
 def test_normalize_event_category_defaults_to_process(normalizer):
+    """LOLRMM rules are RMM tool detection -- canonical event type
+    is `process_creation`."""
     n = normalizer.normalize(_parsed())
-    assert n.event_category == "process"
+    assert "process_creation" in n.event_types
 
 
 def test_normalize_lolrmm_tag_preserved(normalizer):

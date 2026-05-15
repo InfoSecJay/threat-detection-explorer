@@ -42,15 +42,6 @@ class NormalizedDetection:
     source_rule_url: Optional[str] = None  # Direct link to rule in source repo
     rule_id: Optional[str] = None  # Original rule ID from source
 
-    # Classification
-    log_sources: list[str] = field(default_factory=list)
-    data_sources: list[str] = field(default_factory=list)
-
-    # Standardized log source taxonomy
-    platform: str = ""  # windows, linux, macos, cloud, network, email
-    event_category: str = ""  # process, file, network, registry, authentication, etc.
-    data_source_normalized: str = ""  # sysmon, auditd, cloudtrail, etc.
-
     # MITRE ATT&CK
     mitre_tactics: list[str] = field(default_factory=list)
     mitre_techniques: list[str] = field(default_factory=list)
@@ -90,12 +81,16 @@ class NormalizedDetection:
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
 
-    # ── New canonical taxonomy fields (Issue 2) ──────────────────────────
+    # ── Canonical taxonomy fields ────────────────────────────────────────
     # Populated by `BaseNormalizer._resolve_taxonomy()`. See
     # `app/services/taxonomy/` for the resolver and mapping files.
-    taxonomy_platforms: list[str] = field(default_factory=list)
-    taxonomy_data_sources: list[str] = field(default_factory=list)
-    taxonomy_event_types: list[str] = field(default_factory=list)
+    # Phase 3 dropped the legacy single-value siblings (platform,
+    # event_category, data_source_normalized) and the raw vendor
+    # lists (log_sources, raw data_sources) -- these three lists are
+    # now the only taxonomy on the model.
+    platforms: list[str] = field(default_factory=list)
+    data_sources: list[str] = field(default_factory=list)
+    event_types: list[str] = field(default_factory=list)
 
     # Coverage signal — True if the resolver found a mapping, False if
     # we fell through to [UNKNOWN] for every dimension. Feeds per-sync

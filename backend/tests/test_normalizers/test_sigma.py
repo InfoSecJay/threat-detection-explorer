@@ -143,8 +143,8 @@ def test_normalize_resolves_canonical_taxonomy_for_windows_process(normalizer):
     is the single most important per-vendor behavior — this test pins
     it."""
     n = normalizer.normalize(_parsed())
-    assert "windows" in n.taxonomy_platforms
-    assert "process_creation" in n.taxonomy_event_types
+    assert "windows" in n.platforms
+    assert "process_creation" in n.event_types
     assert n.taxonomy_matched is True
     assert n.taxonomy_fingerprint, "fingerprint should be populated"
 
@@ -156,9 +156,9 @@ def test_normalize_unmapped_logsource_falls_through_to_unknown(normalizer):
     n = normalizer.normalize(
         _parsed(log_source={"product": "totally_made_up_product"})
     )
-    assert n.taxonomy_platforms == ["unknown"]
-    assert n.taxonomy_data_sources == ["unknown"]
-    assert n.taxonomy_event_types == ["unknown"]
+    assert n.platforms == ["unknown"]
+    assert n.data_sources == ["unknown"]
+    assert n.event_types == ["unknown"]
     assert n.taxonomy_matched is False
 
 

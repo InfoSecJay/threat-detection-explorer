@@ -77,17 +77,10 @@ class DetectionBase(BaseModel):
     author: Optional[str] = None
     status: str
     severity: str
-    log_sources: list[str] = []
+    # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
+    platforms: list[str] = []
     data_sources: list[str] = []
-    # Standardized log source taxonomy (legacy — to be removed in Phase 3)
-    platform: str = ""  # windows, linux, macos, cloud, network, email
-    event_category: str = ""  # process, file, network, registry, authentication, etc.
-    data_source_normalized: str = ""  # sysmon, auditd, cloudtrail, etc.
-    # New canonical taxonomy (Issue 2). See docs/taxonomy.md.
-    # During Phase 1+2 these coexist with the legacy fields above.
-    taxonomy_platforms: list[str] = []
-    taxonomy_data_sources: list[str] = []
-    taxonomy_event_types: list[str] = []
+    event_types: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str
@@ -136,15 +129,10 @@ class DetectionResponse(DetectionBase):
             "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
-            "log_sources": normalize_string_list(detection.log_sources),
-            "data_sources": normalize_string_list(detection.data_sources),
-            "platform": sanitize_string(detection.platform) or "",
-            "event_category": sanitize_string(detection.event_category) or "",
-            "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
-            # Canonical taxonomy (Issue 2)
-            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
-            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
-            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
+            # Canonical taxonomy (Phase 3 final names)
+            "platforms": getattr(detection, 'platforms', None) or [],
+            "data_sources": getattr(detection, 'data_sources', None) or [],
+            "event_types": getattr(detection, 'event_types', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
@@ -186,16 +174,10 @@ class DetectionListItem(BaseModel):
     author: Optional[str] = None
     status: str
     severity: str
-    log_sources: list[str] = []
+    # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
+    platforms: list[str] = []
     data_sources: list[str] = []
-    # Standardized log source taxonomy (legacy)
-    platform: str = ""
-    event_category: str = ""
-    data_source_normalized: str = ""
-    # New canonical taxonomy (Issue 2). See docs/taxonomy.md.
-    taxonomy_platforms: list[str] = []
-    taxonomy_data_sources: list[str] = []
-    taxonomy_event_types: list[str] = []
+    event_types: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str = ""
@@ -242,15 +224,10 @@ class DetectionListItem(BaseModel):
             "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
-            "log_sources": normalize_string_list(detection.log_sources),
-            "data_sources": normalize_string_list(detection.data_sources),
-            "platform": sanitize_string(detection.platform) or "",
-            "event_category": sanitize_string(detection.event_category) or "",
-            "data_source_normalized": sanitize_string(detection.data_source_normalized) or "",
-            # Canonical taxonomy (Issue 2)
-            "taxonomy_platforms": getattr(detection, 'taxonomy_platforms', None) or [],
-            "taxonomy_data_sources": getattr(detection, 'taxonomy_data_sources', None) or [],
-            "taxonomy_event_types": getattr(detection, 'taxonomy_event_types', None) or [],
+            # Canonical taxonomy (Phase 3 final names)
+            "platforms": getattr(detection, 'platforms', None) or [],
+            "data_sources": getattr(detection, 'data_sources', None) or [],
+            "event_types": getattr(detection, 'event_types', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
@@ -373,8 +350,10 @@ class SearchParams(BaseModel):
     mitre_tactics: list[str] = Field(default_factory=list)
     mitre_techniques: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    log_sources: list[str] = Field(default_factory=list)
-    # Standardized taxonomy filters
+    # Canonical taxonomy filters (Phase 3 final names; the
+    # `event_categories` / `data_sources_normalized` keys are kept
+    # for URL backwards-compat with the FilterPanel UI but match
+    # the renamed `event_types` / `data_sources` columns).
     platforms: list[str] = Field(default_factory=list)
     event_categories: list[str] = Field(default_factory=list)
     data_sources_normalized: list[str] = Field(default_factory=list)

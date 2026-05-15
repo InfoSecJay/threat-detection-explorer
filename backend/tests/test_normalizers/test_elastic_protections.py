@@ -79,16 +79,18 @@ def test_normalize_passes_mitre_through(normalizer):
 
 
 def test_normalize_event_category_defaults_to_process_for_os_rules(normalizer):
-    """Behavior rules on a recognised OS get a `process` event_category
-    even if the resolver doesn't pick one."""
+    """Behavior rules on a recognised OS resolve to canonical
+    `process_creation` event_type via the elastic_protections
+    mapping."""
     n = normalizer.normalize(_parsed())
-    assert n.event_category == "process"
+    assert "process_creation" in n.event_types
 
 
 def test_normalize_data_sources_always_include_endpoint(normalizer):
-    """Every Elastic Protections rule is endpoint-class."""
+    """Every Elastic Protections rule is endpoint-class --
+    canonical data source is `elastic_defend`."""
     n = normalizer.normalize(_parsed())
-    assert any("endpoint" in ds.lower() for ds in n.data_sources)
+    assert "elastic_defend" in n.data_sources
 
 
 def test_normalize_dates_are_none_without_git_fallback(normalizer):

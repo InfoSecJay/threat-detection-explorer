@@ -259,20 +259,18 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             </div>
           </div>
 
-          {/* Canonical taxonomy — the official platform / data source /
-              event type fields. Multi-value because a single rule can
-              legitimately span multiple OSes, data feeds, or event
-              categories. The legacy single-value fields (platform,
-              event_category, data_source_normalized) are no longer
-              displayed; they remain in the API for backwards-compat. */}
+          {/* Canonical taxonomy -- the official platforms /
+              data_sources / event_types fields. Multi-value because a
+              single rule can legitimately span multiple OSes, data
+              feeds, or event categories. */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Platforms
                 </label>
-                {detection.taxonomy_platforms && detection.taxonomy_platforms.length > 0 ? (
+                {detection.platforms && detection.platforms.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {detection.taxonomy_platforms.map((p) => (
+                    {detection.platforms.map((p) => (
                       <span
                         key={p}
                         className={`inline-flex px-2.5 py-1 rounded text-xs font-medium border ${
@@ -294,9 +292,9 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Data Sources
                 </label>
-                {detection.taxonomy_data_sources && detection.taxonomy_data_sources.length > 0 ? (
+                {detection.data_sources && detection.data_sources.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {detection.taxonomy_data_sources.map((d) => (
+                    {detection.data_sources.map((d) => (
                       <span
                         key={d}
                         className={`inline-flex px-2.5 py-1 rounded text-xs font-medium border ${
@@ -318,9 +316,9 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Event Types
                 </label>
-                {detection.taxonomy_event_types && detection.taxonomy_event_types.length > 0 ? (
+                {detection.event_types && detection.event_types.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {detection.taxonomy_event_types.map((e) => (
+                    {detection.event_types.map((e) => (
                       <span
                         key={e}
                         className={`inline-flex px-2.5 py-1 rounded text-xs font-medium border ${
@@ -482,22 +480,8 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             </div>
           )}
 
-          {/* Log Sources & Tags */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Log Sources</label>
-              <div className="flex flex-wrap gap-1.5">
-                {detection.log_sources.length > 0 ? (
-                  detection.log_sources.map((source) => (
-                    <span key={source} className="px-2 py-0.5 bg-cyber-700 text-gray-300 rounded text-sm">
-                      {source}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-500 text-sm italic">None specified</span>
-                )}
-              </div>
-            </div>
+          {/* Tags */}
+          <div className="grid grid-cols-1 gap-6">
             <div>
               <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Tags</label>
               <div className="flex flex-wrap gap-1.5">

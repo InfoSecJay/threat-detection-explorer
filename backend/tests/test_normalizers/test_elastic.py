@@ -196,16 +196,16 @@ def test_normalize_resolves_canonical_taxonomy_for_endpoint_integration(normaliz
     """An endpoint-integration rule with windows index pattern should
     resolve to canonical windows platform + a non-unknown event type."""
     n = normalizer.normalize(_parsed())
-    assert "windows" in n.taxonomy_platforms
-    assert n.taxonomy_event_types != ["unknown"]
+    assert "windows" in n.platforms
+    assert n.event_types != ["unknown"]
     assert n.taxonomy_matched is True
 
 
 def test_normalize_data_sources_picked_from_index_pattern(normalizer):
-    """Elastic Defend index → endpoint data source hint. The
-    canonical mapping returns display-cased values."""
+    """Elastic Defend index pattern resolves to canonical
+    `elastic_defend` data source via the index_patterns mapping."""
     n = normalizer.normalize(_parsed())
-    assert "Endpoint" in n.data_sources or "endpoint" in n.data_sources
+    assert "elastic_defend" in n.data_sources
 
 
 # ── Dates ────────────────────────────────────────────────────────────

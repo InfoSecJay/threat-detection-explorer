@@ -345,12 +345,6 @@ class IngestionService:
             author=normalized.author,
             status=normalized.status,
             severity=normalized.severity,
-            log_sources=normalized.log_sources,
-            data_sources=normalized.data_sources,
-            # Standardized taxonomy fields
-            platform=normalized.platform,
-            event_category=normalized.event_category,
-            data_source_normalized=normalized.data_source_normalized,
             mitre_tactics=normalized.mitre_tactics,
             mitre_techniques=normalized.mitre_techniques,
             detection_logic=normalized.detection_logic,
@@ -373,10 +367,13 @@ class IngestionService:
             extracted_target_resources=normalized.extracted_target_resources,
             rule_created_date=self._validate_date(normalized.rule_created_date),
             rule_modified_date=self._validate_date(normalized.rule_modified_date),
-            # Canonical taxonomy (Issue 2) — coexists with legacy fields above
-            taxonomy_platforms=normalized.taxonomy_platforms,
-            taxonomy_data_sources=normalized.taxonomy_data_sources,
-            taxonomy_event_types=normalized.taxonomy_event_types,
+            # Canonical taxonomy (final names after Phase 3 -- the
+            # legacy single-value `platform` / `event_category` /
+            # `data_source_normalized` and the raw `log_sources` /
+            # `data_sources` are dropped).
+            platforms=normalized.platforms,
+            data_sources=normalized.data_sources,
+            event_types=normalized.event_types,
             created_at=utcnow(),
             updated_at=utcnow(),
         )

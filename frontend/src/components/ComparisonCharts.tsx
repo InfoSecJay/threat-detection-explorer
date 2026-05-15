@@ -93,8 +93,14 @@ export function ComparisonCharts({ data }: ComparisonChartsProps) {
   Object.values(data.results)
     .flat()
     .forEach((detection) => {
-      const platform = detection.platform || 'unknown';
-      platformCounts[platform] = (platformCounts[platform] || 0) + 1;
+      // Count every canonical platform on each rule (a multi-OS rule
+      // counts towards each platform it covers).
+      const platforms = detection.platforms?.length
+        ? detection.platforms
+        : ['unknown'];
+      platforms.forEach((platform) => {
+        platformCounts[platform] = (platformCounts[platform] || 0) + 1;
+      });
     });
 
   const platformData = Object.entries(platformCounts)

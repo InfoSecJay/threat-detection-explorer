@@ -13,25 +13,6 @@ class SentinelNormalizer(BaseNormalizer):
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:
         """Convert parsed Sentinel rule to normalized format."""
         extra = parsed.extra or {}
-        log_source = parsed.log_source or {}
-
-        # Extract log source fields
-        product = log_source.get("product", "azure")
-        category = log_source.get("category", "sentinel")
-
-        # Get log sources list
-        log_sources_list = self.normalize_log_sources(log_source)
-
-        # Apply taxonomy standardization
-        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
-            log_sources=log_sources_list,
-            product=product,
-            category=category
-        )
-
-        # Override platform based on connectors
-        if not platform:
-            platform = self._determine_platform(extra)
 
         # Extract observable fields from KQL query
         query_str = parsed.detection_logic_raw if isinstance(parsed.detection_logic_raw, str) else str(parsed.detection_logic_raw)
@@ -40,14 +21,8 @@ class SentinelNormalizer(BaseNormalizer):
         # Sentinel analytic rules don't embed date fields — fall back to git log
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
 
-        # Canonical taxonomy (Issue 2)
-        (
-            tax_platforms,
-            tax_data_sources,
-            tax_event_types,
-            tax_matched,
-            tax_fingerprint,
-        ) = self._resolve_taxonomy(parsed)
+        # Canonical taxonomy
+        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -61,11 +36,6 @@ class SentinelNormalizer(BaseNormalizer):
             author=parsed.author or "Microsoft",
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=log_sources_list,
-            data_sources=self._extract_data_sources(parsed),
-            platform=platform or "azure",
-            event_category=event_category or "siem",
-            data_source_normalized=data_source_normalized or self._get_data_source_from_connectors(extra),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=query_str,
@@ -87,11 +57,11 @@ class SentinelNormalizer(BaseNormalizer):
             extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            taxonomy_platforms=tax_platforms,
-            taxonomy_data_sources=tax_data_sources,
-            taxonomy_event_types=tax_event_types,
-            taxonomy_matched=tax_matched,
-            taxonomy_fingerprint=tax_fingerprint,
+            platforms=platforms,
+            data_sources=data_sources,
+            event_types=event_types,
+            taxonomy_matched=matched,
+            taxonomy_fingerprint=fingerprint,
         )
 
     def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:

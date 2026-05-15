@@ -84,22 +84,22 @@ def test_normalize_language_can_be_spl_for_splunk_rules(normalizer):
 
 def test_normalize_platform_is_always_okta(normalizer):
     n = normalizer.normalize(_parsed())
-    assert n.platform == "okta"
-    assert "okta" in n.taxonomy_platforms
+    assert "okta" in n.platforms
+    assert "okta" in n.platforms
 
 
 def test_normalize_data_source_is_always_okta_system_log(normalizer):
     n = normalizer.normalize(_parsed())
-    assert n.data_source_normalized == "okta_system_log"
-    assert "okta_system_log" in n.taxonomy_data_sources
+    assert "okta_system_log" in n.data_sources
+    assert "okta_system_log" in n.data_sources
 
 
 def test_normalize_event_type_is_authentication(normalizer):
     """Okta detections cluster heavily on authentication events;
     canonical event_type defaults to `authentication` for all rules."""
     n = normalizer.normalize(_parsed())
-    assert "authentication" in n.taxonomy_event_types
-    assert n.event_category == "authentication"
+    assert "authentication" in n.event_types
+    assert "authentication" in n.event_types
 
 
 def test_normalize_severity_default_medium(normalizer):

@@ -51,42 +51,20 @@ class Detection(Base):
         index=True,
     )
 
-    # Classification arrays (stored as JSON)
-    log_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-
-    # Standardized log source taxonomy
-    platform: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="",
-        index=True,
-    )
-    event_category: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="",
-        index=True,
-    )
-    data_source_normalized: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="",
-        index=True,
-    )
-
-    # ── New canonical taxonomy fields (Issue 2) ──────────────────────────
-    # These will replace the four legacy fields above (log_sources,
-    # platform, event_category, data_source_normalized) in Phase 3 of
-    # the migration. For now they coexist — both are populated by the
-    # normalizers, so consumers can switch over incrementally.
-    #
+    # ── Canonical taxonomy fields ────────────────────────────────────────
     # Values come from the canonical vocabulary defined in
     # `app/services/taxonomy/canonical.py`. Each list always contains at
     # least one value (`["unknown"]` if nothing could be resolved).
-    taxonomy_platforms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    taxonomy_data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    taxonomy_event_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    #
+    # Phase 3 (2026-05) dropped the legacy single-value siblings
+    # (`platform`, `event_category`, `data_source_normalized`) and the
+    # raw vendor-declared lists (`log_sources`, the prior
+    # `data_sources`) and renamed `taxonomy_*` -> these final names.
+    # See _migrate_taxonomy_phase_3 in app/database.py for the
+    # idempotent migration.
+    platforms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    event_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     # MITRE ATT&CK mapping
     mitre_tactics: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

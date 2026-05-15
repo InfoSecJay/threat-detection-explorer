@@ -395,8 +395,8 @@ export function RuleList({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {detection.taxonomy_platforms && detection.taxonomy_platforms.length > 0 ? (
-                          detection.taxonomy_platforms.map((p) => (
+                        {detection.platforms && detection.platforms.length > 0 ? (
+                          detection.platforms.map((p) => (
                             <span
                               key={p}
                               className={`px-1.5 py-0.5 text-xs font-mono border ${
@@ -415,8 +415,8 @@ export function RuleList({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {detection.taxonomy_data_sources && detection.taxonomy_data_sources.length > 0 ? (
-                          detection.taxonomy_data_sources.map((d) => (
+                        {detection.data_sources && detection.data_sources.length > 0 ? (
+                          detection.data_sources.map((d) => (
                             <span
                               key={d}
                               className={`px-1.5 py-0.5 text-xs font-mono border ${
@@ -435,8 +435,8 @@ export function RuleList({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {detection.taxonomy_event_types && detection.taxonomy_event_types.length > 0 ? (
-                          detection.taxonomy_event_types.map((e) => (
+                        {detection.event_types && detection.event_types.length > 0 ? (
+                          detection.event_types.map((e) => (
                             <span
                               key={e}
                               className={`px-1.5 py-0.5 text-xs font-mono border ${

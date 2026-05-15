@@ -66,24 +66,12 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:
         extra = parsed.extra or {}
 
-        platform_raw = (extra.get("platform") or "").strip().lower()
-        platform = _PLATFORM_MAP.get(platform_raw, "")
-
-        data_source_raw = (extra.get("data_source") or "").strip().lower()
-        data_source_normalized = _DATA_SOURCE_MAP.get(data_source_raw, "")
-
         # Chronicle YARA-L rules don't carry embedded created/modified
         # dates. Fall back to git log (added by GitService).
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
 
         # Canonical taxonomy (resolver reads parsed.log_source + extra).
-        (
-            tax_platforms,
-            tax_data_sources,
-            tax_event_types,
-            tax_matched,
-            tax_fingerprint,
-        ) = self._resolve_taxonomy(parsed)
+        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
         # Detection logic: pass through the YARA-L body verbatim.
         detection_logic = parsed.detection_logic_raw if isinstance(
@@ -94,13 +82,6 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
         # rules; treat as a single ref unless it looks like a list.
         refs_raw = extra.get("references")
         references = self.normalize_references(refs_raw) if refs_raw else []
-
-        # Build log_sources list mirroring the parser's log_source dict.
-        log_sources_list: list[str] = []
-        if platform_raw:
-            log_sources_list.append(platform_raw)
-        if data_source_raw and data_source_raw not in log_sources_list:
-            log_sources_list.append(data_source_raw)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -116,11 +97,6 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
                 "stable", "experimental", "deprecated"
             } else "stable",
             severity=self.normalize_severity(parsed.severity),
-            log_sources=log_sources_list,
-            data_sources=[data_source_raw] if data_source_raw else [],
-            platform=platform,
-            event_category="",
-            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=detection_logic,
@@ -145,9 +121,9 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
             extracted_target_resources=[],
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            taxonomy_platforms=tax_platforms,
-            taxonomy_data_sources=tax_data_sources,
-            taxonomy_event_types=tax_event_types,
-            taxonomy_matched=tax_matched,
-            taxonomy_fingerprint=tax_fingerprint,
+            platforms=platforms,
+            data_sources=data_sources,
+            event_types=event_types,
+            taxonomy_matched=matched,
+            taxonomy_fingerprint=fingerprint,
         )

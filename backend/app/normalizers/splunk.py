@@ -14,22 +14,6 @@ class SplunkNormalizer(BaseNormalizer):
         """Convert parsed Splunk rule to normalized format."""
         extra = parsed.extra or {}
 
-        # Get log sources and data sources for taxonomy
-        log_sources_list = self._normalize_log_sources(parsed.log_source)
-
-        # Get explicit data sources from Splunk metadata for taxonomy hints
-        splunk_data_sources = extra.get("data_source", [])
-        search_query = parsed.detection_logic_raw.get("search", "") if isinstance(parsed.detection_logic_raw, dict) else ""
-
-        # Apply taxonomy standardization using Splunk's data_source metadata
-        # Combine log sources with data_source info for better detection
-        combined_sources = log_sources_list + [ds.lower() for ds in splunk_data_sources if ds]
-        combined_sources.append(search_query.lower()[:500])  # Add search context (limited)
-
-        platform, event_category, data_source_normalized = self.apply_log_source_taxonomy(
-            log_sources=combined_sources
-        )
-
         # Extract observable fields from SPL search
         search_str = self._format_detection_logic(parsed.detection_logic_raw)
         extracted = extract_splunk_fields(search_str)
@@ -40,14 +24,8 @@ class SplunkNormalizer(BaseNormalizer):
             embedded_created=self.parse_date(extra.get("date")),
         )
 
-        # Canonical taxonomy (Issue 2)
-        (
-            tax_platforms,
-            tax_data_sources,
-            tax_event_types,
-            tax_matched,
-            tax_fingerprint,
-        ) = self._resolve_taxonomy(parsed)
+        # Canonical taxonomy
+        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -61,11 +39,6 @@ class SplunkNormalizer(BaseNormalizer):
             author=parsed.author,
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=log_sources_list,
-            data_sources=self._extract_data_sources(parsed),
-            platform=platform,
-            event_category=event_category,
-            data_source_normalized=data_source_normalized,
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=search_str,
@@ -87,11 +60,11 @@ class SplunkNormalizer(BaseNormalizer):
             extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            taxonomy_platforms=tax_platforms,
-            taxonomy_data_sources=tax_data_sources,
-            taxonomy_event_types=tax_event_types,
-            taxonomy_matched=tax_matched,
-            taxonomy_fingerprint=tax_fingerprint,
+            platforms=platforms,
+            data_sources=data_sources,
+            event_types=event_types,
+            taxonomy_matched=matched,
+            taxonomy_fingerprint=fingerprint,
         )
 
     def _normalize_log_sources(self, log_source: dict) -> list[str]:

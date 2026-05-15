@@ -68,8 +68,7 @@ export const detectionsApi = {
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
-    if (filters.log_sources?.length) params.set('log_sources', filters.log_sources.join(','));
-    // Standardized taxonomy filters
+    // Canonical taxonomy filters
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
     if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));

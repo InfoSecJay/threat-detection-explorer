@@ -27,7 +27,6 @@ const LABELS: Record<string, string> = {
   mitre_tactics: 'Tactic',
   mitre_techniques: 'Technique',
   tags: 'Tag',
-  log_sources: 'Log Source',
   event_ids: 'Event ID',
   process_names: 'Process',
   query_complexity: 'Complexity',

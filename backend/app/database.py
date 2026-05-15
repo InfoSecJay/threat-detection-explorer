@@ -53,8 +53,66 @@ def _migrate_missing_columns(connection):
                 logger.info(f"Added missing column {table_name}.{column.name} ({col_type})")
 
 
+def _migrate_taxonomy_phase_3(connection):
+    """Phase 3 taxonomy migration -- idempotent.
+
+    Drops the legacy single-value columns (`platform`,
+    `event_category`, `data_source_normalized`) and the raw vendor
+    list columns (`log_sources`, `data_sources`), then renames the
+    canonical `taxonomy_*` columns to their final names
+    (`platforms`, `data_sources`, `event_types`).
+
+    Order matters: the raw `data_sources` column must be dropped
+    before `taxonomy_data_sources` is renamed to `data_sources`,
+    otherwise the rename collides.
+
+    Runs on every startup. Once a database has been migrated, every
+    `if old in cols` check is False so the function is a no-op.
+    """
+    inspector = inspect(connection)
+    if not inspector.has_table("detections"):
+        return
+
+    cols = {col["name"] for col in inspector.get_columns("detections")}
+
+    # 1. Drop legacy single-value columns.
+    for legacy in ("platform", "event_category", "data_source_normalized"):
+        if legacy in cols:
+            connection.execute(text(f'ALTER TABLE detections DROP COLUMN {legacy}'))
+            logger.info(f"Phase 3: dropped legacy column detections.{legacy}")
+            cols.discard(legacy)
+
+    # 2. Drop raw vendor list columns. `data_sources` is dropped here
+    # so the canonical `taxonomy_data_sources` rename below can take
+    # over the name.
+    for raw in ("log_sources", "data_sources"):
+        if raw in cols:
+            connection.execute(text(f'ALTER TABLE detections DROP COLUMN {raw}'))
+            logger.info(f"Phase 3: dropped raw column detections.{raw}")
+            cols.discard(raw)
+
+    # 3. Rename `taxonomy_*` -> final names.
+    renames = (
+        ("taxonomy_platforms", "platforms"),
+        ("taxonomy_data_sources", "data_sources"),
+        ("taxonomy_event_types", "event_types"),
+    )
+    for old, new in renames:
+        if old in cols and new not in cols:
+            connection.execute(text(f'ALTER TABLE detections RENAME COLUMN {old} TO {new}'))
+            logger.info(f"Phase 3: renamed detections.{old} -> detections.{new}")
+            cols.discard(old)
+            cols.add(new)
+
+
 async def init_db() -> None:
     """Initialize the database, creating all tables and migrating missing columns."""
     async with engine.begin() as conn:
+        # Phase 3 migration runs FIRST so the column names are in
+        # their final state before create_all / add-missing-columns
+        # see the new model. Otherwise _migrate_missing_columns
+        # would re-create the old `taxonomy_*` columns alongside the
+        # renamed ones.
+        await conn.run_sync(_migrate_taxonomy_phase_3)
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_missing_columns)

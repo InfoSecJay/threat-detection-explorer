@@ -40,13 +40,13 @@ def _apply_trending_filters(
         conditions.append(Detection.source.in_(sources))
     if platforms:
         plat_conds = [
-            cast(Detection.taxonomy_platforms, String).ilike(f'%"{v}"%')
+            cast(Detection.platforms, String).ilike(f'%"{v}"%')
             for v in platforms
         ]
         conditions.append(or_(*plat_conds))
     if event_types:
         et_conds = [
-            cast(Detection.taxonomy_event_types, String).ilike(f'%"{v}"%')
+            cast(Detection.event_types, String).ilike(f'%"{v}"%')
             for v in event_types
         ]
         conditions.append(or_(*et_conds))
@@ -136,7 +136,7 @@ async def get_trending_platforms(
 ):
     """Get trending platforms based on recently created/modified rules.
 
-    Reads the canonical `taxonomy_platforms` array column so multi-OS
+    Reads the canonical `platforms` array column so multi-OS
     rules count toward every platform they target (a rule tagged
     [windows, linux] counts for both). The `unknown` sentinel is
     filtered out so it doesn't dominate. Note: a `platforms` filter
@@ -153,15 +153,15 @@ async def get_trending_platforms(
 
     query = select(
         Detection.source,
-        Detection.taxonomy_platforms,
+        Detection.platforms,
         Detection.rule_modified_date,
     ).where(and_(*conditions))
 
     rows = (await db.execute(query)).all()
 
     platform_counts: dict[str, dict] = {}
-    for source, taxonomy_platforms, modified_date in rows:
-        for platform in taxonomy_platforms or []:
+    for source, platforms_list, modified_date in rows:
+        for platform in platforms_list or []:
             if not platform or platform == "unknown":
                 continue
             if platform not in platform_counts:
@@ -224,8 +224,8 @@ async def get_recent_rules(
         Detection.title,
         Detection.source,
         Detection.severity,
-        Detection.taxonomy_platforms,
-        Detection.taxonomy_event_types,
+        Detection.platforms,
+        Detection.event_types,
         Detection.rule_created_date,
         Detection.rule_modified_date,
     )

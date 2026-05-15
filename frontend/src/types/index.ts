@@ -13,16 +13,13 @@ export interface Detection {
   author: string | null;
   status: 'stable' | 'experimental' | 'deprecated' | 'unknown';
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
-  log_sources: string[];
+  // Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
+  // The legacy single-value siblings (platform / event_category /
+  // data_source_normalized) and the raw vendor lists (log_sources,
+  // a separate raw `data_sources`) were dropped in Phase 3.
+  platforms: string[];
   data_sources: string[];
-  // Standardized log source taxonomy (legacy — to be removed in Phase 3)
-  platform: string;  // windows, linux, macos, cloud, network, email
-  event_category: string;  // process, file, network, registry, authentication, etc.
-  data_source_normalized: string;  // sysmon, auditd, cloudtrail, etc.
-  // Canonical taxonomy (Issue 2). See docs/taxonomy.md.
-  taxonomy_platforms?: string[];
-  taxonomy_data_sources?: string[];
-  taxonomy_event_types?: string[];
+  event_types: string[];
   mitre_tactics: string[];
   mitre_techniques: string[];
   detection_logic: string;
@@ -120,8 +117,9 @@ export interface SearchFilters {
   mitre_tactics?: string[];
   mitre_techniques?: string[];
   tags?: string[];
-  log_sources?: string[];
-  // Standardized taxonomy filters
+  // Canonical taxonomy filters (Phase 3 final names; the
+  // `event_categories` / `data_sources_normalized` keys retained
+  // for URL backwards-compat with FilterPanel UI).
   platforms?: string[];
   event_categories?: string[];
   data_sources_normalized?: string[];

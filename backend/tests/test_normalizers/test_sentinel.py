@@ -87,7 +87,7 @@ def test_normalize_platform_defaults_to_azure_when_unmapped(normalizer):
     """Sentinel falls back to `azure` platform on the legacy column when
     the taxonomy resolver doesn't pick anything else."""
     n = normalizer.normalize(_parsed())
-    assert n.platform  # never empty
+    assert n.platforms  # never empty
 
 
 def test_normalize_passes_mitre_through(normalizer):
@@ -108,9 +108,9 @@ def test_normalize_resolves_canonical_taxonomy_for_office_activity(normalizer):
     `microsoft_365` canonical platform via the Sentinel KQL-table
     extractor + taxonomy mapping."""
     n = normalizer.normalize(_parsed())
-    assert n.taxonomy_platforms != ["unknown"]
-    assert "microsoft_365" in n.taxonomy_platforms
-    assert "audit_event" in n.taxonomy_event_types
+    assert n.platforms != ["unknown"]
+    assert "microsoft_365" in n.platforms
+    assert "audit_event" in n.event_types
     assert n.taxonomy_matched is True
 
 
@@ -138,10 +138,10 @@ def test_security_alert_maps_to_microsoft_platforms_not_cross_platform(normalize
         detection_logic_raw="SecurityAlert | where ProviderName == 'MDATP'",
         extra={"id": "x", "kql_tables": ["SecurityAlert"]},
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "microsoft_365" in n.taxonomy_platforms
-    assert "azure" in n.taxonomy_platforms
-    assert "windows" in n.taxonomy_platforms
+    assert "cross_platform" not in n.platforms
+    assert "microsoft_365" in n.platforms
+    assert "azure" in n.platforms
+    assert "windows" in n.platforms
 
 
 def test_behavior_analytics_maps_to_azure_not_cross_platform(normalizer):
@@ -150,8 +150,8 @@ def test_behavior_analytics_maps_to_azure_not_cross_platform(normalizer):
         detection_logic_raw="BehaviorAnalytics | where ActivityType == 'LogOn'",
         extra={"id": "x", "kql_tables": ["BehaviorAnalytics"]},
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "azure" in n.taxonomy_platforms
+    assert "cross_platform" not in n.platforms
+    assert "azure" in n.platforms
 
 
 def test_ado_audit_logs_maps_to_azure_not_cross_platform(normalizer):
@@ -160,8 +160,8 @@ def test_ado_audit_logs_maps_to_azure_not_cross_platform(normalizer):
         detection_logic_raw="ADOAuditLogs | where ActivityType == 'ProjectCreated'",
         extra={"id": "x", "kql_tables": ["ADOAuditLogs"]},
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "azure" in n.taxonomy_platforms
+    assert "cross_platform" not in n.platforms
+    assert "azure" in n.platforms
 
 
 def test_threat_intel_indicator_maps_to_azure(normalizer):
@@ -170,8 +170,8 @@ def test_threat_intel_indicator_maps_to_azure(normalizer):
         detection_logic_raw="ThreatIntelligenceIndicator | where ConfidenceScore > 75",
         extra={"id": "x", "kql_tables": ["ThreatIntelligenceIndicator"]},
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "azure" in n.taxonomy_platforms
+    assert "cross_platform" not in n.platforms
+    assert "azure" in n.platforms
 
 
 def test_unknown_cl_table_does_not_inject_cross_platform(normalizer):
@@ -185,8 +185,8 @@ def test_unknown_cl_table_does_not_inject_cross_platform(normalizer):
         detection_logic_raw="SomeUnknownVendorTable_CL | where Severity == 'High'",
         extra={"id": "x", "kql_tables": ["SomeUnknownVendorTable_CL"]},
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "siem_alert" in n.taxonomy_data_sources
+    assert "cross_platform" not in n.platforms
+    assert "siem_alert" in n.data_sources
 
 
 def test_unknown_cl_data_type_does_not_inject_cross_platform(normalizer):
@@ -204,5 +204,5 @@ def test_unknown_cl_data_type_does_not_inject_cross_platform(normalizer):
             ],
         },
     ))
-    assert "cross_platform" not in n.taxonomy_platforms
-    assert "siem_alert" in n.taxonomy_data_sources
+    assert "cross_platform" not in n.platforms
+    assert "siem_alert" in n.data_sources

@@ -169,9 +169,9 @@ export function RulePreviewModal({
                     className="bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
                   />
                 )}
-                {detection.platform && (
+                {detection.platforms && detection.platforms.length > 0 && (
                   <BadgePill
-                    text={detection.platform.toUpperCase()}
+                    text={detection.platforms.filter(p => p !== 'unknown')[0]?.toUpperCase() || detection.platforms[0].toUpperCase()}
                     className="bg-cyan-500/15 text-cyan-400 border-cyan-500/30"
                   />
                 )}
@@ -267,13 +267,13 @@ export function RulePreviewModal({
                 </span>
               </div>
             )}
-            {detection.event_category && (
+            {detection.event_types && detection.event_types.length > 0 && (
               <div>
                 <span className="text-[10px] font-mono text-gray-600 uppercase block">
-                  Event Category
+                  Event Type
                 </span>
                 <span className="text-xs text-gray-300">
-                  {detection.event_category}
+                  {detection.event_types.filter(e => e !== 'unknown').join(', ') || detection.event_types[0]}
                 </span>
               </div>
             )}

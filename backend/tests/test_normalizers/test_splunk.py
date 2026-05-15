@@ -99,7 +99,7 @@ def test_normalize_resolves_canonical_taxonomy(normalizer):
     """An endpoint rule with Sysmon EventID 1 data source should
     resolve to a non-unknown canonical taxonomy."""
     n = normalizer.normalize(_parsed())
-    assert n.taxonomy_platforms != ["unknown"]
+    assert n.platforms != ["unknown"]
     assert n.taxonomy_matched is True
 
 

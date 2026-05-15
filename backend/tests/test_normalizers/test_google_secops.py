@@ -79,17 +79,17 @@ def test_normalize_language_is_always_yaral(normalizer):
 def test_normalize_explicit_platform_meta_maps_to_canonical(normalizer):
     """`platform = "AWS"` -> canonical platform `aws`."""
     n = normalizer.normalize(_parsed())
-    assert n.platform == "aws"
-    assert "aws" in n.taxonomy_platforms
+    assert "aws" in n.platforms
+    assert "aws" in n.platforms
 
 
 def test_normalize_explicit_data_source_meta_maps_to_canonical(normalizer):
     """`data_source = "AWS CloudTrail"` -> canonical
     `aws_cloudtrail` with the api_call event_type from the resolver."""
     n = normalizer.normalize(_parsed())
-    assert n.data_source_normalized == "aws_cloudtrail"
-    assert "aws_cloudtrail" in n.taxonomy_data_sources
-    assert "api_call" in n.taxonomy_event_types
+    assert "aws_cloudtrail" in n.data_sources
+    assert "aws_cloudtrail" in n.data_sources
+    assert "api_call" in n.event_types
 
 
 def test_normalize_severity_low_lowercased(normalizer):
@@ -124,7 +124,7 @@ def test_normalize_microsoft_platform_resolves(normalizer):
             "platform": "Microsoft", "data_source": "Office 365",
         },
     ))
-    assert "microsoft_365" in n.taxonomy_platforms
+    assert "microsoft_365" in n.platforms
 
 
 def test_normalize_folder_fallback_when_meta_missing(normalizer):
@@ -140,8 +140,8 @@ def test_normalize_folder_fallback_when_meta_missing(normalizer):
             "platform": None, "data_source": None,
         },
     ))
-    assert "github" in n.taxonomy_platforms
-    assert "github_audit" in n.taxonomy_data_sources
+    assert "github" in n.platforms
+    assert "github_audit" in n.data_sources
 
 
 def test_normalize_field_extraction_intentionally_empty(normalizer):

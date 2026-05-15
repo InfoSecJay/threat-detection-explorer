@@ -55,9 +55,9 @@ function EnhancedDetectionCard({
         >
           {detection.severity.toUpperCase()}
         </span>
-        {detection.platform && (
+        {detection.platforms && detection.platforms.length > 0 && (
           <span className="px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-mono">
-            {detection.platform.toUpperCase()}
+            {(detection.platforms.filter(p => p !== 'unknown')[0] || detection.platforms[0]).toUpperCase()}
           </span>
         )}
         {detection.language && detection.language !== 'unknown' && (
@@ -193,8 +193,8 @@ export function RuleComparison({ data }: RuleComparisonProps) {
     const complexity = new Map<string, number>();
 
     allDetections.forEach((d) => {
-      if (d.platform) platforms.set(d.platform, (platforms.get(d.platform) || 0) + 1);
-      if (d.event_category) categories.set(d.event_category, (categories.get(d.event_category) || 0) + 1);
+      d.platforms?.filter(p => p !== 'unknown').forEach((p) => platforms.set(p, (platforms.get(p) || 0) + 1));
+      d.event_types?.filter(e => e !== 'unknown').forEach((e) => categories.set(e, (categories.get(e) || 0) + 1));
       if (d.status) statuses.set(d.status, (statuses.get(d.status) || 0) + 1);
       if (d.query_complexity && d.query_complexity !== 'unknown')
         complexity.set(d.query_complexity, (complexity.get(d.query_complexity) || 0) + 1);
@@ -256,11 +256,13 @@ export function RuleComparison({ data }: RuleComparisonProps) {
       let filtered = detections;
 
       if (activePlatforms.size > 0) {
-        filtered = filtered.filter((d) => activePlatforms.has(d.platform || ''));
+        filtered = filtered.filter((d) =>
+          d.platforms?.some((p) => activePlatforms.has(p))
+        );
       }
       if (activeCategories.size > 0) {
         filtered = filtered.filter((d) =>
-          activeCategories.has(d.event_category || '')
+          d.event_types?.some((e) => activeCategories.has(e))
         );
       }
       if (activeStatuses.size > 0) {

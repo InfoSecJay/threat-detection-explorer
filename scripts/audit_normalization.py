@@ -113,10 +113,9 @@ class SourceAudit:
     event_types: FieldStats = field(default_factory=FieldStats)
 
     # Specific anomaly counters
-    cross_platform_rules: int = 0       # taxonomy_platforms contains 'cross_platform'
+    cross_platform_rules: int = 0       # platforms contains 'cross_platform'
     no_observables_rules: int = 0       # every extracted_* is empty
     no_mitre_rules: int = 0             # mitre_techniques is empty
-    canonical_legacy_disagreement: int = 0  # platform not in taxonomy_platforms
 
     languages: list[tuple[str, int]] = field(default_factory=list)
     unexpected_languages: list[tuple[str, int]] = field(default_factory=list)
@@ -200,9 +199,10 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
     for rule in fetch_all_rules(api_base, source):
         audit.rule_count += 1
 
-        platforms = rule.get("taxonomy_platforms") or []
-        data_sources = rule.get("taxonomy_data_sources") or []
-        event_types = rule.get("taxonomy_event_types") or []
+        # Phase 3 final field names (Phase 1 / 2 used taxonomy_*).
+        platforms = rule.get("platforms") or []
+        data_sources = rule.get("data_sources") or []
+        event_types = rule.get("event_types") or []
 
         platforms_per_rule.append(platforms)
         data_sources_per_rule.append(data_sources)
@@ -216,10 +216,6 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
 
         if not (rule.get("mitre_techniques") or []):
             audit.no_mitre_rules += 1
-
-        legacy_platform = (rule.get("platform") or "").strip().lower()
-        if legacy_platform and legacy_platform not in platforms:
-            audit.canonical_legacy_disagreement += 1
 
         languages[rule.get("language") or "unknown"] += 1
 
@@ -238,14 +234,14 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
         unk_pct = pct(audit.platforms.rules_with_only_unknown, audit.rule_count)
         if unk_pct > 5:
             audit.anomalies.append(
-                f"taxonomy_platforms == ['unknown'] for {unk_pct:.1f}% of rules "
+                f"platforms == ['unknown'] for {unk_pct:.1f}% of rules "
                 f"({audit.platforms.rules_with_only_unknown}/{audit.rule_count}) "
                 "-- taxonomy mapping gap"
             )
         cp_pct = pct(audit.cross_platform_rules, audit.rule_count)
         if cp_pct > 5:
             audit.anomalies.append(
-                f"taxonomy_platforms contains 'cross_platform' for {cp_pct:.1f}% "
+                f"platforms contains 'cross_platform' for {cp_pct:.1f}% "
                 f"({audit.cross_platform_rules}/{audit.rule_count}) "
                 "-- likely an over-broad fallback hiding resolver gaps"
             )
@@ -262,14 +258,6 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
                 f"no MITRE techniques for {mitre_pct:.1f}% "
                 f"({audit.no_mitre_rules}/{audit.rule_count}) "
                 "-- MITRE mapping gap"
-            )
-        legacy_pct = pct(audit.canonical_legacy_disagreement, audit.rule_count)
-        if legacy_pct > 10:
-            audit.anomalies.append(
-                f"legacy `platform` disagrees with `taxonomy_platforms` for "
-                f"{legacy_pct:.1f}% ({audit.canonical_legacy_disagreement}/"
-                f"{audit.rule_count}) "
-                "-- Phase 3 legacy-removal will surface this discrepancy"
             )
         if audit.unexpected_languages:
             top_unexpected = audit.unexpected_languages[0]
@@ -296,16 +284,15 @@ def render_text(audit: SourceAudit) -> str:
         return f"{num:>5} ({pct(num, audit.rule_count):>5.1f}%) {label}"
 
     out.append(f"  {rate(audit.cross_platform_rules, 'rules tagged cross_platform')}")
-    out.append(f"  {rate(audit.platforms.rules_with_only_unknown, 'rules taxonomy_platforms == [unknown]')}")
+    out.append(f"  {rate(audit.platforms.rules_with_only_unknown, 'rules platforms == [unknown]')}")
     out.append(f"  {rate(audit.no_observables_rules, 'rules with NO extracted observables')}")
     out.append(f"  {rate(audit.no_mitre_rules, 'rules with NO MITRE techniques')}")
-    out.append(f"  {rate(audit.canonical_legacy_disagreement, 'rules where legacy platform != taxonomy_platforms')}")
 
     # Top distributions
     for label, st in (
-        ("taxonomy_platforms", audit.platforms),
-        ("taxonomy_data_sources", audit.data_sources),
-        ("taxonomy_event_types", audit.event_types),
+        ("platforms", audit.platforms),
+        ("data_sources", audit.data_sources),
+        ("event_types", audit.event_types),
     ):
         out.append(f"  top {label}:")
         for value, count in st.top:

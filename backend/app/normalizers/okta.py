@@ -23,14 +23,9 @@ class OktaNormalizer(BaseNormalizer):
             embedded_modified=self.parse_date(extra.get("modified_date")),
         )
 
-        # Canonical taxonomy via the resolver (always Okta / okta_system_log).
-        (
-            tax_platforms,
-            tax_data_sources,
-            tax_event_types,
-            tax_matched,
-            tax_fingerprint,
-        ) = self._resolve_taxonomy(parsed)
+        # Canonical taxonomy via the resolver (always okta / okta_system_log /
+        # authentication via mappings/okta.yaml always_includes).
+        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
         # Primary language is `oie` / `spl` / `datadog` per the parser's
         # priority order; pass through verbatim.
@@ -48,11 +43,6 @@ class OktaNormalizer(BaseNormalizer):
             author=parsed.author or "Okta",
             status=self.normalize_status(parsed.status),
             severity=self.normalize_severity(parsed.severity),
-            log_sources=["okta", "system_log"],
-            data_sources=["okta_system_log"],
-            platform="okta",
-            event_category="authentication",
-            data_source_normalized="okta_system_log",
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=parsed.detection_logic_raw or "",
@@ -78,9 +68,9 @@ class OktaNormalizer(BaseNormalizer):
             extracted_target_resources=[],
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            taxonomy_platforms=tax_platforms,
-            taxonomy_data_sources=tax_data_sources,
-            taxonomy_event_types=tax_event_types,
-            taxonomy_matched=tax_matched,
-            taxonomy_fingerprint=tax_fingerprint,
+            platforms=platforms,
+            data_sources=data_sources,
+            event_types=event_types,
+            taxonomy_matched=matched,
+            taxonomy_fingerprint=fingerprint,
         )
