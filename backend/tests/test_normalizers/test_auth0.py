@@ -1,7 +1,10 @@
 """Per-vendor normalizer tests for Auth0Normalizer.
 
 Auth0 specifics to pin:
-  - language is always `sigma` (rules use Sigma format with extras)
+  - language is `spl` when the upstream YAML carries a `splunk:`
+    implementation (true for all 33 community rules); falls back
+    to `sigma` when only the Sigma `detection:` block is present
+  - detection_logic shows the SPL query verbatim when language=spl
   - platform is always `auth0`, data_source `auth0_logs`
   - event_type defaults to `authentication` (corpus is auth-heavy)
   - source_rule_url uses the `main` branch
@@ -46,7 +49,7 @@ def _parsed(**overrides) -> ParsedRule:
             "id": "0325e11e-12ce-44e7-8d1f-3a64700a000a",
             "date": "2025-07-11",
             "modified": "2025-09-01",
-            "splunk_query": "index=auth0 data.type=sapi",
+            "splunk_query": 'index=auth0 data.type=sapi\n| stats count by data.description',
             "tenant_logs_query": 'type: "sapi"',
             "prevention": ["Control tenant admins."],
             "comments": ["Tune for tenant name."],
@@ -70,9 +73,31 @@ def test_normalize_preserves_metadata(normalizer):
     assert n.rule_id == "0325e11e-12ce-44e7-8d1f-3a64700a000a"
 
 
-def test_normalize_language_is_always_sigma(normalizer):
-    """Auth0 rules are Sigma format -- canonical token is `sigma`."""
-    assert normalizer.normalize(_parsed()).language == "sigma"
+def test_normalize_language_prefers_splunk_when_present(normalizer):
+    """The upstream YAML ships both a Sigma `detection:` block AND a
+    `splunk:` implementation. The Splunk query is what an analyst
+    would actually run, so we surface it as primary -- language `spl`
+    and detection_logic = the SPL query verbatim."""
+    n = normalizer.normalize(_parsed())
+    assert n.language == "spl"
+    assert "index=auth0" in n.detection_logic
+    assert "stats count by data.description" in n.detection_logic
+
+
+def test_normalize_language_falls_back_to_sigma_when_no_splunk(normalizer):
+    """If a rule ever ships without a `splunk:` implementation, we
+    render the Sigma `detection:` block as YAML and tag language
+    `sigma`. None of the 33 current community rules hit this path
+    but the fallback exists for defensive resilience."""
+    n = normalizer.normalize(_parsed(extra={
+        "id": "x", "date": "2025-01-01", "modified": "2025-01-01",
+        "splunk_query": None,  # no SPL implementation
+        "tenant_logs_query": None, "prevention": [],
+        "comments": [], "explanation": None, "references": [],
+    }))
+    assert n.language == "sigma"
+    # The Sigma block (rendered as YAML) is in detection_logic.
+    assert "data.type" in n.detection_logic
 
 
 def test_normalize_platform_is_always_auth0(normalizer):

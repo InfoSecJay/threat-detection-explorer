@@ -692,9 +692,11 @@ async def test_e2e_auth0(db_session):
     )
     assert d.source == "auth0"
     assert d.title == "Refresh Token Reuse Detection"
-    # Auth0 ships rules in Sigma format with a Splunk implementation;
-    # the canonical detection block is Sigma so language=`sigma`.
-    assert d.language == "sigma"
+    # Auth0 ships rules in Sigma format WITH a Splunk implementation;
+    # the normalizer prefers Splunk as the analyst-facing primary,
+    # so language=`spl` and detection_logic is the SPL query.
+    assert d.language == "spl"
+    assert "index=auth0" in d.detection_logic
     # Always-includes contract: platform=auth0, data_source=auth0_logs,
     # event_type=authentication (per mappings/auth0.yaml).
     assert "auth0" in d.platforms

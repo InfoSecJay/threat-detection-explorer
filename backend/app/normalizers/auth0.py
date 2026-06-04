@@ -2,14 +2,23 @@
 
 Converts ParsedRule output from `Auth0Parser` into the canonical
 `NormalizedDetection`. Always Auth0 platform; canonical data source
-is `auth0_logs`. Language is `sigma` (Auth0 ships rules in Sigma
-format with an accompanying Splunk implementation; we treat the
-Sigma detection block as primary).
+is `auth0_logs`.
+
+Detection logic priority: the upstream YAML carries BOTH a Sigma
+`detection:` block (abstract) AND a `splunk:` field (concrete SPL
+implementation an analyst would actually run). We prefer the Splunk
+query when present because it's more immediately useful in a SOC
+context; fall back to the Sigma block otherwise. The language tag
+follows: `spl` when Splunk is used, `sigma` on fallback. Both
+representations remain visible in `raw_content` for the rule detail
+view (it includes the full YAML).
 """
+
+import yaml
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
-from app.services.field_extractor import extract_sigma_fields
+from app.services.field_extractor import extract_sigma_fields, extract_splunk_fields
 
 
 class Auth0Normalizer(BaseNormalizer):
@@ -30,23 +39,26 @@ class Auth0Normalizer(BaseNormalizer):
         # always_includes).
         platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
-        # Sigma extractor handles the detection block shape natively
-        # (Auth0 uses standard Sigma `selection` / `filter` /
-        # `condition`). Pull observables (event types, fields) for
-        # search + UI badges.
-        extracted = extract_sigma_fields(
-            parsed.detection_logic_raw if isinstance(parsed.detection_logic_raw, dict) else {},
-            logsource=parsed.log_source,
-        )
-
-        # Render the detection block as YAML for the rule detail view.
-        import yaml
-        try:
-            detection_logic = yaml.dump(
-                parsed.detection_logic_raw, default_flow_style=False, sort_keys=False
-            ) if isinstance(parsed.detection_logic_raw, dict) else str(parsed.detection_logic_raw)
-        except Exception:
-            detection_logic = str(parsed.detection_logic_raw)
+        # Pick the primary detection representation. Splunk wins when
+        # the upstream YAML carries it (true for all 33 community
+        # rules as of 2026-05); falls back to the Sigma block.
+        splunk_query = (extra.get("splunk_query") or "").strip()
+        if splunk_query:
+            detection_logic = splunk_query
+            language = "spl"
+            extracted = extract_splunk_fields(splunk_query)
+        else:
+            language = "sigma"
+            try:
+                detection_logic = yaml.dump(
+                    parsed.detection_logic_raw, default_flow_style=False, sort_keys=False
+                ) if isinstance(parsed.detection_logic_raw, dict) else str(parsed.detection_logic_raw)
+            except Exception:
+                detection_logic = str(parsed.detection_logic_raw)
+            extracted = extract_sigma_fields(
+                parsed.detection_logic_raw if isinstance(parsed.detection_logic_raw, dict) else {},
+                logsource=parsed.log_source,
+            )
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -63,7 +75,7 @@ class Auth0Normalizer(BaseNormalizer):
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=detection_logic,
-            language="sigma",
+            language=language,
             tags=parsed.tags,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),

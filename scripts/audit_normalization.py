@@ -82,8 +82,8 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     # rule (OIE > spl > datadog).
     "okta":                {"oie", "spl", "datadog"},
     # Auth0 rules ship in Sigma format with a Splunk implementation;
-    # we treat Sigma as primary.
-    "auth0":               {"sigma"},
+    # the normalizer prefers Splunk when present, falls back to Sigma.
+    "auth0":               {"spl", "sigma"},
 }
 
 # Sources where "no MITRE techniques" is expected behaviour, not a bug.
