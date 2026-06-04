@@ -64,6 +64,13 @@ class RuleDiscoveryService:
             "include_patterns": ["rules/community/**/*.yaral"],
             "exclude_dirs": ["_deprecated", "deprecated", "tests", "test", ".git"],
         },
+        "auth0": {
+            # Auth0 (Okta-owned) customer detections live under
+            # `detections/*.yml`. Same shape as Okta + Sigma rules
+            # (Sigma format with `splunk:` / `tenant_logs:` extras).
+            "include_patterns": ["detections/*.yml", "detections/*.yaml"],
+            "exclude_dirs": ["tests", "test", "deprecated", ".git"],
+        },
         "okta": {
             # Okta-authored detections live under `detections/`.
             # Sibling dirs (`hunts/`, `logs/`, `sample_osquery_checks/`,

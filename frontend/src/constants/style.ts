@@ -56,4 +56,5 @@ export const sourceTheme: Record<string, SourceTheme> = {
   sentinel:            { name: 'Sentinel',      dot: 'bg-sky-500',    text: 'text-sky-400',    border: 'border-sky-500/30',    bg: 'bg-sky-500/20' },
   google_secops:       { name: 'Google SecOps', dot: 'bg-lime-500',   text: 'text-lime-400',   border: 'border-lime-500/30',   bg: 'bg-lime-500/20' },
   okta: { name: 'Okta',       dot: 'bg-teal-500',   text: 'text-teal-400',   border: 'border-teal-500/30',   bg: 'bg-teal-500/20' },
+  auth0:               { name: 'Auth0',         dot: 'bg-rose-500',   text: 'text-rose-400',   border: 'border-rose-500/30',   bg: 'bg-rose-500/20' },
 };

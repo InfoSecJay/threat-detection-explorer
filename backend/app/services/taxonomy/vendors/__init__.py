@@ -7,6 +7,7 @@ platforms/data_sources/event_types.
 """
 
 from app.services.taxonomy.vendors import (  # noqa: F401
+    auth0,
     elastic,
     elastic_hunting,
     elastic_protections,

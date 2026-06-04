@@ -150,6 +150,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               { value: 'sentinel', label: 'Microsoft Sentinel' },
               { value: 'google_secops', label: 'Google SecOps' },
               { value: 'okta', label: 'Okta' },
+              { value: 'auth0', label: 'Auth0' },
             ].map((source) => (
               <label
                 key={source.value}

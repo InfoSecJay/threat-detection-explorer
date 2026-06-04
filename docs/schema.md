@@ -50,7 +50,7 @@ groups of fields:
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | `str` (36) | Deterministic UUID-like, derived from `source + source_file`. Drives upserts. |
-| `source` | enum | One of `sigma`, `elastic`, `splunk`, `sublime`, `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`, `google_secops`, `okta`. |
+| `source` | enum | One of `sigma`, `elastic`, `splunk`, `sublime`, `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`, `google_secops`, `okta`, `auth0`. |
 | `source_file` | `str` | Path within the source repo (e.g. `rules/windows/process_creation/foo.yml`). |
 | `source_repo_url` | `str` | Canonical URL of the source repo. |
 | `source_rule_url` | `str?` | Deep link to the rule file at the right vendor branch (e.g. `master`, `develop`). |

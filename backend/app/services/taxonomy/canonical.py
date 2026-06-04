@@ -61,6 +61,7 @@ PLATFORMS: frozenset[str] = frozenset(
         "google_workspace",
         "microsoft_365",
         "duo",
+        "auth0",
         # ── DevOps / source control ─────────────────────────────────────────
         "github",
         "gitlab",
@@ -130,6 +131,7 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "onelogin_events",           # OneLogin event feed
         "duo_activity",
         "google_workspace_audit",
+        "auth0_logs",                # Auth0 tenant logs (authentication + management API)
         # ── Network telemetry ───────────────────────────────────────────────
         "zeek",
         "suricata",
@@ -330,6 +332,7 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "okta_system_log": frozenset({"okta"}),
     "onelogin_events": frozenset({"onelogin"}),
     "duo_activity": frozenset({"duo"}),
+    "auth0_logs": frozenset({"auth0"}),
     "google_workspace_audit": frozenset({"google_workspace"}),
     # ── Network appliances ──────────────────────────────────────────────
     "zeek": frozenset({"network_appliance"}),

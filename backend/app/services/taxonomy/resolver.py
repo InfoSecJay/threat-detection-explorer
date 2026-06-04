@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Callable
 
 from app.services.taxonomy.canonical import UNKNOWN, data_source_applies
 from app.services.taxonomy.vendors import (
+    auth0,
     elastic,
     elastic_hunting,
     elastic_protections,
@@ -57,6 +58,7 @@ _VENDOR_RESOLVERS: dict[str, Callable[["ParsedRule"], dict]] = {
     "sentinel": sentinel.resolve,
     "google_secops": google_secops.resolve,
     "okta": okta.resolve,
+    "auth0": auth0.resolve,
 }
 
 

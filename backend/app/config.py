@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     google_secops_repo_url: str = "https://github.com/chronicle/detection-rules.git"
     # Okta customer-detections -- OIE + Splunk + Datadog queries.
     okta_repo_url: str = "https://github.com/okta/customer-detections.git"
+    # Auth0 customer-detections -- Sigma rules + Splunk implementations.
+    auth0_repo_url: str = "https://github.com/auth0/auth0-customer-detections.git"
 
     # API settings
     api_prefix: str = "/api"

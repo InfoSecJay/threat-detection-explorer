@@ -35,6 +35,7 @@ from sqlalchemy import select
 
 from app.models.detection import Detection
 from app.normalizers import (
+    Auth0Normalizer,
     ElasticHuntingNormalizer,
     ElasticNormalizer,
     ElasticProtectionsNormalizer,
@@ -47,6 +48,7 @@ from app.normalizers import (
     SublimeNormalizer,
 )
 from app.parsers import (
+    Auth0Parser,
     ElasticHuntingParser,
     ElasticParser,
     ElasticProtectionsParser,
@@ -176,6 +178,39 @@ query = [
 ]
 notes = ["Tune by trusted-principal allowlist."]
 '''
+
+
+SAMPLE_AUTH0_RULE = """\
+title: Refresh Token Reuse Detection
+id: a7b2e75c-7171-11f0-aa28-723487b9527c
+status: experimental
+description: |
+    Detects when a refresh token is reused.
+author: Okta
+date: 2025-07-11
+modified: 2025-09-02
+logsource:
+    product: auth0
+detection:
+    selection:
+        data.type: ferrt
+        data.description: "Unsuccessful Refresh Token exchange, reused refresh token detected"
+    condition: selection
+splunk: |
+    index=auth0 data.type=ferrt
+tenant_logs: |
+    type: "ferrt"
+prevention:
+    - Ensure correct refresh token usage.
+falsepositives:
+    - Misconfigured applications caching refresh tokens.
+level: medium
+tags:
+    - attack.credential-access
+    - attack.persistence
+    - attack.t1550.001
+    - attack.t1078
+"""
 
 
 SAMPLE_OKTA_RULE = """\
@@ -644,3 +679,35 @@ async def test_e2e_okta(db_session):
     assert d.source_rule_url is not None
     assert "okta/customer-detections" in d.source_rule_url
     assert "/blob/master/detections/" in d.source_rule_url
+
+
+@pytest.mark.asyncio
+async def test_e2e_auth0(db_session):
+    d = await ingest_one(
+        Auth0Parser(),
+        Auth0Normalizer("https://github.com/auth0/auth0-customer-detections"),
+        "detections/refresh_token_reuse.yml",
+        SAMPLE_AUTH0_RULE,
+        db_session,
+    )
+    assert d.source == "auth0"
+    assert d.title == "Refresh Token Reuse Detection"
+    # Auth0 ships rules in Sigma format with a Splunk implementation;
+    # the canonical detection block is Sigma so language=`sigma`.
+    assert d.language == "sigma"
+    # Always-includes contract: platform=auth0, data_source=auth0_logs,
+    # event_type=authentication (per mappings/auth0.yaml).
+    assert "auth0" in d.platforms
+    assert "auth0_logs" in d.data_sources
+    assert "authentication" in d.event_types
+    # MITRE techniques extracted from `attack.t<id>` Sigma tags via
+    # the shared Sigma tag MITRE extractor.
+    assert "T1550.001" in d.mitre_techniques
+    assert "T1078" in d.mitre_techniques
+    # Severity normalized from Sigma `level` field.
+    assert d.severity == "medium"
+    assert d.status == "experimental"
+    # Source URL uses Auth0's default `main` branch.
+    assert d.source_rule_url is not None
+    assert "auth0/auth0-customer-detections" in d.source_rule_url
+    assert "/blob/main/detections/" in d.source_rule_url

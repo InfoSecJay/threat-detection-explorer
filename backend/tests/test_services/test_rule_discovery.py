@@ -350,6 +350,34 @@ def test_discover_okta(discovery):
     assert not any(p.startswith("sample_osquery_checks/") for p in found)
 
 
+# ── Auth0 customer-detections ────────────────────────────────────────
+
+
+def test_discover_auth0(discovery):
+    """Auth0 detections live under `detections/*.yml`. Top-level
+    `test/` is reference material and must NOT be ingested."""
+    service, build_repo = discovery
+    build_repo("auth0", [
+        # Real detection files
+        "detections/attack_protection_features_turned_off.yml",
+        "detections/refresh_token_reuse.yml",
+        "detections/many_failed_authorization_requests.yml",
+        # Traps -- sibling top-level dirs that must not be picked up.
+        "test/conftest.py",
+        "test/test_attack_protection.py",
+        # And subfolders under detections/ should not be picked up
+        # because the glob is single-segment (no recursive **).
+        "detections/sub/nested.yml",
+    ])
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("auth0")}
+
+    assert len(found) >= 3
+    assert "detections/attack_protection_features_turned_off.yml" in found
+    assert "detections/refresh_token_reuse.yml" in found
+    assert "detections/many_failed_authorization_requests.yml" in found
+    assert not any(p.startswith("test/") for p in found)
+
+
 # ── Cross-cutting checks ─────────────────────────────────────────────
 
 

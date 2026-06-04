@@ -77,6 +77,12 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
     repoUrl: 'https://github.com/okta/customer-detections',
     color: '#14b8a6',
   },
+  auth0: {
+    displayName: 'Auth0',
+    description: 'Auth0-authored Sigma detections with Splunk implementations, covering refresh tokens, MFA, brute force, and tenant attack protection.',
+    repoUrl: 'https://github.com/auth0/auth0-customer-detections',
+    color: '#f59e0b',
+  },
 };
 
 function formatDate(dateString: string | null): string {
@@ -124,7 +130,7 @@ function IntegrationCard({ repo }: { repo: Repository }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta'} size={40} />
+          <DataSourceIcon source={repo.name as 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0'} size={40} />
           <div>
             <h3 className="font-display font-semibold tracking-wide" style={{ color: config.color }}>
               {config.displayName}

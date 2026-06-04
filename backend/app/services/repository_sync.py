@@ -36,6 +36,7 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "sentinel",
     "google_secops",
     "okta",
+    "auth0",
 ]
 
 # Default branch per source -- used by the sparse-clone path which
@@ -118,6 +119,10 @@ class RepositorySyncService:
         "okta": {
             "url": settings.okta_repo_url,
             "name": "okta",
+        },
+        "auth0": {
+            "url": settings.auth0_repo_url,
+            "name": "auth0",
         },
     }
 

@@ -18,13 +18,13 @@ from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
     ElasticHuntingParser, SentinelParser, GoogleSecOpsParser,
-    OktaParser, BaseParser
+    OktaParser, Auth0Parser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
     ElasticHuntingNormalizer, SentinelNormalizer, GoogleSecOpsNormalizer,
-    OktaNormalizer,
+    OktaNormalizer, Auth0Normalizer,
     BaseNormalizer, NormalizedDetection
 )
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
@@ -56,6 +56,7 @@ class IngestionService:
             "sentinel": SentinelParser(),
             "google_secops": GoogleSecOpsParser(),
             "okta": OktaParser(),
+            "auth0": Auth0Parser(),
         }
 
         # Initialize normalizers — pass local repo paths so they can fall back
@@ -82,6 +83,10 @@ class IngestionService:
             "okta": OktaNormalizer(
                 settings.okta_repo_url,
                 settings.get_repo_path("okta"),
+            ),
+            "auth0": Auth0Normalizer(
+                settings.auth0_repo_url,
+                settings.get_repo_path("auth0"),
             ),
         }
 

@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0';
   className?: string;
   size?: number;
 }) {
@@ -19,6 +19,7 @@ export function DataSourceIcon({
     sentinel: '#0078d4',
     google_secops: '#84cc16',
     okta: '#14b8a6',
+    auth0: '#f59e0b',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -193,6 +194,25 @@ export function DataSourceIcon({
           {/* Auth lines */}
           <line x1="28" y1="22" x2="34" y2="22" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
           <line x1="28" y1="26" x2="34" y2="26" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      )}
+
+      {source === 'auth0' && (
+        // Auth0 - stylized lock with key cutout (authentication focus)
+        <g filter={`url(#glow-${source})`}>
+          {/* Lock body */}
+          <rect
+            x="13" y="22" width="22" height="16" rx="2"
+            fill="none" stroke={color} strokeWidth="2"
+          />
+          {/* Lock shackle */}
+          <path
+            d="M18,22 L18,17 Q18,12 24,12 Q30,12 30,17 L30,22"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
+          {/* Keyhole */}
+          <circle cx="24" cy="29" r="2" fill={color} />
+          <line x1="24" y1="29" x2="24" y2="34" stroke={color} strokeWidth="2" strokeLinecap="round" />
         </g>
       )}
     </svg>

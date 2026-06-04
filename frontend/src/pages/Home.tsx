@@ -98,6 +98,13 @@ const dataSources = [
     repoUrl: 'https://github.com/okta/customer-detections',
     color: '#14b8a6',
   },
+  {
+    id: 'auth0' as const,
+    name: 'Auth0',
+    description: 'Auth0-authored Sigma detections with Splunk implementations, covering refresh tokens, MFA, brute force, and tenant attack protection.',
+    repoUrl: 'https://github.com/auth0/auth0-customer-detections',
+    color: '#f59e0b',
+  },
 ];
 
 // Feature cards configuration
@@ -105,7 +112,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 10 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 11 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {
@@ -479,6 +486,12 @@ export function Home() {
                 label="Okta"
                 color="#14b8a6"
                 delay={500}
+              />
+              <StatCard
+                value={stats.by_source.auth0 || 0}
+                label="Auth0"
+                color="#f59e0b"
+                delay={550}
               />
             </div>
           </div>

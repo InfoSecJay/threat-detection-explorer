@@ -1,0 +1,13 @@
+# Auth0 customer-detections -> canonical taxonomy mappings.
+#
+# Every Auth0 rule targets Auth0 tenant logs (authentication +
+# management API). Always one platform / one data source. The
+# `event_types` default to `authentication` because that's the
+# dominant class in the corpus (auth events, MFA, brute force, refresh
+# token reuse, etc.) -- a Sigma-style detection logic block extractor
+# could refine this per-rule later.
+
+always_includes:
+  platforms: [auth0]
+  data_sources: [auth0_logs]
+  event_types: [authentication]
