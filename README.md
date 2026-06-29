@@ -43,6 +43,48 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 
 ---
 
+## API
+
+Detection Explorer ships a public, read-only REST API. The same backend the
+frontend uses is reachable from your scripts, CI, or other tools.
+
+**Base URL:** `https://threat-detection-explorer-production.up.railway.app/api`
+
+**Interactive docs:** [Swagger UI](https://threat-detection-explorer-production.up.railway.app/docs)
+— complete endpoint inventory, schemas, and a try-it-now console.
+Raw OpenAPI spec at [`/openapi.json`](https://threat-detection-explorer-production.up.railway.app/openapi.json).
+
+No authentication required.
+
+### Quick examples
+
+```bash
+# List the first 25 Sigma rules tagged with T1059
+curl "https://threat-detection-explorer-production.up.railway.app/api/detections?sources=sigma&mitre_techniques=T1059&limit=25"
+
+# Corpus statistics (rule count per source, severity, status)
+curl "https://threat-detection-explorer-production.up.railway.app/api/detections/statistics"
+
+# Coverage for a MITRE technique across all 11 sources
+curl "https://threat-detection-explorer-production.up.railway.app/api/compare?technique=T1059.001"
+
+# All available filter facets (platforms, data sources, event types) with counts
+curl "https://threat-detection-explorer-production.up.railway.app/api/detections/filters"
+```
+
+### Notes for consumers
+
+- **Read-only intent.** A handful of write endpoints exist
+  (`POST /api/repositories/{name}/sync`, `POST /api/scheduler/trigger`, etc.)
+  but they're for the project's own sync infrastructure. They're not
+  rate-limited yet; please don't queue floods.
+- **Browser CORS** is allow-listed to `detectionexplorer.io`. Server-side
+  callers (scripts, MCP servers, backend integrations) aren't affected.
+- **Best-effort availability.** Hosted on Railway Pro; nightly sync at
+  02:00 UTC. No SLA.
+
+---
+
 ## Development
 
 > Everything below is for running Detection Explorer locally.
@@ -129,26 +171,10 @@ After syncing, ingest the rules into the database:
 
 ### API Endpoints
 
-#### Health
-- `GET /api/health` - Health check
-
-#### Repositories
-- `GET /api/repositories` - List all repositories
-- `POST /api/repositories/{name}/sync` - Sync a repository
-- `POST /api/repositories/{name}/ingest` - Ingest rules from repository
-
-#### Detections
-- `GET /api/detections` - List detections with filters
-- `GET /api/detections/{id}` - Get detection details
-- `GET /api/detections/statistics` - Get statistics
-
-#### Compare
-- `GET /api/compare?technique=T1059` - Compare by MITRE technique
-- `GET /api/compare?keyword=powershell` - Compare by keyword
-- `GET /api/compare/coverage-gap?base_source=sigma&compare_source=elastic` - Find coverage gaps
-
-#### Export
-- `POST /api/export` - Export detections as JSON or CSV
+When the backend is running locally, the full endpoint inventory and
+try-it-now console are at [`http://localhost:8000/docs`](http://localhost:8000/docs)
+(FastAPI auto-generated Swagger UI). For the live hosted API, see the
+[API section](#api) at the top of this README.
 
 ### Normalized Schema
 
