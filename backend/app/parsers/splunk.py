@@ -59,8 +59,16 @@ class SplunkParser(BaseParser):
             # Extract MITRE ATT&CK
             mitre_attack = self._extract_mitre(data)
 
-            # Extract tags
-            all_tags = data.get("tags", {})
+            # Extract tags. Newer Splunk rules also promote some
+            # fields (`analytic_story`, `asset_type`) to the top
+            # level of the YAML in addition to (or instead of) the
+            # nested `tags:` block. Merge the top-level values in
+            # so the tag extractor + story surfacing catch them.
+            all_tags = dict(data.get("tags", {}) or {})
+            if "analytic_story" in data and "analytic_story" not in all_tags:
+                all_tags["analytic_story"] = data["analytic_story"]
+            if "asset_type" in data and "asset_type" not in all_tags:
+                all_tags["asset_type"] = data["asset_type"]
             tags = self._extract_tags(all_tags)
 
             # Derive severity from rba or tags
@@ -120,6 +128,9 @@ class SplunkParser(BaseParser):
                     # the normalizer's story:snake_case flattening).
                     # The normalizer surfaces these on the canonical
                     # `use_cases` field with vendor-preserved casing.
+                    # `all_tags` above merges the top-level value in
+                    # so newer rules (top-level `analytic_story:`) and
+                    # older rules (nested under `tags:`) both work.
                     "analytic_stories": all_tags.get("analytic_story", []) or [],
                     "references": data.get("references", []),
                     "date": data.get("date"),
