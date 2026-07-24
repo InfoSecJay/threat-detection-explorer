@@ -39,6 +39,7 @@ def _parsed(**overrides) -> ParsedRule:
             "id": "12345-sublime-rule-id",
             "references": ["https://abuse.ch/url/qakbot"],
             "tactics_and_techniques": ["Social engineering"],
+            "attack_types": ["Malware/Ransomware", "Credential Phishing"],
             "type": "rule",
         },
     )
@@ -107,3 +108,11 @@ def test_normalize_preserves_query_in_detection_logic(normalizer):
     n = normalizer.normalize(_parsed())
     assert "attachments" in n.detection_logic
     assert "suspicious_domains" in n.detection_logic
+
+
+def test_normalize_attack_types_surface_on_use_cases(normalizer):
+    """Sublime's dedicated `attack_types` field maps directly to the
+    canonical `use_cases` field with vendor-preserved casing."""
+    n = normalizer.normalize(_parsed())
+    assert "Malware/Ransomware" in n.use_cases
+    assert "Credential Phishing" in n.use_cases

@@ -7,6 +7,28 @@ from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_elastic_fields
 
 
+def _extract_elastic_use_cases(raw_tags: list) -> list[str]:
+    """Pull vendor-preserved `Use Case:` display values out of a
+    raw Elastic tag list.
+
+    Elastic authors add tags like `Use Case: Threat Detection`,
+    `Use Case: Vulnerability`, `Use Case: Guided Onboarding`. This
+    helper strips the `Use Case:` prefix, trims whitespace, keeps the
+    original casing, and dedupes.
+    """
+    out: list[str] = []
+    for tag in raw_tags or []:
+        if not isinstance(tag, str):
+            continue
+        lower = tag.strip().lower()
+        if not lower.startswith("use case:"):
+            continue
+        value = tag.split(":", 1)[1].strip()
+        if value and value not in out:
+            out.append(value)
+    return out
+
+
 class ElasticNormalizer(BaseNormalizer):
     """Normalizer for Elastic detection rules."""
 
@@ -45,6 +67,11 @@ class ElasticNormalizer(BaseNormalizer):
         # Canonical taxonomy
         platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
+        # Extract vendor `Use Case:` prefixed tags -> use_cases with
+        # vendor-preserved casing (before the tag-normalization
+        # pipeline lowercases them).
+        use_cases = _extract_elastic_use_cases(parsed.tags)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -81,6 +108,7 @@ class ElasticNormalizer(BaseNormalizer):
             platforms=platforms,
             data_sources=data_sources,
             event_types=event_types,
+            use_cases=use_cases,
             taxonomy_matched=matched,
             taxonomy_fingerprint=fingerprint,
         )

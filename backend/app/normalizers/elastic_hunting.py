@@ -49,6 +49,11 @@ class ElasticHuntingNormalizer(BaseNormalizer):
         # Canonical taxonomy
         platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
+        # Extract `Use Case:` prefixed tags -> use_cases (Elastic
+        # Hunting rules occasionally carry these; most don't).
+        from app.normalizers.elastic import _extract_elastic_use_cases
+        use_cases = _extract_elastic_use_cases(parsed.tags)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -85,6 +90,7 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             platforms=platforms,
             data_sources=data_sources,
             event_types=event_types,
+            use_cases=use_cases,
             taxonomy_matched=matched,
             taxonomy_fingerprint=fingerprint,
         )

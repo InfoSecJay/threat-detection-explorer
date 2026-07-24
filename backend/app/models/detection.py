@@ -66,6 +66,13 @@ class Detection(Base):
     data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     event_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
+    # ── Use cases (analytic stories / vendor use-case tags) ──────────
+    # Vendor-preserved display names. Populated for sources with an
+    # explicit story/use-case concept: Splunk (`analytic_story` tags),
+    # Elastic (`Use Case:` prefix tags), Sublime (`attack_types`
+    # field). Other sources land as empty list. See docs/schema.md.
+    use_cases: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
     # MITRE ATT&CK mapping
     mitre_tactics: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     mitre_techniques: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

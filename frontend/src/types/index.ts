@@ -20,6 +20,10 @@ export interface Detection {
   platforms: string[];
   data_sources: string[];
   event_types: string[];
+  // Vendor-preserved analytic story / use-case labels. Populated for
+  // Splunk (analytic_story), Elastic (Use Case: tags), Sublime
+  // (attack_types); empty on sources without a native concept.
+  use_cases?: string[];
   mitre_tactics: string[];
   mitre_techniques: string[];
   detection_logic: string;

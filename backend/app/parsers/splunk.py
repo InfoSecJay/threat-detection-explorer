@@ -116,6 +116,11 @@ class SplunkParser(BaseParser):
                     "security_domain": _normalize_security_domain(
                         all_tags.get("security_domain")
                     ),
+                    # Raw analytic_story values from the YAML (before
+                    # the normalizer's story:snake_case flattening).
+                    # The normalizer surfaces these on the canonical
+                    # `use_cases` field with vendor-preserved casing.
+                    "analytic_stories": all_tags.get("analytic_story", []) or [],
                     "references": data.get("references", []),
                     "date": data.get("date"),
                     "cve": all_tags.get("cve", []),

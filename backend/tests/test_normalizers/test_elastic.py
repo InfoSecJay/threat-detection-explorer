@@ -225,3 +225,21 @@ def test_normalize_handles_missing_dates(normalizer):
     }))
     assert n.rule_created_date is None
     assert n.rule_modified_date is None
+
+
+def test_normalize_use_case_tags_surface_on_use_cases(normalizer):
+    """`Use Case:` prefixed tags in the raw TOML flow to the canonical
+    `use_cases` field with vendor-preserved casing. The prefix is
+    stripped and whitespace trimmed."""
+    n = normalizer.normalize(_parsed(
+        tags=["Tactic: Credential Access", "Use Case: Threat Detection", "Use Case: Vulnerability"],
+    ))
+    assert "Threat Detection" in n.use_cases
+    assert "Vulnerability" in n.use_cases
+    # Non-Use-Case tags do NOT leak in.
+    assert "Credential Access" not in n.use_cases
+
+
+def test_normalize_use_cases_empty_when_no_use_case_tag(normalizer):
+    n = normalizer.normalize(_parsed(tags=["Tactic: Execution", "OS: Windows"]))
+    assert n.use_cases == []

@@ -44,6 +44,7 @@ def _parsed(**overrides) -> ParsedRule:
             "type": "TTP",
             "data_source": ["Sysmon EventID 1"],
             "security_domain": "endpoint",
+            "analytic_stories": ["HellCat Ransomware", "Insider Threat"],
             "references": ["https://splunk.com/example"],
             "date": "2024-03-15",
             "cve": [],
@@ -83,6 +84,15 @@ def test_normalize_passes_mitre_through(normalizer):
     n = normalizer.normalize(_parsed())
     assert "TA0002" in n.mitre_tactics
     assert "T1059.001" in n.mitre_techniques
+
+
+def test_normalize_analytic_stories_surface_on_use_cases(normalizer):
+    """Splunk `analytic_story` values (raw upstream) flow to the
+    canonical `use_cases` field with vendor-preserved casing.
+    Distinct from the `story:snake_case` tag that trending consumes."""
+    n = normalizer.normalize(_parsed())
+    assert "HellCat Ransomware" in n.use_cases
+    assert "Insider Threat" in n.use_cases
 
 
 def test_normalize_preserves_story_tag_prefix(normalizer):

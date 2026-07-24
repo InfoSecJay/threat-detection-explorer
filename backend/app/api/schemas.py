@@ -81,6 +81,10 @@ class DetectionBase(BaseModel):
     platforms: list[str] = []
     data_sources: list[str] = []
     event_types: list[str] = []
+    # Vendor-preserved analytic story / use-case labels. Populated for
+    # Splunk (analytic_story), Elastic (Use Case: tags), Sublime
+    # (attack_types); empty on sources without a native concept.
+    use_cases: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str
@@ -133,6 +137,7 @@ class DetectionResponse(DetectionBase):
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
             "event_types": getattr(detection, 'event_types', None) or [],
+            "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",
@@ -178,6 +183,7 @@ class DetectionListItem(BaseModel):
     platforms: list[str] = []
     data_sources: list[str] = []
     event_types: list[str] = []
+    use_cases: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     detection_logic: str = ""
@@ -228,6 +234,7 @@ class DetectionListItem(BaseModel):
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
             "event_types": getattr(detection, 'event_types', None) or [],
+            "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "detection_logic": sanitize_string(detection.detection_logic) or "",

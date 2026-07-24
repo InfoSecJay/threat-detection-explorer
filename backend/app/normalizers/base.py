@@ -92,6 +92,11 @@ class NormalizedDetection:
     data_sources: list[str] = field(default_factory=list)
     event_types: list[str] = field(default_factory=list)
 
+    # Vendor-preserved analytic story / use-case labels. Populated for
+    # sources with an explicit story/use-case concept (Splunk, Elastic,
+    # Sublime); empty list on other sources.
+    use_cases: list[str] = field(default_factory=list)
+
     # Coverage signal — True if the resolver found a mapping, False if
     # we fell through to [UNKNOWN] for every dimension. Feeds per-sync
     # coverage metrics + drift notifications. Not persisted to the DB

@@ -24,6 +24,17 @@ class SublimeNormalizer(BaseNormalizer):
         # Canonical taxonomy
         platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
+        # Sublime carries a dedicated `attack_types` field
+        # (BEC / Credential Phishing / Malware/Ransomware / ...) that
+        # maps directly to the canonical `use_cases` concept. Vendor-
+        # preserved casing; dedupe empty values.
+        use_cases: list[str] = []
+        for at in extra.get("attack_types", []) or []:
+            if isinstance(at, str):
+                s = at.strip()
+                if s and s not in use_cases:
+                    use_cases.append(s)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -60,6 +71,7 @@ class SublimeNormalizer(BaseNormalizer):
             platforms=platforms,
             data_sources=data_sources,
             event_types=event_types,
+            use_cases=use_cases,
             taxonomy_matched=matched,
             taxonomy_fingerprint=fingerprint,
         )

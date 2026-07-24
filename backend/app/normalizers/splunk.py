@@ -27,6 +27,16 @@ class SplunkNormalizer(BaseNormalizer):
         # Canonical taxonomy
         platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
 
+        # Analytic story values (vendor-preserved) -> use_cases. The
+        # parser stashes the raw upstream values; we dedupe + drop empties
+        # but keep the vendor's casing.
+        use_cases: list[str] = []
+        for story in extra.get("analytic_stories", []) or []:
+            if isinstance(story, str):
+                s = story.strip()
+                if s and s not in use_cases:
+                    use_cases.append(s)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -63,6 +73,7 @@ class SplunkNormalizer(BaseNormalizer):
             platforms=platforms,
             data_sources=data_sources,
             event_types=event_types,
+            use_cases=use_cases,
             taxonomy_matched=matched,
             taxonomy_fingerprint=fingerprint,
         )

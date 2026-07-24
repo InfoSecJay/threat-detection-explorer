@@ -379,6 +379,7 @@ class IngestionService:
             platforms=normalized.platforms,
             data_sources=normalized.data_sources,
             event_types=normalized.event_types,
+            use_cases=normalized.use_cases,
             created_at=utcnow(),
             updated_at=utcnow(),
         )
