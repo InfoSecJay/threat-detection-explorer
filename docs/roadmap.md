@@ -174,6 +174,39 @@ deliverable is wanted.
   `services/quality_scorer.py`. Surface as a sortable column on the
   Detections list. **First fundamentally new user-facing signal in
   a while — leverages the moat.** ~3 h.
+- [ ] **7. Extracted observables redesign** — the 10 `extracted_*`
+  columns (fields_used / event_ids / process_names / file_paths /
+  registry_keys / network_indicators / source_tables / observables /
+  api_actions / target_resources) are the deepest moat the site has
+  BUT the extraction is inaccurate. Per-language extractors
+  (`extract_sigma_fields`, `extract_splunk_fields`,
+  `extract_elastic_fields`, etc. — 1,266 lines in
+  `services/field_extractor.py`) grew organically with 110 uneven
+  tests. Different vendors need different parsers; some sources
+  currently skip extraction entirely (Chronicle YARA-L, Okta OIE).
+  This is a **rebuild-from-first-principles** effort, per-source:
+    1. **Per-source accuracy audit** first (like the Phase 2
+       normalization audit) — measure current extraction coverage +
+       false-positive class per source. Establishes a baseline.
+    2. **Formalize the observable schema** — the current
+       `extracted_observables` list-of-dicts is loose; pin the
+       `type` / `subtype` vocabulary in canonical.py and validate.
+    3. **Per-source extractor rebuild** — start with the biggest /
+       messiest sources first (Splunk SPL, Elastic KQL/EQL). Each
+       gets its own audit fixture, targeted tests, then a
+       from-scratch parser using a real query grammar where
+       available (splunk-sdk `search_parser`, real KQL/EQL grammar
+       libs) rather than the current regex approaches.
+    4. **Backfill via re-ingest** as each source's extractor lands.
+    5. **Add YARA-L + OIE + Okta SPL extractors** — currently these
+       sources have empty `extracted_*`, which is honest but leaves
+       a signal gap.
+
+  **Not a single push — a multi-week arc.** Sequence per source;
+  ship each one behind the audit numbers so we can prove the
+  redesign improved coverage + accuracy on each. Gated on the audit
+  step producing concrete before/after metrics. ~1-2 weeks per
+  source once the audit tooling exists.
 
 ## Hidden pages — restore when reworked
 
@@ -225,18 +258,6 @@ Lower-priority items. Pick from these as fill-in work between flagship pushes.
 - [ ] **More backend test coverage** — search + ingestion done.
   Lower-priority gaps: scheduler, trending routes, export routes,
   repository_sync, git_service. Pick when they next get touched.
-- [ ] **Taxonomy Phase 3 — drop legacy single-value columns** — the
-  `Detection` model still carries `platform`, `event_category`,
-  `data_source_normalized` from before the canonical
-  `taxonomy_platforms` / `taxonomy_data_sources` /
-  `taxonomy_event_types` lists landed. The Phase 2 audit's
-  legacy-canonical disagreement metric already calls out the drift
-  (Sentinel 83.2%, Elastic 17.7%, Splunk 11.0% as of 2026-05-13).
-  Phase 3 work: drop the legacy columns from the model, rename
-  `taxonomy_*` to final names (`platforms`, `data_sources`,
-  `event_types`), DB migration, strip legacy refs from search service
-  + API schemas + FilterPanel. Gated on the recent Sentinel mapping
-  fix stabilizing (one nightly sync cycle).
 
 ### Hygiene
 
