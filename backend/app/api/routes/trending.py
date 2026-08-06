@@ -280,39 +280,179 @@ async def get_trending_summary(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a summary of recent activity across all sources."""
+    """Recent-activity summary — created + modified counts across sources.
+
+    Splits the tally into two columns so callers can distinguish real new
+    content from hygiene bumps (a repo that only re-touches existing
+    rules shows large `modified` and near-zero `created`). Zero-activity
+    sources are omitted from `by_source` to keep the payload lean.
+    """
     cutoff_date = utcnow() - timedelta(days=days)
 
-    # Count total rules modified in period
-    total_query = select(func.count(Detection.id)).where(
-        and_(
-            Detection.rule_modified_date.isnot(None),
-            Detection.rule_modified_date >= cutoff_date,
+    async def _count(col) -> int:
+        result = await db.execute(
+            select(func.count(Detection.id)).where(
+                and_(col.isnot(None), col >= cutoff_date)
+            )
         )
-    )
-    total_result = await db.execute(total_query)
-    total_modified = total_result.scalar() or 0
+        return result.scalar() or 0
 
-    # Count by source
-    by_source = {}
+    total_created = await _count(Detection.rule_created_date)
+    total_modified = await _count(Detection.rule_modified_date)
+
+    by_source: dict[str, dict[str, int]] = {}
     for source in ALL_REPOSITORY_NAMES:
-        source_query = select(func.count(Detection.id)).where(
+        created_q = select(func.count(Detection.id)).where(
+            and_(
+                Detection.source == source,
+                Detection.rule_created_date.isnot(None),
+                Detection.rule_created_date >= cutoff_date,
+            )
+        )
+        modified_q = select(func.count(Detection.id)).where(
             and_(
                 Detection.source == source,
                 Detection.rule_modified_date.isnot(None),
                 Detection.rule_modified_date >= cutoff_date,
             )
         )
-        source_result = await db.execute(source_query)
-        count = source_result.scalar() or 0
-        if count > 0:
-            by_source[source] = count
+        created = (await db.execute(created_q)).scalar() or 0
+        modified = (await db.execute(modified_q)).scalar() or 0
+        if created or modified:
+            by_source[source] = {"created": created, "modified": modified}
 
     return {
         "period_days": days,
         "cutoff_date": cutoff_date.isoformat(),
+        "total_created": total_created,
         "total_modified": total_modified,
         "by_source": by_source,
+    }
+
+
+@router.get("/use-cases")
+async def get_trending_use_cases(
+    days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
+    limit: int = Query(15, ge=5, le=50, description="Number of use cases to return"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter"),
+    platforms: Optional[str] = Query(None, description="Comma-separated canonical-platform filter"),
+    event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Top vendor use-cases / analytic stories in-window.
+
+    Mirrors ``/trending/techniques`` but groups by the ``use_cases``
+    JSON array column. Answers "what themes are vendors writing about
+    right now?" — a rule tagged with two analytic stories counts toward
+    both. Empty use_cases are ignored.
+    """
+    cutoff_date = utcnow() - timedelta(days=days)
+
+    conditions = [
+        Detection.rule_modified_date.isnot(None),
+        Detection.rule_modified_date >= cutoff_date,
+    ]
+    _apply_trending_filters(conditions, _parse_csv(sources), _parse_csv(platforms), _parse_csv(event_types))
+
+    query = select(
+        Detection.source,
+        Detection.use_cases,
+        Detection.rule_modified_date,
+    ).where(and_(*conditions))
+
+    rows = (await db.execute(query)).all()
+
+    counts: dict[str, dict] = {}
+    for source, use_cases, modified_date in rows:
+        if not use_cases:
+            continue
+        for uc in use_cases:
+            if not uc:
+                continue
+            entry = counts.setdefault(
+                uc,
+                {"use_case": uc, "count": 0, "sources": set(), "latest_date": None},
+            )
+            entry["count"] += 1
+            entry["sources"].add(source)
+            if modified_date:
+                if entry["latest_date"] is None or modified_date > entry["latest_date"]:
+                    entry["latest_date"] = modified_date
+
+    sorted_counts = sorted(counts.values(), key=lambda x: (-x["count"], x["use_case"]))[:limit]
+
+    return {
+        "period_days": days,
+        "cutoff_date": cutoff_date.isoformat(),
+        "use_cases": [
+            {
+                "use_case": c["use_case"],
+                "count": c["count"],
+                "sources": sorted(c["sources"]),
+                "latest_date": c["latest_date"].isoformat() if c["latest_date"] else None,
+            }
+            for c in sorted_counts
+        ],
+    }
+
+
+@router.get("/weekly-activity")
+async def get_weekly_activity(
+    weeks: int = Query(12, ge=4, le=52, description="Number of weeks of history"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-source rules-created-per-week for sparklines on Repo Health.
+
+    Returns ``weeks`` buckets ending on the current ISO week, each with
+    a per-source count of rules whose ``rule_created_date`` falls in that
+    bucket. Portable across SQLite + Postgres: buckets are computed in
+    Python from ``(source, rule_created_date)`` rows to avoid SQL
+    date-truncation dialect differences.
+
+    Only counts CREATED rules (not modified) so the sparkline tracks
+    genuine new content, not hygiene passes.
+    """
+    now = utcnow()
+    # ISO week start: Monday. Truncate now to this week's Monday, midnight UTC.
+    days_since_monday = now.weekday()
+    this_week_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_since_monday)
+
+    # Build week-start list oldest → newest so the sparkline reads L-to-R.
+    week_starts = [this_week_start - timedelta(weeks=(weeks - 1 - i)) for i in range(weeks)]
+    oldest_cutoff = week_starts[0]
+
+    query = select(Detection.source, Detection.rule_created_date).where(
+        and_(
+            Detection.rule_created_date.isnot(None),
+            Detection.rule_created_date >= oldest_cutoff,
+        )
+    )
+    rows = (await db.execute(query)).all()
+
+    def _bucket_index(dt) -> Optional[int]:
+        """Return which week bucket a date belongs to, or None if out of range."""
+        if dt is None or dt < oldest_cutoff:
+            return None
+        # Integer weeks since the oldest bucket start.
+        delta_days = (dt - oldest_cutoff).days
+        idx = delta_days // 7
+        return idx if 0 <= idx < weeks else None
+
+    by_source: dict[str, list[int]] = {name: [0] * weeks for name in ALL_REPOSITORY_NAMES}
+    for source, created_date in rows:
+        idx = _bucket_index(created_date)
+        if idx is None or source not in by_source:
+            continue
+        by_source[source][idx] += 1
+
+    # Drop sources with no activity at all in the window so the payload
+    # stays tight — the FE can render "no data" for repos not included.
+    by_source_filtered = {k: v for k, v in by_source.items() if any(v)}
+
+    return {
+        "weeks": weeks,
+        "week_starts": [w.date().isoformat() for w in week_starts],
+        "by_source": by_source_filtered,
     }
 
 

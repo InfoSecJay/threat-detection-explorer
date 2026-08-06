@@ -1,40 +1,126 @@
 /**
- * Detection Intelligence — what the industry is watching right now.
+ * Detection Intelligence — what's new across every upstream repo we
+ * track. Composition-only. Four modules, top-to-bottom in the order a
+ * returning DE scans them:
  *
- * This page is composition only. Each section lives in its own
- * sub-module under ./intel/ and owns its own data hooks. The page
- * itself just holds two pieces of state:
- *   - trendingPeriod: the time window threaded into every section
- *     that supports one (Pulse, Threat Pulse, Trending Techniques,
- *     Trending Platforms).
- *   - filters: the source/platform narrowing applied to the
- *     Notable New Rules + trending lists. Excluded from the
- *     platforms-trending query because that one would be circular.
+ *   1. RepoHealthStrip   — freshness dashboard: rule count, last sync,
+ *                          12-week new-rules sparkline per repo.
+ *   2. PulseBanner       — total new + modified rules in the window,
+ *                          with per-source bars scaled to *created*.
+ *   3. UpstreamReleases  — GitHub Releases for sigma/splunk/elastic
+ *                          (broader signal audit pending manual review;
+ *                          see docs/roadmap.md for the RSS/blog surfaces
+ *                          we may add).
+ *   4. What's New        — newest individual rules + three trending
+ *                          tiles (techniques, platforms, use cases).
+ *                          Inline period + source filter narrow all
+ *                          four data hooks in this section together.
+ *
+ * Threat Spotlight is intentionally NOT rendered here. Accurate
+ * cross-vendor threat-to-rule mapping requires normalizing MITRE
+ * Group/Software tags currently dropped by the Sigma + LOLRMM parsers;
+ * that work is Phase 2 (see roadmap).
  */
 
 import { useState, useMemo } from 'react';
 import type { ActivityFilters } from '../services/api';
 import { clipSm } from '../constants/style';
+import { sourceTheme as sourceConfig } from '../constants/style';
+import { useFilterOptions } from '../hooks/useDetections';
 import { Section } from './intel/Section';
+import { RepoHealthStrip } from './intel/RepoHealthStrip';
 import { PulseBanner } from './intel/PulseBanner';
-import { ThreatPulseSection } from './intel/ThreatPulse';
 import { UpstreamReleases } from './intel/UpstreamReleases';
 import { NotableNewRulesSection } from './intel/NotableNewRules';
-import { TrendingTechniquesList, TrendingPlatformsList } from './intel/Trending';
-import { ActivityFilterBar } from './intel/ActivityFilterBar';
+import {
+  TrendingTechniquesList,
+  TrendingPlatformsList,
+  TrendingUseCasesList,
+} from './intel/Trending';
 import { periodOptions } from './intel/lib';
 
-export function IndustryIntel() {
-  const [trendingPeriod, setTrendingPeriod] = useState(90);
-  const [filters, setFilters] = useState<ActivityFilters>({});
+function SourceFilterChips({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { data: options } = useFilterOptions();
+  const sources = options?.sources || [];
+  if (!sources.length) return null;
 
-  // The platforms-trending query intentionally drops its `platforms`
-  // filter — it's the grouping key, filtering by it would collapse
-  // the result to that one platform.
-  const platformsTrendingFilters = useMemo(() => {
-    const { platforms: _p, ...rest } = filters;
-    return rest;
-  }, [filters]);
+  const toggle = (src: string) => {
+    onChange(value.includes(src) ? value.filter((s) => s !== src) : [...value, src]);
+  };
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mr-1">src:</span>
+      {sources.map((src) => {
+        const cfg = sourceConfig[src];
+        const active = value.includes(src);
+        return (
+          <button
+            key={src}
+            onClick={() => toggle(src)}
+            className={`px-2 py-0.5 text-[10px] font-mono uppercase transition-colors border ${
+              active
+                ? `${cfg?.bg || 'bg-matrix-500/20'} ${cfg?.text || 'text-matrix-400'} ${cfg?.border || 'border-matrix-500/30'}`
+                : 'bg-void-800 text-gray-400 border-void-600 hover:text-white'
+            }`}
+            title={cfg?.name || src}
+          >
+            {(cfg?.name || src).replace(' Protections', ' Prot').replace(' Hunting', ' Hunt')}
+          </button>
+        );
+      })}
+      {value.length > 0 && (
+        <button
+          onClick={() => onChange([])}
+          className="ml-2 text-[10px] font-mono text-gray-500 hover:text-breach-400 uppercase tracking-wider"
+        >
+          [ clear ]
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TrendingTile({
+  title,
+  accent,
+  children,
+}: {
+  title: string;
+  accent: 'matrix' | 'cyan' | 'amber';
+  children: React.ReactNode;
+}) {
+  const accentText =
+    accent === 'matrix' ? 'text-matrix-400' : accent === 'cyan' ? 'text-cyan-400' : 'text-amber-300';
+  const dot =
+    accent === 'matrix' ? 'bg-matrix-500' : accent === 'cyan' ? 'bg-cyan-500' : 'bg-amber-500';
+  return (
+    <div className="bg-void-850 border border-void-700 p-3" style={clipSm}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+        <h3 className={`font-display font-semibold text-[11px] uppercase tracking-wider ${accentText}`}>
+          {title}
+        </h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function IndustryIntel() {
+  const [period, setPeriod] = useState(90);
+  const [sourceFilter, setSourceFilter] = useState<string[]>([]);
+
+  const filters = useMemo<ActivityFilters>(
+    () => (sourceFilter.length ? { sources: sourceFilter } : {}),
+    [sourceFilter],
+  );
 
   return (
     <div className="space-y-6">
@@ -43,40 +129,31 @@ export function IndustryIntel() {
           Detection Intelligence
         </h1>
         <p className="text-xs text-gray-500 mt-0.5 font-mono">
-          WHAT_THE_INDUSTRY_IS_WATCHING // NAMED_THREATS // CVE_COVERAGE // UPSTREAM_ACTIVITY
+          WHAT_IS_NEW_FROM_EACH_REPO // UPSTREAM_RELEASES // TRENDING_PATTERNS
         </p>
       </div>
 
-      <PulseBanner days={trendingPeriod} />
-
-      <Section
-        title="Threat Pulse"
-        subtitle="named threats from vendor story tags · CVEs across all sources"
-      >
-        <ThreatPulseSection days={trendingPeriod} />
+      <Section title="Repo Health" subtitle="11 sources · click a card to filter the catalog">
+        <RepoHealthStrip />
       </Section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Upstream Releases" subtitle="sigma · splunk · elastic">
-          <UpstreamReleases />
-        </Section>
+      <PulseBanner days={period} />
 
-        <Section title="Notable New Rules" subtitle="latest across all sources">
-          <NotableNewRulesSection filters={filters} />
-        </Section>
-      </div>
+      <Section title="Upstream Releases" subtitle="sigma · splunk · elastic">
+        <UpstreamReleases />
+      </Section>
 
       <Section
-        title="Catalog Activity"
-        subtitle={`trending over last ${trendingPeriod}d — filter to narrow`}
+        title="What's New"
+        subtitle={`latest rules + trending patterns · last ${period}d`}
         action={
           <div className="flex items-center gap-1">
             {periodOptions.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setTrendingPeriod(opt.value)}
+                onClick={() => setPeriod(opt.value)}
                 className={`px-2 py-0.5 text-[10px] font-mono uppercase transition-colors ${
-                  trendingPeriod === opt.value
+                  period === opt.value
                     ? 'bg-matrix-500/20 text-matrix-400 border border-matrix-500/30'
                     : 'bg-void-800 text-gray-500 border border-void-700 hover:text-white'
                 }`}
@@ -88,25 +165,21 @@ export function IndustryIntel() {
         }
       >
         <div className="space-y-3">
-          <ActivityFilterBar filters={filters} setFilters={setFilters} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-void-850 border border-void-700 p-3" style={clipSm}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-matrix-500" />
-                <h3 className="font-display font-semibold text-[11px] uppercase tracking-wider text-matrix-400">
-                  Trending MITRE Techniques
-                </h3>
-              </div>
-              <TrendingTechniquesList days={trendingPeriod} filters={filters} />
+          <SourceFilterChips value={sourceFilter} onChange={setSourceFilter} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <NotableNewRulesSection filters={filters} />
             </div>
-            <div className="bg-void-850 border border-void-700 p-3" style={clipSm}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-                <h3 className="font-display font-semibold text-[11px] uppercase tracking-wider text-cyan-400">
-                  Trending Platforms
-                </h3>
-              </div>
-              <TrendingPlatformsList days={trendingPeriod} filters={platformsTrendingFilters} />
+            <div className="space-y-3">
+              <TrendingTile title="Trending Techniques" accent="matrix">
+                <TrendingTechniquesList days={period} filters={filters} />
+              </TrendingTile>
+              <TrendingTile title="Trending Platforms" accent="cyan">
+                <TrendingPlatformsList days={period} filters={filters} />
+              </TrendingTile>
+              <TrendingTile title="Trending Use Cases" accent="amber">
+                <TrendingUseCasesList days={period} filters={filters} />
+              </TrendingTile>
             </div>
           </div>
         </div>

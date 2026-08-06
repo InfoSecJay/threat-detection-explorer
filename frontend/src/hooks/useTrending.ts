@@ -41,6 +41,26 @@ export function useRecentRules(limit: number = 20, filters: ActivityFilters = {}
   });
 }
 
+export function useTrendingUseCases(
+  days: number = 90,
+  limit: number = 15,
+  filters: ActivityFilters = {},
+) {
+  return useQuery({
+    queryKey: ['trending-use-cases', days, limit, filters],
+    queryFn: () => trendingApi.getUseCases(days, limit, filters),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useWeeklyActivity(weeks: number = 12) {
+  return useQuery({
+    queryKey: ['weekly-activity', weeks],
+    queryFn: () => trendingApi.getWeeklyActivity(weeks),
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
 export function useThreatPulse(limit: number = 8, days?: number) {
   return useQuery({
     queryKey: ['threat-pulse', limit, days ?? null],

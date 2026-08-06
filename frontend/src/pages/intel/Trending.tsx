@@ -5,7 +5,7 @@
  */
 
 import { Link } from 'react-router-dom';
-import { useTrendingTechniques, useTrendingPlatforms } from '../../hooks/useTrending';
+import { useTrendingTechniques, useTrendingPlatforms, useTrendingUseCases } from '../../hooks/useTrending';
 import { useMitre } from '../../contexts/MitreContext';
 import { sourceTheme as sourceConfig } from '../../constants/style';
 import type { ActivityFilters } from '../../services/api';
@@ -21,11 +21,13 @@ function TrendingRow({
   maxCount: number;
   sources: string[];
   href: string;
-  accent: 'matrix' | 'cyan';
+  accent: 'matrix' | 'cyan' | 'amber';
 }) {
   const pct = (count / maxCount) * 100;
-  const primaryCls = accent === 'matrix' ? 'text-matrix-500' : 'text-cyan-400';
-  const barCls = accent === 'matrix' ? 'bg-matrix-500/10' : 'bg-cyan-500/10';
+  const primaryCls =
+    accent === 'matrix' ? 'text-matrix-500' : accent === 'cyan' ? 'text-cyan-400' : 'text-amber-300';
+  const barCls =
+    accent === 'matrix' ? 'bg-matrix-500/10' : accent === 'cyan' ? 'bg-cyan-500/10' : 'bg-amber-500/10';
   return (
     <Link to={href} className="block group">
       <div className="relative bg-void-800/60 border border-void-700 hover:border-void-600 px-2.5 py-1.5 transition-colors">
@@ -68,6 +70,31 @@ export function TrendingTechniquesList({ days, filters }: { days: number; filter
           sources={t.sources}
           href={`/mitre/${t.technique_id}`}
           accent="matrix"
+        />
+      ))}
+    </div>
+  );
+}
+
+export function TrendingUseCasesList({ days, filters }: { days: number; filters: ActivityFilters }) {
+  const { data, isLoading, error } = useTrendingUseCases(days, 8, filters);
+
+  if (isLoading) return <div className="space-y-1">{[...Array(8)].map((_, i) => <SkeletonRow key={i} />)}</div>;
+  if (error || !data?.use_cases?.length) return <EmptyLabel label="NO_USE_CASE_DATA" />;
+
+  const max = Math.max(...data.use_cases.map((u) => u.count));
+  return (
+    <div className="space-y-1">
+      {data.use_cases.map((u, i) => (
+        <TrendingRow
+          key={u.use_case}
+          rank={i + 1}
+          primary={u.use_case}
+          count={u.count}
+          maxCount={max}
+          sources={u.sources}
+          href={`/detections?use_cases=${encodeURIComponent(u.use_case)}`}
+          accent="amber"
         />
       ))}
     </div>

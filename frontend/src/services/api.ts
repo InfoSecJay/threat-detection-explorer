@@ -337,8 +337,32 @@ export interface TrendingPlatformsResponse {
 export interface TrendingSummaryResponse {
   period_days: number;
   cutoff_date: string;
+  total_created: number;
   total_modified: number;
-  by_source: Record<string, number>;
+  // {source: {created, modified}} — zero-activity sources omitted.
+  by_source: Record<string, { created: number; modified: number }>;
+}
+
+export interface TrendingUseCase {
+  use_case: string;
+  count: number;
+  sources: string[];
+  latest_date: string | null;
+}
+
+export interface TrendingUseCasesResponse {
+  period_days: number;
+  cutoff_date: string;
+  use_cases: TrendingUseCase[];
+}
+
+export interface WeeklyActivityResponse {
+  weeks: number;
+  // Week-start ISO dates (Monday), oldest → newest.
+  week_starts: string[];
+  // {source: [count_per_week…]} — same order as week_starts. Sources
+  // with zero activity in the window are omitted.
+  by_source: Record<string, number[]>;
 }
 
 // Activity filters — shared by trending + recent-rules. Optional
@@ -385,6 +409,22 @@ export const trendingApi = {
 
   getSummary: async (days: number = 90): Promise<TrendingSummaryResponse> => {
     const response = await api.get(`/trending/summary?days=${days}`);
+    return response.data;
+  },
+
+  getUseCases: async (
+    days: number = 90,
+    limit: number = 15,
+    filters: ActivityFilters = {},
+  ): Promise<TrendingUseCasesResponse> => {
+    const response = await api.get(
+      `/trending/use-cases?days=${days}&limit=${limit}${activityFilterParams(filters)}`,
+    );
+    return response.data;
+  },
+
+  getWeeklyActivity: async (weeks: number = 12): Promise<WeeklyActivityResponse> => {
+    const response = await api.get(`/trending/weekly-activity?weeks=${weeks}`);
     return response.data;
   },
 
