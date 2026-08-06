@@ -50,11 +50,18 @@ function Sparkline({ counts, colorClass }: { counts: number[]; colorClass: strin
 }
 
 export function RepoHealthStrip() {
-  const { data: repos, isLoading: reposLoading } = useRepositories();
+  const { data: reposRaw, isLoading: reposLoading } = useRepositories();
   const { data: weekly, isLoading: weeklyLoading } = useWeeklyActivity(12);
 
   if (reposLoading || weeklyLoading) return <SkeletonRow height="h-28" />;
-  if (!repos) return null;
+  if (!reposRaw) return null;
+
+  // Filter out stale repo rows that predate a rename (e.g.
+  // `okta_custom_detections` before it became `okta`). Any repo whose
+  // name isn't a canonical source in `sourceConfig` is orphaned and
+  // shouldn't render — otherwise it falls through to the default theme
+  // and shows a phantom "0 rules" card with the wrong colors.
+  const repos = reposRaw.filter((r) => r.name in sourceConfig);
 
   // "Hot" threshold: a repo whose 12-week new-rules total is >= 2x
   // the median non-zero repo gets a subtle accent border to signal
@@ -65,7 +72,10 @@ export function RepoHealthStrip() {
   const hotThreshold = median * 2;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2">
+    <div
+      className="grid gap-2"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}
+    >
       {repos.map((repo, i) => {
         const cfg = sourceConfig[repo.name] || sourceConfig.sigma;
         const fresh = freshnessDot(repo.last_sync_at);

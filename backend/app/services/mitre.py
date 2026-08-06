@@ -118,8 +118,26 @@ class MitreAttackService:
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            self._tactics = data.get("tactics", {})
-            self._techniques = data.get("techniques", {})
+            cached_tactics = data.get("tactics", {})
+            cached_techniques = data.get("techniques", {})
+
+            # Sanity check: reject caches produced by the old single-pass
+            # parser that left every technique's `tactics` field empty.
+            # Without this, a container that wrote the broken cache
+            # within the last 24h would keep serving broken data even
+            # after the parser fix ships. Sampling the first 20
+            # techniques is enough — the bug was all-or-nothing.
+            if cached_techniques:
+                sample = list(cached_techniques.values())[:20]
+                if not any(t.get("tactics") for t in sample):
+                    logger.warning(
+                        "MITRE cache appears broken (no techniques have tactics); "
+                        "discarding and re-fetching."
+                    )
+                    return False
+
+            self._tactics = cached_tactics
+            self._techniques = cached_techniques
             self._last_fetch = file_mtime
             logger.info(f"Loaded MITRE data from cache: {len(self._tactics)} tactics, {len(self._techniques)} techniques")
             return True
@@ -178,35 +196,44 @@ class MitreAttackService:
         # Tactic ID to short name mapping (from x-mitre-tactic objects)
         tactic_id_map = {}  # Maps tactic x_mitre_shortname to tactic info
 
-        for obj in mitre_data.get("objects", []):
+        # ── Two-pass: tactics before techniques ─────────────────────
+        # Techniques reference tactics by short_name via
+        # `kill_chain_phases`; we resolve short_name -> TA-ID through
+        # `tactic_id_map`. A single-pass loop only works if every
+        # `x-mitre-tactic` object appears BEFORE the `attack-pattern`
+        # objects that reference it. Newer STIX bundles interleave the
+        # two, which silently produces `technique.tactics=[]` for every
+        # technique and empties out the coverage matrix. Two passes
+        # make ordering irrelevant.
+        objects = mitre_data.get("objects", [])
+
+        for obj in objects:
+            if obj.get("type") != "x-mitre-tactic":
+                continue
+            tactic_name = obj.get("name", "")
+            short_name = obj.get("x_mitre_shortname", "")
+            tactic_id = None
+            for ref in obj.get("external_references", []):
+                ext_id = ref.get("external_id", "")
+                if ext_id.startswith("TA"):
+                    tactic_id = ext_id
+                    break
+            if tactic_id and tactic_name:
+                tactics[tactic_id] = {
+                    "id": tactic_id,
+                    "name": tactic_name,
+                    "short_name": short_name,
+                    "description": obj.get("description", ""),
+                    "url": f"https://attack.mitre.org/tactics/{tactic_id}/",
+                    "deprecated": obj.get("x_mitre_deprecated", False),
+                }
+                tactic_id_map[short_name] = tactic_id
+
+        for obj in objects:
             obj_type = obj.get("type")
 
-            # Parse tactics
-            if obj_type == "x-mitre-tactic":
-                tactic_name = obj.get("name", "")
-                short_name = obj.get("x_mitre_shortname", "")
-
-                # Extract tactic ID from external references
-                tactic_id = None
-                for ref in obj.get("external_references", []):
-                    ext_id = ref.get("external_id", "")
-                    if ext_id.startswith("TA"):
-                        tactic_id = ext_id
-                        break
-
-                if tactic_id and tactic_name:
-                    tactics[tactic_id] = {
-                        "id": tactic_id,
-                        "name": tactic_name,
-                        "short_name": short_name,
-                        "description": obj.get("description", ""),
-                        "url": f"https://attack.mitre.org/tactics/{tactic_id}/",
-                        "deprecated": obj.get("x_mitre_deprecated", False),
-                    }
-                    tactic_id_map[short_name] = tactic_id
-
-            # Parse techniques
-            elif obj_type == "attack-pattern":
+            # Parse techniques (tactics already fully loaded in pass 1)
+            if obj_type == "attack-pattern":
                 technique_id = None
                 technique_url = None
 
