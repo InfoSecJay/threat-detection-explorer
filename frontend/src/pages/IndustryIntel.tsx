@@ -8,18 +8,17 @@
  *   2. PulseBanner       — total new + modified rules in the window,
  *                          with per-source bars scaled to *created*.
  *   3. UpstreamReleases  — GitHub Releases for sigma/splunk/elastic
- *                          (broader signal audit pending manual review;
- *                          see docs/roadmap.md for the RSS/blog surfaces
- *                          we may add).
+ *                          (the only three sources that publish them;
+ *                          audit of the other 8 confirmed no
+ *                          reliable additional surfaces).
  *   4. What's New        — newest individual rules + three trending
  *                          tiles (techniques, platforms, use cases).
  *                          Inline period + source filter narrow all
  *                          four data hooks in this section together.
  *
- * Threat Spotlight is intentionally NOT rendered here. Accurate
- * cross-vendor threat-to-rule mapping requires normalizing MITRE
- * Group/Software tags currently dropped by the Sigma + LOLRMM parsers;
- * that work is Phase 2 (see roadmap).
+ * Threat Spotlight is Phase 2 — accurate cross-vendor threat-to-rule
+ * mapping requires normalizing MITRE Group/Software tags currently
+ * dropped by the Sigma + LOLRMM parsers.
  */
 
 import { useState, useMemo } from 'react';
@@ -98,17 +97,17 @@ function TrendingTile({
 }) {
   const accentText =
     accent === 'matrix' ? 'text-matrix-400' : accent === 'cyan' ? 'text-cyan-400' : 'text-amber-300';
-  const dot =
+  const accentBar =
     accent === 'matrix' ? 'bg-matrix-500' : accent === 'cyan' ? 'bg-cyan-500' : 'bg-amber-500';
   return (
-    <div className="bg-void-850 border border-void-700 p-3" style={clipSm}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+    <div className="bg-void-850 border border-void-700 overflow-hidden" style={clipSm}>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-void-700 bg-void-900/40">
+        <span className={`w-0.5 h-3 ${accentBar}`} />
         <h3 className={`font-display font-semibold text-[11px] uppercase tracking-wider ${accentText}`}>
           {title}
         </h3>
       </div>
-      {children}
+      <div className="p-2">{children}</div>
     </div>
   );
 }
@@ -123,17 +122,17 @@ export function IndustryIntel() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
           Detection Intelligence
         </h1>
-        <p className="text-xs text-gray-500 mt-0.5 font-mono">
-          WHAT_IS_NEW_FROM_EACH_REPO // UPSTREAM_RELEASES // TRENDING_PATTERNS
+        <p className="text-xs text-gray-500 mt-1 font-mono">
+          what&apos;s new across every upstream detection-rule repo we track
         </p>
       </div>
 
-      <Section title="Repo Health" subtitle="11 sources · click a card to filter the catalog">
+      <Section title="Repo Health" subtitle="click a card to filter the catalog">
         <RepoHealthStrip />
       </Section>
 

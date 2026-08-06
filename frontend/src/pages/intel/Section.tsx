@@ -14,13 +14,18 @@ export function Section({
   return (
     <section>
       <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-sm font-display font-bold text-white tracking-wider uppercase">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <span className="w-1 h-4 bg-matrix-500 shrink-0" aria-hidden="true" />
+          <h2 className="text-base font-display font-bold text-white tracking-wider uppercase">
             {title}
           </h2>
-          {subtitle && <span className="text-[10px] text-gray-500 font-mono">{subtitle}</span>}
+          {subtitle && (
+            <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider truncate">
+              // {subtitle}
+            </span>
+          )}
         </div>
-        {action}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </section>

@@ -25,17 +25,22 @@ function freshnessDot(lastSyncAt: string | null): { color: string; label: string
   return { color: 'bg-red-500', label: 'very stale' };
 }
 
+/**
+ * 12 tiny bars sized to a shared per-card scale. Empty weeks render
+ * as barely-visible baseline ticks so the 12-week cadence is legible
+ * even for quiet repos.
+ */
 function Sparkline({ counts, colorClass }: { counts: number[]; colorClass: string }) {
   const max = Math.max(...counts, 1);
   return (
-    <div className="flex items-end gap-[1px] h-6" aria-label="12-week new-rules trend">
+    <div className="flex items-end gap-[2px] h-7" aria-label="12-week new-rules trend">
       {counts.map((c, i) => {
-        const h = c === 0 ? 1 : Math.max(2, Math.round((c / max) * 24));
+        const h = c === 0 ? 2 : Math.max(3, Math.round((c / max) * 28));
         return (
           <div
             key={i}
-            title={`week ${i + 1}: ${c}`}
-            className={`w-1 ${c === 0 ? 'bg-void-700' : colorClass} transition-all`}
+            title={`week ${i + 1}: ${c} new`}
+            className={`flex-1 min-w-[3px] ${c === 0 ? 'bg-void-600' : colorClass} transition-all group-hover:opacity-100 ${c === 0 ? 'opacity-70' : 'opacity-90'}`}
             style={{ height: `${h}px` }}
           />
         );
@@ -48,27 +53,39 @@ export function RepoHealthStrip() {
   const { data: repos, isLoading: reposLoading } = useRepositories();
   const { data: weekly, isLoading: weeklyLoading } = useWeeklyActivity(12);
 
-  if (reposLoading || weeklyLoading) return <SkeletonRow height="h-24" />;
+  if (reposLoading || weeklyLoading) return <SkeletonRow height="h-28" />;
   if (!repos) return null;
+
+  // "Hot" threshold: a repo whose 12-week new-rules total is >= 2x
+  // the median non-zero repo gets a subtle accent border to signal
+  // "look here first." Median avoids one outlier repo dominating.
+  const totals = repos.map((r) => (weekly?.by_source[r.name] || []).reduce((a, b) => a + b, 0));
+  const nonZero = totals.filter((t) => t > 0).sort((a, b) => a - b);
+  const median = nonZero.length ? nonZero[Math.floor(nonZero.length / 2)] : 0;
+  const hotThreshold = median * 2;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2">
-      {repos.map((repo) => {
+      {repos.map((repo, i) => {
         const cfg = sourceConfig[repo.name] || sourceConfig.sigma;
         const fresh = freshnessDot(repo.last_sync_at);
         const sparkCounts = weekly?.by_source[repo.name] || Array(12).fill(0);
-        const weekTotal = sparkCounts.reduce((a, b) => a + b, 0);
+        const weekTotal = totals[i];
+        const isHot = weekTotal > 0 && weekTotal >= hotThreshold;
 
         return (
           <Link
             key={repo.name}
             to={`/detections?sources=${repo.name}`}
-            className="group block bg-void-850 border border-void-700 hover:border-matrix-500/40 p-2.5 transition-colors"
+            title={isHot ? 'High activity this quarter — click to filter catalog' : 'Filter catalog to this source'}
+            className={`group relative block bg-void-850 border p-2.5 transition-all hover:bg-void-800 ${
+              isHot ? `${cfg.border} shadow-[0_0_12px_rgba(0,0,0,0.4)]` : 'border-void-700 hover:border-void-600'
+            }`}
             style={clipSm}
           >
-            <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="flex items-center gap-1.5 mb-2">
               <span className={`w-2 h-2 rounded-full ${cfg.dot} shrink-0`} />
-              <span className={`text-[10px] font-mono uppercase tracking-wider truncate ${cfg.text} group-hover:text-white`}>
+              <span className={`text-[10px] font-mono uppercase tracking-wider truncate font-semibold ${cfg.text}`}>
                 {cfg.name}
               </span>
               <span
@@ -76,20 +93,20 @@ export function RepoHealthStrip() {
                 title={`${fresh.label} · last sync ${formatRelDate(repo.last_sync_at)}`}
               />
             </div>
-            <div className="flex items-baseline gap-1 mb-1.5">
-              <span className="text-lg font-display font-bold text-white tabular-nums leading-none">
+            <div className="flex items-baseline gap-1 mb-2">
+              <span className="text-xl font-display font-bold text-white tabular-nums leading-none">
                 {repo.rule_count.toLocaleString()}
               </span>
-              <span className="text-[9px] font-mono text-gray-600">rules</span>
+              <span className="text-[9px] font-mono text-gray-500">rules</span>
+              {weekTotal > 0 && (
+                <span className={`ml-auto text-[10px] font-mono ${cfg.text} tabular-nums`} title="new rules in last 12 weeks">
+                  +{weekTotal}
+                </span>
+              )}
             </div>
             <Sparkline counts={sparkCounts} colorClass={cfg.dot} />
-            <div className="flex items-center justify-between mt-1.5">
-              <span className="text-[9px] font-mono text-gray-600" title="new rules in 12 weeks">
-                +{weekTotal} · 12wk
-              </span>
-              <span className="text-[9px] font-mono text-gray-600" title={`last sync ${formatRelDate(repo.last_sync_at)}`}>
-                {formatRelDate(repo.last_sync_at)}
-              </span>
+            <div className="text-[9px] font-mono text-gray-600 mt-2 text-right" title={`last sync ${formatRelDate(repo.last_sync_at)}`}>
+              synced {formatRelDate(repo.last_sync_at)}
             </div>
           </Link>
         );
