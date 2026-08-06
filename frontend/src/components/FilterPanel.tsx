@@ -81,10 +81,17 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.mitre_techniques?.length || 0) > 0 ||
     (filters.platforms?.length || 0) > 0 ||
     (filters.event_categories?.length || 0) > 0 ||
+    (filters.data_sources_normalized?.length || 0) > 0 ||
+    (filters.use_cases?.length || 0) > 0 ||
     (filters.event_ids?.length || 0) > 0 ||
     (filters.process_names?.length || 0) > 0 ||
     (filters.query_complexity?.length || 0) > 0 ||
-    (filters.api_actions?.length || 0) > 0;
+    (filters.api_actions?.length || 0) > 0 ||
+    (filters.file_paths?.length || 0) > 0 ||
+    (filters.registry_keys?.length || 0) > 0 ||
+    (filters.network_indicators?.length || 0) > 0 ||
+    (filters.target_resources?.length || 0) > 0 ||
+    (filters.source_tables?.length || 0) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -373,6 +380,25 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
+      {/* Use Cases filter — vendor analytic story / use-case labels
+          (Splunk analytic_story, Elastic Use Case: tags, Sublime
+          attack_types). Empty on other sources. */}
+      <div className="mb-3">
+        <SectionHeader title="Use Cases" section="usecases" count={filters.use_cases?.length} />
+        {expandedSections.has('usecases') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.use_cases || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, use_cases: values, offset: 0 })
+              }
+              placeholder="e.g., Ransomware, Threat Detection"
+              accent="matrix"
+            />
+          </div>
+        )}
+      </div>
+
       {/* Event IDs filter */}
       <div className="mb-3">
         <SectionHeader title="Event IDs" section="eventids" count={filters.event_ids?.length} />
@@ -455,6 +481,91 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }
               placeholder="e.g., CreateUser"
               accent="cyan"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* File Paths filter */}
+      <div className="mb-3">
+        <SectionHeader title="File Paths" section="filepaths" count={filters.file_paths?.length} />
+        {expandedSections.has('filepaths') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.file_paths || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, file_paths: values, offset: 0 })
+              }
+              placeholder="e.g., \\Temp\\ or .exe"
+              accent="orange"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Registry Keys filter */}
+      <div className="mb-3">
+        <SectionHeader title="Registry Keys" section="registrykeys" count={filters.registry_keys?.length} />
+        {expandedSections.has('registrykeys') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.registry_keys || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, registry_keys: values, offset: 0 })
+              }
+              placeholder="e.g., HKLM\\Software\\Microsoft"
+              accent="orange"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Network Indicators filter */}
+      <div className="mb-3">
+        <SectionHeader title="Network Indicators" section="networkindicators" count={filters.network_indicators?.length} />
+        {expandedSections.has('networkindicators') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.network_indicators || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, network_indicators: values, offset: 0 })
+              }
+              placeholder="e.g., 10.0.0.0/8 or evil.com"
+              accent="cyan"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Target Resources filter */}
+      <div className="mb-3">
+        <SectionHeader title="Target Resources" section="targetresources" count={filters.target_resources?.length} />
+        {expandedSections.has('targetresources') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.target_resources || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, target_resources: values, offset: 0 })
+              }
+              placeholder="e.g., s3_bucket or iam_role"
+              accent="cyan"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Source Tables filter */}
+      <div className="mb-3">
+        <SectionHeader title="Source Tables" section="sourcetables" count={filters.source_tables?.length} />
+        {expandedSections.has('sourcetables') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.source_tables || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, source_tables: values, offset: 0 })
+              }
+              placeholder="e.g., SecurityAlert"
+              accent="matrix"
             />
           </div>
         )}

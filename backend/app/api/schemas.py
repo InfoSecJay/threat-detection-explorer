@@ -364,11 +364,18 @@ class SearchParams(BaseModel):
     platforms: list[str] = Field(default_factory=list)
     event_categories: list[str] = Field(default_factory=list)
     data_sources_normalized: list[str] = Field(default_factory=list)
-    # Extracted field filters
+    # Analytic story / vendor use-case labels
+    use_cases: list[str] = Field(default_factory=list)
+    # Extracted observable filters
     event_ids: list[str] = Field(default_factory=list)
     process_names: list[str] = Field(default_factory=list)
     query_complexity: list[str] = Field(default_factory=list)
     api_actions: list[str] = Field(default_factory=list)
+    file_paths: list[str] = Field(default_factory=list)
+    registry_keys: list[str] = Field(default_factory=list)
+    network_indicators: list[str] = Field(default_factory=list)
+    target_resources: list[str] = Field(default_factory=list)
+    source_tables: list[str] = Field(default_factory=list)
     offset: int = 0
     limit: int = Field(default=50, le=200)
     sort_by: str = "title"

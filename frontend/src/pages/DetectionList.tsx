@@ -29,6 +29,17 @@ export function DetectionList() {
     platforms: searchParams.get('platforms')?.split(',').filter(Boolean) || [],
     event_categories: searchParams.get('event_categories')?.split(',').filter(Boolean) || [],
     data_sources_normalized: searchParams.get('data_sources_normalized')?.split(',').filter(Boolean) || [],
+    use_cases: searchParams.get('use_cases')?.split(',').filter(Boolean) || [],
+    // Extracted observable filters
+    event_ids: searchParams.get('event_ids')?.split(',').filter(Boolean) || [],
+    process_names: searchParams.get('process_names')?.split(',').filter(Boolean) || [],
+    query_complexity: searchParams.get('query_complexity')?.split(',').filter(Boolean) || [],
+    api_actions: searchParams.get('api_actions')?.split(',').filter(Boolean) || [],
+    file_paths: searchParams.get('file_paths')?.split(',').filter(Boolean) || [],
+    registry_keys: searchParams.get('registry_keys')?.split(',').filter(Boolean) || [],
+    network_indicators: searchParams.get('network_indicators')?.split(',').filter(Boolean) || [],
+    target_resources: searchParams.get('target_resources')?.split(',').filter(Boolean) || [],
+    source_tables: searchParams.get('source_tables')?.split(',').filter(Boolean) || [],
     offset: parseInt(searchParams.get('offset') || '0', 10),
     limit: parseInt(searchParams.get('limit') || '25', 10),
     sort_by: searchParams.get('sort_by') || 'title',
@@ -52,6 +63,17 @@ export function DetectionList() {
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
     if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+    if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
+    // Extracted observable filters
+    if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
+    if (filters.process_names?.length) params.set('process_names', filters.process_names.join(','));
+    if (filters.query_complexity?.length) params.set('query_complexity', filters.query_complexity.join(','));
+    if (filters.api_actions?.length) params.set('api_actions', filters.api_actions.join(','));
+    if (filters.file_paths?.length) params.set('file_paths', filters.file_paths.join(','));
+    if (filters.registry_keys?.length) params.set('registry_keys', filters.registry_keys.join(','));
+    if (filters.network_indicators?.length) params.set('network_indicators', filters.network_indicators.join(','));
+    if (filters.target_resources?.length) params.set('target_resources', filters.target_resources.join(','));
+    if (filters.source_tables?.length) params.set('source_tables', filters.source_tables.join(','));
     if (filters.offset) params.set('offset', String(filters.offset));
     if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit));
     if (filters.sort_by && filters.sort_by !== 'title') params.set('sort_by', filters.sort_by);

@@ -41,11 +41,19 @@ class SearchFilters:
     event_categories: list[str] = field(default_factory=list)
     data_sources_normalized: list[str] = field(default_factory=list)
 
-    # Extracted field filters
+    # Analytic story / vendor use-case labels
+    use_cases: list[str] = field(default_factory=list)
+
+    # Extracted observable filters
     event_ids: list[str] = field(default_factory=list)
     process_names: list[str] = field(default_factory=list)
     query_complexity: list[str] = field(default_factory=list)
     api_actions: list[str] = field(default_factory=list)
+    file_paths: list[str] = field(default_factory=list)
+    registry_keys: list[str] = field(default_factory=list)
+    network_indicators: list[str] = field(default_factory=list)
+    target_resources: list[str] = field(default_factory=list)
+    source_tables: list[str] = field(default_factory=list)
 
     # Pagination
     offset: int = 0
@@ -327,7 +335,7 @@ class SearchService:
         grows past ~100k, swap to native JSON unnesting (Postgres
         `jsonb_array_elements_text`, SQLite `json_each`).
         """
-        allowed = {"platforms", "data_sources", "event_types"}
+        allowed = {"platforms", "data_sources", "event_types", "use_cases"}
         if column_name not in allowed:
             raise ValueError(f"Not a taxonomy column: {column_name!r}")
         column = getattr(Detection, column_name)
@@ -476,6 +484,58 @@ class SearchService:
                 )
             if api_action_conditions:
                 conditions.append(or_(*api_action_conditions))
+
+        # use_cases filter — quoted-substring match on the JSON list so
+        # `Ransomware` doesn't false-positive on `Ransomware Family X`.
+        if filters.use_cases:
+            uc_conds = [
+                cast(Detection.use_cases, String).ilike(f'%"{v}"%')
+                for v in filters.use_cases
+            ]
+            conditions.append(or_(*uc_conds))
+
+        # File paths — substring match (paths are hierarchical; user
+        # typing `\\anydesk.exe` should hit a stored path fragment).
+        if filters.file_paths:
+            fp_conds = [
+                cast(Detection.extracted_file_paths, String).ilike(f'%{p}%')
+                for p in filters.file_paths
+            ]
+            conditions.append(or_(*fp_conds))
+
+        # Registry keys — substring match (hierarchical HKLM\... paths).
+        if filters.registry_keys:
+            rk_conds = [
+                cast(Detection.extracted_registry_keys, String).ilike(f'%{k}%')
+                for k in filters.registry_keys
+            ]
+            conditions.append(or_(*rk_conds))
+
+        # Network indicators (IPs, domains, URLs) — substring match.
+        if filters.network_indicators:
+            ni_conds = [
+                cast(Detection.extracted_network_indicators, String).ilike(f'%{v}%')
+                for v in filters.network_indicators
+            ]
+            conditions.append(or_(*ni_conds))
+
+        # Target resources (cloud resources, identity targets) —
+        # quoted-substring match on the JSON list.
+        if filters.target_resources:
+            tr_conds = [
+                cast(Detection.extracted_target_resources, String).ilike(f'%"{v}"%')
+                for v in filters.target_resources
+            ]
+            conditions.append(or_(*tr_conds))
+
+        # Source tables (Sentinel KQL tables, Splunk index/sourcetype
+        # references) — quoted-substring match.
+        if filters.source_tables:
+            st_conds = [
+                cast(Detection.extracted_source_tables, String).ilike(f'%"{v}"%')
+                for v in filters.source_tables
+            ]
+            conditions.append(or_(*st_conds))
 
         return conditions
 

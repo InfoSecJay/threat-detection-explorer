@@ -31,6 +31,12 @@ const LABELS: Record<string, string> = {
   process_names: 'Process',
   query_complexity: 'Complexity',
   api_actions: 'API Action',
+  use_cases: 'Use Case',
+  file_paths: 'File Path',
+  registry_keys: 'Registry',
+  network_indicators: 'Network',
+  target_resources: 'Target',
+  source_tables: 'Table',
 };
 
 // Accent color per filter type so pills are scan-able at a glance.
@@ -42,6 +48,7 @@ const ACCENTS: Record<string, string> = {
   severities: 'bg-red-500/15 text-red-300 border-red-500/30',
   mitre_tactics: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
   mitre_techniques: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  use_cases: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
 };
 const DEFAULT_ACCENT = 'bg-void-800 text-gray-300 border-void-600';
 

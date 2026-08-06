@@ -16,12 +16,11 @@ const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ d
 // Temporarily hidden — pages need rework before they're re-exposed.
 // Files stay in the tree; just don't import / route / link them.
 // Track re-enable work in docs/roadmap.md under "Hidden pages".
-//   Intel        — needs rework
 //   Compare      — cross-vendor comparison needs rework
 //   SideBySide   — depends on Compare; hidden together
 // const Compare        = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
 // const SideBySide     = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
-// const IndustryIntel  = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
+const IndustryIntel     = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 
 // Lightweight loading state shown while a lazy route's chunk fetches.
 // Plain pulse — kept minimal so the layout doesn't shift.
@@ -223,12 +222,13 @@ function App() {
           <div className="flex items-center justify-between">
             <Logo />
 
-            {/* Navigation links. Intel + Comparison temporarily hidden
-                pending rework — see docs/roadmap.md. */}
+            {/* Navigation links. Comparison temporarily hidden pending
+                rework — see docs/roadmap.md. */}
             <div className="flex items-center gap-1">
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/mitre">MITRE</NavLink>
+              <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
                 items={[
@@ -260,10 +260,10 @@ function App() {
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
+            <Route path="/intel" element={<IndustryIntel />} />
             {/* Temporarily hidden pages — redirect to home so existing
                 bookmarks don't 404. Restore routes when the pages are
                 reworked (tracked in docs/roadmap.md). */}
-            <Route path="/intel" element={<Navigate to="/" replace />} />
             <Route path="/compare" element={<Navigate to="/" replace />} />
             <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />

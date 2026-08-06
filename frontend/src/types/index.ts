@@ -127,11 +127,18 @@ export interface SearchFilters {
   platforms?: string[];
   event_categories?: string[];
   data_sources_normalized?: string[];
-  // Extracted field filters
+  // Analytic story / vendor use-case labels
+  use_cases?: string[];
+  // Extracted observable filters
   event_ids?: string[];
   process_names?: string[];
   query_complexity?: string[];
   api_actions?: string[];
+  file_paths?: string[];
+  registry_keys?: string[];
+  network_indicators?: string[];
+  target_resources?: string[];
+  source_tables?: string[];
   offset?: number;
   limit?: number;
   sort_by?: string;
