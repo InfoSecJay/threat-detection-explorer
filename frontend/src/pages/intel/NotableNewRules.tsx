@@ -54,8 +54,14 @@ function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
   );
 }
 
+// How many unique rule cards to render. 15 gives 5 rows on lg (3-col),
+// 8 on md (2-col) — enough to skim what's new this window without
+// scrolling past the section entirely. Fetch is 2x so dedup between
+// created/modified rarely under-fills.
+const CARDS_TO_SHOW = 15;
+
 export function NotableNewRulesSection({ filters }: { filters: ActivityFilters }) {
-  const { data, isLoading, error } = useRecentRules(12, filters);
+  const { data, isLoading, error } = useRecentRules(CARDS_TO_SHOW * 2, filters);
 
   // useMemo runs on every render — never conditionally. Guarded against
   // undefined `data` instead of being placed after early returns
@@ -71,13 +77,13 @@ export function NotableNewRulesSection({ filters }: { filters: ActivityFilters }
     }
     return Array.from(byId.values())
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .slice(0, 6);
+      .slice(0, CARDS_TO_SHOW);
   }, [data]);
 
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-        {[...Array(6)].map((_, i) => <SkeletonRow key={i} height="h-24" />)}
+        {[...Array(CARDS_TO_SHOW)].map((_, i) => <SkeletonRow key={i} height="h-24" />)}
       </div>
     );
   }
