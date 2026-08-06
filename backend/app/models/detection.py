@@ -77,6 +77,17 @@ class Detection(Base):
     mitre_tactics: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     mitre_techniques: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
+    # ── MITRE ATT&CK Groups + Software (threat-actor mapping) ────────
+    # Extracted from vendor `attack.g*` / `attack.s*` tag conventions.
+    # G-IDs (e.g. "G0016" -> APT29) and S-IDs (e.g. "S0002" -> Mimikatz)
+    # are preserved verbatim; the FE resolves them via the static
+    # `mitre_lookup` service so display names ("APT29", "Mimikatz") stay
+    # current with the ATT&CK release we ship. Populated for sources
+    # that follow the ATT&CK tag convention (Sigma, LOLRMM); empty on
+    # sources without native group/software tags. See docs/schema.md.
+    mitre_groups: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    mitre_software: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
     # Detection logic - human-readable summary
     detection_logic: Mapped[str] = mapped_column(Text, nullable=False)
 

@@ -215,9 +215,11 @@ class LOLRMMParser(BaseParser):
         return False
 
     def _extract_mitre_from_tags(self, tags: list[str]) -> dict:
-        """Extract MITRE ATT&CK tactics and techniques from Sigma-style tags."""
+        """Extract MITRE ATT&CK tactics, techniques, groups, software from tags."""
         tactics = []
         techniques = []
+        groups = []
+        software = []
 
         for tag in tags:
             tag_lower = tag.lower()
@@ -229,12 +231,16 @@ class LOLRMMParser(BaseParser):
                     techniques.append(technique_id)
 
             elif tag_lower.startswith("attack.s"):
-                # Software/tool references (e.g., attack.s0001) - skip
-                continue
+                # Software/tool ID (e.g. attack.s0002 -> S0002)
+                sid = tag_lower.replace("attack.", "").upper()
+                if sid not in software:
+                    software.append(sid)
 
             elif tag_lower.startswith("attack.g"):
-                # Group references (e.g., attack.g0001) - skip
-                continue
+                # Group/actor ID (e.g. attack.g0016 -> G0016)
+                gid = tag_lower.replace("attack.", "").upper()
+                if gid not in groups:
+                    groups.append(gid)
 
             elif tag_lower.startswith("attack."):
                 # Tactic name (e.g., attack.execution)
@@ -244,4 +250,9 @@ class LOLRMMParser(BaseParser):
                     if tactic_id not in tactics:
                         tactics.append(tactic_id)
 
-        return {"tactics": tactics, "techniques": techniques}
+        return {
+            "tactics": tactics,
+            "techniques": techniques,
+            "groups": groups,
+            "software": software,
+        }

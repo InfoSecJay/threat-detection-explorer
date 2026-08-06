@@ -16,9 +16,10 @@
  *                          Inline period + source filter narrow all
  *                          four data hooks in this section together.
  *
- * Threat Spotlight is Phase 2 — accurate cross-vendor threat-to-rule
- * mapping requires normalizing MITRE Group/Software tags currently
- * dropped by the Sigma + LOLRMM parsers.
+ * Threat Spotlight (Phase 2, shipped): named ATT&CK Groups + Software
+ * extracted from Sigma + LOLRMM `attack.g*` / `attack.s*` tags,
+ * resolved to display names via app.services.mitre_lookup on the BE
+ * and services/mitreLookup.ts on the FE.
  */
 
 import { useState, useMemo } from 'react';
@@ -29,6 +30,7 @@ import { useFilterOptions } from '../hooks/useDetections';
 import { Section } from './intel/Section';
 import { RepoHealthStrip } from './intel/RepoHealthStrip';
 import { PulseBanner } from './intel/PulseBanner';
+import { ThreatSpotlightSection } from './intel/ThreatSpotlight';
 import { UpstreamReleases } from './intel/UpstreamReleases';
 import { NotableNewRulesSection } from './intel/NotableNewRules';
 import {
@@ -137,6 +139,10 @@ export function IndustryIntel() {
       </Section>
 
       <PulseBanner days={period} />
+
+      <Section title="Threat Spotlight" subtitle="named actors + software active in vendor rules · sigma + lolrmm">
+        <ThreatSpotlightSection days={period} />
+      </Section>
 
       <Section title="Upstream Releases" subtitle="sigma · splunk · elastic">
         <UpstreamReleases />

@@ -26,6 +26,11 @@ export interface Detection {
   use_cases?: string[];
   mitre_tactics: string[];
   mitre_techniques: string[];
+  // Raw ATT&CK Group + Software IDs (e.g. "G0016", "S0002"). Display
+  // names come from mitreLookup.ts on the FE — unknown IDs render as
+  // the raw ID.
+  mitre_groups?: string[];
+  mitre_software?: string[];
   detection_logic: string;
   language: string;
   tags: string[];
@@ -120,6 +125,8 @@ export interface SearchFilters {
   languages?: string[];
   mitre_tactics?: string[];
   mitre_techniques?: string[];
+  mitre_groups?: string[];
+  mitre_software?: string[];
   tags?: string[];
   // Canonical taxonomy filters (Phase 3 final names; the
   // `event_categories` / `data_sources_normalized` keys retained

@@ -61,6 +61,14 @@ export function useWeeklyActivity(weeks: number = 12) {
   });
 }
 
+export function useThreatActors(limit: number = 10, days?: number) {
+  return useQuery({
+    queryKey: ['threat-actors', limit, days ?? null],
+    queryFn: () => trendingApi.getThreatActors(limit, days),
+    staleTime: days != null ? 1000 * 60 * 5 : 1000 * 60 * 10,
+  });
+}
+
 export function useThreatPulse(limit: number = 8, days?: number) {
   return useQuery({
     queryKey: ['threat-pulse', limit, days ?? null],

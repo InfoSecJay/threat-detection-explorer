@@ -45,6 +45,12 @@ class NormalizedDetection:
     # MITRE ATT&CK
     mitre_tactics: list[str] = field(default_factory=list)
     mitre_techniques: list[str] = field(default_factory=list)
+    # ATT&CK Group + Software IDs (verbatim: "G0016", "S0002"). Display
+    # names resolved on read via app.services.mitre_lookup. Populated
+    # for sources with `attack.g*` / `attack.s*` tag conventions;
+    # empty elsewhere.
+    mitre_groups: list[str] = field(default_factory=list)
+    mitre_software: list[str] = field(default_factory=list)
 
     # Human-readable detection logic summary
     detection_logic: str = ""

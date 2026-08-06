@@ -30,6 +30,8 @@ async def list_detections(
     languages: Optional[str] = Query(None, description="Comma-separated list of rule languages"),
     mitre_tactics: Optional[str] = Query(None, description="Comma-separated list of MITRE tactics"),
     mitre_techniques: Optional[str] = Query(None, description="Comma-separated list of MITRE techniques"),
+    mitre_groups: Optional[str] = Query(None, description="Comma-separated MITRE ATT&CK Group IDs (e.g. G0016, G1039)"),
+    mitre_software: Optional[str] = Query(None, description="Comma-separated MITRE ATT&CK Software IDs (e.g. S0002, S0154)"),
     tags: Optional[str] = Query(None, description="Comma-separated list of tags"),
     platforms: Optional[str] = Query(None, description="Comma-separated list of platforms (windows, linux, cloud, etc.)"),
     event_categories: Optional[str] = Query(None, description="Comma-separated list of event categories (process, file, network, etc.)"),
@@ -60,6 +62,8 @@ async def list_detections(
         languages=_parse_csv(languages),
         mitre_tactics=_parse_csv(mitre_tactics),
         mitre_techniques=_parse_csv(mitre_techniques),
+        mitre_groups=_parse_csv(mitre_groups),
+        mitre_software=_parse_csv(mitre_software),
         tags=_parse_csv(tags),
         platforms=_parse_csv(platforms),
         event_categories=_parse_csv(event_categories),
@@ -118,6 +122,8 @@ async def search_detections(
         languages=params.languages,
         mitre_tactics=params.mitre_tactics,
         mitre_techniques=params.mitre_techniques,
+        mitre_groups=params.mitre_groups,
+        mitre_software=params.mitre_software,
         tags=params.tags,
         platforms=params.platforms,
         event_categories=params.event_categories,
@@ -180,6 +186,8 @@ async def get_filter_options(db: AsyncSession = Depends(get_db)):
         "data_sources": await search_service.get_taxonomy_facet("data_sources"),
         "event_types": await search_service.get_taxonomy_facet("event_types"),
         "use_cases": await search_service.get_taxonomy_facet("use_cases"),
+        "mitre_groups": await search_service.get_taxonomy_facet("mitre_groups"),
+        "mitre_software": await search_service.get_taxonomy_facet("mitre_software"),
     }
 
 

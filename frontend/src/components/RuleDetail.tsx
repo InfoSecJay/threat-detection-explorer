@@ -4,6 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Detection } from '../types';
 import { useMitre } from '../contexts/MitreContext';
+import { resolveGroup, resolveSoftware } from '../services/mitreLookup';
 
 // Map detection languages to Prism language identifiers
 const languageMap: Record<string, string> = {
@@ -230,6 +231,66 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
             </div>
           </div>
+
+          {/* Threat Actors + Software — only render when a rule has any.
+              Populated from Sigma/LOLRMM `attack.g*` / `attack.s*` tags.
+              Names resolve via mitreLookup; unknown IDs show the raw
+              G-/S- form (still useful, never a fake name). */}
+          {((detection.mitre_groups?.length || 0) > 0 || (detection.mitre_software?.length || 0) > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {(detection.mitre_groups?.length || 0) > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    Threat Actors
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {detection.mitre_groups!.map((gid) => {
+                      const g = resolveGroup(gid);
+                      const isKnown = g.name !== g.id;
+                      return (
+                        <Link
+                          key={gid}
+                          to={`/detections?mitre_groups=${g.id}`}
+                          title={g.aliases.length ? `aka ${g.aliases.join(', ')}` : g.name}
+                          className="inline-flex items-center px-2.5 py-1 bg-breach-500/15 text-breach-400 rounded-lg text-sm hover:bg-breach-500/25 transition-colors border border-breach-500/30"
+                        >
+                          <span className="font-semibold">{g.id}</span>
+                          {isKnown && <span className="ml-1.5 text-breach-300">· {g.name}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {(detection.mitre_software?.length || 0) > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    Software / Malware
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {detection.mitre_software!.map((sid) => {
+                      const s = resolveSoftware(sid);
+                      const isKnown = s.name !== s.id;
+                      const tone =
+                        s.type === 'malware'
+                          ? 'bg-orange-500/15 text-orange-400 border-orange-500/30 hover:bg-orange-500/25'
+                          : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/25';
+                      return (
+                        <Link
+                          key={sid}
+                          to={`/detections?mitre_software=${s.id}`}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-sm transition-colors border ${tone}`}
+                        >
+                          <span className="font-semibold">{s.id}</span>
+                          {isKnown && <span className="ml-1.5 opacity-80">· {s.name}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Metadata Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-cyber-700">

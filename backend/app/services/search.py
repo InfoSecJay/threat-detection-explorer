@@ -29,6 +29,10 @@ class SearchFilters:
     # MITRE filters
     mitre_tactics: list[str] = field(default_factory=list)
     mitre_techniques: list[str] = field(default_factory=list)
+    # Threat-actor + software filters. Values are raw ATT&CK IDs
+    # ("G0016", "S0002") — the FE resolves display names for pills.
+    mitre_groups: list[str] = field(default_factory=list)
+    mitre_software: list[str] = field(default_factory=list)
 
     # Tag filter
     tags: list[str] = field(default_factory=list)
@@ -335,7 +339,7 @@ class SearchService:
         grows past ~100k, swap to native JSON unnesting (Postgres
         `jsonb_array_elements_text`, SQLite `json_each`).
         """
-        allowed = {"platforms", "data_sources", "event_types", "use_cases"}
+        allowed = {"platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software"}
         if column_name not in allowed:
             raise ValueError(f"Not a taxonomy column: {column_name!r}")
         column = getattr(Detection, column_name)
@@ -408,6 +412,24 @@ class SearchService:
                 )
             if technique_conditions:
                 conditions.append(or_(*technique_conditions))
+
+        # MITRE groups (threat actors) filter — raw G-IDs
+        if filters.mitre_groups:
+            group_conditions = [
+                cast(Detection.mitre_groups, String).ilike(f'%"{gid.upper()}"%')
+                for gid in filters.mitre_groups
+            ]
+            if group_conditions:
+                conditions.append(or_(*group_conditions))
+
+        # MITRE software (malware + tools) filter — raw S-IDs
+        if filters.mitre_software:
+            software_conditions = [
+                cast(Detection.mitre_software, String).ilike(f'%"{sid.upper()}"%')
+                for sid in filters.mitre_software
+            ]
+            if software_conditions:
+                conditions.append(or_(*software_conditions))
 
         # Tags filter
         if filters.tags:

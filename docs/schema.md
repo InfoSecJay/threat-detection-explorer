@@ -136,6 +136,8 @@ Prefer the `taxonomy_*` fields when building new features.
 | --- | --- | --- |
 | `mitre_tactics` | `list[str]` | `TA####` ids. Elastic Hunting derives these from techniques via the MITRE service when the rule omits them. |
 | `mitre_techniques` | `list[str]` | `T####` for parent techniques, `T####.###` for sub-techniques. Both forms coexist — a rule that tags `T1059` does NOT also tag `T1059.001`. |
+| `mitre_groups` | `list[str]` | Raw ATT&CK Group IDs (`G####`) extracted from `attack.g*` tags. Populated for Sigma + LOLRMM (the sources that follow ATT&CK tag conventions); empty elsewhere. Display names resolved by `app.services.mitre_lookup`. Powers the Threat Spotlight module and the `mitre_groups` filter. |
+| `mitre_software` | `list[str]` | Raw ATT&CK Software IDs (`S####`) extracted from `attack.s*` tags. Same source coverage as `mitre_groups`. Display names via `mitre_lookup`; unknown IDs fall through to their raw ID. |
 | `tags` | `list[str]` | Free-form tags. Several conventions are deliberately preserved: |
 | | | • Splunk's `analytic_story` tags keep their `story:` prefix (the Threat Pulse extractor reads it). |
 | | | • Sublime's `Malfam: <Name>` tags pass through verbatim. |

@@ -46,6 +46,8 @@ class LOLRMMNormalizer(BaseNormalizer):
             severity=self.normalize_severity(parsed.severity),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
+            mitre_groups=parsed.mitre_attack.get("groups", []),
+            mitre_software=parsed.mitre_attack.get("software", []),
             detection_logic=self._format_detection_logic(parsed.detection_logic_raw),
             language="sigma",
             tags=parsed.tags,

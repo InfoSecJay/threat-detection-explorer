@@ -1,4 +1,5 @@
 import type { SearchFilters } from '../types';
+import { resolveGroup, resolveSoftware } from '../services/mitreLookup';
 
 /**
  * Horizontal pill row showing every currently-applied filter, each
@@ -26,6 +27,8 @@ const LABELS: Record<string, string> = {
   event_categories: 'Event Type',
   mitre_tactics: 'Tactic',
   mitre_techniques: 'Technique',
+  mitre_groups: 'Actor',
+  mitre_software: 'Software',
   tags: 'Tag',
   event_ids: 'Event ID',
   process_names: 'Process',
@@ -48,6 +51,8 @@ const ACCENTS: Record<string, string> = {
   severities: 'bg-red-500/15 text-red-300 border-red-500/30',
   mitre_tactics: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
   mitre_techniques: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  mitre_groups: 'bg-breach-500/15 text-breach-400 border-breach-500/30',
+  mitre_software: 'bg-breach-500/15 text-breach-400 border-breach-500/30',
   use_cases: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
 };
 const DEFAULT_ACCENT = 'bg-void-800 text-gray-300 border-void-600';
@@ -97,15 +102,21 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
       {pills.map(({ key, value }) => {
         const accent = ACCENTS[key] || DEFAULT_ACCENT;
         const label = LABELS[key] || key;
+        // Resolve display name for MITRE Group/Software IDs so the pill
+        // shows "APT29" not "G0016". Filter URL still carries the raw
+        // ID — the removal handler references `value` unchanged.
+        let display: string = value;
+        if (key === 'mitre_groups') display = resolveGroup(value).name;
+        else if (key === 'mitre_software') display = resolveSoftware(value).name;
         return (
           <button
             key={`${key}:${value}`}
             onClick={() => removePill(key, value)}
-            aria-label={`Remove filter ${label}: ${value}`}
+            aria-label={`Remove filter ${label}: ${display}`}
             className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono border ${accent} hover:opacity-80 transition-opacity`}
           >
             <span className="text-[10px] opacity-60">{label}:</span>
-            <span>{value}</span>
+            <span>{display}</span>
             <span className="ml-0.5 opacity-60 hover:opacity-100">✕</span>
           </button>
         );

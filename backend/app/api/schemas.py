@@ -87,6 +87,9 @@ class DetectionBase(BaseModel):
     use_cases: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
+    # Raw ATT&CK Group + Software IDs; FE resolves display names.
+    mitre_groups: list[str] = []
+    mitre_software: list[str] = []
     detection_logic: str
     language: str = "unknown"
     tags: list[str] = []
@@ -140,6 +143,8 @@ class DetectionResponse(DetectionBase):
             "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
+            "mitre_groups": getattr(detection, 'mitre_groups', None) or [],
+            "mitre_software": getattr(detection, 'mitre_software', None) or [],
             "detection_logic": sanitize_string(detection.detection_logic) or "",
             "language": detection.language or "unknown",
             "tags": normalize_string_list(detection.tags),
@@ -186,6 +191,9 @@ class DetectionListItem(BaseModel):
     use_cases: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
+    # Raw ATT&CK Group + Software IDs; FE resolves display names.
+    mitre_groups: list[str] = []
+    mitre_software: list[str] = []
     detection_logic: str = ""
     language: str = "unknown"
     tags: list[str] = []
@@ -237,6 +245,8 @@ class DetectionListItem(BaseModel):
             "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
+            "mitre_groups": getattr(detection, 'mitre_groups', None) or [],
+            "mitre_software": getattr(detection, 'mitre_software', None) or [],
             "detection_logic": sanitize_string(detection.detection_logic) or "",
             "language": detection.language or "unknown",
             "tags": normalize_string_list(detection.tags),
@@ -356,6 +366,8 @@ class SearchParams(BaseModel):
     languages: list[str] = Field(default_factory=list)
     mitre_tactics: list[str] = Field(default_factory=list)
     mitre_techniques: list[str] = Field(default_factory=list)
+    mitre_groups: list[str] = Field(default_factory=list)
+    mitre_software: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     # Canonical taxonomy filters (Phase 3 final names; the
     # `event_categories` / `data_sources_normalized` keys are kept

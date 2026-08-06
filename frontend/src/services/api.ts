@@ -67,6 +67,8 @@ export const detectionsApi = {
     if (filters.languages?.length) params.set('languages', filters.languages.join(','));
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
+    if (filters.mitre_groups?.length) params.set('mitre_groups', filters.mitre_groups.join(','));
+    if (filters.mitre_software?.length) params.set('mitre_software', filters.mitre_software.join(','));
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
     // Canonical taxonomy filters
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
@@ -115,6 +117,9 @@ export const detectionsApi = {
     platforms: Array<{ value: string; count: number }>;
     data_sources: Array<{ value: string; count: number }>;
     event_types: Array<{ value: string; count: number }>;
+    use_cases?: Array<{ value: string; count: number }>;
+    mitre_groups?: Array<{ value: string; count: number }>;
+    mitre_software?: Array<{ value: string; count: number }>;
   }> => {
     const response = await api.get('/detections/filters');
     return response.data;
@@ -356,6 +361,29 @@ export interface TrendingUseCasesResponse {
   use_cases: TrendingUseCase[];
 }
 
+export interface ThreatActorGroup {
+  id: string;
+  name: string;
+  aliases: string[];
+  count: number;
+  sources: string[];
+}
+
+export interface ThreatActorSoftware {
+  id: string;
+  name: string;
+  type: 'malware' | 'tool' | 'unknown';
+  count: number;
+  sources: string[];
+}
+
+export interface ThreatActorsResponse {
+  scope: 'window' | 'full_catalog';
+  period_days: number | null;
+  groups: ThreatActorGroup[];
+  software: ThreatActorSoftware[];
+}
+
 export interface WeeklyActivityResponse {
   weeks: number;
   // Week-start ISO dates (Monday), oldest → newest.
@@ -425,6 +453,16 @@ export const trendingApi = {
 
   getWeeklyActivity: async (weeks: number = 12): Promise<WeeklyActivityResponse> => {
     const response = await api.get(`/trending/weekly-activity?weeks=${weeks}`);
+    return response.data;
+  },
+
+  getThreatActors: async (
+    limit: number = 10,
+    days?: number,
+  ): Promise<ThreatActorsResponse> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (days != null) params.set('days', String(days));
+    const response = await api.get(`/trending/threat-actors?${params}`);
     return response.data;
   },
 

@@ -396,6 +396,100 @@ async def get_trending_use_cases(
     }
 
 
+@router.get("/threat-actors")
+async def get_threat_actors(
+    days: Optional[int] = Query(
+        None,
+        ge=7,
+        le=730,
+        description="Optional lookback window. Omit for full-catalog scan.",
+    ),
+    limit: int = Query(10, ge=3, le=30, description="Items per list"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Top ATT&CK Groups + Software active in-window.
+
+    Groups (G-IDs) and Software (S-IDs) are extracted from vendor
+    `attack.g*` / `attack.s*` tags during ingestion (currently Sigma +
+    LOLRMM). Display names come from ``app.services.mitre_lookup``;
+    unknown IDs fall through to their raw ID as the display name so the
+    UI always renders something.
+
+    Ordered by rule count descending. Sources list on each entry tells
+    the reader which repos have coverage.
+    """
+    conditions = []
+    if days is not None:
+        cutoff = utcnow() - timedelta(days=days)
+        conditions.append(
+            or_(
+                Detection.rule_modified_date >= cutoff,
+                Detection.rule_created_date >= cutoff,
+            )
+        )
+
+    q = select(
+        Detection.id,
+        Detection.source,
+        Detection.mitre_groups,
+        Detection.mitre_software,
+    )
+    if conditions:
+        q = q.where(and_(*conditions))
+    rows = (await db.execute(q)).all()
+
+    from app.services.mitre_lookup import resolve_group, resolve_software
+
+    groups: dict[str, dict] = {}
+    software: dict[str, dict] = {}
+
+    for _id, source, rule_groups, rule_software in rows:
+        for gid in rule_groups or []:
+            entry = groups.setdefault(
+                gid.upper(),
+                {"id": gid.upper(), "count": 0, "sources": set()},
+            )
+            entry["count"] += 1
+            entry["sources"].add(source)
+        for sid in rule_software or []:
+            entry = software.setdefault(
+                sid.upper(),
+                {"id": sid.upper(), "count": 0, "sources": set()},
+            )
+            entry["count"] += 1
+            entry["sources"].add(source)
+
+    def _finish_group(entry: dict) -> dict:
+        resolved = resolve_group(entry["id"])
+        return {
+            "id": entry["id"],
+            "name": resolved["name"],
+            "aliases": resolved["aliases"],
+            "count": entry["count"],
+            "sources": sorted(entry["sources"]),
+        }
+
+    def _finish_software(entry: dict) -> dict:
+        resolved = resolve_software(entry["id"])
+        return {
+            "id": entry["id"],
+            "name": resolved["name"],
+            "type": resolved["type"],
+            "count": entry["count"],
+            "sources": sorted(entry["sources"]),
+        }
+
+    sorted_groups = sorted(groups.values(), key=lambda x: (-x["count"], x["id"]))[:limit]
+    sorted_software = sorted(software.values(), key=lambda x: (-x["count"], x["id"]))[:limit]
+
+    return {
+        "scope": "window" if days is not None else "full_catalog",
+        "period_days": days,
+        "groups": [_finish_group(g) for g in sorted_groups],
+        "software": [_finish_software(s) for s in sorted_software],
+    }
+
+
 @router.get("/weekly-activity")
 async def get_weekly_activity(
     weeks: int = Query(12, ge=4, le=52, description="Number of weeks of history"),

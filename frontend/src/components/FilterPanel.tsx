@@ -79,6 +79,8 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.languages?.length || 0) > 0 ||
     (filters.mitre_tactics?.length || 0) > 0 ||
     (filters.mitre_techniques?.length || 0) > 0 ||
+    (filters.mitre_groups?.length || 0) > 0 ||
+    (filters.mitre_software?.length || 0) > 0 ||
     (filters.platforms?.length || 0) > 0 ||
     (filters.event_categories?.length || 0) > 0 ||
     (filters.data_sources_normalized?.length || 0) > 0 ||
@@ -343,6 +345,45 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }
               placeholder="Search technique ID or name…"
               suggestions={techniqueSuggestions}
+              normalize={(raw) => raw.trim().toUpperCase()}
+              accent="purple"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Threat Actors (Groups) — raw G-IDs (e.g. G0016). Autocomplete
+          from live corpus facet so users only see IDs that have rules. */}
+      <div className="mb-3">
+        <SectionHeader title="Threat Actor (Group)" section="mitre_groups" count={filters.mitre_groups?.length} />
+        {expandedSections.has('mitre_groups') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.mitre_groups || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, mitre_groups: values, offset: 0 })
+              }
+              placeholder="G-ID (e.g. G0016 for APT29)…"
+              suggestions={(filterOptions?.mitre_groups || []).map((f) => ({ value: f.value, label: f.value }))}
+              normalize={(raw) => raw.trim().toUpperCase()}
+              accent="purple"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Software / Malware — raw S-IDs (e.g. S0002 Mimikatz). */}
+      <div className="mb-3">
+        <SectionHeader title="Software / Malware" section="mitre_software" count={filters.mitre_software?.length} />
+        {expandedSections.has('mitre_software') && (
+          <div className="mt-2">
+            <TagInputFilter
+              values={filters.mitre_software || []}
+              onChange={(values) =>
+                onFiltersChange({ ...filters, mitre_software: values, offset: 0 })
+              }
+              placeholder="S-ID (e.g. S0154 for Cobalt Strike)…"
+              suggestions={(filterOptions?.mitre_software || []).map((f) => ({ value: f.value, label: f.value }))}
               normalize={(raw) => raw.trim().toUpperCase()}
               accent="purple"
             />

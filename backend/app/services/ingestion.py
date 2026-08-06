@@ -352,6 +352,8 @@ class IngestionService:
             severity=normalized.severity,
             mitre_tactics=normalized.mitre_tactics,
             mitre_techniques=normalized.mitre_techniques,
+            mitre_groups=normalized.mitre_groups,
+            mitre_software=normalized.mitre_software,
             detection_logic=normalized.detection_logic,
             language=normalized.language,
             tags=normalized.tags,

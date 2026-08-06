@@ -44,6 +44,20 @@ vi.mock('../../hooks/useTrending', () => ({
     },
     isLoading: false,
   }),
+  useThreatActors:       () => ({
+    data: {
+      scope: 'window',
+      period_days: 90,
+      groups: [
+        { id: 'G0016', name: 'APT29', aliases: ['Cozy Bear'], count: 12, sources: ['sigma'] },
+      ],
+      software: [
+        { id: 'S0002', name: 'Mimikatz', type: 'tool', count: 25, sources: ['sigma', 'lolrmm'] },
+      ],
+    },
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 vi.mock('../../hooks/useRepositories', () => ({
