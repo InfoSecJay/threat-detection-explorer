@@ -115,7 +115,11 @@ function TrendingTile({
 }
 
 export function IndustryIntel() {
-  const [period, setPeriod] = useState(90);
+  // Single time-window control that drives Pulse, Threat Spotlight,
+  // and the What's New section (both newest-rules cards and trending
+  // tiles). Repo Health + Upstream Releases sit outside — those are
+  // separate cadences (12-week trend, latest N GitHub releases).
+  const [period, setPeriod] = useState(30);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
 
   const filters = useMemo<ActivityFilters>(
@@ -125,16 +129,42 @@ export function IndustryIntel() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
-          Detection Intelligence
-        </h1>
-        <p className="text-xs text-gray-500 mt-1 font-mono">
-          what&apos;s new across every upstream detection-rule repo we track
-        </p>
+      {/* Page header — title + global period toggle. Every module
+          below that respects a window uses `period`. */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
+            Detection Intelligence
+          </h1>
+          <p className="text-xs text-gray-500 mt-1 font-mono">
+            what&apos;s new across every upstream detection-rule repo we track
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
+            time window
+          </span>
+          <div className="flex items-center gap-1" role="radiogroup" aria-label="Time window">
+            {periodOptions.map((opt) => (
+              <button
+                key={opt.value}
+                role="radio"
+                aria-checked={period === opt.value}
+                onClick={() => setPeriod(opt.value)}
+                className={`px-3 py-1 text-xs font-mono uppercase tracking-wider transition-colors ${
+                  period === opt.value
+                    ? 'bg-matrix-500/20 text-matrix-400 border border-matrix-500/40'
+                    : 'bg-void-900 text-gray-500 border border-void-700 hover:text-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <Section title="Repo Health" subtitle="click a card to filter the catalog">
+      <Section title="Repo Health" subtitle="12-week trend per repo · click a card to filter the catalog">
         <RepoHealthStrip />
       </Section>
 
@@ -144,36 +174,19 @@ export function IndustryIntel() {
         <ThreatSpotlightSection days={period} />
       </Section>
 
-      <Section title="Upstream Releases" subtitle="sigma · splunk · elastic">
+      <Section title="Upstream Releases" subtitle="latest tagged releases · sigma · splunk · elastic">
         <UpstreamReleases />
       </Section>
 
       <Section
         title="What's New"
-        subtitle={`latest rules + trending patterns · last ${period}d`}
-        action={
-          <div className="flex items-center gap-1">
-            {periodOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setPeriod(opt.value)}
-                className={`px-2 py-0.5 text-[10px] font-mono uppercase transition-colors ${
-                  period === opt.value
-                    ? 'bg-matrix-500/20 text-matrix-400 border border-matrix-500/30'
-                    : 'bg-void-800 text-gray-500 border border-void-700 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        }
+        subtitle="latest rules + trending patterns in the selected window"
       >
         <div className="space-y-3">
           <SourceFilterChips value={sourceFilter} onChange={setSourceFilter} />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
-              <NotableNewRulesSection filters={filters} />
+              <NotableNewRulesSection filters={filters} days={period} />
             </div>
             <div className="space-y-3">
               <TrendingTile title="Trending Techniques" accent="matrix">

@@ -112,14 +112,12 @@ export function ThreatSpotlightSection({ days }: { days?: number }) {
     return <EmptyLabel label="NO_THREAT_ACTOR_DATA · run ingest to backfill from vendor attack.g / attack.s tags" />;
   }
 
-  const scopeLabel = data.scope === 'window' ? `last ${data.period_days}d` : 'full catalog';
-
   return (
     <div className="space-y-4">
       {data.groups.length > 0 && (
         <div>
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-2">
-            actors · {data.groups.length} threat groups with active rule coverage · {scopeLabel}
+            actors · {data.groups.length} threat groups with active rule coverage
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
             {data.groups.map((g) => <GroupChip key={g.id} g={g} />)}
@@ -129,7 +127,7 @@ export function ThreatSpotlightSection({ days }: { days?: number }) {
       {data.software.length > 0 && (
         <div>
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-2">
-            software · malware families + offensive tools · {scopeLabel}
+            software · malware families + offensive tools
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
             {data.software.map((s) => <SoftwareChip key={s.id} s={s} />)}

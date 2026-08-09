@@ -60,8 +60,14 @@ function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
 // created/modified rarely under-fills.
 const CARDS_TO_SHOW = 15;
 
-export function NotableNewRulesSection({ filters }: { filters: ActivityFilters }) {
-  const { data, isLoading, error } = useRecentRules(CARDS_TO_SHOW * 2, filters);
+export function NotableNewRulesSection({
+  filters,
+  days,
+}: {
+  filters: ActivityFilters;
+  days?: number;
+}) {
+  const { data, isLoading, error } = useRecentRules(CARDS_TO_SHOW * 2, filters, days);
 
   // useMemo runs on every render — never conditionally. Guarded against
   // undefined `data` instead of being placed after early returns
@@ -88,7 +94,13 @@ export function NotableNewRulesSection({ filters }: { filters: ActivityFilters }
     );
   }
   if (error || !data) return <EmptyLabel label="NO_RECENT_DATA" />;
-  if (merged.length === 0) return <EmptyLabel label="NO_RECENT_DATA" />;
+  if (merged.length === 0) {
+    return (
+      <EmptyLabel
+        label={days ? `NO_RULES_CREATED_OR_MODIFIED_IN_LAST_${days}D` : 'NO_RECENT_DATA'}
+      />
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">

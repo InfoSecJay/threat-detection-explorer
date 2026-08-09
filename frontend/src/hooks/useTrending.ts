@@ -33,10 +33,14 @@ export function useTrendingSummary(days: number = 90) {
   });
 }
 
-export function useRecentRules(limit: number = 20, filters: ActivityFilters = {}) {
+export function useRecentRules(
+  limit: number = 20,
+  filters: ActivityFilters = {},
+  days?: number,
+) {
   return useQuery({
-    queryKey: ['recent-rules', limit, filters],
-    queryFn: () => trendingApi.getRecentRules(limit, filters),
+    queryKey: ['recent-rules', limit, filters, days ?? null],
+    queryFn: () => trendingApi.getRecentRules(limit, filters, days),
     staleTime: 1000 * 60 * 5,
   });
 }

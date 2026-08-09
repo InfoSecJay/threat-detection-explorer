@@ -202,6 +202,16 @@ async def get_trending_platforms(
 @router.get("/recent-rules")
 async def get_recent_rules(
     limit: int = Query(20, ge=5, le=50, description="Number of rules per list"),
+    days: Optional[int] = Query(
+        None,
+        ge=1,
+        le=365,
+        description=(
+            "Optional lookback window. When set, only rules with a "
+            "created/modified date within the window are returned. "
+            "Omit for the unbounded 'most recent N' behavior."
+        ),
+    ),
     sources: Optional[str] = Query(None, description="Comma-separated source filter"),
     platforms: Optional[str] = Query(None, description="Comma-separated canonical-platform filter (e.g. 'o365,windows')"),
     event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
@@ -214,6 +224,9 @@ async def get_recent_rules(
     without a date stamp are excluded (would pollute the top of the
     list with deterministic-but-meaningless ordering). Optional filters
     narrow the corpus (e.g. sources=sigma&platforms=o365).
+
+    Pass ``days=N`` to hard-cap the window — that scoping is what the
+    Intel page's global period toggle relies on.
     """
     # Column-scoped: only what _format() actually reads. Skips
     # detection_logic, raw_content, and the extracted_* JSON columns
@@ -246,8 +259,11 @@ async def get_recent_rules(
     src_list = _parse_csv(sources)
     plat_list = _parse_csv(platforms)
     et_list = _parse_csv(event_types)
+    cutoff = utcnow() - timedelta(days=days) if days is not None else None
 
     created_conds = [Detection.rule_created_date.isnot(None)]
+    if cutoff is not None:
+        created_conds.append(Detection.rule_created_date >= cutoff)
     _apply_trending_filters(created_conds, src_list, plat_list, et_list)
     created_q = (
         select(*columns)
@@ -257,6 +273,8 @@ async def get_recent_rules(
     )
 
     modified_conds = [Detection.rule_modified_date.isnot(None)]
+    if cutoff is not None:
+        modified_conds.append(Detection.rule_modified_date >= cutoff)
     _apply_trending_filters(modified_conds, src_list, plat_list, et_list)
     modified_q = (
         select(*columns)

@@ -33,7 +33,7 @@ export function PulseBanner({ days }: { days: number }) {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-matrix-400 uppercase tracking-[0.2em] mb-1">
-            Detection Pulse · last {days}d
+            Detection Pulse
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-3xl font-display font-bold text-matrix-400 tabular-nums">

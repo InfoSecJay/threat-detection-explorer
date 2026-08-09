@@ -580,9 +580,11 @@ export const trendingApi = {
   getRecentRules: async (
     limit: number = 20,
     filters: ActivityFilters = {},
+    days?: number,
   ): Promise<RecentRulesResponse> => {
+    const daysParam = days != null ? `&days=${days}` : '';
     const response = await api.get(
-      `/trending/recent-rules?limit=${limit}${activityFilterParams(filters)}`,
+      `/trending/recent-rules?limit=${limit}${daysParam}${activityFilterParams(filters)}`,
     );
     return response.data;
   },

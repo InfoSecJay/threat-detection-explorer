@@ -30,9 +30,12 @@ export function formatRelDate(iso: string | null): string {
   return `${Math.floor(diffDays / 365)}y`;
 }
 
+// Time-window options for the Intel page's global period toggle.
+// One control drives Pulse, Threat Spotlight, What's New (both the
+// newest-rules cards and the trending tiles). Repo Health + Upstream
+// Releases sit outside this window because they're separate cadences.
 export const periodOptions = [
-  { value: 30, label: '30d' },
-  { value: 90, label: '90d' },
-  { value: 180, label: '6mo' },
-  { value: 365, label: '1y' },
+  { value: 30, label: '30 days' },
+  { value: 60, label: '60 days' },
+  { value: 90, label: '90 days' },
 ];
