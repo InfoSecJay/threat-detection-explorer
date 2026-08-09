@@ -11,6 +11,12 @@ from app.parsers.base import BaseParser, ParsedRule
 
 logger = logging.getLogger(__name__)
 
+# Digit-anchored so `attack.stealth` (a tactic short-name) doesn't
+# false-match as software. Groups + software both follow
+# `<letter><4+ digits>`.
+LOLRMM_SOFTWARE_TAG_RE = re.compile(r"^attack\.s\d+")
+LOLRMM_GROUP_TAG_RE = re.compile(r"^attack\.g\d+")
+
 
 class LOLRMMParser(BaseParser):
     """Parser for LOLRMM detection rules (Sigma-compatible YAML format)."""
@@ -199,12 +205,13 @@ class LOLRMMParser(BaseParser):
         if tag_lower.startswith("attack.t"):
             return True
 
-        # Check for software/tool references (S####)
-        if tag_lower.startswith("attack.s"):
+        # Check for software/tool references (S####) — digit-anchored
+        # so tactic short-names like `attack.stealth` don't false-match.
+        if LOLRMM_SOFTWARE_TAG_RE.match(tag_lower):
             return True
 
-        # Check for group references (G####)
-        if tag_lower.startswith("attack.g"):
+        # Check for group references (G####) — same anchoring.
+        if LOLRMM_GROUP_TAG_RE.match(tag_lower):
             return True
 
         # Check for tactic names
@@ -230,14 +237,16 @@ class LOLRMMParser(BaseParser):
                 if technique_id not in techniques:
                     techniques.append(technique_id)
 
-            elif tag_lower.startswith("attack.s"):
-                # Software/tool ID (e.g. attack.s0002 -> S0002)
+            elif LOLRMM_SOFTWARE_TAG_RE.match(tag_lower):
+                # Software/tool ID (e.g. attack.s0002 -> S0002); digit-
+                # anchored so `attack.stealth` etc. don't slip in.
                 sid = tag_lower.replace("attack.", "").upper()
                 if sid not in software:
                     software.append(sid)
 
-            elif tag_lower.startswith("attack.g"):
-                # Group/actor ID (e.g. attack.g0016 -> G0016)
+            elif LOLRMM_GROUP_TAG_RE.match(tag_lower):
+                # Group/actor ID (e.g. attack.g0016 -> G0016); same
+                # anchoring.
                 gid = tag_lower.replace("attack.", "").upper()
                 if gid not in groups:
                     groups.append(gid)

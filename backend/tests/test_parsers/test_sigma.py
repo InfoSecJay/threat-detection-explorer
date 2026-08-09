@@ -112,3 +112,57 @@ tags:
         assert "T1059" in techniques
         assert "T1059.001" in techniques
         assert "T1027" in techniques
+
+    def test_mitre_group_and_software_extraction(self):
+        """Group/software tags route to their own fields (not techniques)."""
+        rule = """
+title: APT29 activity via Cobalt Strike
+detection:
+    selection:
+        test: value
+    condition: selection
+tags:
+    - attack.g0016
+    - attack.s0154
+    - attack.t1059
+"""
+        result = self.parser.parse(Path("rules/test.yml"), rule)
+        assert result is not None
+        assert "G0016" in result.mitre_attack.get("groups", [])
+        assert "S0154" in result.mitre_attack.get("software", [])
+        # Groups/software must NOT leak into techniques
+        assert "G0016" not in result.mitre_attack.get("techniques", [])
+        assert "S0154" not in result.mitre_attack.get("techniques", [])
+
+    def test_tactic_short_names_starting_with_s_or_g_dont_false_match(self):
+        """Regression: `attack.stealth` must NOT be classified as software.
+
+        The initial Phase 2 parser used `startswith("attack.s")` which
+        matched tactic short-names like `stealth` and `spearphishing`,
+        polluting the software facet with e.g. "STEALTH" (1094 rules).
+        Digit-anchored regex prevents this.
+        """
+        rule = """
+title: Test Rule
+detection:
+    selection:
+        test: value
+    condition: selection
+tags:
+    - attack.stealth
+    - attack.spearphishing
+    - attack.google-workspace
+    - attack.s0002
+    - attack.g0016
+"""
+        result = self.parser.parse(Path("rules/test.yml"), rule)
+        assert result is not None
+        groups = result.mitre_attack.get("groups", [])
+        software = result.mitre_attack.get("software", [])
+        # Only the digit-anchored IDs survive
+        assert software == ["S0002"]
+        assert groups == ["G0016"]
+        # Bogus IDs must not appear
+        assert "STEALTH" not in software
+        assert "SPEARPHISHING" not in software
+        assert "GOOGLE-WORKSPACE" not in groups

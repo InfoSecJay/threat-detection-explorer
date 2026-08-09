@@ -1,6 +1,7 @@
 """Sigma detection rule parser."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,13 @@ import yaml
 from app.parsers.base import BaseParser, ParsedRule
 
 logger = logging.getLogger(__name__)
+
+# Anchored patterns so `attack.stealth` / `attack.spearphishing` (tactic
+# short-names starting with the letter `s`) don't false-match as software
+# IDs. ATT&CK groups + software both follow the `<letter><4+ digits>`
+# convention, so a digit anchor is enough.
+SIGMA_SOFTWARE_TAG_RE = re.compile(r"^attack\.s\d+")
+SIGMA_GROUP_TAG_RE = re.compile(r"^attack\.g\d+")
 
 
 class SigmaParser(BaseParser):
@@ -145,12 +153,14 @@ class SigmaParser(BaseParser):
         if tag_lower.startswith("attack.t"):
             return True
 
-        # Check for software/tool references (S####)
-        if tag_lower.startswith("attack.s"):
+        # Check for software/tool references (S####) — digit-anchored
+        # so `attack.stealth` / `attack.spearphishing` don't false-match
+        # as software.
+        if SIGMA_SOFTWARE_TAG_RE.match(tag_lower):
             return True
 
-        # Check for group references (G####)
-        if tag_lower.startswith("attack.g"):
+        # Check for group references (G####) — same anchoring.
+        if SIGMA_GROUP_TAG_RE.match(tag_lower):
             return True
 
         # Check for tactic names (attack.initial-access, attack.execution, etc.)
@@ -184,14 +194,18 @@ class SigmaParser(BaseParser):
                 if technique_id not in techniques:
                     techniques.append(technique_id)
 
-            elif tag_lower.startswith("attack.s"):
-                # Software/tool ID (e.g. attack.s0002 -> S0002)
+            elif SIGMA_SOFTWARE_TAG_RE.match(tag_lower):
+                # Software/tool ID (e.g. attack.s0002 -> S0002). Anchored
+                # so tactic short-names like `attack.stealth` /
+                # `attack.spearphishing` don't false-match.
                 sid = tag_lower.replace("attack.", "").upper()
                 if sid not in software:
                     software.append(sid)
 
-            elif tag_lower.startswith("attack.g"):
-                # Group/actor ID (e.g. attack.g0016 -> G0016)
+            elif SIGMA_GROUP_TAG_RE.match(tag_lower):
+                # Group/actor ID (e.g. attack.g0016 -> G0016). Same
+                # anchoring — `attack.google-workspace` etc. must not
+                # slip in as a bogus G-ID.
                 gid = tag_lower.replace("attack.", "").upper()
                 if gid not in groups:
                     groups.append(gid)
