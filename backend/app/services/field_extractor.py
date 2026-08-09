@@ -1071,7 +1071,14 @@ def extract_esql_fields(query: str) -> ExtractedFields:
 
     query = query.strip()
 
-    # Determine complexity
+    # Strip comments FIRST so a `// WHERE field == "x"` line doesn't
+    # leak into observable extraction below. Order matters: block
+    # comments first (they can span lines), then line comments.
+    query = re.sub(r'/\*.*?\*/', ' ', query, flags=re.DOTALL)
+    query = re.sub(r'//[^\n]*', ' ', query)
+
+    # Determine complexity (after comment strip — commented-out pipes
+    # shouldn't count toward complexity).
     pipe_count = query.count('|')
     if pipe_count > 5 or re.search(r'\bENRICH\b', query, re.IGNORECASE):
         result.query_complexity = "complex"
@@ -1080,10 +1087,31 @@ def extract_esql_fields(query: str) -> ExtractedFields:
     else:
         result.query_complexity = "simple"
 
-    # Extract FROM table-name
-    from_matches = re.findall(r'\bFROM\s+([\w.*\-]+)', query, re.IGNORECASE)
-    for table in from_matches:
-        result.source_tables.append(table)
+    # Extract FROM tables. ES|QL supports comma-separated multi-table
+    # FROM (`FROM logs-a-*, logs-b-*`); capture the whole clause up
+    # to the next pipe / newline, then split.
+    from_clauses = re.findall(
+        r'\bFROM\s+([^|\n]+)', query, re.IGNORECASE,
+    )
+    for clause in from_clauses:
+        for table in clause.split(','):
+            table = table.strip().rstrip(',')
+            # Accept only patterns that look like real ES|QL index
+            # names — reject anything with a space (would be a
+            # keyword continuation, not a table).
+            if table and re.fullmatch(r'[\w.*\-]+', table):
+                result.source_tables.append(table)
+
+    # KEEP + DROP list the fields the rule projects / suppresses;
+    # both signal "this rule cares about these fields". Same
+    # comma-separated shape as FROM.
+    for kw in ("KEEP", "DROP"):
+        for clause in re.findall(rf'\b{kw}\s+([^|\n]+)', query, re.IGNORECASE):
+            for f in clause.split(','):
+                clean = f.strip().rstrip(',')
+                if clean and re.fullmatch(r'[\w.@]+', clean):
+                    if clean not in result.fields_used:
+                        result.fields_used.append(clean)
 
     # Extract WHERE field == "value"
     eq_patterns = re.findall(r'([\w.@]+)\s*==\s*"([^"]*)"', query)
@@ -1152,6 +1180,10 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
         return result
 
     query = query.strip()
+
+    # Strip `//` line comments before anything else — otherwise
+    # commented-out clauses leak into observables.
+    query = re.sub(r'//[^\n]*', ' ', query)
 
     # Determine complexity
     and_count = len(re.findall(r'\band\b', query, re.IGNORECASE))
