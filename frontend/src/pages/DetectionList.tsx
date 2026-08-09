@@ -43,6 +43,19 @@ export function DetectionList() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  // Pinned means the filter panel docks as a persistent side panel on
+  // md+. Preference persists so users don't have to re-pin each visit.
+  const [filterSheetPinned, setFilterSheetPinned] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('detection-list.filters.pinned') === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      'detection-list.filters.pinned',
+      filterSheetPinned ? '1' : '0',
+    );
+  }, [filterSheetPinned]);
 
   // Global keyboard shortcuts — `/` focuses the search bar (unless
   // typing elsewhere), Cmd/Ctrl+F opens the filter sheet. Escape
@@ -177,7 +190,7 @@ export function DetectionList() {
   }
 
   return (
-    <div>
+    <div className={filterSheetPinned ? 'md:pr-[400px] transition-[padding] duration-200' : 'transition-[padding] duration-200'}>
       {/* Page Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -216,10 +229,16 @@ export function DetectionList() {
             error={queryError}
           />
         </div>
-        <FilterButton
-          activeCount={countActiveFilters(filters)}
-          onClick={() => setFilterSheetOpen(true)}
-        />
+        {/* Filter button hidden on md+ when the sheet is pinned —
+            the panel is already visible so a "Filters" button would
+            be redundant. Still shown on mobile since pinning is
+            gated on md+. */}
+        <div className={filterSheetPinned ? 'md:hidden' : ''}>
+          <FilterButton
+            activeCount={countActiveFilters(filters)}
+            onClick={() => setFilterSheetOpen(true)}
+          />
+        </div>
       </div>
 
       <FilterSheet
@@ -227,6 +246,13 @@ export function DetectionList() {
         onFiltersChange={setFilters}
         open={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
+        pinned={filterSheetPinned}
+        onPinnedChange={(p) => {
+          setFilterSheetPinned(p);
+          // Unpinning while the modal is not deliberately open should
+          // just dismiss the panel; pinning implies visibility.
+          if (!p) setFilterSheetOpen(false);
+        }}
       />
 
       {/* Results */}
