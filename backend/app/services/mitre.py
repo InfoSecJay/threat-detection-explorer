@@ -81,6 +81,16 @@ class MitreAttackService:
     def __init__(self):
         self._tactics: dict[str, dict] = {}
         self._techniques: dict[str, dict] = {}
+        # ATT&CK Groups (`intrusion-set` STIX objects). Keyed by G-ID.
+        # Each entry carries the same shape MITRE renders on
+        # attack.mitre.org: name, aliases, description, references,
+        # plus the derived `techniques` + `software` arrays populated
+        # from `uses` relationships. See `_parse_mitre_data`.
+        self._groups: dict[str, dict] = {}
+        # ATT&CK Software (`malware` + `tool` STIX objects), keyed by
+        # S-ID. Same shape as groups plus `type` (malware|tool) and
+        # `groups` (reverse index of groups that use this software).
+        self._software: dict[str, dict] = {}
         self._last_fetch: Optional[datetime] = None
         self._loaded = False
 
@@ -120,6 +130,8 @@ class MitreAttackService:
 
             cached_tactics = data.get("tactics", {})
             cached_techniques = data.get("techniques", {})
+            cached_groups = data.get("groups", {})
+            cached_software = data.get("software", {})
 
             # Sanity check: reject caches produced by the old single-pass
             # parser that left every technique's `tactics` field empty.
@@ -136,10 +148,27 @@ class MitreAttackService:
                     )
                     return False
 
+            # Second sanity check: pre-groups caches are missing the
+            # groups + software payload. Discard and refetch so the
+            # Threat Actors v2 rollout doesn't ship an empty catalog
+            # from a stale container.
+            if not cached_groups and not cached_software:
+                logger.warning(
+                    "MITRE cache predates Threat Actors v2 (no groups/software); "
+                    "discarding and re-fetching."
+                )
+                return False
+
             self._tactics = cached_tactics
             self._techniques = cached_techniques
+            self._groups = cached_groups
+            self._software = cached_software
             self._last_fetch = file_mtime
-            logger.info(f"Loaded MITRE data from cache: {len(self._tactics)} tactics, {len(self._techniques)} techniques")
+            logger.info(
+                f"Loaded MITRE data from cache: {len(self._tactics)} tactics, "
+                f"{len(self._techniques)} techniques, {len(self._groups)} groups, "
+                f"{len(self._software)} software"
+            )
             return True
 
         except Exception as e:
@@ -154,6 +183,8 @@ class MitreAttackService:
                 json.dump({
                     "tactics": self._tactics,
                     "techniques": self._techniques,
+                    "groups": self._groups,
+                    "software": self._software,
                     "fetched_at": utcnow().isoformat(),
                 }, f, indent=2)
             logger.info(f"Saved MITRE data to cache: {CACHE_FILE}")
@@ -175,7 +206,11 @@ class MitreAttackService:
             self._loaded = True
             self._save_to_cache()
 
-            logger.info(f"Fetched MITRE data: {len(self._tactics)} tactics, {len(self._techniques)} techniques")
+            logger.info(
+                f"Fetched MITRE data: {len(self._tactics)} tactics, "
+                f"{len(self._techniques)} techniques, {len(self._groups)} groups, "
+                f"{len(self._software)} software"
+            )
             return True
 
         except Exception as e:
@@ -281,8 +316,124 @@ class MitreAttackService:
                         "version": obj.get("x_mitre_version"),
                     }
 
+        # ── Threat Actors v2 passes ─────────────────────────────────
+        # Groups (intrusion-set), Software (malware + tool), and the
+        # `uses` relationships that connect them to each other and to
+        # techniques. Requires the technique/tactic passes above to
+        # have run first because we cross-reference back into them
+        # when rendering associations.
+
+        # Map STIX object IDs (uuid-ish) to their external ATT&CK ID
+        # (G0016 / S0002 / T1059 / etc.). Relationships reference by
+        # STIX ID; we resolve to external IDs for everything downstream.
+        stix_to_ext: dict[str, str] = {}
+        for obj in objects:
+            if obj.get("type") not in ("intrusion-set", "malware", "tool", "attack-pattern"):
+                continue
+            for ref in obj.get("external_references", []):
+                if ref.get("source_name") == "mitre-attack":
+                    ext_id = ref.get("external_id", "")
+                    if ext_id:
+                        stix_to_ext[obj["id"]] = ext_id
+                        break
+
+        groups: dict[str, dict] = {}
+        software: dict[str, dict] = {}
+
+        for obj in objects:
+            obj_type = obj.get("type")
+            if obj.get("revoked"):
+                continue
+
+            if obj_type == "intrusion-set":
+                ext_id = stix_to_ext.get(obj["id"])
+                if not ext_id or not ext_id.startswith("G"):
+                    continue
+                # Aliases: intrusion-set uses `aliases` (which includes
+                # the primary name); MITRE UI shows "Associated Groups"
+                # from `aliases` minus name. Preserve full list.
+                aliases = [a for a in (obj.get("aliases") or []) if a != obj.get("name")]
+                groups[ext_id] = {
+                    "id": ext_id,
+                    "stix_id": obj["id"],
+                    "name": obj.get("name", ""),
+                    "aliases": aliases,
+                    "description": obj.get("description", ""),
+                    "url": f"https://attack.mitre.org/groups/{ext_id}/",
+                    "references": [
+                        {"source_name": r.get("source_name", ""), "url": r.get("url", ""), "description": r.get("description", "")}
+                        for r in obj.get("external_references", [])
+                        if r.get("url") and r.get("source_name") != "mitre-attack"
+                    ],
+                    "deprecated": obj.get("x_mitre_deprecated", False),
+                    # Filled in the relationship pass below.
+                    "techniques": [],
+                    "software": [],
+                }
+
+            elif obj_type in ("malware", "tool"):
+                ext_id = stix_to_ext.get(obj["id"])
+                if not ext_id or not ext_id.startswith("S"):
+                    continue
+                software[ext_id] = {
+                    "id": ext_id,
+                    "stix_id": obj["id"],
+                    "name": obj.get("name", ""),
+                    "aliases": obj.get("x_mitre_aliases") or [],
+                    "type": "malware" if obj_type == "malware" else "tool",
+                    "description": obj.get("description", ""),
+                    "url": f"https://attack.mitre.org/software/{ext_id}/",
+                    "references": [
+                        {"source_name": r.get("source_name", ""), "url": r.get("url", ""), "description": r.get("description", "")}
+                        for r in obj.get("external_references", [])
+                        if r.get("url") and r.get("source_name") != "mitre-attack"
+                    ],
+                    "deprecated": obj.get("x_mitre_deprecated", False),
+                    "platforms": obj.get("x_mitre_platforms") or [],
+                    # Filled in the relationship pass below.
+                    "techniques": [],
+                    "groups": [],
+                }
+
+        # Relationship pass — connect groups ↔ techniques, groups ↔
+        # software, software ↔ techniques. Only `uses` relationships;
+        # `attributed-to` / `revoked-by` etc. aren't needed for the
+        # coverage view.
+        for obj in objects:
+            if obj.get("type") != "relationship" or obj.get("revoked"):
+                continue
+            if obj.get("relationship_type") != "uses":
+                continue
+            src = stix_to_ext.get(obj.get("source_ref", ""))
+            tgt = stix_to_ext.get(obj.get("target_ref", ""))
+            if not src or not tgt:
+                continue
+
+            # Group → technique
+            if src.startswith("G") and tgt.startswith("T") and src in groups:
+                groups[src]["techniques"].append(tgt)
+            # Group → software (bidirectional link)
+            elif src.startswith("G") and tgt.startswith("S"):
+                if src in groups:
+                    groups[src]["software"].append(tgt)
+                if tgt in software:
+                    software[tgt]["groups"].append(src)
+            # Software → technique
+            elif src.startswith("S") and tgt.startswith("T") and src in software:
+                software[src]["techniques"].append(tgt)
+
+        # Dedupe + sort so cache output is stable across refreshes.
+        for g in groups.values():
+            g["techniques"] = sorted(set(g["techniques"]))
+            g["software"] = sorted(set(g["software"]))
+        for s in software.values():
+            s["techniques"] = sorted(set(s["techniques"]))
+            s["groups"] = sorted(set(s["groups"]))
+
         self._tactics = tactics
         self._techniques = techniques
+        self._groups = groups
+        self._software = software
 
     def _load_fallback_data(self) -> None:
         """Load minimal fallback data if fetch fails and no cache exists."""
@@ -304,6 +455,8 @@ class MitreAttackService:
             "TA0040": {"id": "TA0040", "name": "Impact", "short_name": "impact", "url": "https://attack.mitre.org/tactics/TA0040/", "deprecated": False},
         }
         self._techniques = {}
+        self._groups = {}
+        self._software = {}
         self._loaded = True
 
     def get_tactic(self, tactic_id: str) -> Optional[dict]:
@@ -332,12 +485,33 @@ class MitreAttackService:
         """Get all techniques."""
         return self._techniques
 
+    # ── Threat Actors v2 accessors ─────────────────────────────────
+    def get_all_groups(self) -> dict[str, dict]:
+        """All non-revoked ATT&CK Groups keyed by G-ID."""
+        return self._groups
+
+    def get_group(self, group_id: str) -> Optional[dict]:
+        """Get a single group by G-ID."""
+        return self._groups.get(group_id.upper())
+
+    def get_all_software(self) -> dict[str, dict]:
+        """All non-revoked ATT&CK Software (malware + tools) keyed by S-ID."""
+        return self._software
+
+    def get_software(self, software_id: str) -> Optional[dict]:
+        """Get a single software entry by S-ID."""
+        return self._software.get(software_id.upper())
+
     def get_stats(self) -> dict:
         """Get stats about loaded MITRE data."""
         return {
             "tactics_count": len(self._tactics),
             "techniques_count": len(self._techniques),
             "subtechniques_count": sum(1 for t in self._techniques.values() if t.get("is_subtechnique")),
+            "groups_count": len(self._groups),
+            "software_count": len(self._software),
+            "malware_count": sum(1 for s in self._software.values() if s.get("type") == "malware"),
+            "tool_count": sum(1 for s in self._software.values() if s.get("type") == "tool"),
             "last_fetch": self._last_fetch.isoformat() if self._last_fetch else None,
             "loaded": self._loaded,
         }
