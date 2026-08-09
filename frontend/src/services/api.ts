@@ -361,6 +361,74 @@ export interface TrendingUseCasesResponse {
   use_cases: TrendingUseCase[];
 }
 
+// Actors listing (broader than trending — enumerates every G/S with
+// coverage, not just top-N in window). Powers /actors page.
+export interface ActorListGroup {
+  id: string;
+  name: string;
+  aliases: string[];
+  rule_count: number;
+  technique_count: number;
+  sources: string[];
+}
+
+export interface ActorListSoftware {
+  id: string;
+  name: string;
+  type: 'malware' | 'tool' | 'unknown';
+  rule_count: number;
+  technique_count: number;
+  sources: string[];
+}
+
+export interface ActorsListResponse {
+  groups: ActorListGroup[];
+  software: ActorListSoftware[];
+}
+
+export interface ActorTechniqueEntry {
+  technique_id: string;
+  rule_count: number;
+  sources: string[];
+}
+
+export interface ActorDetailRule {
+  id: string;
+  rule_id: string | null;
+  title: string;
+  source: string;
+  severity: string;
+  language: string;
+  techniques: string[];
+  platforms: string[];
+  date: string | null;
+}
+
+export interface ActorDetail {
+  id: string;
+  kind: 'group' | 'software';
+  name: string;
+  aliases?: string[];
+  type?: 'malware' | 'tool' | 'unknown';
+  mitre_url: string;
+  rule_count: number;
+  technique_count: number;
+  sources: string[];
+  by_technique: ActorTechniqueEntry[];
+  rules: ActorDetailRule[];
+}
+
+export const actorsApi = {
+  list: async (): Promise<ActorsListResponse> => {
+    const response = await api.get('/actors');
+    return response.data;
+  },
+  get: async (actorId: string): Promise<ActorDetail> => {
+    const response = await api.get(`/actors/${actorId}`);
+    return response.data;
+  },
+};
+
 export interface ThreatActorGroup {
   id: string;
   name: string;

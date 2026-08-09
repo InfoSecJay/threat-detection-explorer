@@ -11,6 +11,8 @@ import { Home } from './pages/Home';
 const DetectionList   = lazy(() => import('./pages/DetectionList').then(m => ({ default: m.DetectionList })));
 const DetectionDetail = lazy(() => import('./pages/DetectionDetail').then(m => ({ default: m.DetectionDetail })));
 const MitreCoverage   = lazy(() => import('./pages/MitreCoverage').then(m => ({ default: m.MitreCoverage })));
+const Actors          = lazy(() => import('./pages/Actors').then(m => ({ default: m.Actors })));
+const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ default: m.ActorDetail })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
 // Temporarily hidden — pages need rework before they're re-exposed.
@@ -228,6 +230,7 @@ function App() {
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/mitre">MITRE</NavLink>
+              <NavLink to="/actors">Actors</NavLink>
               <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
@@ -258,6 +261,8 @@ function App() {
             <Route path="/detections/:id" element={<DetectionDetail />} />
             <Route path="/mitre" element={<MitreCoverage />} />
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
+            <Route path="/actors" element={<Actors />} />
+            <Route path="/actors/:id" element={<ActorDetail />} />
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
             <Route path="/intel" element={<IndustryIntel />} />
