@@ -19,6 +19,10 @@ class SearchFilters:
 
     # Text search
     search: Optional[str] = None
+    # Lucene-syntax query — parsed via app.services.query_parser and
+    # AND'd with the rest of the filters. Empty/None = no-op. Powers
+    # the /query universal search bar.
+    q: Optional[str] = None
 
     # Exact filters
     sources: list[str] = field(default_factory=list)
@@ -364,7 +368,18 @@ class SearchService:
         """Build SQLAlchemy filter conditions from search filters."""
         conditions = []
 
-        # Text search (title, description, detection_logic)
+        # Lucene-syntax query (parse errors propagate up as
+        # QueryParseError; the route layer turns them into 400s).
+        if filters.q:
+            from app.services.query_parser import parse_query
+            clause = parse_query(filters.q)
+            if clause is not None:
+                conditions.append(clause)
+
+        # Text search (title, description, detection_logic) — legacy
+        # single-field substring search; still supported for
+        # backwards compat with existing URLs. New callers should
+        # prefer `q`.
         if filters.search:
             search_term = f"%{filters.search}%"
             conditions.append(

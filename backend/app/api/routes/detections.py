@@ -24,6 +24,14 @@ router = APIRouter(prefix="/detections", tags=["detections"])
 @router.get("", response_model=DetectionListResponse)
 async def list_detections(
     search: Optional[str] = None,
+    q: Optional[str] = Query(
+        None,
+        description=(
+            "Lucene-syntax query. Examples: `actor:APT29 AND severity:high`, "
+            "`title:\"cobalt strike\"`, `tech:T1059 NOT platform:linux`. See "
+            "/query for the full field reference. Malformed queries return 400."
+        ),
+    ),
     sources: Optional[str] = Query(None, description="Comma-separated list of sources"),
     statuses: Optional[str] = Query(None, description="Comma-separated list of statuses"),
     severities: Optional[str] = Query(None, description="Comma-separated list of severities"),
@@ -56,6 +64,7 @@ async def list_detections(
     # Parse comma-separated values
     filters = SearchFilters(
         search=search,
+        q=q,
         sources=_parse_csv(sources),
         statuses=_parse_csv(statuses),
         severities=_parse_csv(severities),
@@ -85,7 +94,19 @@ async def list_detections(
     )
 
     search_service = SearchService(db)
-    detections, total = await search_service.search_detections(filters)
+    try:
+        detections, total = await search_service.search_detections(filters)
+    except Exception as e:
+        # Surface query-parse errors as 400s so the FE can inline them.
+        from app.services.query_parser import QueryParseError
+        if isinstance(e, QueryParseError):
+            raise HTTPException(status_code=400, detail={
+                "error": "query_parse_error",
+                "message": e.message,
+                "position": e.position,
+                "suggestion": e.suggestion,
+            })
+        raise
 
     # Convert detections to list items with error handling
     items = []

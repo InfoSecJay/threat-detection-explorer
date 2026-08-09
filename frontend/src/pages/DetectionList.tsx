@@ -1,23 +1,81 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FilterPanel } from '../components/FilterPanel';
 import { ActiveFilterPills } from '../components/ActiveFilterPills';
 import { RuleList } from '../components/RuleList';
 import { ExportModal } from '../components/ExportModal';
+import { SearchBar } from '../components/SearchBar';
+import { FilterSheet } from '../components/FilterSheet';
 import { useDetections } from '../hooks/useDetections';
 import type { SearchFilters } from '../types';
+import { extractQueryParseError } from '../services/api';
+import { countActiveFilters } from '../utils/filterUtils';
 import { clipSm, clipMd } from '../constants/style';
+
+/** Filter trigger — mirrors the SearchBar's height and clip so they read as a pair. */
+function FilterButton({ activeCount, onClick }: { activeCount: number; onClick: () => void }) {
+  const active = activeCount > 0;
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 flex items-center gap-2 px-3 py-2 text-xs font-display font-semibold uppercase tracking-wider border transition-colors ${
+        active
+          ? 'bg-matrix-500/10 text-matrix-400 border-matrix-500/40 hover:bg-matrix-500/20'
+          : 'bg-void-900 text-gray-400 border-void-700 hover:text-white hover:border-void-600'
+      }`}
+      style={clipSm}
+      aria-label={`Open filters${active ? ` (${activeCount} active)` : ''}`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+      </svg>
+      Filters
+      {active && (
+        <span className="ml-1 tabular-nums bg-matrix-500/25 text-matrix-300 px-1.5 py-0.5 text-[10px] rounded-sm">
+          {activeCount}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export function DetectionList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
-  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  // Global keyboard shortcuts — `/` focuses the search bar (unless
+  // typing elsewhere), Cmd/Ctrl+F opens the filter sheet. Escape
+  // closes anything open (handled by the bar + sheet locally).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          (target as HTMLElement).isContentEditable);
+      if (e.key === '/' && !isTyping) {
+        e.preventDefault();
+        const bar = document.querySelector<HTMLInputElement>(
+          'input[aria-label="Search rules"]',
+        );
+        bar?.focus();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setFilterSheetOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Parse filters from URL
   const parseFilters = (): SearchFilters => ({
     search: searchParams.get('search') || undefined,
+    q: searchParams.get('q') || undefined,
     sources: searchParams.get('sources')?.split(',').filter(Boolean) || [],
     statuses: searchParams.get('statuses')?.split(',').filter(Boolean) || [],
     severities: searchParams.get('severities')?.split(',').filter(Boolean) || [],
@@ -54,6 +112,7 @@ export function DetectionList() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
+    if (filters.q) params.set('q', filters.q);
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
     if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
     if (filters.severities?.length) params.set('severities', filters.severities.join(','));
@@ -88,14 +147,13 @@ export function DetectionList() {
 
   const { data, isLoading, error } = useDetections(filters);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFilters({ ...filters, search: searchInput || undefined, offset: 0 });
-  };
+  // Query-parse errors (HTTP 400 from the backend) render inline
+  // under the search bar; other errors get the full-page treatment.
+  const queryError = useMemo(() => extractQueryParseError(error), [error]);
+  const isQueryError = !!queryError;
 
-  const handleClearSearch = () => {
-    setSearchInput('');
-    setFilters({ ...filters, search: undefined, offset: 0 });
+  const handleQuerySubmit = (q: string) => {
+    setFilters({ ...filters, q: q || undefined, offset: 0 });
   };
 
   const handleExportSelected = (ids: string[]) => {
@@ -103,7 +161,7 @@ export function DetectionList() {
     setIsExportModalOpen(true);
   };
 
-  if (error) {
+  if (error && !isQueryError) {
     return (
       <div className="bg-breach-500/10 text-breach-400 border border-breach-500/30 p-6"
         style={clipMd}
@@ -147,109 +205,41 @@ export function DetectionList() {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <form onSubmit={handleSearchSubmit} className="mb-6">
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by title, description, detection logic, author..."
-              className="w-full pl-12 pr-10 py-3 bg-void-850 border border-void-700 text-white placeholder-gray-500 focus:ring-2 focus:ring-matrix-500/50 focus:border-matrix-500/50 transition-all"
-              style={clipMd}
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-matrix-500 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <button
-            type="submit"
-            className="btn-primary px-8"
-          >
-            Search
-          </button>
-        </div>
-        {filters.search && (
-          <p className="mt-3 text-sm font-mono text-gray-500">
-            <span className="text-gray-600">[</span>
-            QUERY
-            <span className="text-gray-600">]</span>
-            {' '}<span className="text-matrix-500">"{filters.search}"</span>
-          </p>
-        )}
-      </form>
-
-      {/* Mobile filter toggle — hidden on desktop (md+). The sidebar
-          is always visible on desktop, slides in as a drawer on
-          narrow viewports so the results table gets the full width. */}
-      <button
-        onClick={() => setMobileFiltersOpen(true)}
-        className="md:hidden mb-4 w-full px-4 py-2 bg-void-850 border border-void-700 text-sm font-display font-semibold text-gray-300 uppercase tracking-wider hover:border-matrix-500/50 transition-colors flex items-center justify-center gap-2"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-        </svg>
-        Filters
-      </button>
-
-      {/* Main Content Area */}
-      <div className="flex gap-6">
-        {/* Filters Sidebar — desktop always-visible, mobile drawer */}
-        <div
-          className={`
-            ${mobileFiltersOpen ? 'block' : 'hidden'} md:block
-            fixed md:static inset-0 z-40 md:z-auto
-            bg-void-950/95 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none
-            md:w-64 md:flex-shrink-0
-          `}
-          onClick={(e) => {
-            // Click the backdrop (not the inner panel) to close on mobile.
-            if (e.target === e.currentTarget) setMobileFiltersOpen(false);
-          }}
-        >
-          <div className="h-full md:h-auto w-80 md:w-full max-w-[90vw] md:max-w-none bg-void-950 md:bg-transparent p-4 md:p-0 overflow-y-auto">
-            <div className="flex items-center justify-between mb-3 md:hidden">
-              <span className="text-xs font-display font-semibold text-gray-400 uppercase tracking-wider">
-                Filters
-              </span>
-              <button
-                onClick={() => setMobileFiltersOpen(false)}
-                className="text-gray-500 hover:text-matrix-500"
-                aria-label="Close filters"
-              >
-                ✕
-              </button>
-            </div>
-            <FilterPanel filters={filters} onFiltersChange={setFilters} />
-          </div>
-        </div>
-
-        {/* Detection List */}
+      {/* Search bar + Filter button. Lucene-syntax bar is the primary
+          interface; sheet is the discoverable fallback for anyone who
+          doesn't know the syntax. They compose (AND) at the API. */}
+      <div className="mb-6 flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <ActiveFilterPills filters={filters} onFiltersChange={setFilters} />
-          <RuleList
-            detections={data?.items || []}
-            total={data?.total || 0}
-            filters={filters}
-            onFiltersChange={setFilters}
-            isLoading={isLoading}
-            onExportSelected={handleExportSelected}
+          <SearchBar
+            value={filters.q || ''}
+            onSubmit={handleQuerySubmit}
+            error={queryError}
           />
         </div>
+        <FilterButton
+          activeCount={countActiveFilters(filters)}
+          onClick={() => setFilterSheetOpen(true)}
+        />
+      </div>
+
+      <FilterSheet
+        filters={filters}
+        onFiltersChange={setFilters}
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+      />
+
+      {/* Results */}
+      <div className="min-w-0">
+        <ActiveFilterPills filters={filters} onFiltersChange={setFilters} />
+        <RuleList
+          detections={data?.items || []}
+          total={data?.total || 0}
+          filters={filters}
+          onFiltersChange={setFilters}
+          isLoading={isLoading}
+          onExportSelected={handleExportSelected}
+        />
       </div>
 
       <ExportModal

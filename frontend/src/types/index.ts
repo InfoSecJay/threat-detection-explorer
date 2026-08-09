@@ -119,6 +119,10 @@ export interface IngestionResponse {
 // Search types
 export interface SearchFilters {
   search?: string;
+  // Lucene-syntax query. Parsed server-side via luqum; malformed
+  // queries surface as HTTP 400 with an inline error under the bar.
+  // See /query for syntax + field reference.
+  q?: string;
   sources?: string[];
   statuses?: string[];
   severities?: string[];

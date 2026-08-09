@@ -61,6 +61,7 @@ export const detectionsApi = {
     const params = new URLSearchParams();
 
     if (filters.search) params.set('search', filters.search);
+    if (filters.q) params.set('q', filters.q);
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
     if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
     if (filters.severities?.length) params.set('severities', filters.severities.join(','));
@@ -416,6 +417,48 @@ export interface ActorDetail {
   sources: string[];
   by_technique: ActorTechniqueEntry[];
   rules: ActorDetailRule[];
+}
+
+// Query language field registry — hydrated from backend/app/services/
+// query_parser.py so the docs page stays in sync automatically.
+export interface QueryFieldSpec {
+  aliases: string[];
+  kind: string;
+  columns: string[];
+  description: string;
+  examples: string[];
+}
+
+export interface QueryFieldsResponse {
+  fields: QueryFieldSpec[];
+}
+
+export const queryApi = {
+  getFields: async (): Promise<QueryFieldsResponse> => {
+    const response = await api.get('/query/fields');
+    return response.data;
+  },
+};
+
+// Parse a backend query-parse error response into a normalized shape
+// the SearchBar can render inline. Backend returns 400 with detail =
+// {error, message, position, suggestion}.
+export interface QueryParseErrorDetail {
+  error: string;
+  message: string;
+  position: number | null;
+  suggestion: string | null;
+}
+
+export function extractQueryParseError(err: unknown): QueryParseErrorDetail | null {
+  // axios error shape
+  const anyErr = err as { response?: { status?: number; data?: { detail?: unknown } } };
+  if (!anyErr?.response || anyErr.response.status !== 400) return null;
+  const detail = anyErr.response.data?.detail;
+  if (detail && typeof detail === 'object' && 'error' in detail && (detail as { error: string }).error === 'query_parse_error') {
+    return detail as QueryParseErrorDetail;
+  }
+  return null;
 }
 
 export const actorsApi = {

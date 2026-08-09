@@ -23,6 +23,7 @@ from app.api.routes import (
     detections,
     export,
     mitre,
+    query,
     releases,
     repositories,
     scheduler as scheduler_routes,
@@ -80,3 +81,4 @@ app.include_router(mitre.router, prefix=settings.api_prefix)
 app.include_router(scheduler_routes.router, prefix=settings.api_prefix)
 app.include_router(trending.router, prefix=settings.api_prefix)
 app.include_router(actors.router, prefix=settings.api_prefix)
+app.include_router(query.router, prefix=settings.api_prefix)

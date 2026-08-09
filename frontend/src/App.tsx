@@ -13,6 +13,7 @@ const DetectionDetail = lazy(() => import('./pages/DetectionDetail').then(m => (
 const MitreCoverage   = lazy(() => import('./pages/MitreCoverage').then(m => ({ default: m.MitreCoverage })));
 const Actors          = lazy(() => import('./pages/Actors').then(m => ({ default: m.Actors })));
 const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ default: m.ActorDetail })));
+const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({ default: m.QueryReference })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
 // Temporarily hidden — pages need rework before they're re-exposed.
@@ -236,6 +237,7 @@ function App() {
                 label="Resources"
                 items={[
                   { to: '/about', label: 'About' },
+                  { to: '/query', label: 'Query Reference' },
                   { to: '/integrations', label: 'Integrations' },
                 ]}
               />
@@ -263,6 +265,7 @@ function App() {
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
             <Route path="/actors" element={<Actors />} />
             <Route path="/actors/:id" element={<ActorDetail />} />
+            <Route path="/query" element={<QueryReference />} />
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
             <Route path="/intel" element={<IndustryIntel />} />
