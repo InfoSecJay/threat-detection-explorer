@@ -67,9 +67,10 @@ class SearchFilters:
     offset: int = 0
     limit: int = 50
 
-    # Sorting
-    sort_by: str = "title"
-    sort_order: str = "asc"
+    # Sorting — default to newest-first by rule creation date so the
+    # first thing a user sees is what shipped upstream most recently.
+    sort_by: str = "rule_created_date"
+    sort_order: str = "desc"
 
 
 class SearchService:

@@ -316,9 +316,6 @@ export function RuleList({
                 <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
                   Event Type
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Use Cases
-                </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
                   onClick={() => handleSort('rule_created_date')}
@@ -363,14 +360,10 @@ export function RuleList({
                         to={`/detections/${detection.id}`}
                         className="text-sm font-medium text-matrix-500 hover:text-matrix-400 transition-colors"
                         onClick={(e) => e.stopPropagation()}
+                        title={detection.description || undefined}
                       >
                         {detection.title}
                       </Link>
-                      {detection.description && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">
-                          {detection.description}
-                        </p>
-                      )}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span
@@ -451,33 +444,6 @@ export function RuleList({
                               {e}
                             </span>
                           ))
-                        ) : (
-                          <span className="text-xs text-gray-600">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-[240px]">
-                        {detection.use_cases && detection.use_cases.length > 0 ? (
-                          <>
-                            {detection.use_cases.slice(0, 2).map((uc) => (
-                              <span
-                                key={uc}
-                                title={uc}
-                                className="px-1.5 py-0.5 text-xs font-mono border bg-amber-500/10 text-amber-300 border-amber-500/30 truncate max-w-[110px]"
-                              >
-                                {uc}
-                              </span>
-                            ))}
-                            {detection.use_cases.length > 2 && (
-                              <span
-                                title={detection.use_cases.slice(2).join(', ')}
-                                className="px-1.5 py-0.5 text-xs font-mono border bg-void-800 text-gray-400 border-void-600"
-                              >
-                                +{detection.use_cases.length - 2}
-                              </span>
-                            )}
-                          </>
                         ) : (
                           <span className="text-xs text-gray-600">-</span>
                         )}

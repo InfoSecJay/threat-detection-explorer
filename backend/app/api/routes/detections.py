@@ -56,8 +56,8 @@ async def list_detections(
     source_tables: Optional[str] = Query(None, description="Comma-separated list of source tables (Sentinel KQL tables, Splunk indexes)"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    sort_by: str = Query("title"),
-    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    sort_by: str = Query("rule_created_date"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
 ):
     """List detections with filtering and pagination."""
