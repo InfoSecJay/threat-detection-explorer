@@ -1,15 +1,16 @@
 /**
- * Threat Actors + Software index — the "wanted board" view. Two tabs:
- * Groups (breach accent) and Software (split malware/tool). Cards are
- * dense, ordered by rule count, and deep-link to the actor detail page.
+ * Threat Actors + Software index — MITRE-parity catalog with our
+ * corpus coverage overlaid. Every ATT&CK Group and Software appears
+ * regardless of whether we have rules for it. Cards make it obvious
+ * which entries have coverage vs which are gaps.
  *
- * Data scope is intentionally what our corpus already covers via
- * `mitre_groups` / `mitre_software` (Sigma + LOLRMM tag extraction).
- * A future page enhancement will overlay the full ATT&CK actor
- * catalog with gap-analysis; that lives in the roadmap.
+ * Two tabs (Actors / Software), inline search across name + alias +
+ * ID, sort + "coverage only" toggle. Cards deep-link to the detail
+ * page. This is the "who's out there and who are we chasing?"
+ * lay of the land — the drill-in is on the detail page.
  */
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useActors } from '../hooks/useActors';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
@@ -32,14 +33,46 @@ function SourceDots({ sources }: { sources: string[] }) {
   );
 }
 
+function CoverageMeter({
+  covered,
+  total,
+  accent,
+}: {
+  covered: number;
+  total: number;
+  accent: string;
+}) {
+  const pct = total > 0 ? Math.round((covered / total) * 100) : 0;
+  return (
+    <div className="w-full" title={`${covered} of ${total} techniques have rules (${pct}%)`}>
+      <div className="h-1 bg-void-800 relative overflow-hidden">
+        <div
+          className={`absolute inset-y-0 left-0 ${accent}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[9px] font-mono text-gray-600">
+          {covered}/{total} TTPs covered
+        </span>
+        <span className="text-[9px] font-mono text-gray-500 tabular-nums">
+          {pct}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function GroupCard({ g }: { g: ActorListGroup }) {
-  const isKnown = g.name !== g.id;
+  const hasRules = g.our_rule_count > 0;
   return (
     <Link
       to={`/actors/${g.id}`}
-      className="group block bg-void-850 border border-void-700 hover:border-breach-500/50 p-3 transition-colors"
+      title={g.description || g.name}
+      className={`group relative block bg-void-850 border p-3 transition-colors ${
+        hasRules ? 'border-void-700 hover:border-breach-500/50' : 'border-void-800 hover:border-void-600 opacity-70 hover:opacity-100'
+      }`}
       style={clipSm}
-      title={g.aliases.length ? `${g.name} · aka ${g.aliases.join(', ')}` : g.name}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border bg-breach-500/10 text-breach-400 border-breach-500/30">
@@ -47,7 +80,7 @@ function GroupCard({ g }: { g: ActorListGroup }) {
         </span>
         <span className="text-[10px] font-mono text-gray-600 tabular-nums">{g.id}</span>
       </div>
-      <div className={`text-sm font-mono font-semibold leading-tight line-clamp-2 mb-2 min-h-[2.5rem] ${isKnown ? 'text-white group-hover:text-breach-300' : 'text-gray-500 italic'}`}>
+      <div className="text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 min-h-[2.5rem] group-hover:text-breach-300">
         {g.name}
       </div>
       {g.aliases.length > 0 && (
@@ -56,37 +89,40 @@ function GroupCard({ g }: { g: ActorListGroup }) {
           {g.aliases.length > 2 && ` +${g.aliases.length - 2}`}
         </div>
       )}
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-void-700">
-        <div className="flex gap-3 text-[10px] font-mono">
-          <span className="text-white">
-            <span className="tabular-nums font-semibold">{g.rule_count}</span>
-            <span className="text-gray-600 ml-1">rules</span>
+      <div className="pt-2 border-t border-void-700 space-y-2">
+        <CoverageMeter
+          covered={g.covered_technique_count}
+          total={g.technique_count}
+          accent="bg-breach-500/60"
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className={`text-[10px] font-mono tabular-nums ${hasRules ? 'text-white' : 'text-gray-600'}`}>
+            <span className="font-semibold">{g.our_rule_count}</span>
+            <span className="text-gray-600 ml-1">exact-tag rules</span>
           </span>
-          <span className="text-white">
-            <span className="tabular-nums font-semibold">{g.technique_count}</span>
-            <span className="text-gray-600 ml-1">tech</span>
-          </span>
+          <SourceDots sources={g.sources_with_coverage} />
         </div>
-        <SourceDots sources={g.sources} />
       </div>
     </Link>
   );
 }
 
 function SoftwareCard({ s }: { s: ActorListSoftware }) {
-  const isKnown = s.name !== s.id;
+  const hasRules = s.our_rule_count > 0;
   const kindLabel = s.type === 'tool' ? 'TOOL' : s.type === 'malware' ? 'MALWARE' : 'SW';
   const accent =
     s.type === 'malware'
-      ? { label: 'bg-orange-500/10 text-orange-400 border-orange-500/30', border: 'hover:border-orange-500/50', name: 'group-hover:text-orange-300' }
-      : { label: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30', border: 'hover:border-cyan-500/50', name: 'group-hover:text-cyan-300' };
+      ? { label: 'bg-orange-500/10 text-orange-400 border-orange-500/30', border: 'hover:border-orange-500/50', name: 'group-hover:text-orange-300', bar: 'bg-orange-500/60' }
+      : { label: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30', border: 'hover:border-cyan-500/50', name: 'group-hover:text-cyan-300', bar: 'bg-cyan-500/60' };
 
   return (
     <Link
       to={`/actors/${s.id}`}
-      className={`group block bg-void-850 border border-void-700 ${accent.border} p-3 transition-colors`}
+      title={s.description || s.name}
+      className={`group relative block bg-void-850 border p-3 transition-colors ${
+        hasRules ? `border-void-700 ${accent.border}` : `border-void-800 hover:border-void-600 opacity-70 hover:opacity-100`
+      }`}
       style={clipSm}
-      title={s.name}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${accent.label}`}>
@@ -94,21 +130,28 @@ function SoftwareCard({ s }: { s: ActorListSoftware }) {
         </span>
         <span className="text-[10px] font-mono text-gray-600 tabular-nums">{s.id}</span>
       </div>
-      <div className={`text-sm font-mono font-semibold leading-tight line-clamp-2 mb-2 min-h-[2.5rem] ${isKnown ? `text-white ${accent.name}` : 'text-gray-500 italic'}`}>
+      <div className={`text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 min-h-[2.5rem] ${accent.name}`}>
         {s.name}
       </div>
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-void-700 mt-auto">
-        <div className="flex gap-3 text-[10px] font-mono">
-          <span className="text-white">
-            <span className="tabular-nums font-semibold">{s.rule_count}</span>
-            <span className="text-gray-600 ml-1">rules</span>
-          </span>
-          <span className="text-white">
-            <span className="tabular-nums font-semibold">{s.technique_count}</span>
-            <span className="text-gray-600 ml-1">tech</span>
-          </span>
+      {s.aliases.length > 0 && (
+        <div className="text-[10px] font-mono text-gray-500 mb-2 truncate" title={s.aliases.join(', ')}>
+          aka {s.aliases.slice(0, 2).join(' · ')}
+          {s.aliases.length > 2 && ` +${s.aliases.length - 2}`}
         </div>
-        <SourceDots sources={s.sources} />
+      )}
+      <div className="pt-2 border-t border-void-700 space-y-2">
+        <CoverageMeter
+          covered={s.covered_technique_count}
+          total={s.technique_count}
+          accent={accent.bar}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className={`text-[10px] font-mono tabular-nums ${hasRules ? 'text-white' : 'text-gray-600'}`}>
+            <span className="font-semibold">{s.our_rule_count}</span>
+            <span className="text-gray-600 ml-1">exact-tag rules</span>
+          </span>
+          <SourceDots sources={s.sources_with_coverage} />
+        </div>
       </div>
     </Link>
   );
@@ -120,20 +163,28 @@ export function Actors() {
   const { data, isLoading, error } = useActors();
   const [tab, setTab] = useState<Tab>('groups');
   const [query, setQuery] = useState('');
+  const [coverageOnly, setCoverageOnly] = useState(false);
 
   const filtered = useMemo(() => {
-    if (!data) return { groups: [], software: [] };
+    if (!data) return { groups: [] as ActorListGroup[], software: [] as ActorListSoftware[] };
     const q = query.trim().toLowerCase();
-    if (!q) return data;
-    const match = (name: string, id: string, extras: string[]) => {
-      const hay = [name, id, ...extras].join(' ').toLowerCase();
+    const bucket = (group: boolean) => (item: ActorListGroup | ActorListSoftware) => {
+      if (coverageOnly && item.our_rule_count === 0) return false;
+      if (!q) return true;
+      const hay = [
+        item.name,
+        item.id,
+        ...(group ? (item as ActorListGroup).aliases : (item as ActorListSoftware).aliases),
+      ]
+        .join(' ')
+        .toLowerCase();
       return hay.includes(q);
     };
     return {
-      groups: data.groups.filter((g) => match(g.name, g.id, g.aliases)),
-      software: data.software.filter((s) => match(s.name, s.id, [])),
+      groups: data.groups.filter(bucket(true)) as ActorListGroup[],
+      software: data.software.filter(bucket(false)) as ActorListSoftware[],
     };
-  }, [data, query]);
+  }, [data, query, coverageOnly]);
 
   return (
     <div className="space-y-6">
@@ -142,36 +193,57 @@ export function Actors() {
           Threat Actors
         </h1>
         <p className="text-xs text-gray-500 mt-1 font-mono">
-          named adversaries + software our detection corpus covers, resolved from vendor attack.g / attack.s tags
+          the full MITRE ATT&amp;CK catalog with our detection coverage overlaid — click any entry to see what we cover and what we don&apos;t
         </p>
       </div>
 
-      {/* Hero counts + search */}
+      {/* Hero counts + search + coverage-only toggle */}
       <div className="bg-gradient-to-r from-breach-500/10 via-orange-500/5 to-transparent border border-breach-500/30 px-5 py-4" style={clipMd}>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div className="flex items-baseline gap-6 flex-wrap">
             <div>
-              <div className="text-[10px] font-mono text-breach-400 uppercase tracking-[0.2em] mb-1">Actors covered</div>
-              <span className="text-3xl font-display font-bold text-white tabular-nums">
-                {data?.groups.length ?? '—'}
-              </span>
+              <div className="text-[10px] font-mono text-breach-400 uppercase tracking-[0.2em] mb-1">Actors</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-display font-bold text-white tabular-nums">
+                  {data?.total_groups ?? '—'}
+                </span>
+                <span className="text-[10px] font-mono text-gray-500">
+                  ({data?.groups_with_coverage ?? 0} with rules)
+                </span>
+              </div>
             </div>
             <div>
               <div className="text-[10px] font-mono text-cyan-400 uppercase tracking-[0.2em] mb-1">Software + tools</div>
-              <span className="text-3xl font-display font-bold text-white tabular-nums">
-                {data?.software.length ?? '—'}
-              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-display font-bold text-white tabular-nums">
+                  {data?.total_software ?? '—'}
+                </span>
+                <span className="text-[10px] font-mono text-gray-500">
+                  ({data?.software_with_coverage ?? 0} with rules)
+                </span>
+              </div>
             </div>
           </div>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="filter: apt29, cobalt strike, g0016…"
-            className="bg-void-900 border border-void-700 text-sm text-white font-mono px-3 py-2 min-w-[280px] focus:outline-none focus:border-matrix-500/50 placeholder:text-gray-600"
-            style={clipSm}
-            aria-label="Filter actors and software by name, alias, or ID"
-          />
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={coverageOnly}
+                onChange={(e) => setCoverageOnly(e.target.checked)}
+                className="accent-matrix-500"
+              />
+              hide entries with no rules
+            </label>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="filter: apt29, cobalt strike, g0016…"
+              className="bg-void-900 border border-void-700 text-sm text-white font-mono px-3 py-2 min-w-[260px] focus:outline-none focus:border-matrix-500/50 placeholder:text-gray-600"
+              style={clipSm}
+              aria-label="Filter actors and software by name, alias, or ID"
+            />
+          </div>
         </div>
       </div>
 
@@ -202,8 +274,8 @@ export function Actors() {
       {/* Grid */}
       {isLoading && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-32 bg-void-800 animate-pulse" style={clipSm} />
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="h-40 bg-void-800 animate-pulse" style={clipSm} />
           ))}
         </div>
       )}
@@ -213,7 +285,7 @@ export function Actors() {
       {data && tab === 'groups' && (
         filtered.groups.length === 0 ? (
           <div className="text-center py-12 text-gray-500 font-mono text-xs">
-            {query ? 'no actors match this filter' : 'no actor coverage yet — run ingest to populate from attack.g tags'}
+            {query ? 'no actors match this filter' : coverageOnly ? 'no actors with rule coverage' : 'no actors loaded'}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -224,7 +296,7 @@ export function Actors() {
       {data && tab === 'software' && (
         filtered.software.length === 0 ? (
           <div className="text-center py-12 text-gray-500 font-mono text-xs">
-            {query ? 'no software matches this filter' : 'no software coverage yet — run ingest to populate from attack.s tags'}
+            {query ? 'no software matches this filter' : coverageOnly ? 'no software with rule coverage' : 'no software loaded'}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">

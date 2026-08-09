@@ -362,35 +362,78 @@ export interface TrendingUseCasesResponse {
   use_cases: TrendingUseCase[];
 }
 
-// Actors listing (broader than trending — enumerates every G/S with
-// coverage, not just top-N in window). Powers /actors page.
+// Actors listing — full MITRE catalog with our coverage overlaid.
+// Powers /actors page.
 export interface ActorListGroup {
   id: string;
   name: string;
   aliases: string[];
-  rule_count: number;
-  technique_count: number;
-  sources: string[];
+  description: string;         // truncated snippet
+  deprecated: boolean;
+  technique_count: number;         // known techniques from MITRE
+  covered_technique_count: number; // of MITRE techniques, how many we have any rules for
+  our_rule_count: number;          // rules tagged with this G-ID (exact match)
+  sources_with_coverage: string[];
 }
 
 export interface ActorListSoftware {
   id: string;
   name: string;
   type: 'malware' | 'tool' | 'unknown';
-  rule_count: number;
+  aliases: string[];
+  description: string;
+  deprecated: boolean;
+  platforms: string[];
   technique_count: number;
-  sources: string[];
+  covered_technique_count: number;
+  our_rule_count: number;
+  sources_with_coverage: string[];
 }
 
 export interface ActorsListResponse {
   groups: ActorListGroup[];
   software: ActorListSoftware[];
+  total_groups: number;
+  total_software: number;
+  groups_with_coverage: number;
+  software_with_coverage: number;
 }
+
+export type ActorMatchMode = 'exact' | 'coverage' | 'mention';
 
 export interface ActorTechniqueEntry {
   technique_id: string;
+  technique_name: string;
+  has_rules: boolean;
   rule_count: number;
-  sources: string[];
+}
+
+export interface ActorAssociatedSoftware {
+  id: string;
+  name: string;
+  type: 'malware' | 'tool' | 'unknown';
+  has_rules: boolean;
+  rule_count: number;
+}
+
+export interface ActorAssociatedGroup {
+  id: string;
+  name: string;
+  aliases: string[];
+  has_rules: boolean;
+  rule_count: number;
+}
+
+export interface ActorReference {
+  source_name: string;
+  url: string;
+  description: string;
+}
+
+export interface ActorMatchCounts {
+  exact: number;
+  coverage: number;
+  mention: number;
 }
 
 export interface ActorDetailRule {
@@ -409,13 +452,25 @@ export interface ActorDetail {
   id: string;
   kind: 'group' | 'software';
   name: string;
-  aliases?: string[];
-  type?: 'malware' | 'tool' | 'unknown';
+  description: string;
   mitre_url: string;
-  rule_count: number;
+  references: ActorReference[];
+  deprecated: boolean;
+  aliases: string[];
+  // Present only for software.
+  type?: 'malware' | 'tool' | 'unknown';
+  platforms?: string[];
+
   technique_count: number;
-  sources: string[];
-  by_technique: ActorTechniqueEntry[];
+  covered_technique_count: number;
+  techniques: ActorTechniqueEntry[];
+
+  // Cross-references (one or the other depending on kind).
+  associated_software?: ActorAssociatedSoftware[];
+  associated_groups?: ActorAssociatedGroup[];
+
+  match_counts: ActorMatchCounts;
+  match_mode: ActorMatchMode;
   rules: ActorDetailRule[];
 }
 
@@ -466,8 +521,13 @@ export const actorsApi = {
     const response = await api.get('/actors');
     return response.data;
   },
-  get: async (actorId: string): Promise<ActorDetail> => {
-    const response = await api.get(`/actors/${actorId}`);
+  get: async (
+    actorId: string,
+    matchMode: ActorMatchMode = 'exact',
+  ): Promise<ActorDetail> => {
+    const response = await api.get(
+      `/actors/${actorId}?match_mode=${matchMode}`,
+    );
     return response.data;
   },
 };
