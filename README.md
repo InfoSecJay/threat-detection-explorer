@@ -85,6 +85,20 @@ curl "https://threat-detection-explorer-production.up.railway.app/api/detections
 
 ---
 
+## Roadmap
+
+Priorities and to-dos live in [GitHub Issues](https://github.com/InfoSecJay/threat-detection-explorer/issues), labeled by:
+
+- **Priority**: [`priority:now`](https://github.com/InfoSecJay/threat-detection-explorer/labels/priority%3Anow) · [`priority:next`](https://github.com/InfoSecJay/threat-detection-explorer/labels/priority%3Anext) · [`priority:later`](https://github.com/InfoSecJay/threat-detection-explorer/labels/priority%3Alater)
+- **Area**: [`area:backend`](https://github.com/InfoSecJay/threat-detection-explorer/labels/area%3Abackend) · [`area:frontend`](https://github.com/InfoSecJay/threat-detection-explorer/labels/area%3Afrontend) · [`area:infra`](https://github.com/InfoSecJay/threat-detection-explorer/labels/area%3Ainfra)
+- **Type**: [`type:umbrella`](https://github.com/InfoSecJay/threat-detection-explorer/labels/type%3Aumbrella) (multi-week arcs with sub-task checklists) · [`type:tech-debt`](https://github.com/InfoSecJay/threat-detection-explorer/labels/type%3Atech-debt)
+
+Recently-shipped history: `git log`.
+
+Reference material (schema, taxonomy audits, design docs) stays in [`docs/`](docs/).
+
+---
+
 ## Development
 
 > Everything below is for running Detection Explorer locally.
