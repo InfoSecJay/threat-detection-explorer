@@ -532,29 +532,6 @@ export const actorsApi = {
   },
 };
 
-export interface ThreatActorGroup {
-  id: string;
-  name: string;
-  aliases: string[];
-  count: number;
-  sources: string[];
-}
-
-export interface ThreatActorSoftware {
-  id: string;
-  name: string;
-  type: 'malware' | 'tool' | 'unknown';
-  count: number;
-  sources: string[];
-}
-
-export interface ThreatActorsResponse {
-  scope: 'window' | 'full_catalog';
-  period_days: number | null;
-  groups: ThreatActorGroup[];
-  software: ThreatActorSoftware[];
-}
-
 export interface WeeklyActivityResponse {
   weeks: number;
   // Week-start ISO dates (Monday), oldest → newest.
@@ -624,16 +601,6 @@ export const trendingApi = {
 
   getWeeklyActivity: async (weeks: number = 12): Promise<WeeklyActivityResponse> => {
     const response = await api.get(`/trending/weekly-activity?weeks=${weeks}`);
-    return response.data;
-  },
-
-  getThreatActors: async (
-    limit: number = 10,
-    days?: number,
-  ): Promise<ThreatActorsResponse> => {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (days != null) params.set('days', String(days));
-    const response = await api.get(`/trending/threat-actors?${params}`);
     return response.data;
   },
 

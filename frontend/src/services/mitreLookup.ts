@@ -2,11 +2,11 @@
  * MITRE ATT&CK Group + Software display-name resolution on the FE.
  *
  * The BE persists raw IDs ("G0016", "S0002") on each rule. This module
- * turns those IDs into human-readable names in the UI (filter pills,
- * detection detail badges, rule-list cards). The /trending/threat-actors
- * endpoint returns names ALREADY resolved for its own payload, so the
- * lookup here only kicks in for detail rendering and filter pills where
- * the raw ID is what the URL carries.
+ * turns those IDs into human-readable names for the UI surfaces that
+ * only see the raw IDs — filter pills, detection detail badges, rule
+ * list cards. The Threat Actors page (`/actors`) does not need this
+ * table because its endpoint resolves names server-side from the full
+ * MITRE STIX bundle.
  *
  * Kept in sync with backend/app/services/mitre_lookup.py. When you add
  * a G-ID or S-ID there, add it here too. Unknown IDs render as the raw

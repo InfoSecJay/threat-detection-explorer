@@ -16,10 +16,11 @@
  *                          Inline period + source filter narrow all
  *                          four data hooks in this section together.
  *
- * Threat Spotlight (Phase 2, shipped): named ATT&CK Groups + Software
- * extracted from Sigma + LOLRMM `attack.g*` / `attack.s*` tags,
- * resolved to display names via app.services.mitre_lookup on the BE
- * and services/mitreLookup.ts on the FE.
+ * Threat Actor / Software drill-in lives on `/actors` (the Threat
+ * Actors v2 page). The Intel page's time window doesn't scope
+ * actors well — an actor isn't "new," their rules are — so a
+ * spotlight strip that mixed windowed rule counts with static
+ * MITRE metadata just muddied both signals.
  */
 
 import { useState, useMemo } from 'react';
@@ -30,7 +31,6 @@ import { useFilterOptions } from '../hooks/useDetections';
 import { Section } from './intel/Section';
 import { RepoHealthStrip } from './intel/RepoHealthStrip';
 import { PulseBanner } from './intel/PulseBanner';
-import { ThreatSpotlightSection } from './intel/ThreatSpotlight';
 import { UpstreamReleases } from './intel/UpstreamReleases';
 import { NotableNewRulesSection } from './intel/NotableNewRules';
 import {
@@ -169,10 +169,6 @@ export function IndustryIntel() {
       </Section>
 
       <PulseBanner days={period} />
-
-      <Section title="Threat Spotlight" subtitle="named actors + software active in vendor rules · sigma + lolrmm">
-        <ThreatSpotlightSection days={period} />
-      </Section>
 
       <Section title="Upstream Releases" subtitle="latest tagged releases · sigma · splunk · elastic">
         <UpstreamReleases />
