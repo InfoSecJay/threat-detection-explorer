@@ -41,6 +41,28 @@ class TestEmptyAndTrivial:
         assert "detections.description" in s
         assert "detections.tags" in s
 
+    def test_bare_word_casts_json_tags_on_postgres(self):
+        """Bare-word search must CAST the JSON tags column to text.
+
+        Postgres has no `json ILIKE` operator — without the cast every
+        bare-word query 500s in production while passing on SQLite,
+        which stores JSON as text. Compile against the pg dialect to
+        catch it where it actually breaks.
+        """
+        from sqlalchemy.dialects import postgresql
+
+        clause = parse_query("windows")
+        assert clause is not None
+        s = str(
+            clause.compile(
+                dialect=postgresql.dialect(),
+                compile_kwargs={"literal_binds": True},
+            )
+        ).lower()
+        assert "cast(detections.tags as varchar)" in s
+        # Plain text columns must NOT get a needless cast.
+        assert "cast(detections.title" not in s
+
 
 class TestFieldQueries:
     def test_title_field(self):

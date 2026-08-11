@@ -9,8 +9,9 @@ exclusively through the shared `sync_jobs` table in Postgres.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
@@ -63,6 +64,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Unhandled exceptions bypass CORSMiddleware (Starlette's
+# ServerErrorMiddleware sits outside it), so a bare 500 reaches the
+# browser without CORS headers and surfaces as an opaque "Network
+# Error" in the frontend. This handler logs the traceback and mirrors
+# the CORS headers so the FE can render a real error message.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled error on %s %s", request.method, request.url.path
+    )
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin and origin in settings.cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Vary"] = "Origin"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=headers,
+    )
 
 
 @app.get("/api/health")

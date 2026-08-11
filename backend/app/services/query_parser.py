@@ -268,8 +268,16 @@ def _wildcard_to_like(value: str) -> tuple[str, bool]:
 
 
 def _text_clause(column_name: str, raw_value: str) -> ColumnElement:
-    """Text column ilike match. Bare value gets `%` on both sides."""
+    """Text column ilike match. Bare value gets `%` on both sides.
+
+    Non-string columns (e.g. the JSON `tags` column reached via the
+    bare-word fallback) are cast to text first. SQLite stores JSON as
+    text so a plain ILIKE happens to work there, but Postgres has no
+    `json ILIKE` operator and the query 500s at execution time.
+    """
     col = getattr(Detection, column_name)
+    if not isinstance(col.type, String):
+        col = cast(col, String)
     pattern, is_wild = _wildcard_to_like(raw_value)
     if is_wild:
         return col.ilike(pattern)
