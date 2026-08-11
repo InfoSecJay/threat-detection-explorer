@@ -32,6 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session_maker
 from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
+from app.services.ingestion_errors import ErrorStage
+from app.services.parse_failure_notifier import notify_parse_failures
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
 from app.services.upstream_verifier import verify_upstream
@@ -118,6 +120,12 @@ async def run_full_sync_job(
                     "taxonomy_unmatched": 0,
                     "taxonomy_coverage_percent": 0.0,
                     "taxonomy_unmatched_by_fingerprint": {},
+                    # Parse-failure surface for #30 notifier -- silent
+                    # PARSE/NORMALIZE regressions used to be invisible
+                    # because errors sat inside IngestionStats.errors
+                    # and were never persisted anywhere queryable.
+                    "parse_failure_count": 0,
+                    "parse_failure_samples": [],
                 }
 
                 try:
@@ -149,6 +157,25 @@ async def run_full_sync_job(
                     repo_result["taxonomy_unmatched_by_fingerprint"] = (
                         stats.taxonomy_unmatched_by_fingerprint
                     )
+
+                    # Extract PARSE/NORMALIZE failures for the #30
+                    # notifier. Sample list is capped so the JSON blob
+                    # on sync_jobs.repository_results stays bounded
+                    # even if a parser regresses hard on a whole repo.
+                    parse_failures = [
+                        e for e in stats.errors
+                        if e.stage in (ErrorStage.PARSE, ErrorStage.NORMALIZE)
+                    ]
+                    repo_result["parse_failure_count"] = len(parse_failures)
+                    repo_result["parse_failure_samples"] = [
+                        {
+                            "file_path": str(e.file_path),
+                            "stage": e.stage.value,
+                            "severity": e.severity.value,
+                            "message": (e.message or "")[:300],
+                        }
+                        for e in parse_failures[:30]
+                    ]
 
                     total_discovered += stats.discovered
                     total_stored += stats.stored
@@ -197,6 +224,18 @@ async def run_full_sync_job(
                 await notify_drift(repo_results, str(job_id))
             except Exception as e:
                 logger.warning(f"Taxonomy drift notifier raised: {e}", exc_info=True)
+
+            # Parse-failure notifications (#30). Alerts when a source's
+            # ingest success rate drops below tolerance -- catches
+            # silent PARSE/NORMALIZE regressions that used to disappear
+            # into IngestionStats.errors. Same feature flag + isolation
+            # semantics as notify_drift.
+            try:
+                await notify_parse_failures(repo_results, str(job_id))
+            except Exception as e:
+                logger.warning(
+                    f"Parse-failure notifier raised: {e}", exc_info=True
+                )
 
             # Upstream tree verification (#29). Cross-checks our
             # discovered count against what our patterns would match
