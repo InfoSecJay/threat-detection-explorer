@@ -34,6 +34,7 @@ from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
+from app.services.upstream_verifier import verify_upstream
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -197,6 +198,23 @@ async def run_full_sync_job(
             except Exception as e:
                 logger.warning(f"Taxonomy drift notifier raised: {e}", exc_info=True)
 
+            # Upstream tree verification (#29). Cross-checks our
+            # discovered count against what our patterns would match
+            # on the upstream GitHub tree, plus flags per-directory
+            # scope drift vs the previous sync. Same feature flag,
+            # same failure isolation as notify_drift. Mutates
+            # `repo_results` in place to add verification metadata.
+            try:
+                previous_results = await _load_previous_repo_results(db, job_id)
+                await verify_upstream(repo_results, str(job_id), previous_results)
+                # Re-persist so the verification metadata + directory
+                # counts land on the job row for the next diff.
+                job = await db.get(SyncJob, job_id)
+                job.repository_results = repo_results
+                await db.commit()
+            except Exception as e:
+                logger.warning(f"Upstream verifier raised: {e}", exc_info=True)
+
             return job
 
         except Exception as e:
@@ -210,6 +228,24 @@ async def run_full_sync_job(
             job.error_count = 1
             await db.commit()
             return job
+
+
+async def _load_previous_repo_results(
+    db: AsyncSession, current_job_id,
+) -> Optional[dict]:
+    """Fetch `repository_results` from the most recent COMPLETED sync job
+    that isn't the current one. Powers the per-directory diff in the
+    upstream verifier — without a previous baseline we can't flag
+    NEW / VANISHED directories."""
+    result = await db.execute(
+        select(SyncJob)
+        .where(SyncJob.status == "completed")
+        .where(SyncJob.id != current_job_id)
+        .order_by(desc(SyncJob.completed_at))
+        .limit(1)
+    )
+    prev = result.scalar_one_or_none()
+    return prev.repository_results if prev else None
 
 
 async def get_sync_job_history(
