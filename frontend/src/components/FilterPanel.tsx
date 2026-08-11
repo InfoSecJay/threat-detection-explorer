@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useFilterOptions } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
-import { sourceColors } from '../constants/sources';
+import { ALL_SOURCES, sourceColors, sourceLabels } from '../constants/sources';
 import { TelemetryFilter } from './TelemetryFilter';
 import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
@@ -148,40 +148,45 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Source" section="source" count={filters.sources?.length} />
         {expandedSections.has('source') && (
           <div className="space-y-1 mt-2">
-            {[
-              { value: 'sigma', label: 'Sigma' },
-              { value: 'elastic', label: 'Elastic' },
-              { value: 'splunk', label: 'Splunk' },
-              { value: 'sublime', label: 'Sublime' },
-              { value: 'elastic_protections', label: 'Elastic Protect' },
-              { value: 'lolrmm', label: 'LOLRMM' },
-              { value: 'elastic_hunting', label: 'Elastic Hunting' },
-              { value: 'sentinel', label: 'Microsoft Sentinel' },
-              { value: 'google_secops', label: 'Google SecOps' },
-              { value: 'okta', label: 'Okta' },
-              { value: 'auth0', label: 'Auth0' },
-            ].map((source) => (
-              <label
-                key={source.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.sources?.includes(source.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('sources', source.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: sourceColors[source.value] }}
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
-                  {source.label}
-                </span>
-              </label>
-            ))}
+            {/* Sources come from the live /detections/filters facet so
+                new upstream repos appear automatically without a code
+                change. Preserves the intentional ALL_SOURCES ordering
+                as the render order so long-standing sources stay in
+                their familiar visual position. Unknown-to-ALL_SOURCES
+                values (e.g. right after ingest of a new source that
+                predates the FE deploy) append at the bottom. */}
+            {(() => {
+              const facet = filterOptions?.sources || [];
+              const ordered: string[] = [];
+              for (const s of ALL_SOURCES) {
+                if (facet.includes(s)) ordered.push(s);
+              }
+              for (const s of facet) {
+                if (!ordered.includes(s)) ordered.push(s);
+              }
+              return ordered.map((value) => (
+                <label
+                  key={value}
+                  className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={filters.sources?.includes(value) || false}
+                    onChange={(e) =>
+                      handleMultiSelect('sources', value, e.target.checked)
+                    }
+                    className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: sourceColors[value] }}
+                  />
+                  <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
+                    {sourceLabels[value] || value}
+                  </span>
+                </label>
+              ));
+            })()}
           </div>
         )}
       </div>
@@ -264,6 +269,10 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Language" section="language" count={filters.languages?.length} />
         {expandedSections.has('language') && (
           <div className="space-y-1 mt-2">
+            {/* Static list — DB has a much longer tail (yaral, oie,
+                osquery, python, panther_correlation, ...) but this
+                curated set is what users actually filter by. Add here
+                as new query languages become worth surfacing. */}
             {[
               { value: 'sigma', label: 'Sigma' },
               { value: 'spl', label: 'SPL (Splunk)' },
@@ -272,6 +281,9 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               { value: 'kql', label: 'KQL (Kibana)' },
               { value: 'lucene', label: 'Lucene' },
               { value: 'mql', label: 'MQL (Sublime)' },
+              { value: 'yaral', label: 'YARA-L (Chronicle)' },
+              { value: 'oie', label: 'OIE (Okta)' },
+              { value: 'python', label: 'Python (Panther)' },
               { value: 'ml', label: 'ML' },
               { value: 'threat_match', label: 'Threat Match' },
             ].map((lang) => (

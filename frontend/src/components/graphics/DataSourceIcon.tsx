@@ -216,6 +216,30 @@ export function DataSourceIcon({
           <line x1="24" y1="29" x2="24" y2="34" stroke={color} strokeWidth="2" strokeLinecap="round" />
         </g>
       )}
+
+      {source === 'panther' && (
+        // Panther - stylized panther eyes / silhouette on dark background
+        // (Python-based detections spanning 97 log sources)
+        <g filter={`url(#glow-${source})`}>
+          {/* Two eyes */}
+          <ellipse cx="19" cy="21" rx="2.5" ry="3.5" fill={color} />
+          <ellipse cx="29" cy="21" rx="2.5" ry="3.5" fill={color} />
+          {/* Feline mouth arc */}
+          <path
+            d="M18,30 Q24,34 30,30"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
+          {/* Pointed ears */}
+          <path
+            d="M14,17 L11,11 L17,14 Z"
+            fill={color} fillOpacity="0.7"
+          />
+          <path
+            d="M34,17 L37,11 L31,14 Z"
+            fill={color} fillOpacity="0.7"
+          />
+        </g>
+      )}
     </svg>
   );
 }
