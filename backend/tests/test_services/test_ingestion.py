@@ -282,6 +282,181 @@ async def test_crash_before_cleanup_preserves_old_rows(
     )
 
 
+# ── Circuit breaker + DB-truth count (#28) ────────────────────────────
+
+
+def _make_repo(name: str, rule_count: int):
+    """Build a minimally-populated Repository row for tests."""
+    from app.models.repository import Repository
+    return Repository(
+        name=name,
+        url=f"https://example.test/{name}",
+        rule_count=rule_count,
+        status="idle",
+    )
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_lets_normal_ingest_through(
+    ingestion_service, db_session
+):
+    """Baseline: a discovery count roughly matching the previous
+    rule_count passes the guard and cleanup runs normally."""
+    from app.services.ingestion_errors import IngestionStats
+    from app.models.repository import Repository
+
+    # Set up previous state: 100 rules in the repo row, one stale row.
+    db_session.add(_make_repo("sigma", rule_count=100))
+    long_ago = utcnow() - timedelta(days=30)
+    db_session.add(_detection(id_="stale-rule", updated_at=long_ago))
+    await db_session.commit()
+
+    # Simulate an ingest that discovered 95 rules — small dip, well
+    # inside the 20% tolerance. Guard should not fire.
+    stats = IngestionStats()
+    stats.discovered = 95
+    ran = await ingestion_service._cleanup_stale_rules_guarded(
+        "sigma", utcnow(), stats,
+    )
+    assert ran is True
+    # Stale row was deleted.
+    remaining = (await db_session.execute(select(Detection))).scalars().all()
+    assert not remaining
+    # Repo status stayed idle; no error.
+    repo = (await db_session.execute(
+        select(Repository).where(Repository.name == "sigma")
+    )).scalar_one()
+    assert repo.status == "idle"
+    assert repo.error_message is None
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_trips_on_mass_drop(
+    ingestion_service, db_session
+):
+    """A discovery drop past the 20% threshold trips the breaker:
+    cleanup is SKIPPED, an ERROR is added to stats, and the repository
+    row is flagged for the UI to surface."""
+    from app.services.ingestion_errors import IngestionStats
+    from app.models.repository import Repository
+
+    db_session.add(_make_repo("sigma", rule_count=100))
+    long_ago = utcnow() - timedelta(days=30)
+    for i in range(80):
+        db_session.add(_detection(id_=f"stale-{i}", updated_at=long_ago))
+    await db_session.commit()
+
+    stats = IngestionStats()
+    stats.discovered = 10   # 90% drop — far past threshold
+    ran = await ingestion_service._cleanup_stale_rules_guarded(
+        "sigma", utcnow(), stats,
+    )
+    assert ran is False, "guard should have refused to run cleanup"
+
+    # None of the 80 stale rows were deleted.
+    remaining = (await db_session.execute(select(Detection))).scalars().all()
+    assert len(remaining) == 80
+
+    # Stats now carries an ERROR with the discovery stage.
+    errors = [e for e in stats.errors if e.severity.value == "error"]
+    assert len(errors) == 1
+    assert "CIRCUIT BREAKER" in errors[0].message
+    assert errors[0].stage.value == "discovery"
+
+    # Repository row status flipped to error with message.
+    repo = (await db_session.execute(
+        select(Repository).where(Repository.name == "sigma")
+    )).scalar_one()
+    assert repo.status == "error"
+    assert repo.error_message is not None
+    assert "CIRCUIT BREAKER" in repo.error_message
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_bypasses_small_corpus(
+    ingestion_service, db_session
+):
+    """Small-corpus sources (<10 previous rules) skip the guard —
+    a 3-rule source dropping to 2 shouldn't get blocked from cleanup."""
+    from app.services.ingestion_errors import IngestionStats
+
+    db_session.add(_make_repo("okta", rule_count=3))
+    long_ago = utcnow() - timedelta(days=30)
+    db_session.add(_detection(id_="tiny-stale", source="okta", updated_at=long_ago))
+    await db_session.commit()
+
+    stats = IngestionStats()
+    stats.discovered = 1  # 66% drop, but previous < FLOOR
+    ran = await ingestion_service._cleanup_stale_rules_guarded(
+        "okta", utcnow(), stats,
+    )
+    assert ran is True
+    # Stale row was deleted normally.
+    remaining = (await db_session.execute(
+        select(Detection).where(Detection.source == "okta")
+    )).scalars().all()
+    assert not remaining
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_bypasses_first_ingest(
+    ingestion_service, db_session
+):
+    """First-ever ingest (previous rule_count is 0) always passes the
+    guard — there's no baseline to compare against."""
+    from app.services.ingestion_errors import IngestionStats
+
+    db_session.add(_make_repo("panther", rule_count=0))
+    await db_session.commit()
+
+    stats = IngestionStats()
+    stats.discovered = 877
+    ran = await ingestion_service._cleanup_stale_rules_guarded(
+        "panther", utcnow(), stats,
+    )
+    assert ran is True
+
+
+@pytest.mark.asyncio
+async def test_recompute_count_reads_from_db_truth(
+    ingestion_service, db_session
+):
+    """`_recompute_repository_count_from_db` sets `Repository.rule_count`
+    from a live SELECT COUNT(*), not from any counter passed in.
+    Guarantees `rule_count` matches what's actually stored even after
+    partial-store failures via `_store_rules_safe`'s fallback path."""
+    from app.models.repository import Repository
+
+    # Repo row starts with a stale/wrong count of 999.
+    db_session.add(_make_repo("sigma", rule_count=999))
+    # Only 3 detection rows actually exist.
+    for i in range(3):
+        db_session.add(_detection(id_=f"real-{i}"))
+    await db_session.commit()
+
+    recomputed = await ingestion_service._recompute_repository_count_from_db("sigma")
+    assert recomputed == 3
+
+    repo = (await db_session.execute(
+        select(Repository).where(Repository.name == "sigma")
+    )).scalar_one()
+    assert repo.rule_count == 3
+
+
+@pytest.mark.asyncio
+async def test_recompute_count_ignores_other_sources(
+    ingestion_service, db_session
+):
+    """The COUNT filter is per-source; other sources' rows are excluded."""
+    db_session.add(_make_repo("sigma", rule_count=0))
+    db_session.add(_detection(id_="sigma-1", source="sigma"))
+    db_session.add(_detection(id_="elastic-1", source="elastic"))
+    db_session.add(_detection(id_="elastic-2", source="elastic"))
+    await db_session.commit()
+
+    assert await ingestion_service._recompute_repository_count_from_db("sigma") == 1
+
+
 # ── _validate_date ──────────────────────────────────────────────────────
 
 

@@ -8,7 +8,7 @@ from typing import Optional
 
 from app.utils.datetime_utils import utcnow
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -230,10 +230,25 @@ class IngestionService:
         # whose updated_at is older than this ingest's start time was NOT
         # touched by merge() above, meaning its source file has been
         # deleted or moved upstream. Safe to remove.
-        await self._cleanup_stale_rules(repo_name, ingest_start)
+        #
+        # Circuit-breaker guarded: refuses cleanup if discovery dropped
+        # sharply vs the previous ingest — protects against a broken
+        # sparse-checkout / branch rename / renamed rules dir silently
+        # zeroing the source's rule count. See #28.
+        cleanup_ran = await self._cleanup_stale_rules_guarded(
+            repo_name, ingest_start, stats,
+        )
 
-        # Update repository rule count
-        await self._update_repository_count(repo_name, stats.stored)
+        # Update repository.rule_count from DB truth (post-cleanup
+        # SELECT COUNT(*)) rather than the running `stats.stored`
+        # counter. Two reasons: (1) if the circuit breaker skipped
+        # cleanup above, the DB still holds the old rows plus the
+        # newly-upserted ones — stats.stored would understate; (2)
+        # partial-store failures via the _store_rules_safe fallback
+        # path can otherwise cause DB truth to diverge from the
+        # counter. See #28.
+        await self._recompute_repository_count_from_db(repo_name)
+        _ = cleanup_ran  # unused sentinel — kept for future logging hook
 
         stats.end_time = utcnow()
 
@@ -327,7 +342,13 @@ class IngestionService:
         await self.db.commit()
 
     async def _update_repository_count(self, repo_name: str, count: int) -> None:
-        """Update the rule count for a repository."""
+        """Update the rule count for a repository.
+
+        Deprecated in favour of `_recompute_repository_count_from_db`
+        which reads truth from a `SELECT COUNT(*)` rather than trusting
+        the running `stats.stored` counter. Kept for callers that
+        already have an authoritative count in hand.
+        """
         result = await self.db.execute(
             select(Repository).where(Repository.name == repo_name)
         )
@@ -335,6 +356,96 @@ class IngestionService:
         if repo:
             repo.rule_count = count
             await self.db.commit()
+
+    async def _recompute_repository_count_from_db(self, repo_name: str) -> int:
+        """Set `Repository.rule_count` from a live `SELECT COUNT(*)`.
+
+        Runs post-cleanup so it reflects the final, actually-stored
+        row count for the source. This is the single source of truth
+        for the public `rule_count` shown on the site. Returns the
+        recomputed value so callers can log/verify. See #28.
+        """
+        count_result = await self.db.execute(
+            select(func.count(Detection.id)).where(Detection.source == repo_name)
+        )
+        actual = count_result.scalar() or 0
+        result = await self.db.execute(
+            select(Repository).where(Repository.name == repo_name)
+        )
+        repo = result.scalar_one_or_none()
+        if repo:
+            repo.rule_count = actual
+            await self.db.commit()
+        return actual
+
+    # Circuit-breaker threshold: cleanup is refused when discovery
+    # returned less than this fraction of the previous ingest's stored
+    # count. 0.8 = a 20% drop trips it. Rationale: a legitimate 20%
+    # upstream shrink has never happened; a broken sparse-checkout /
+    # branch rename has. Small-corpus sources (`previous < FLOOR`)
+    # bypass the guard so they aren't blocked by natural jitter.
+    _CLEANUP_GUARD_RATIO = 0.8
+    _CLEANUP_GUARD_FLOOR = 10
+
+    async def _cleanup_stale_rules_guarded(
+        self,
+        repo_name: str,
+        ingest_start: datetime,
+        stats: IngestionStats,
+    ) -> bool:
+        """Run `_cleanup_stale_rules` behind a mass-delete circuit breaker.
+
+        Returns True if cleanup ran, False if the breaker tripped and
+        cleanup was skipped. When tripped:
+          - Adds an ERROR-severity stats entry (surfaces on
+            `IngestionResponse.stats.sample_errors`).
+          - Sets the Repository row status to `error` with a
+            descriptive message.
+          - Logs at ERROR level.
+
+        Safe for tiny corpora: sources with fewer than
+        `_CLEANUP_GUARD_FLOOR` previous rules bypass the guard — a
+        legitimate 3-rule source dropping to 2 shouldn't block cleanup.
+        """
+        # Read previous count from the Repository row. At this point
+        # in ingest_repository we haven't updated it yet, so this is
+        # the count from the previous successful ingest.
+        result = await self.db.execute(
+            select(Repository).where(Repository.name == repo_name)
+        )
+        repo = result.scalar_one_or_none()
+        previous = repo.rule_count if repo else 0
+
+        # Guard fires only when there's a meaningful previous baseline
+        # to compare against. Small-corpus sources bypass to avoid
+        # false trips on natural jitter.
+        if previous >= self._CLEANUP_GUARD_FLOOR:
+            threshold = int(previous * self._CLEANUP_GUARD_RATIO)
+            if stats.discovered < threshold:
+                drop_pct = 100.0 * (1 - stats.discovered / previous)
+                message = (
+                    f"CIRCUIT BREAKER: discovery for {repo_name} dropped "
+                    f"{drop_pct:.1f}% ({stats.discovered} discovered vs "
+                    f"{previous} previous rules; threshold {threshold}). "
+                    f"Skipping cleanup to prevent mass-delete — investigate "
+                    f"sparse-checkout drift, branch rename, or renamed "
+                    f"upstream directory before re-running."
+                )
+                logger.error(message)
+                stats.add_error(
+                    file_path=Path(repo_name),
+                    stage=ErrorStage.DISCOVERY,
+                    message=message,
+                    severity=ErrorSeverity.ERROR,
+                )
+                if repo:
+                    repo.status = "error"
+                    repo.error_message = message
+                    await self.db.commit()
+                return False
+
+        await self._cleanup_stale_rules(repo_name, ingest_start)
+        return True
 
     @staticmethod
     def _validate_date(dt: datetime | None) -> datetime | None:
