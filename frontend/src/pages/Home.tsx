@@ -105,6 +105,13 @@ const dataSources = [
     repoUrl: 'https://github.com/auth0/auth0-customer-detections',
     color: '#f59e0b',
   },
+  {
+    id: 'panther' as const,
+    name: 'Panther',
+    description: 'Panther Labs community detections — Python-based rules spanning 97 log types across AWS, GCP, Azure, Okta, GitHub, Databricks, Snowflake, and 60+ other SaaS and infrastructure sources.',
+    repoUrl: 'https://github.com/panther-labs/panther-analysis',
+    color: '#d946ef',
+  },
 ];
 
 // Feature cards configuration
@@ -112,7 +119,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 11 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 12 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {
@@ -492,6 +499,12 @@ export function Home() {
                 label="Auth0"
                 color="#f59e0b"
                 delay={550}
+              />
+              <StatCard
+                value={stats.by_source.panther || 0}
+                label="Panther"
+                color="#d946ef"
+                delay={600}
               />
             </div>
           </div>

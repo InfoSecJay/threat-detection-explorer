@@ -37,6 +37,7 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "google_secops",
     "okta",
     "auth0",
+    "panther",
 ]
 
 # Default branch per source -- used by the sparse-clone path which
@@ -46,6 +47,8 @@ ALL_REPOSITORY_NAMES: list[str] = [
 SPARSE_CHECKOUT_BRANCHES: dict[str, str] = {
     # Chronicle's default branch is `main`, not `master`.
     "google_secops": "main",
+    # Panther publishes on `develop`, not `main`/`master`.
+    "panther": "develop",
 }
 
 
@@ -72,6 +75,18 @@ SPARSE_CHECKOUT_PATTERNS = {
         "ASIM/**",
         # Summary rules (small — 7 rules that aggregate other alerts).
         "Summary rules/*",
+    ],
+    "panther": [
+        # Rule content only — the repo also carries policies/,
+        # queries/, data_models/, packs/, correlation_rules/,
+        # global_helpers/, templates/ etc. that are NOT detection
+        # rules. Nested subdirs exist under crowdstrike/ and
+        # zscaler/, so use ** not *.
+        "rules/**",
+        # Deprecated-rule exclusion list lives at repo root; the
+        # parser reads it to stamp `status: deprecated` on affected
+        # rules. Small file (~40 lines), cheap to include.
+        "deprecated.txt",
     ],
 }
 
@@ -123,6 +138,10 @@ class RepositorySyncService:
         "auth0": {
             "url": settings.auth0_repo_url,
             "name": "auth0",
+        },
+        "panther": {
+            "url": settings.panther_repo_url,
+            "name": "panther",
         },
     }
 

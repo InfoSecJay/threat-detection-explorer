@@ -12,6 +12,7 @@ from app.parsers.sentinel import SentinelParser
 from app.parsers.google_secops import GoogleSecOpsParser
 from app.parsers.okta import OktaParser
 from app.parsers.auth0 import Auth0Parser
+from app.parsers.panther import PantherParser
 
 __all__ = [
     "BaseParser",
@@ -27,4 +28,5 @@ __all__ = [
     "GoogleSecOpsParser",
     "OktaParser",
     "Auth0Parser",
+    "PantherParser",
 ]

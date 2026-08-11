@@ -378,6 +378,102 @@ def test_discover_auth0(discovery):
     assert not any(p.startswith("test/") for p in found)
 
 
+# ── Panther Labs panther-analysis ────────────────────────────────────
+
+
+def test_discover_panther(discovery):
+    """Panther rules live under `rules/<vendor_rules>/*.{yml,yaml}`.
+    Two nested subdirs (crowdstrike_rules/event_stream_rules/,
+    zscaler_rules/zia/) must be picked up — the discovery pattern
+    uses `**` so they are. `.py` sibling files are NOT enumerated
+    by discovery — the parser reads them via
+    RuleDiscoveryService.get_sibling_content(). Other tree content
+    (policies/, queries/, data_models/) must NOT be picked up."""
+    service, build_repo = discovery
+    build_repo("panther", [
+        # Real rule YAMLs (flat dirs)
+        "rules/aws_cloudtrail_rules/aws_cloudtrail_stopped.yml",
+        "rules/okta_rules/okta_admin_role_assigned.yml",
+        "rules/github_rules/github_repo_created.yml",
+        # Real rule YAMLs (nested — the two known cases)
+        "rules/crowdstrike_rules/event_stream_rules/crowdstrike_ephemeral_user_account.yml",
+        "rules/zscaler_rules/zia/zia_admin_login.yml",
+        # `.py` siblings — must NOT show up in discovery (parser reads via helper)
+        "rules/aws_cloudtrail_rules/aws_cloudtrail_stopped.py",
+        # Sibling top-level dirs that must be excluded
+        "policies/aws_config.yml",
+        "queries/okta_signin.yml",
+        "data_models/aws_cloudtrail.yml",
+        "global_helpers/panther_aws_helpers.py",
+        "correlation_rules/aws_cloudtrail_ses_enum.yml",
+        # Deprecated exclusion list at repo root (not a rule)
+        "deprecated.txt",
+    ])
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("panther")}
+
+    assert "rules/aws_cloudtrail_rules/aws_cloudtrail_stopped.yml" in found
+    assert "rules/okta_rules/okta_admin_role_assigned.yml" in found
+    assert "rules/github_rules/github_repo_created.yml" in found
+    # Nested subdirs picked up
+    assert "rules/crowdstrike_rules/event_stream_rules/crowdstrike_ephemeral_user_account.yml" in found
+    assert "rules/zscaler_rules/zia/zia_admin_login.yml" in found
+    # `.py` files NOT in discovery output
+    assert not any(p.endswith(".py") for p in found)
+    # Non-rules content NOT picked up
+    assert not any(p.startswith("policies/") for p in found)
+    assert not any(p.startswith("queries/") for p in found)
+    assert not any(p.startswith("data_models/") for p in found)
+    assert not any(p.startswith("global_helpers/") for p in found)
+    assert not any(p.startswith("correlation_rules/") for p in found)
+    assert "deprecated.txt" not in found
+
+
+def test_get_sibling_content_reads_py_neighbor(discovery, tmp_path, monkeypatch):
+    """get_sibling_content() finds a .py sibling of a .yml file."""
+    from app.config import Settings
+    from app.services.rule_discovery import RuleDiscoveryService
+    repo_root = tmp_path / "repos" / "panther"
+    (repo_root / "rules" / "aws_cloudtrail_rules").mkdir(parents=True)
+    yml = repo_root / "rules" / "aws_cloudtrail_rules" / "example.yml"
+    py = repo_root / "rules" / "aws_cloudtrail_rules" / "example.py"
+    yml.write_text("RuleID: X\n", encoding="utf-8")
+    py.write_text("def rule(event): return True\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        Settings, "get_repo_path",
+        lambda self, name: repo_root if name == "panther" else tmp_path / "nope",
+    )
+    service = RuleDiscoveryService()
+    from pathlib import Path as P
+    content = service.get_sibling_content(
+        "panther", P("rules/aws_cloudtrail_rules/example.yml"), ".py",
+    )
+    assert content is not None
+    assert "def rule(event)" in content
+
+
+def test_get_sibling_content_returns_none_when_missing(discovery, tmp_path, monkeypatch):
+    """Correlation rules have no .py sibling — helper returns None
+    silently (no exception, no warning)."""
+    from app.config import Settings
+    from app.services.rule_discovery import RuleDiscoveryService
+    repo_root = tmp_path / "repos" / "panther"
+    (repo_root / "rules" / "aws_cloudtrail_rules").mkdir(parents=True)
+    yml = repo_root / "rules" / "aws_cloudtrail_rules" / "correlation.yml"
+    yml.write_text("AnalysisType: correlation_rule\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        Settings, "get_repo_path",
+        lambda self, name: repo_root if name == "panther" else tmp_path / "nope",
+    )
+    service = RuleDiscoveryService()
+    from pathlib import Path as P
+    result = service.get_sibling_content(
+        "panther", P("rules/aws_cloudtrail_rules/correlation.yml"), ".py",
+    )
+    assert result is None
+
+
 # ── Cross-cutting checks ─────────────────────────────────────────────
 
 

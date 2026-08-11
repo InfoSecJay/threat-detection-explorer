@@ -40,6 +40,7 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 | [Google SecOps](https://github.com/chronicle/detection-rules/tree/main/rules/community) | YARA-L |
 | [Okta customer-detections](https://github.com/okta/customer-detections) | YAML (OIE / SPL) |
 | [Auth0 customer-detections](https://github.com/auth0/auth0-customer-detections) | YAML (Sigma + SPL) |
+| [Panther Labs](https://github.com/panther-labs/panther-analysis) | YAML metadata + Python detection |
 
 ---
 

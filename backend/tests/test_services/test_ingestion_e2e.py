@@ -42,6 +42,7 @@ from app.normalizers import (
     GoogleSecOpsNormalizer,
     LOLRMMNormalizer,
     OktaNormalizer,
+    PantherNormalizer,
     SentinelNormalizer,
     SigmaNormalizer,
     SplunkNormalizer,
@@ -55,6 +56,7 @@ from app.parsers import (
     GoogleSecOpsParser,
     OktaParser,
     LOLRMMParser,
+    PantherParser,
     SentinelParser,
     SigmaParser,
     SplunkParser,
@@ -178,6 +180,36 @@ query = [
 ]
 notes = ["Tune by trusted-principal allowlist."]
 '''
+
+
+SAMPLE_PANTHER_RULE_YML = """\
+AnalysisType: rule
+RuleID: AWS.CloudTrail.Stopped
+Filename: aws_cloudtrail_stopped.py
+DisplayName: CloudTrail Was Stopped
+Enabled: true
+LogTypes:
+  - AWS.CloudTrail
+Severity: High
+CreateAlert: true
+DedupPeriodMinutes: 60
+Threshold: 1
+Description: Detects StopLogging API calls that turn off CloudTrail.
+Reference: https://example.com/mitre-t1562-008
+Runbook: Investigate the actor.
+Tags:
+  - Defense Evasion:Impair Defenses
+Reports:
+  MITRE ATT&CK:
+    - TA0005:T1562.008
+  CIS:
+    - 3.5
+"""
+
+SAMPLE_PANTHER_RULE_PY = """\
+def rule(event):
+    return event.get("eventName") == "StopLogging"
+"""
 
 
 SAMPLE_AUTH0_RULE = """\
@@ -713,3 +745,55 @@ async def test_e2e_auth0(db_session):
     assert d.source_rule_url is not None
     assert "auth0/auth0-customer-detections" in d.source_rule_url
     assert "/blob/main/detections/" in d.source_rule_url
+
+
+class _StubPantherDiscovery:
+    """In-test discovery stand-in; supplies the .py sibling that the
+    parser expects to read via get_sibling_content."""
+
+    def __init__(self, py_body: str):
+        self.py_body = py_body
+
+    def get_sibling_content(self, repo_name, rel_path, extension):
+        return self.py_body if extension == ".py" else None
+
+    def get_rule_content(self, repo_name, rel_path):
+        return None  # no deprecated.txt for this fixture
+
+
+@pytest.mark.asyncio
+async def test_e2e_panther(db_session):
+    """End-to-end pipeline for a Panther rule: YAML metadata + .py
+    sibling both surface, LogType resolves through the taxonomy
+    mapping, MITRE colon-format splits into tactics + techniques,
+    non-MITRE reports become prefixed tags."""
+    disco = _StubPantherDiscovery(SAMPLE_PANTHER_RULE_PY)
+    d = await ingest_one(
+        PantherParser(disco),
+        PantherNormalizer("https://github.com/panther-labs/panther-analysis"),
+        "rules/aws_cloudtrail_rules/aws_cloudtrail_stopped.yml",
+        SAMPLE_PANTHER_RULE_YML,
+        db_session,
+    )
+    assert d.source == "panther"
+    assert d.title == "CloudTrail Was Stopped"
+    # rule_id is Panther's dotted human-readable form, not a UUID.
+    assert d.rule_id == "AWS.CloudTrail.Stopped"
+    # .py source becomes detection_logic verbatim; language reflects it.
+    assert d.language == "python"
+    assert 'event.get("eventName") == "StopLogging"' in d.detection_logic
+    # LogTypes -> canonical taxonomy via the Panther vendor resolver.
+    assert "aws" in d.platforms
+    assert "aws_cloudtrail" in d.data_sources
+    assert "api_call" in d.event_types
+    # MITRE (colon-joined format) split correctly.
+    assert "TA0005" in d.mitre_tactics
+    assert "T1562.008" in d.mitre_techniques
+    # Severity from Panther enum -> canonical.
+    assert d.severity == "high"
+    # Non-MITRE report families as `report:*` tags.
+    assert "report:cis" in d.tags
+    # Source URL uses Panther's default `develop` branch.
+    assert d.source_rule_url is not None
+    assert "panther-labs/panther-analysis" in d.source_rule_url
+    assert "/blob/develop/rules/" in d.source_rule_url

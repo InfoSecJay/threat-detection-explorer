@@ -1,0 +1,688 @@
+# Panther Labs `panther-analysis` -> canonical taxonomy mappings.
+#
+# Every Panther rule declares one or more `LogTypes:` (e.g.
+# `AWS.CloudTrail`, `Okta.SystemLog`, `Notion.AuditLogs`). The vendor
+# resolver in `vendors/panther.py` looks each up here and UNIONS the
+# result — a multi-LogType rule like
+#   LogTypes: [OneLogin.Events, AWS.CloudTrail, Zoom.Operation]
+# resolves to platforms=[aws, onelogin, zoom],
+# data_sources=[aws_cloudtrail, onelogin_events, zoom_operation],
+# and the union of event_types.
+#
+# 100% coverage of all LogTypes observed in the 2026-08 corpus recon.
+# Prefix-based fallbacks in the resolver catch new subtypes in known
+# families (e.g. a future `PushSecurity.NewSubtype` still resolves to
+# push_security_audit). If Panther adds a NEW top-level family, the
+# audit script (audit_normalization.py) surfaces the `[unknown]`
+# fallout and we add a new entry here.
+
+by_log_type:
+  # ── AWS ──────────────────────────────────────────────────────────
+  AWS.CloudTrail:
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  AWS.VPCFlow:
+    platforms: [aws]
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  AWS.WAFWebACL:
+    platforms: [aws]
+    data_sources: [aws_waf_web_acl]
+    event_types: [http_request]
+  AWS.VPCDns:
+    platforms: [aws]
+    data_sources: [aws_vpc_dns]
+    event_types: [dns_query]
+  AWS.S3ServerAccess:
+    platforms: [aws]
+    data_sources: [aws_s3_server_access]
+    event_types: [audit_event]
+  AWS.SecurityFindingFormat:
+    platforms: [aws]
+    data_sources: [aws_security_hub]
+    event_types: [platform_alert]
+  AWS.GuardDuty:
+    platforms: [aws]
+    data_sources: [aws_guardduty]
+    event_types: [platform_alert]
+  AWS.ALB:
+    platforms: [aws]
+    data_sources: [aws_alb_access]
+    event_types: [http_request]
+  AWS.BedrockModelInvocation:
+    platforms: [aws, llm]
+    data_sources: [aws_bedrock_invocation]
+    event_types: [api_call]
+  Amazon.EKS.Audit:
+    platforms: [aws, kubernetes]
+    data_sources: [aws_eks_audit, kubernetes_audit]
+    event_types: [audit_event]
+
+  # ── GCP ──────────────────────────────────────────────────────────
+  GCP.AuditLog:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  GCP.HTTPLoadBalancer:
+    platforms: [gcp]
+    data_sources: [gcp_http_load_balancer]
+    event_types: [http_request]
+
+  # ── Azure / Microsoft 365 ────────────────────────────────────────
+  Azure.MonitorActivity:
+    platforms: [azure]
+    data_sources: [azure_monitor_activity]
+    event_types: [audit_event]
+  Azure.Audit:
+    platforms: [azure]
+    data_sources: [azure_audit]
+    event_types: [audit_event]
+  Microsoft365.Audit.AzureActiveDirectory:
+    platforms: [microsoft_365, azure]
+    data_sources: [entra_id_audit]
+    event_types: [audit_event]
+  Microsoft365.Audit.Exchange:
+    platforms: [microsoft_365]
+    data_sources: [microsoft365_exchange_audit]
+    event_types: [audit_event]
+  Microsoft365.Audit.SharePoint:
+    platforms: [microsoft_365]
+    data_sources: [microsoft365_sharepoint_audit]
+    event_types: [audit_event]
+  MicrosoftDefenderXDR.AdvancedHunting:
+    platforms: [microsoft_365, windows]
+    data_sources: [microsoft_defender_xdr]
+    event_types: [audit_event]
+  MicrosoftGraph.SecurityAlertV2:
+    platforms: [microsoft_365]
+    data_sources: [microsoft_graph_security_alerts]
+    event_types: [platform_alert]
+  MicrosoftIntune.AuditLogs:
+    platforms: [microsoft_365]
+    data_sources: [microsoft_intune_audit]
+    event_types: [audit_event]
+  MicrosoftIntune.OperationalLogs:
+    platforms: [microsoft_365]
+    data_sources: [microsoft_intune_operational]
+    event_types: [audit_event]
+
+  # ── DevOps / source control ──────────────────────────────────────
+  GitHub.Audit:
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  GitHub.Webhook:
+    platforms: [github]
+    data_sources: [github_webhook]
+    event_types: [api_call]
+  GitLab.Audit:
+    platforms: [gitlab]
+    data_sources: [gitlab_audit]
+    event_types: [audit_event]
+  GitLab.Production:
+    platforms: [gitlab]
+    data_sources: [gitlab_production]
+    event_types: [audit_event]
+  Atlassian.Audit:
+    platforms: [atlassian]
+    data_sources: [atlassian_audit]
+    event_types: [audit_event]
+  Snyk.OrgAudit:
+    platforms: [snyk]
+    data_sources: [snyk_org_audit]
+    event_types: [audit_event]
+  Snyk.GroupAudit:
+    platforms: [snyk]
+    data_sources: [snyk_group_audit]
+    event_types: [audit_event]
+
+  # ── Identity + SSO ───────────────────────────────────────────────
+  Okta.SystemLog:
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication, audit_event]
+  Auth0.Events:
+    platforms: [auth0]
+    data_sources: [auth0_logs]
+    event_types: [authentication]
+  OneLogin.Events:
+    platforms: [onelogin]
+    data_sources: [onelogin_events]
+    event_types: [authentication]
+  Duo.Administrator:
+    platforms: [duo]
+    data_sources: [duo_administrator]
+    event_types: [audit_event]
+  Duo.Authentication:
+    platforms: [duo]
+    data_sources: [duo_authentication]
+    event_types: [authentication]
+  OnePassword.SignInAttempt:
+    platforms: [onepassword]
+    data_sources: [onepassword_signin]
+    event_types: [authentication]
+  OnePassword.ItemUsage:
+    platforms: [onepassword]
+    data_sources: [onepassword_item_usage]
+    event_types: [audit_event]
+
+  # ── Google Workspace ─────────────────────────────────────────────
+  GSuite.ActivityEvent:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+
+  # ── EDR ──────────────────────────────────────────────────────────
+  Crowdstrike.FDREvent:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_fdr]
+    event_types: [endpoint_behavior]
+  Crowdstrike.EventStreams:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_event_streams]
+    event_types: [endpoint_behavior]
+  Crowdstrike.DNSRequest:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_dns_request]
+    event_types: [dns_query]
+  Crowdstrike.DetectionSummary:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_detection_summary]
+    event_types: [platform_alert]
+  Crowdstrike.Unknown:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_fdr]
+    event_types: [endpoint_behavior]
+  CarbonBlack.Audit:
+    platforms: [carbon_black]
+    data_sources: [carbon_black_audit]
+    event_types: [audit_event]
+  CarbonBlack.AlertV2:
+    platforms: [carbon_black]
+    data_sources: [carbon_black_alert]
+    event_types: [platform_alert]
+  SentinelOne.Activity:
+    platforms: [sentinelone]
+    data_sources: [sentinelone_activity]
+    event_types: [endpoint_behavior]
+
+  # ── Collaboration + SaaS productivity ────────────────────────────
+  Slack.AuditLogs:
+    platforms: [slack]
+    data_sources: [slack_audit]
+    event_types: [audit_event]
+  Notion.AuditLogs:
+    platforms: [notion]
+    data_sources: [notion_audit]
+    event_types: [audit_event]
+  Asana.Audit:
+    platforms: [asana]
+    data_sources: [asana_audit]
+    event_types: [audit_event]
+  Box.Event:
+    platforms: [box]
+    data_sources: [box_event]
+    event_types: [audit_event]
+  Zendesk.Audit:
+    platforms: [zendesk]
+    data_sources: [zendesk_audit]
+    event_types: [audit_event]
+  Zoom.Operation:
+    platforms: [zoom]
+    data_sources: [zoom_operation]
+    event_types: [audit_event]
+  Zoom.Activity:
+    platforms: [zoom]
+    data_sources: [zoom_activity]
+    event_types: [audit_event]
+  Dropbox.TeamEvent:
+    platforms: [dropbox]
+    data_sources: [dropbox_team_event]
+    event_types: [audit_event]
+  Salesforce.RealtimeEvent:
+    platforms: [salesforce]
+    data_sources: [salesforce_realtime]
+    event_types: [audit_event]
+  Salesforce.LoginAs:
+    platforms: [salesforce]
+    data_sources: [salesforce_login_as]
+    event_types: [authentication]
+  Docusign.Connect:
+    platforms: [docusign]
+    data_sources: [docusign_connect]
+    event_types: [audit_event]
+  Tines.Audit:
+    platforms: [tines]
+    data_sources: [tines_audit]
+    event_types: [audit_event]
+
+  # ── Data platforms / DB ──────────────────────────────────────────
+  Databricks.Audit:
+    platforms: [databricks]
+    data_sources: [databricks_audit]
+    event_types: [audit_event]
+  Snowflake.QueryHistory:
+    platforms: [snowflake]
+    data_sources: [snowflake_query_history]
+    event_types: [audit_event]
+  Snowflake.LoginHistory:
+    platforms: [snowflake]
+    data_sources: [snowflake_login_history]
+    event_types: [authentication]
+  Snowflake.GrantsToRoles:
+    platforms: [snowflake]
+    data_sources: [snowflake_grants]
+    event_types: [audit_event]
+  Snowflake.GrantsToUsers:
+    platforms: [snowflake]
+    data_sources: [snowflake_grants]
+    event_types: [audit_event]
+  Snowflake.DataTransferHistory:
+    platforms: [snowflake]
+    data_sources: [snowflake_data_transfer]
+    event_types: [audit_event]
+  MongoDB.OrganizationEvent:
+    platforms: [mongodb]
+    data_sources: [mongodb_org_audit]
+    event_types: [audit_event]
+  MongoDB.ProjectEvent:
+    platforms: [mongodb]
+    data_sources: [mongodb_project_audit]
+    event_types: [audit_event]
+
+  # ── Network security / SaaS ──────────────────────────────────────
+  Cloudflare.Firewall:
+    platforms: [cloudflare]
+    data_sources: [cloudflare_firewall]
+    event_types: [network_connection]
+  Cloudflare.HttpRequest:
+    platforms: [cloudflare]
+    data_sources: [cloudflare_http]
+    event_types: [http_request]
+  Zscaler.ZIA.AdminAuditLog:
+    platforms: [zscaler]
+    data_sources: [zscaler_zia_admin_audit]
+    event_types: [audit_event]
+  CiscoUmbrella.DNS:
+    platforms: [cisco_umbrella]
+    data_sources: [cisco_umbrella_dns]
+    event_types: [dns_query]
+  Netskope.Audit:
+    platforms: [netskope]
+    data_sources: [netskope_audit]
+    event_types: [audit_event]
+  Suricata.DNS:
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [dns_query]
+  Zeek.DNS:
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [dns_query]
+  Tailscale.Audit:
+    platforms: [tailscale]
+    data_sources: [tailscale_audit]
+    event_types: [audit_event]
+
+  # ── Cloud security posture (CNAPP) / cloud alerts ────────────────
+  Wiz.Audit:
+    platforms: [wiz]
+    data_sources: [wiz_audit]
+    event_types: [audit_event]
+  Wiz.Detection:
+    platforms: [wiz]
+    data_sources: [wiz_detection]
+    event_types: [platform_alert]
+  Wiz.Issue:
+    platforms: [wiz]
+    data_sources: [wiz_issue]
+    event_types: [platform_alert]
+  Wiz.IssueWebhook:
+    platforms: [wiz]
+    data_sources: [wiz_issue]
+    event_types: [platform_alert]
+  Orca.Alert:
+    platforms: [orca]
+    data_sources: [orca_alert]
+    event_types: [platform_alert]
+  Upwind.Detections:
+    platforms: [upwind]
+    data_sources: [upwind_detection]
+    event_types: [platform_alert]
+  AppOmni.Alerts:
+    platforms: [appomni]
+    data_sources: [appomni_alerts]
+    event_types: [platform_alert]
+  Axonius.Activity:
+    platforms: [axonius]
+    data_sources: [axonius_activity]
+    event_types: [audit_event]
+
+  # ── Deception + threat intel ─────────────────────────────────────
+  ThinkstCanary.Alert:
+    platforms: [thinkst_canary]
+    data_sources: [thinkst_canary_alert]
+    event_types: [platform_alert]
+  Tracebit.Alert:
+    platforms: [tracebit]
+    data_sources: [tracebit_alert]
+    event_types: [platform_alert]
+  SOCRadar.Incidents:
+    platforms: [cross_platform]
+    data_sources: [socradar_incidents]
+    event_types: [platform_alert]
+
+  # ── Access / zero-trust ──────────────────────────────────────────
+  Gravitational.TeleportAudit:
+    platforms: [teleport]
+    data_sources: [teleport_audit]
+    event_types: [audit_event]
+  PushSecurity.Activity:
+    platforms: [push_security]
+    data_sources: [push_security_audit]
+    event_types: [audit_event]
+
+  # ── LLM services ─────────────────────────────────────────────────
+  Anthropic.Activity:
+    platforms: [llm]
+    data_sources: [anthropic_activity]
+    event_types: [api_call]
+  OpenAI.Audit:
+    platforms: [llm]
+    data_sources: [openai_audit]
+    event_types: [api_call]
+
+  # ── Email ────────────────────────────────────────────────────────
+  Sublime.Audit:
+    platforms: [email]
+    data_sources: [sublime_audit]
+    event_types: [audit_event]
+  Sublime.MessageEvent:
+    platforms: [email]
+    data_sources: [sublime_message_event, email_message_metadata]
+    event_types: [email_message]
+  Proofpoint.Event:
+    platforms: [email]
+    data_sources: [proofpoint_event]
+    event_types: [email_message]
+
+  # ── Endpoint / OS ────────────────────────────────────────────────
+  Osquery.Differential:
+    platforms: [cross_platform]
+    data_sources: [osquery]
+    event_types: [audit_event]
+  Windows.EventLogs:
+    platforms: [windows]
+    data_sources: [windows_event_logs, windows_security_event_log]
+    event_types: [audit_event]
+
+  # ── OCSF (schema-neutral, often via AWS Security Lake) ───────────
+  OCSF.NetworkActivity:
+    platforms: [cross_platform]
+    data_sources: [ocsf_network_activity]
+    event_types: [network_connection]
+  OCSF.DnsActivity:
+    platforms: [cross_platform]
+    data_sources: [ocsf_dns_activity]
+    event_types: [dns_query]
+
+  # ── Panther meta ─────────────────────────────────────────────────
+  Panther.Audit:
+    platforms: [cross_platform]
+    data_sources: [panther_audit]
+    event_types: [audit_event]
+
+# Prefix-based fallbacks for LogTypes NOT explicitly listed above.
+# The resolver checks these AFTER `by_log_type` misses. Any future
+# `PushSecurity.NewSubtype`, `Query.Okta.NewThing`, etc. resolves
+# cleanly instead of falling to [unknown]. Order matters — first
+# matching prefix wins.
+by_prefix:
+  "AWS.":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  "GCP.":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [api_call]
+  "Azure.":
+    platforms: [azure]
+    data_sources: [azure_activity]
+    event_types: [audit_event]
+  "Microsoft365.":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "MicrosoftIntune.":
+    platforms: [microsoft_365]
+    data_sources: [microsoft_intune_audit]
+    event_types: [audit_event]
+  "MicrosoftDefenderXDR.":
+    platforms: [microsoft_365, windows]
+    data_sources: [microsoft_defender_xdr]
+    event_types: [audit_event]
+  "MicrosoftGraph.":
+    platforms: [microsoft_365]
+    data_sources: [microsoft_graph_security_alerts]
+    event_types: [platform_alert]
+  "GitHub.":
+    platforms: [github]
+    data_sources: [github_audit]
+    event_types: [audit_event]
+  "GitLab.":
+    platforms: [gitlab]
+    data_sources: [gitlab_audit]
+    event_types: [audit_event]
+  "Okta.":
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  "Auth0.":
+    platforms: [auth0]
+    data_sources: [auth0_logs]
+    event_types: [authentication]
+  "OneLogin.":
+    platforms: [onelogin]
+    data_sources: [onelogin_events]
+    event_types: [authentication]
+  "Duo.":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [audit_event]
+  "OnePassword.":
+    platforms: [onepassword]
+    data_sources: [onepassword_signin]
+    event_types: [audit_event]
+  "GSuite.":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  "Crowdstrike.":
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_fdr]
+    event_types: [endpoint_behavior]
+  "CarbonBlack.":
+    platforms: [carbon_black]
+    data_sources: [carbon_black_audit]
+    event_types: [audit_event]
+  "SentinelOne.":
+    platforms: [sentinelone]
+    data_sources: [sentinelone_activity]
+    event_types: [endpoint_behavior]
+  "Slack.":
+    platforms: [slack]
+    data_sources: [slack_audit]
+    event_types: [audit_event]
+  "Notion.":
+    platforms: [notion]
+    data_sources: [notion_audit]
+    event_types: [audit_event]
+  "Asana.":
+    platforms: [asana]
+    data_sources: [asana_audit]
+    event_types: [audit_event]
+  "Box.":
+    platforms: [box]
+    data_sources: [box_event]
+    event_types: [audit_event]
+  "Zendesk.":
+    platforms: [zendesk]
+    data_sources: [zendesk_audit]
+    event_types: [audit_event]
+  "Zoom.":
+    platforms: [zoom]
+    data_sources: [zoom_operation]
+    event_types: [audit_event]
+  "Dropbox.":
+    platforms: [dropbox]
+    data_sources: [dropbox_team_event]
+    event_types: [audit_event]
+  "Salesforce.":
+    platforms: [salesforce]
+    data_sources: [salesforce_realtime]
+    event_types: [audit_event]
+  "Docusign.":
+    platforms: [docusign]
+    data_sources: [docusign_connect]
+    event_types: [audit_event]
+  "Tines.":
+    platforms: [tines]
+    data_sources: [tines_audit]
+    event_types: [audit_event]
+  "Atlassian.":
+    platforms: [atlassian]
+    data_sources: [atlassian_audit]
+    event_types: [audit_event]
+  "Snyk.":
+    platforms: [snyk]
+    data_sources: [snyk_org_audit]
+    event_types: [audit_event]
+  "Databricks.":
+    platforms: [databricks]
+    data_sources: [databricks_audit]
+    event_types: [audit_event]
+  "Snowflake.":
+    platforms: [snowflake]
+    data_sources: [snowflake_query_history]
+    event_types: [audit_event]
+  "MongoDB.":
+    platforms: [mongodb]
+    data_sources: [mongodb_org_audit]
+    event_types: [audit_event]
+  "Wiz.":
+    platforms: [wiz]
+    data_sources: [wiz_audit]
+    event_types: [audit_event]
+  "Orca.":
+    platforms: [orca]
+    data_sources: [orca_alert]
+    event_types: [platform_alert]
+  "Upwind.":
+    platforms: [upwind]
+    data_sources: [upwind_detection]
+    event_types: [platform_alert]
+  "AppOmni.":
+    platforms: [appomni]
+    data_sources: [appomni_alerts]
+    event_types: [platform_alert]
+  "Axonius.":
+    platforms: [axonius]
+    data_sources: [axonius_activity]
+    event_types: [audit_event]
+  "Cloudflare.":
+    platforms: [cloudflare]
+    data_sources: [cloudflare_firewall]
+    event_types: [network_connection]
+  "Zscaler.":
+    platforms: [zscaler]
+    data_sources: [zscaler_zia_admin_audit]
+    event_types: [audit_event]
+  "CiscoUmbrella.":
+    platforms: [cisco_umbrella]
+    data_sources: [cisco_umbrella_dns]
+    event_types: [dns_query]
+  "Netskope.":
+    platforms: [netskope]
+    data_sources: [netskope_audit]
+    event_types: [audit_event]
+  "Tailscale.":
+    platforms: [tailscale]
+    data_sources: [tailscale_audit]
+    event_types: [audit_event]
+  "Gravitational.":
+    platforms: [teleport]
+    data_sources: [teleport_audit]
+    event_types: [audit_event]
+  "PushSecurity.":
+    platforms: [push_security]
+    data_sources: [push_security_audit]
+    event_types: [audit_event]
+  "ThinkstCanary.":
+    platforms: [thinkst_canary]
+    data_sources: [thinkst_canary_alert]
+    event_types: [platform_alert]
+  "Tracebit.":
+    platforms: [tracebit]
+    data_sources: [tracebit_alert]
+    event_types: [platform_alert]
+  "SOCRadar.":
+    platforms: [cross_platform]
+    data_sources: [socradar_incidents]
+    event_types: [platform_alert]
+  "Anthropic.":
+    platforms: [llm]
+    data_sources: [anthropic_activity]
+    event_types: [api_call]
+  "OpenAI.":
+    platforms: [llm]
+    data_sources: [openai_audit]
+    event_types: [api_call]
+  "Sublime.":
+    platforms: [email]
+    data_sources: [sublime_message_event]
+    event_types: [email_message]
+  "Proofpoint.":
+    platforms: [email]
+    data_sources: [proofpoint_event]
+    event_types: [email_message]
+  "Osquery.":
+    platforms: [cross_platform]
+    data_sources: [osquery]
+    event_types: [audit_event]
+  "Amazon.":
+    platforms: [aws]
+    data_sources: [aws_cloudtrail]
+    event_types: [api_call]
+  # Panther runs scheduled queries against source data and emits the
+  # results as `Query.<Source>.<QueryName>` — treat as if it were the
+  # source's own log.
+  "Query.Okta.":
+    platforms: [okta]
+    data_sources: [okta_scheduled_query]
+    event_types: [audit_event]
+  "Query.":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [alert_correlation]
+  "OCSF.":
+    platforms: [cross_platform]
+    data_sources: [ocsf_network_activity]
+    event_types: [network_connection]
+  "Suricata.":
+    platforms: [network_appliance]
+    data_sources: [suricata]
+    event_types: [network_connection]
+  "Zeek.":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+
+# Correlation rules ship without LogTypes; the vendor resolver falls
+# back to this default so we don't emit [unknown] for the 3 correlation
+# rules in the corpus.
+correlation_rule_default:
+  platforms: [cross_platform]
+  data_sources: [siem_alert]
+  event_types: [alert_correlation]

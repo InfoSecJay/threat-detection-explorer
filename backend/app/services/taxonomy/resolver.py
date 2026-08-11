@@ -33,6 +33,7 @@ from app.services.taxonomy.vendors import (
     google_secops,
     lolrmm,
     okta,
+    panther,
     sentinel,
     sigma,
     splunk,
@@ -59,6 +60,7 @@ _VENDOR_RESOLVERS: dict[str, Callable[["ParsedRule"], dict]] = {
     "google_secops": google_secops.resolve,
     "okta": okta.resolve,
     "auth0": auth0.resolve,
+    "panther": panther.resolve,
 }
 
 

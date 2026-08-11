@@ -84,6 +84,11 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     # Auth0 rules ship in Sigma format with a Splunk implementation;
     # the normalizer prefers Splunk when present, falls back to Sigma.
     "auth0":               {"spl", "sigma"},
+    # Panther detections are Python detection functions (`.py`
+    # sibling to each YAML). A handful of correlation rules and one
+    # declarative rule have no .py; those show `panther_correlation`
+    # or `panther` respectively.
+    "panther":             {"python", "panther", "panther_correlation"},
 }
 
 # Sources where "no MITRE techniques" is expected behaviour, not a bug.

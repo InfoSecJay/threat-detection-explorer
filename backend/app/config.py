@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     okta_repo_url: str = "https://github.com/okta/customer-detections.git"
     # Auth0 customer-detections -- Sigma rules + Splunk implementations.
     auth0_repo_url: str = "https://github.com/auth0/auth0-customer-detections.git"
+    # Panther Labs panther-analysis -- YAML metadata + Python sibling
+    # detections. Branch is `develop`, not `master`. 877 rules across
+    # ~67 vendor-family subdirs.
+    panther_repo_url: str = "https://github.com/panther-labs/panther-analysis.git"
 
     # API settings
     api_prefix: str = "/api"

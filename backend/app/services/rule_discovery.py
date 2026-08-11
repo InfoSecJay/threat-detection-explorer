@@ -82,6 +82,22 @@ class RuleDiscoveryService:
                 "tests", "test", "workflows", "deprecated", ".git",
             ],
         },
+        "panther": {
+            # Panther rules live one level under `rules/<vendor_rules>/`
+            # as YAML+Python sibling pairs. Two nested subdirs exist
+            # (crowdstrike_rules/event_stream_rules/ and zscaler_rules/
+            # zia/) — use ** so the glob catches them. The parser reads
+            # the .py sibling separately via get_sibling_content(); we
+            # only enumerate the .yml file as the "primary."
+            "include_patterns": [
+                "rules/**/*.yml",
+                "rules/**/*.yaml",
+            ],
+            # No non-rule content lives inside rules/ per recon, but
+            # keep the standard exclusions defensively in case upstream
+            # adds test fixtures later.
+            "exclude_dirs": ["tests", "test", "deprecated", ".git"],
+        },
         "sentinel": {
             "include_patterns": [
                 # Solutions/<vendor>/ packages — the main source
@@ -201,4 +217,36 @@ class RuleDiscoveryService:
             return full_path.read_text(encoding="utf-8")
         except Exception as e:
             logger.warning(f"Error reading {full_path}: {e}")
+            return None
+
+    def get_sibling_content(
+        self, repo_name: str, relative_path: Path, extension: str,
+    ) -> str | None:
+        """Read a sibling file at the same path with a different extension.
+
+        Panther rules ship as YAML metadata + `.py` detection-logic
+        sibling. The parser calls this with the YAML's relative path
+        and `.py` to fetch the detection body. Returns None if the
+        sibling doesn't exist (some rules — e.g. correlation rules and
+        one declarative GitHub rule — have no `.py`; the parser falls
+        back to the YAML's `Detection:` block in that case).
+
+        Args:
+            repo_name: Name of the repository
+            relative_path: Path to the primary rule file (repo-relative)
+            extension: Sibling extension including the dot (e.g. ".py")
+
+        Returns:
+            Sibling file content as string, or None if not found.
+            Missing siblings do NOT log a warning — a large fraction
+            of callers expect the None case (e.g. correlation rules).
+        """
+        repo_path = settings.get_repo_path(repo_name)
+        sibling = repo_path / relative_path.with_suffix(extension)
+        if not sibling.exists():
+            return None
+        try:
+            return sibling.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Error reading sibling {sibling}: {e}")
             return None

@@ -12,6 +12,7 @@ from app.normalizers.sentinel import SentinelNormalizer
 from app.normalizers.google_secops import GoogleSecOpsNormalizer
 from app.normalizers.okta import OktaNormalizer
 from app.normalizers.auth0 import Auth0Normalizer
+from app.normalizers.panther import PantherNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -27,4 +28,5 @@ __all__ = [
     "GoogleSecOpsNormalizer",
     "OktaNormalizer",
     "Auth0Normalizer",
+    "PantherNormalizer",
 ]

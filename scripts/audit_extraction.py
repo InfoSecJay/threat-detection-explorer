@@ -88,12 +88,16 @@ EXTRACTOR_STATUS: dict[str, str] = {
     "sublime":             "have_extractor",
     "lolrmm":              "have_extractor",
     "sentinel":            "have_extractor",
-    # These three currently skip extraction entirely — a known gap
+    # These sources currently skip extraction entirely — a known gap
     # tracked in issue #6. The audit reports their coverage as
     # baseline data but does NOT flag it as an anomaly.
     "google_secops":       "no_extractor",
     "okta":                "no_extractor",
     "auth0":               "no_extractor",
+    # Panther detections are Python function bodies — regex extraction
+    # doesn't understand them. Falls into the same bucket as YARA-L /
+    # OIE — future Python-shape extractor is a Phase-2 arc.
+    "panther":             "no_extractor",
 }
 
 SOURCES = list(EXTRACTOR_STATUS.keys())

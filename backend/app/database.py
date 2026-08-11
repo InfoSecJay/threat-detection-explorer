@@ -105,6 +105,42 @@ def _migrate_taxonomy_phase_3(connection):
             cols.add(new)
 
 
+def _migrate_widen_rule_id(connection):
+    """Widen `detections.rule_id` from VARCHAR(100) -> VARCHAR(200).
+
+    Panther RuleIDs are human-readable dotted strings that can exceed
+    100 characters (e.g.
+    `Microsoft365.Audit.AzureActiveDirectory.SomeLongTechniqueName`).
+    Idempotent: reads the current column length via the inspector and
+    only issues the ALTER when a widen is actually needed.
+
+    Postgres-only ALTER syntax; SQLite (dev) doesn't enforce VARCHAR
+    length so the migration is a no-op there.
+    """
+    dialect_name = connection.engine.dialect.name
+    if dialect_name != "postgresql":
+        return
+
+    inspector = inspect(connection)
+    if not inspector.has_table("detections"):
+        return
+
+    for col in inspector.get_columns("detections"):
+        if col["name"] != "rule_id":
+            continue
+        col_type = col.get("type")
+        # SQLAlchemy exposes length on String types; None means unbounded.
+        length = getattr(col_type, "length", None)
+        if length is not None and length < 200:
+            connection.execute(
+                text("ALTER TABLE detections ALTER COLUMN rule_id TYPE VARCHAR(200)")
+            )
+            logger.info(
+                f"Migrated detections.rule_id VARCHAR({length}) -> VARCHAR(200)"
+            )
+        break
+
+
 async def init_db() -> None:
     """Initialize the database, creating all tables and migrating missing columns."""
     async with engine.begin() as conn:
@@ -116,3 +152,6 @@ async def init_db() -> None:
         await conn.run_sync(_migrate_taxonomy_phase_3)
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_migrate_missing_columns)
+        # Rule_id column widen for Panther's dotted human-readable
+        # RuleIDs — idempotent, Postgres-only.
+        await conn.run_sync(_migrate_widen_rule_id)

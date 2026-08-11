@@ -15,6 +15,7 @@ export const ALL_SOURCES = [
   'google_secops',
   'okta',
   'auth0',
+  'panther',
 ] as const;
 
 export type SourceName = (typeof ALL_SOURCES)[number];
@@ -31,6 +32,7 @@ export const sourceColors: Record<string, string> = {
   google_secops: '#84cc16',
   okta: '#14b8a6',
   auth0: '#f59e0b',
+  panther: '#d946ef',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -45,6 +47,7 @@ export const sourceLabels: Record<string, string> = {
   google_secops: 'Google SecOps',
   okta: 'Okta',
   auth0: 'Auth0',
+  panther: 'Panther',
 };
 
 export const sourceLabelsShort: Record<string, string> = {
@@ -59,6 +62,7 @@ export const sourceLabelsShort: Record<string, string> = {
   google_secops: 'G_SECOPS',
   okta: 'OKTA',
   auth0: 'AUTH0',
+  panther: 'PANTHER',
 };
 
 export const sourceTailwind: Record<string, string> = {
@@ -73,6 +77,7 @@ export const sourceTailwind: Record<string, string> = {
   google_secops: 'border-lime-500 bg-lime-500/10',
   okta: 'border-teal-500 bg-teal-500/10',
   auth0: 'border-amber-500 bg-amber-500/10',
+  panther: 'border-fuchsia-500 bg-fuchsia-500/10',
 };
 
 export const severityColors: Record<string, string> = {

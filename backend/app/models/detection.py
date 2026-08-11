@@ -29,8 +29,12 @@ class Detection(Base):
     source_repo_url: Mapped[str] = mapped_column(String(200), nullable=False)
     source_rule_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    # Rule identification
-    rule_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    # Rule identification. Free-form: format varies per source (UUID for
+    # Sigma/Elastic/Auth0, dotted human-readable name for Panther, event
+    # name for Okta/Google SecOps). 200 chars covers Panther's longest
+    # dotted paths (e.g. `Microsoft365.Audit.AzureActiveDirectory...`)
+    # with margin.
+    rule_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, index=True)
 
     # Core metadata
     title: Mapped[str] = mapped_column(String(500), nullable=False)

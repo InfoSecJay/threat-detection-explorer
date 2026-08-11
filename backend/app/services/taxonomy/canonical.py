@@ -66,6 +66,47 @@ PLATFORMS: frozenset[str] = frozenset(
         "github",
         "gitlab",
         "bitbucket",
+        "atlassian",         # Jira / Confluence audit (Atlassian Access)
+        "snyk",              # Snyk security audit
+        # ── SaaS productivity + collaboration (Panther onboarding) ──────────
+        "slack",
+        "notion",
+        "asana",
+        "zoom",
+        "box",
+        "dropbox",
+        "docusign",
+        "zendesk",
+        "tines",             # SOAR / workflow audit
+        # ── Identity + password managers (Panther onboarding) ───────────────
+        "onepassword",
+        # ── Data platforms + cloud security posture (Panther onboarding) ────
+        "databricks",
+        "snowflake",
+        "mongodb",
+        "wiz",               # CNAPP / cloud security posture
+        "orca",              # Orca Security CNAPP
+        # ── EDR / security tools (Panther onboarding) ───────────────────────
+        "crowdstrike",
+        "carbon_black",
+        "sentinelone",
+        # ── Network security SaaS (Panther onboarding) ──────────────────────
+        "cloudflare",
+        "zscaler",
+        "netskope",
+        "cisco_umbrella",
+        "tailscale",
+        # ── Access + zero-trust (Panther onboarding) ────────────────────────
+        "teleport",          # Gravitational Teleport audit
+        "push_security",
+        # ── Deception + alerting SaaS (Panther onboarding) ──────────────────
+        "thinkst_canary",
+        "tracebit",
+        "socradar",
+        "upwind",
+        "axonius",
+        "appomni",
+        "salesforce",
         # ── Network appliance class (broad — covers firewalls, proxies, IDS)
         "network_appliance",
         # ── Email — Sublime and other email-security tooling lives here ─────
@@ -172,6 +213,100 @@ DATA_SOURCES: frozenset[str] = frozenset(
         # ── Elastic ML anomaly detection jobs (type="machine_learning"
         # rules that don't have an index; driven by a job config).
         "elastic_ml",
+        # ── AWS additions (Panther onboarding) ──────────────────────────────
+        "aws_alb_access",              # Application Load Balancer access logs
+        "aws_s3_server_access",        # S3 bucket access logs
+        "aws_waf_web_acl",             # AWS WAF web ACL logs
+        "aws_vpc_dns",                 # AWS VPC Route53 resolver query logs
+        "aws_bedrock_invocation",      # AWS Bedrock model invocation
+        "aws_eks_audit",               # EKS control-plane audit (K8s audit on AWS)
+        # ── Azure / M365 additions (Panther onboarding) ─────────────────────
+        "azure_monitor_activity",      # Azure Monitor activity logs (subscription-scoped)
+        "microsoft_intune_audit",
+        "microsoft_intune_operational",
+        "microsoft_defender_xdr",      # M365 Defender XDR advanced hunting
+        "microsoft_graph_security_alerts",
+        "microsoft365_sharepoint_audit",
+        "microsoft365_exchange_audit",
+        # ── GCP additions (Panther onboarding) ──────────────────────────────
+        "gcp_http_load_balancer",
+        # ── DevOps additions (Panther onboarding) ───────────────────────────
+        "github_webhook",
+        "gitlab_production",           # GitLab production/application logs
+        "atlassian_audit",
+        "snyk_org_audit",
+        "snyk_group_audit",
+        # ── SaaS audit feeds (Panther onboarding) ───────────────────────────
+        "slack_audit",
+        "notion_audit",
+        "asana_audit",
+        "zoom_operation",
+        "zoom_activity",
+        "box_event",
+        "dropbox_team_event",
+        "docusign_connect",
+        "zendesk_audit",
+        "tines_audit",
+        "salesforce_realtime",
+        "salesforce_login_as",
+        # ── Identity / password (Panther onboarding) ────────────────────────
+        "onepassword_signin",
+        "onepassword_item_usage",
+        "duo_administrator",           # Panther distinguishes administrator vs authentication
+        "duo_authentication",
+        # ── Data platforms (Panther onboarding) ─────────────────────────────
+        "databricks_audit",
+        "snowflake_query_history",
+        "snowflake_login_history",
+        "snowflake_grants",
+        "snowflake_data_transfer",
+        "mongodb_org_audit",
+        "mongodb_project_audit",
+        # ── Cloud security posture (Panther onboarding) ─────────────────────
+        "wiz_audit",
+        "wiz_detection",
+        "wiz_issue",
+        "orca_alert",
+        "upwind_detection",
+        "appomni_alerts",
+        "axonius_activity",
+        # ── EDR extras (Panther onboarding) ─────────────────────────────────
+        "crowdstrike_event_streams",
+        "crowdstrike_dns_request",
+        "crowdstrike_detection_summary",
+        "carbon_black_audit",
+        "carbon_black_alert",
+        "sentinelone_activity",
+        # ── Network SaaS (Panther onboarding) ───────────────────────────────
+        "cloudflare_firewall",
+        "cloudflare_http",
+        "zscaler_zia_admin_audit",
+        "netskope_audit",
+        "cisco_umbrella_dns",
+        "tailscale_audit",
+        # ── Access / zero-trust (Panther onboarding) ────────────────────────
+        "teleport_audit",
+        "push_security_audit",
+        # ── Deception + threat intel (Panther onboarding) ───────────────────
+        "thinkst_canary_alert",
+        "tracebit_alert",
+        "socradar_incidents",
+        # ── LLM extras (Panther onboarding) ─────────────────────────────────
+        "openai_audit",
+        "anthropic_activity",
+        # ── Panther meta ────────────────────────────────────────────────────
+        "panther_audit",               # Panther's own audit log (self-hosted platform)
+        "okta_scheduled_query",        # Panther runs scheduled Okta queries and emits results
+        # ── Sublime extras — Panther has Sublime.Audit + MessageEvent ───────
+        "sublime_audit",
+        "sublime_message_event",
+        # ── Proofpoint (Panther has Proofpoint.Event) ───────────────────────
+        "proofpoint_event",
+        # ── OCSF (Open Cybersecurity Schema Framework) ──────────────────────
+        "ocsf_network_activity",
+        "ocsf_dns_activity",
+        # ── Windows event logs (Panther explicit LogType) ───────────────────
+        "windows_event_logs",
         UNKNOWN,
     }
 )
@@ -315,17 +450,31 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "aws_guardduty": frozenset({"aws"}),
     "aws_vpc_flow": frozenset({"aws"}),
     "aws_security_lake": frozenset({"aws"}),
+    "aws_alb_access": frozenset({"aws"}),
+    "aws_s3_server_access": frozenset({"aws"}),
+    "aws_waf_web_acl": frozenset({"aws"}),
+    "aws_vpc_dns": frozenset({"aws"}),
+    "aws_bedrock_invocation": frozenset({"aws", "llm"}),
+    "aws_eks_audit": frozenset({"aws", "kubernetes"}),
     # ── Azure ───────────────────────────────────────────────────────────
     "azure_activity": frozenset({"azure"}),
     "azure_audit": frozenset({"azure"}),
+    "azure_monitor_activity": frozenset({"azure"}),
     "azure_risk_detection": frozenset({"azure"}),
     "azure_pim": frozenset({"azure"}),
     "defender_cloud": frozenset({"azure"}),
     "entra_id_signin": frozenset({"azure"}),
     "entra_id_audit": frozenset({"azure"}),
+    "microsoft_intune_audit": frozenset({"microsoft_365"}),
+    "microsoft_intune_operational": frozenset({"microsoft_365"}),
+    "microsoft_defender_xdr": frozenset({"microsoft_365", "windows"}),
+    "microsoft_graph_security_alerts": frozenset({"microsoft_365"}),
+    "microsoft365_sharepoint_audit": frozenset({"microsoft_365"}),
+    "microsoft365_exchange_audit": frozenset({"microsoft_365"}),
     # ── GCP ─────────────────────────────────────────────────────────────
     "gcp_audit": frozenset({"gcp"}),
     "gcp_vpc_flow": frozenset({"gcp"}),
+    "gcp_http_load_balancer": frozenset({"gcp"}),
     # ── M365 / SaaS identity ────────────────────────────────────────────
     "m365_audit": frozenset({"microsoft_365"}),
     "m365_exchange_audit": frozenset({"microsoft_365"}),
@@ -351,10 +500,83 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "email_message_metadata": frozenset({"email"}),
     # ── DevOps / source control ─────────────────────────────────────────
     "github_audit": frozenset({"github"}),
+    "github_webhook": frozenset({"github"}),
     "gitlab_audit": frozenset({"gitlab"}),
+    "gitlab_production": frozenset({"gitlab"}),
     "bitbucket_audit": frozenset({"bitbucket"}),
+    "atlassian_audit": frozenset({"atlassian"}),
+    "snyk_org_audit": frozenset({"snyk"}),
+    "snyk_group_audit": frozenset({"snyk"}),
     # ── LLM ─────────────────────────────────────────────────────────────
     "llm_service_logs": frozenset({"llm"}),
+    "openai_audit": frozenset({"llm"}),
+    "anthropic_activity": frozenset({"llm"}),
+    # ── SaaS audit feeds (each vendor is its own platform) ──────────────
+    "slack_audit": frozenset({"slack"}),
+    "notion_audit": frozenset({"notion"}),
+    "asana_audit": frozenset({"asana"}),
+    "zoom_operation": frozenset({"zoom"}),
+    "zoom_activity": frozenset({"zoom"}),
+    "box_event": frozenset({"box"}),
+    "dropbox_team_event": frozenset({"dropbox"}),
+    "docusign_connect": frozenset({"docusign"}),
+    "zendesk_audit": frozenset({"zendesk"}),
+    "tines_audit": frozenset({"tines"}),
+    "salesforce_realtime": frozenset({"salesforce"}),
+    "salesforce_login_as": frozenset({"salesforce"}),
+    "onepassword_signin": frozenset({"onepassword"}),
+    "onepassword_item_usage": frozenset({"onepassword"}),
+    "duo_administrator": frozenset({"duo"}),
+    "duo_authentication": frozenset({"duo"}),
+    # ── Data platforms ──────────────────────────────────────────────────
+    "databricks_audit": frozenset({"databricks"}),
+    "snowflake_query_history": frozenset({"snowflake"}),
+    "snowflake_login_history": frozenset({"snowflake"}),
+    "snowflake_grants": frozenset({"snowflake"}),
+    "snowflake_data_transfer": frozenset({"snowflake"}),
+    "mongodb_org_audit": frozenset({"mongodb"}),
+    "mongodb_project_audit": frozenset({"mongodb"}),
+    # ── Cloud security posture (CNAPP) ──────────────────────────────────
+    "wiz_audit": frozenset({"wiz"}),
+    "wiz_detection": frozenset({"wiz"}),
+    "wiz_issue": frozenset({"wiz"}),
+    "orca_alert": frozenset({"orca"}),
+    "upwind_detection": frozenset({"upwind"}),
+    "appomni_alerts": frozenset({"appomni"}),
+    "axonius_activity": frozenset({"axonius"}),
+    # ── EDR extras ──────────────────────────────────────────────────────
+    "crowdstrike_event_streams": frozenset({"crowdstrike"}),
+    "crowdstrike_dns_request": frozenset({"crowdstrike"}),
+    "crowdstrike_detection_summary": frozenset({"crowdstrike"}),
+    "carbon_black_audit": frozenset({"carbon_black"}),
+    "carbon_black_alert": frozenset({"carbon_black"}),
+    "sentinelone_activity": frozenset({"sentinelone"}),
+    # ── Network SaaS ────────────────────────────────────────────────────
+    "cloudflare_firewall": frozenset({"cloudflare"}),
+    "cloudflare_http": frozenset({"cloudflare"}),
+    "zscaler_zia_admin_audit": frozenset({"zscaler"}),
+    "netskope_audit": frozenset({"netskope"}),
+    "cisco_umbrella_dns": frozenset({"cisco_umbrella"}),
+    "tailscale_audit": frozenset({"tailscale"}),
+    # ── Access / zero-trust ─────────────────────────────────────────────
+    "teleport_audit": frozenset({"teleport"}),
+    "push_security_audit": frozenset({"push_security"}),
+    # ── Deception + threat intel SaaS ───────────────────────────────────
+    "thinkst_canary_alert": frozenset({"thinkst_canary"}),
+    "tracebit_alert": frozenset({"tracebit"}),
+    "socradar_incidents": frozenset({"socradar"}),
+    # ── Sublime extras (Panther) ────────────────────────────────────────
+    "sublime_audit": frozenset({"email"}),
+    "sublime_message_event": frozenset({"email"}),
+    "proofpoint_event": frozenset({"email"}),
+    # ── OCSF (schema-neutral; used with AWS Security Lake, others) ──────
+    "ocsf_network_activity": frozenset(),
+    "ocsf_dns_activity": frozenset(),
+    # ── Panther meta ────────────────────────────────────────────────────
+    "panther_audit": frozenset(),
+    "okta_scheduled_query": frozenset({"okta"}),
+    # ── Windows event logs (Panther has this explicit type) ─────────────
+    "windows_event_logs": frozenset({"windows"}),
     # ── Universal (applies to any platform) ─────────────────────────────
     # Generic categories that can be produced on any OS/cloud:
     "application_logs": frozenset(),

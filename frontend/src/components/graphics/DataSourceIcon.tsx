@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther';
   className?: string;
   size?: number;
 }) {
@@ -20,6 +20,7 @@ export function DataSourceIcon({
     google_secops: '#84cc16',
     okta: '#14b8a6',
     auth0: '#f59e0b',
+    panther: '#d946ef',
   };
 
   const color = colors[source] || '#00ffcc';
