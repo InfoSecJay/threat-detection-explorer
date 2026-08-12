@@ -7,6 +7,7 @@ from typing import Any, Optional
 import yaml
 
 from app.parsers.base import BaseParser, ParsedRule
+from app.services.mitre_tactic_inference import infer_tactics
 
 logger = logging.getLogger(__name__)
 
@@ -235,86 +236,17 @@ class SplunkParser(BaseParser):
             if tactic_id and tactic_id not in tactics:
                 tactics.append(tactic_id)
 
-        # Always try to enrich tactics from techniques if we have techniques
-        # This helps fill in missing tactics that weren't explicitly specified
+        # Always enrich tactics from techniques when we have them.
+        # Uses the shared MITRE cache (~835 techniques) instead of a
+        # per-parser hardcoded table -- the previous 30-entry table
+        # missed 45% of Splunk techniques and left them with empty
+        # tactics on the site (audit ran 2026-08-11).
         if techniques:
-            inferred_tactics = self._infer_tactics_from_techniques(techniques)
-            for tactic_id in inferred_tactics:
+            for tactic_id in infer_tactics(techniques):
                 if tactic_id not in tactics:
                     tactics.append(tactic_id)
 
         return {"tactics": tactics, "techniques": techniques}
-
-    def _infer_tactics_from_techniques(self, techniques: list[str]) -> list[str]:
-        """Infer likely tactics from technique IDs based on common mappings.
-
-        This is a best-effort mapping for when tactics aren't explicitly provided.
-        Uses the parent technique ID for sub-techniques.
-        """
-        # Common technique to tactic mappings (parent techniques only)
-        technique_to_tactics = {
-            # Execution
-            "T1059": "TA0002",  # Command and Scripting Interpreter
-            "T1106": "TA0002",  # Native API
-            "T1053": "TA0002",  # Scheduled Task/Job
-            "T1569": "TA0002",  # System Services
-            "T1204": "TA0002",  # User Execution
-            # Persistence
-            "T1547": "TA0003",  # Boot or Logon Autostart Execution
-            "T1037": "TA0003",  # Boot or Logon Initialization Scripts
-            "T1098": "TA0003",  # Account Manipulation
-            "T1136": "TA0003",  # Create Account
-            "T1543": "TA0003",  # Create or Modify System Process
-            # Privilege Escalation
-            "T1548": "TA0004",  # Abuse Elevation Control Mechanism
-            "T1134": "TA0004",  # Access Token Manipulation
-            # Defense Evasion
-            "T1140": "TA0005",  # Deobfuscate/Decode Files
-            "T1070": "TA0005",  # Indicator Removal
-            "T1036": "TA0005",  # Masquerading
-            "T1027": "TA0005",  # Obfuscated Files
-            "T1562": "TA0005",  # Impair Defenses
-            # Credential Access
-            "T1003": "TA0006",  # OS Credential Dumping
-            "T1555": "TA0006",  # Credentials from Password Stores
-            "T1110": "TA0006",  # Brute Force
-            "T1558": "TA0006",  # Steal or Forge Kerberos Tickets
-            # Discovery
-            "T1087": "TA0007",  # Account Discovery
-            "T1083": "TA0007",  # File and Directory Discovery
-            "T1057": "TA0007",  # Process Discovery
-            "T1012": "TA0007",  # Query Registry
-            "T1018": "TA0007",  # Remote System Discovery
-            # Lateral Movement
-            "T1021": "TA0008",  # Remote Services
-            "T1570": "TA0008",  # Lateral Tool Transfer
-            # Collection
-            "T1560": "TA0009",  # Archive Collected Data
-            "T1005": "TA0009",  # Data from Local System
-            "T1074": "TA0009",  # Data Staged
-            # Command and Control
-            "T1071": "TA0011",  # Application Layer Protocol
-            "T1105": "TA0011",  # Ingress Tool Transfer
-            "T1572": "TA0011",  # Protocol Tunneling
-            # Exfiltration
-            "T1041": "TA0010",  # Exfiltration Over C2 Channel
-            "T1048": "TA0010",  # Exfiltration Over Alternative Protocol
-            # Impact
-            "T1486": "TA0040",  # Data Encrypted for Impact
-            "T1489": "TA0040",  # Service Stop
-            "T1490": "TA0040",  # Inhibit System Recovery
-        }
-
-        inferred_tactics = []
-        for tech in techniques:
-            # Extract parent technique ID (e.g., T1059 from T1059.001)
-            parent_tech = tech.split(".")[0]
-            if parent_tech in technique_to_tactics:
-                tactic = technique_to_tactics[parent_tech]
-                if tactic not in inferred_tactics:
-                    inferred_tactics.append(tactic)
-
-        return inferred_tactics
 
     def _map_kill_chain_to_tactic(self, phase: str) -> Optional[str]:
         """Map kill chain phase to MITRE ATT&CK tactic ID."""

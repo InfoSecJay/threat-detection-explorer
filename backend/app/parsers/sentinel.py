@@ -8,6 +8,7 @@ from typing import Optional
 import yaml
 
 from app.parsers.base import BaseParser, ParsedRule
+from app.services.mitre_tactic_inference import infer_tactics
 
 logger = logging.getLogger(__name__)
 
@@ -277,8 +278,15 @@ class SentinelParser(BaseParser):
         tactics = []
         techniques = []
 
-        # Extract tactics
-        raw_tactics = data.get("tactics", [])
+        # Extract tactics. Use `or []` because Sentinel rules commonly
+        # declare `tactics:` with an empty value (comment-only line
+        # like `tactics: # pulled dynamically`) which YAML parses as
+        # None, not []. The plain default arg only fires when the key
+        # is ABSENT, so without this coerce the entire parse crashes
+        # on `for tactic in None` -- 8 Sentinel Solutions rules were
+        # silently dropped this way (Darktrace, Jamf Protect,
+        # IronDefense, Trend Micro Vision One, ...).
+        raw_tactics = data.get("tactics") or []
         if isinstance(raw_tactics, str):
             raw_tactics = [raw_tactics]
 
@@ -292,8 +300,8 @@ class SentinelParser(BaseParser):
                 if tactic_id not in tactics:
                     tactics.append(tactic_id)
 
-        # Extract techniques
-        raw_techniques = data.get("relevantTechniques", [])
+        # Extract techniques. Same None-safety story as tactics above.
+        raw_techniques = data.get("relevantTechniques") or []
         if isinstance(raw_techniques, str):
             raw_techniques = [raw_techniques]
 
@@ -306,6 +314,14 @@ class SentinelParser(BaseParser):
                 tech_id = "T" + tech_id
             if tech_id not in techniques:
                 techniques.append(tech_id)
+
+        # Sentinel rules commonly declare `relevantTechniques` without a
+        # matching `tactics` list. Infer tactics from the canonical
+        # MITRE cache so those rules aren't left with empty tactics.
+        if techniques:
+            for tid in infer_tactics(techniques):
+                if tid not in tactics:
+                    tactics.append(tid)
 
         return {"tactics": tactics, "techniques": techniques}
 

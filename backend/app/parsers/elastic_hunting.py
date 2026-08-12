@@ -10,6 +10,7 @@ except ImportError:
     import tomli as tomllib
 
 from app.parsers.base import BaseParser, ParsedRule
+from app.services.mitre_tactic_inference import infer_tactics
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,16 @@ class ElasticHuntingParser(BaseParser):
             if isinstance(tech_id, str) and tech_id.startswith("T"):
                 if tech_id not in techniques:
                     techniques.append(tech_id)
+
+        # Elastic hunting rules ship techniques but never tactics.
+        # Infer from the canonical MITRE cache -- pre-inference audit
+        # showed 0% tactic coverage on the 138 rules; with inference
+        # they get proper tactic mapping. See mitre_tactic_inference
+        # for the shared helper.
+        if techniques:
+            for tid in infer_tactics(techniques):
+                if tid not in tactics:
+                    tactics.append(tid)
 
         return {"tactics": tactics, "techniques": techniques}
 
