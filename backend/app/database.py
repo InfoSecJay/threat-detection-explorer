@@ -66,8 +66,12 @@ def _migrate_taxonomy_phase_3(connection):
     before `taxonomy_data_sources` is renamed to `data_sources`,
     otherwise the rename collides.
 
-    Runs on every startup. Once a database has been migrated, every
-    `if old in cols` check is False so the function is a no-op.
+    Runs on every startup. `data_sources` is the one name shared by
+    the pre-migration raw column and the post-migration canonical
+    column, so it is only treated as raw while `taxonomy_data_sources`
+    still exists — without that guard, every restart drops the
+    canonical column (wiping its data) and _migrate_missing_columns
+    re-creates it empty.
     """
     inspector = inspect(connection)
     if not inspector.has_table("detections"):
@@ -84,12 +88,16 @@ def _migrate_taxonomy_phase_3(connection):
 
     # 2. Drop raw vendor list columns. `data_sources` is dropped here
     # so the canonical `taxonomy_data_sources` rename below can take
-    # over the name.
-    for raw in ("log_sources", "data_sources"):
-        if raw in cols:
-            connection.execute(text(f'ALTER TABLE detections DROP COLUMN {raw}'))
-            logger.info(f"Phase 3: dropped raw column detections.{raw}")
-            cols.discard(raw)
+    # over the name. A bare `data_sources` with no `taxonomy_data_sources`
+    # alongside it is the already-migrated canonical column — leave it.
+    if "log_sources" in cols:
+        connection.execute(text('ALTER TABLE detections DROP COLUMN log_sources'))
+        logger.info("Phase 3: dropped raw column detections.log_sources")
+        cols.discard("log_sources")
+    if "data_sources" in cols and "taxonomy_data_sources" in cols:
+        connection.execute(text('ALTER TABLE detections DROP COLUMN data_sources'))
+        logger.info("Phase 3: dropped raw column detections.data_sources")
+        cols.discard("data_sources")
 
     # 3. Rename `taxonomy_*` -> final names.
     renames = (
