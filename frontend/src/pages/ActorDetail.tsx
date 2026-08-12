@@ -17,6 +17,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
 import { MitreText, MitreReferences, resolveCitations } from '../components/MitreText';
 import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
+import { countryFlag, countryName, MOTIVATION_STYLE } from '../utils/actorDisplay';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
 import type { ActorMatchMode } from '../services/api';
@@ -119,9 +120,47 @@ export function ActorDetail() {
             <h1 className="text-3xl font-display font-bold text-white tracking-wider mb-2">
               {actor.name}
             </h1>
+            {(actor.origin_country || (actor.motivations?.length ?? 0) > 0 || (actor.target_sectors?.length ?? 0) > 0) && (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {actor.origin_country && (
+                  <span
+                    className="text-[10px] font-mono text-gray-300 border border-void-700 bg-void-900/60 px-2 py-0.5"
+                    title={`Suspected origin: ${countryName(actor.origin_country)} (MISP galaxy)`}
+                  >
+                    {countryFlag(actor.origin_country)} {countryName(actor.origin_country)}
+                  </span>
+                )}
+                {(actor.motivations ?? []).map((m) => (
+                  <span
+                    key={m}
+                    className={`text-[10px] font-mono uppercase tracking-wider border px-2 py-0.5 ${MOTIVATION_STYLE[m] ?? MOTIVATION_STYLE.unknown}`}
+                  >
+                    {m}
+                  </span>
+                ))}
+                {(actor.target_sectors ?? []).map((s) => (
+                  <Link
+                    key={s}
+                    to={`/actors?sector=${encodeURIComponent(s)}`}
+                    className="text-[10px] font-mono text-gray-400 border border-void-700 bg-void-900/60 px-2 py-0.5 hover:text-matrix-400 hover:border-matrix-500/40 transition-colors"
+                    title={`All actors targeting ${s}`}
+                  >
+                    {s}
+                  </Link>
+                ))}
+              </div>
+            )}
             {actor.aliases.length > 0 && (
               <div className="text-xs font-mono text-gray-400">
                 aka <span className="text-gray-200">{actor.aliases.join(' · ')}</span>
+              </div>
+            )}
+            {(actor.target_regions?.length ?? 0) > 0 && (
+              <div
+                className="text-xs font-mono text-gray-500 mt-1"
+                title={(actor.target_countries ?? []).join(', ')}
+              >
+                targets: <span className="text-gray-300">{(actor.target_regions ?? []).join(' · ')}</span>
               </div>
             )}
             {actor.platforms && actor.platforms.length > 0 && (

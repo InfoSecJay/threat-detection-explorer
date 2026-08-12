@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.detection import Detection
+from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
 
@@ -179,6 +180,7 @@ async def list_actors(
     actor-score service — no per-request corpus scan.
     """
     await mitre_service.ensure_loaded()
+    await actor_context_service.ensure_loaded()
     catalog_groups = mitre_service.get_all_groups()
     catalog_software = mitre_service.get_all_software()
     bundle = await actor_score_service.get(db)
@@ -203,12 +205,18 @@ async def list_actors(
 
     def _group_entry(g: dict) -> dict:
         sc = bundle.groups[g["id"]]
+        ctx = actor_context_service.get_context(g["id"]) or {}
         return {
             "id": g["id"],
             "name": g["name"],
-            "aliases": g["aliases"],
+            "aliases": merge_aliases(g["aliases"], ctx, exclude=g["name"]),
             "description": _short(g["description"]),
             "deprecated": g.get("deprecated", False),
+            # MISP-galaxy context — nullable/empty when no match.
+            "origin_country": ctx.get("origin_country"),
+            "motivations": ctx.get("motivations", []),
+            "target_sectors": ctx.get("target_sectors", []),
+            "target_regions": ctx.get("target_regions", []),
             **_scores(sc),
         }
 
@@ -279,6 +287,7 @@ async def get_actor(
     kind, mitre_url = _actor_type(actor_id)
 
     await mitre_service.ensure_loaded()
+    await actor_context_service.ensure_loaded()
     if kind == "group":
         entity = mitre_service.get_group(actor_id)
     else:
@@ -354,8 +363,15 @@ async def get_actor(
     coverage_ids = [t["technique_id"] for t in techniques_used]
     coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids)
 
-    # Mention count: names to search for = primary name + aliases.
-    mention_names = [entity["name"]] + list(entity.get("aliases", []))
+    # Mention count: names to search for = primary name + aliases,
+    # including galaxy synonyms (a rule citing "GOLD SAHARA" counts
+    # as mentioning Akira).
+    mention_ctx = (
+        actor_context_service.get_context(actor_id) if kind == "group" else None
+    )
+    mention_names = [entity["name"]] + merge_aliases(
+        list(entity.get("aliases", [])), mention_ctx, exclude=entity["name"]
+    )
     mention_hits = await _rules_mentioning(db, mention_names)
     mention_count = len(mention_hits)
 
@@ -370,6 +386,20 @@ async def get_actor(
     rules = [_serialize_rule(r) for r in rule_rows]
     rules.sort(key=lambda r: (r["source"], r["title"]))
 
+    # Galaxy context (groups only) — merged aliases + appended refs.
+    ctx = actor_context_service.get_context(actor_id) if kind == "group" else None
+    references = list(entity.get("references", []))
+    if ctx:
+        known_urls = {r.get("url") for r in references}
+        for url in ctx.get("references", []):
+            if url in known_urls:
+                continue
+            known_urls.add(url)
+            domain = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
+            references.append(
+                {"source_name": domain, "url": url, "description": ""}
+            )
+
     # Build the response
     metadata: dict = {
         "id": actor_id,
@@ -377,9 +407,18 @@ async def get_actor(
         "name": entity["name"],
         "description": entity["description"],
         "mitre_url": mitre_url,
-        "references": entity.get("references", []),
+        "references": references,
         "deprecated": entity.get("deprecated", False),
-        "aliases": entity.get("aliases", []),
+        "aliases": merge_aliases(
+            entity.get("aliases", []), ctx, exclude=entity["name"]
+        ),
+        # MISP-galaxy context — null/empty when no galaxy match (about
+        # a third of actors); the UI omits rather than placeholders.
+        "origin_country": (ctx or {}).get("origin_country"),
+        "motivations": (ctx or {}).get("motivations", []),
+        "target_sectors": (ctx or {}).get("target_sectors", []),
+        "target_regions": (ctx or {}).get("target_regions", []),
+        "target_countries": (ctx or {}).get("target_countries", []),
     }
     if kind == "software":
         metadata["type"] = entity["type"]

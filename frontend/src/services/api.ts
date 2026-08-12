@@ -476,6 +476,13 @@ export interface ActorDetail {
   type?: 'malware' | 'tool' | 'unknown';
   platforms?: string[];
 
+  // MISP-galaxy context (groups; null/empty when no galaxy match).
+  origin_country?: string | null;
+  motivations?: string[];
+  target_sectors?: string[];
+  target_regions?: string[];
+  target_countries?: string[];
+
   technique_count: number;
   covered_technique_count: number;
   // Distinctiveness-weighted scores (Phase 2 scoring rework).
