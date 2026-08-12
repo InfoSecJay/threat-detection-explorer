@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useCoverageMatrix } from '../hooks/useCompare';
 import { useDetections } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
+import { MitreText } from '../components/MitreText';
 import { sourceTheme as sourceColors, clipSm as clipCornerSm, clipMd as clipCornerMd } from '../constants/style';
 import type { TechniqueCoverage, TacticCoverage } from '../services/api';
 
@@ -419,9 +420,7 @@ function TechniqueDetailPane({
       {tech.description && (
         <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-white uppercase tracking-wider mb-2">Description</h3>
-          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
-            {tech.description}
-          </p>
+          <MitreText text={tech.description} />
         </div>
       )}
 
@@ -462,9 +461,7 @@ function TechniqueDetailPane({
       {tech.detection && (
         <div className="bg-void-850 border border-amber-500/20 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-amber-400 uppercase tracking-wider mb-2">MITRE Detection Guidance</h3>
-          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
-            {tech.detection}
-          </p>
+          <MitreText text={tech.detection} />
         </div>
       )}
 

@@ -13,6 +13,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useActors } from '../hooks/useActors';
+import { stripMitreMarkup } from '../components/MitreText';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import type { ActorListGroup, ActorListSoftware } from '../services/api';
 
@@ -68,7 +69,7 @@ function GroupCard({ g }: { g: ActorListGroup }) {
   return (
     <Link
       to={`/actors/${g.id}`}
-      title={g.description || g.name}
+      title={g.description ? stripMitreMarkup(g.description) : g.name}
       className={`group relative block bg-void-850 border p-3 transition-colors ${
         hasRules ? 'border-void-700 hover:border-breach-500/50' : 'border-void-800 hover:border-void-600 opacity-70 hover:opacity-100'
       }`}
@@ -118,7 +119,7 @@ function SoftwareCard({ s }: { s: ActorListSoftware }) {
   return (
     <Link
       to={`/actors/${s.id}`}
-      title={s.description || s.name}
+      title={s.description ? stripMitreMarkup(s.description) : s.name}
       className={`group relative block bg-void-850 border p-3 transition-colors ${
         hasRules ? `border-void-700 ${accent.border}` : `border-void-800 hover:border-void-600 opacity-70 hover:opacity-100`
       }`}

@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
+import { MitreText } from '../components/MitreText';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
 import type { ActorMatchMode } from '../services/api';
@@ -27,21 +28,6 @@ function SeverityBadge({ severity }: { severity: string }) {
     >
       {severity.slice(0, 4)}
     </span>
-  );
-}
-
-/** Renders long MITRE description text with basic paragraph splits. */
-function MitreDescription({ text }: { text: string }) {
-  if (!text) return null;
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  return (
-    <div className="prose prose-invert prose-sm max-w-none space-y-2">
-      {paragraphs.map((p, i) => (
-        <p key={i} className="text-sm text-gray-300 leading-relaxed">
-          {p}
-        </p>
-      ))}
-    </div>
   );
 }
 
@@ -173,7 +159,7 @@ export function ActorDetail() {
       {actor.description && (
         <section>
           <SectionHead title="About" subtitle="from mitre att&ck" />
-          <MitreDescription text={actor.description} />
+          <MitreText text={actor.description} />
         </section>
       )}
 
