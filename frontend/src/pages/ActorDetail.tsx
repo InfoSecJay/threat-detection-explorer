@@ -15,7 +15,8 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
-import { MitreText } from '../components/MitreText';
+import { MitreText, MitreReferences, resolveCitations } from '../components/MitreText';
+import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
 import type { ActorMatchMode } from '../services/api';
@@ -36,6 +37,7 @@ export function ActorDetail() {
   const navigate = useNavigate();
   const [matchMode, setMatchMode] = useState<ActorMatchMode>('exact');
   const { data: actor, isLoading, error } = useActor(id, matchMode);
+  const resolveRoute = useAttackRouteResolver();
 
   if (isLoading) {
     return (
@@ -155,11 +157,28 @@ export function ActorDetail() {
         </div>
       </div>
 
-      {/* Description */}
+      {/* Description + numbered references */}
       {actor.description && (
         <section>
           <SectionHead title="About" subtitle="from mitre att&ck" />
-          <MitreText text={actor.description} />
+          <MitreText
+            text={actor.description}
+            references={actor.references}
+            resolveRoute={resolveRoute}
+          />
+        </section>
+      )}
+
+      {/* References — numbered to match the citation markers in the
+          About text, uncited refs appended unnumbered */}
+      {(actor.references.length > 0 ||
+        resolveCitations(actor.description || '').length > 0) && (
+        <section>
+          <SectionHead title="References" subtitle="external sources cited by mitre" />
+          <MitreReferences
+            citations={resolveCitations(actor.description || '', actor.references)}
+            references={actor.references}
+          />
         </section>
       )}
 
@@ -378,29 +397,6 @@ export function ActorDetail() {
         )}
       </section>
 
-      {/* External references from MITRE */}
-      {actor.references.length > 0 && (
-        <section>
-          <SectionHead title="References" subtitle="external sources cited by mitre" />
-          <ul className="space-y-1.5">
-            {actor.references.map((r, i) => (
-              <li key={i} className="text-xs">
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-matrix-500 hover:text-matrix-400 break-all"
-                >
-                  {r.source_name || r.url}
-                </a>
-                {r.description && (
-                  <span className="text-gray-500 ml-2">— {r.description}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

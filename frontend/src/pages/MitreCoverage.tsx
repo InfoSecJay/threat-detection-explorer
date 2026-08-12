@@ -4,6 +4,7 @@ import { useCoverageMatrix } from '../hooks/useCompare';
 import { useDetections } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
 import { MitreText } from '../components/MitreText';
+import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
 import { sourceTheme as sourceColors, clipSm as clipCornerSm, clipMd as clipCornerMd } from '../constants/style';
 import type { TechniqueCoverage, TacticCoverage } from '../services/api';
 
@@ -300,6 +301,7 @@ function TechniqueDetailPane({
 }) {
   const { techniques, tactics: allTactics, getTechniqueUrl } = useMitre();
   const tech = techniques[techniqueId];
+  const resolveRoute = useAttackRouteResolver();
 
   // Find coverage-matrix entry (for per-source counts)
   const coverageEntry = useMemo(() => {
@@ -420,7 +422,7 @@ function TechniqueDetailPane({
       {tech.description && (
         <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-white uppercase tracking-wider mb-2">Description</h3>
-          <MitreText text={tech.description} />
+          <MitreText text={tech.description} resolveRoute={resolveRoute} />
         </div>
       )}
 
@@ -461,7 +463,7 @@ function TechniqueDetailPane({
       {tech.detection && (
         <div className="bg-void-850 border border-amber-500/20 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-amber-400 uppercase tracking-wider mb-2">MITRE Detection Guidance</h3>
-          <MitreText text={tech.detection} />
+          <MitreText text={tech.detection} resolveRoute={resolveRoute} />
         </div>
       )}
 
