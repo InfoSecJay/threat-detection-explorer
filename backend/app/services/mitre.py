@@ -13,8 +13,11 @@ from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
-# MITRE ATT&CK Enterprise data URL
-MITRE_CTI_URL = "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
+# MITRE ATT&CK Enterprise data URL. attack-stix-data is MITRE's
+# current official distribution (STIX 2.1) and — unlike the legacy
+# mitre/cti bundle — carries an x-mitre-collection object with the
+# release version, which Navigator layer exports pin to.
+MITRE_CTI_URL = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
 
 # Mapping of deprecated/revoked technique IDs to their current equivalents
 # This helps map old technique IDs in rules to current MITRE techniques
