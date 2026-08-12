@@ -106,22 +106,21 @@ class SplunkParser(BaseParser):
             tags = self._extract_tags(all_tags)
 
             # Derive severity from rba or tags. New-schema rules drop
-            # the `rba:` block and instead put the risk score under
-            # `finding.entity.score`. Synthesize an rba-shaped dict so
-            # _derive_severity's existing risk-score logic works either
-            # way.
+            # the `rba:` block and instead carry the integer risk score
+            # under `finding.entity.score` (TTP / Correlation) or
+            # `intermediate_findings.entities[].score` (Anomaly).
+            # Synthesize an rba-shaped dict so _derive_severity's
+            # existing risk-score logic works for every schema.
             rba = data.get("rba", {}) or {}
-            if not rba and "finding" in data:
-                entity = (data.get("finding") or {}).get("entity")
-                entities = entity if isinstance(entity, list) else [entity]
+            if not rba:
                 risk_objects = [
                     {"score": e["score"]}
-                    for e in entities
+                    for e in self._iter_finding_entities(data)
                     if isinstance(e, dict) and e.get("score") is not None
                 ]
                 if risk_objects:
                     rba = {"risk_objects": risk_objects}
-            severity = self._derive_severity(all_tags, rba)
+            severity = self._derive_severity(all_tags, rba, data.get("type"))
 
             # Determine log source from data model and tags
             log_source = self._determine_log_source(data, all_tags)
@@ -306,40 +305,65 @@ class SplunkParser(BaseParser):
 
         return result
 
-    def _derive_severity(self, tags: dict, rba: dict) -> str:
-        """Derive severity from RBA risk score or tags.
+    @staticmethod
+    def _iter_finding_entities(data: dict) -> list:
+        """Collect entity dicts from the new-schema risk containers.
+
+        Two shapes carry the integer risk score in the current schema:
+          - `finding.entity` -- a single dict (TTP / Correlation)
+          - `intermediate_findings.entities` -- a list (Anomaly)
+        Either may also ship as a list; be permissive about both.
+        """
+        entities: list = []
+        finding = data.get("finding")
+        if isinstance(finding, dict):
+            entity = finding.get("entity")
+            entities.extend(entity if isinstance(entity, list) else [entity])
+        inter = data.get("intermediate_findings")
+        for block in inter if isinstance(inter, list) else [inter]:
+            if isinstance(block, dict):
+                ents = block.get("entities") or block.get("entity") or []
+                entities.extend(ents if isinstance(ents, list) else [ents])
+        return entities
+
+    def _derive_severity(self, tags: dict, rba: dict, rule_type: str = "") -> str:
+        """Derive severity from RBA risk score, tags, or rule type.
 
         Args:
             tags: Tags dictionary from the rule
-            rba: RBA (Risk-Based Alerting) configuration
+            rba: RBA (Risk-Based Alerting) configuration (real or
+                synthesized from finding / intermediate_findings)
+            rule_type: The ESCU `type:` field (TTP, Anomaly, Hunting,
+                Correlation, ...) -- used as the last-resort fallback
 
         Returns:
-            Severity string: low, medium, high, critical, or unknown
+            Severity string: low, medium, high, or critical
         """
         # First, try to get score from rba.risk_objects
         risk_objects = rba.get("risk_objects", []) or []
-        if risk_objects:
-            max_score = 0
-            for risk_obj in risk_objects:
-                if isinstance(risk_obj, dict):
-                    score = risk_obj.get("score")
-                    if score is not None:
-                        try:
-                            score_int = int(score)
-                            if score_int > max_score:
-                                max_score = score_int
-                        except (ValueError, TypeError):
-                            pass
+        scores = []
+        for risk_obj in risk_objects:
+            if isinstance(risk_obj, dict):
+                score = risk_obj.get("score")
+                if score is not None:
+                    try:
+                        scores.append(int(score))
+                    except (ValueError, TypeError):
+                        pass
 
-            if max_score > 0:
-                if max_score >= 80:
-                    return "critical"
-                elif max_score >= 60:
-                    return "high"
-                elif max_score >= 40:
-                    return "medium"
-                else:
-                    return "low"
+        if scores:
+            max_score = max(scores)
+            if max_score >= 80:
+                return "critical"
+            elif max_score >= 60:
+                return "high"
+            elif max_score >= 40:
+                return "medium"
+            elif max_score > 0:
+                return "low"
+            # max_score == 0: Correlation searches consume aggregated
+            # risk rather than producing it and ship `score: 0` -- fall
+            # through to the type fallback instead of calling them low.
 
         # Fallback: try to derive from impact/confidence in tags
         impact = tags.get("impact")
@@ -364,7 +388,16 @@ class SplunkParser(BaseParser):
         if risk_severity:
             return risk_severity.lower()
 
-        return "unknown"
+        # Type-based fallback so every ESCU rule lands on a real
+        # severity -- `unknown` silently excluded ~2,100 Splunk rows
+        # from the severity facet. Correlation searches fire only after
+        # aggregated risk crosses the Risk Notable threshold, so they
+        # are high-fidelity alerts -> high. Hunting content is
+        # informational by design, and anything else with no score
+        # signal at all defaults with it -> low.
+        if str(rule_type or "").lower() == "correlation":
+            return "high"
+        return "low"
 
     def _determine_log_source(self, data: dict, tags: dict) -> dict:
         """Determine log source from data model and tags."""

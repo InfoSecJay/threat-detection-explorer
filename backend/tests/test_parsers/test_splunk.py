@@ -207,6 +207,66 @@ mitre_attack_id:
         assert "T9999" in techs
         assert "T1059" not in techs
 
+    def test_severity_from_intermediate_findings(self):
+        """Anomaly rules carry the risk score under
+        intermediate_findings.entities[].score -- 20 -> low."""
+        rule = """
+name: Add DefaultUser And Password In Registry
+search: test
+type: Anomaly
+intermediate_findings:
+    entities:
+        - field: dest
+          type: system
+          score: 20
+          message: modified registry key
+"""
+        result = self.parser.parse(Path("detections/endpoint/test.yml"), rule)
+        assert result is not None
+        assert result.severity == "low"
+
+    def test_severity_correlation_score_zero_maps_high(self):
+        """Correlation rules ship finding.entity.score: 0 (they consume
+        aggregated risk, not produce it). They're high-fidelity Risk
+        Notable alerts -> high, not low/unknown."""
+        rule = """
+name: Active Directory Lateral Movement Identified
+search: test
+type: Correlation
+finding:
+    title: Lateral movement - $risk_object$
+    entity:
+        field: risk_object
+        type: system
+        score: 0
+"""
+        result = self.parser.parse(Path("detections/endpoint/test.yml"), rule)
+        assert result is not None
+        assert result.severity == "high"
+
+    def test_severity_hunting_without_score_maps_low(self):
+        """Hunting rules have no risk score by design -- informational
+        content lands on low, never unknown."""
+        rule = """
+name: 7zip CommandLine To SMB Share Path
+search: test
+type: Hunting
+"""
+        result = self.parser.parse(Path("detections/endpoint/test.yml"), rule)
+        assert result is not None
+        assert result.severity == "low"
+
+    def test_severity_never_unknown(self):
+        """Every Splunk rule must land on a real severity -- the
+        severity facet silently excluded unknowns from the catalog."""
+        rule = """
+name: Bare Minimum Rule
+search: test
+"""
+        result = self.parser.parse(Path("detections/test.yml"), rule)
+        assert result is not None
+        assert result.severity in {"low", "medium", "high", "critical"}
+
     def test_severity_derivation(self):
         """Test severity is derived from confidence and impact."""
         template = """
