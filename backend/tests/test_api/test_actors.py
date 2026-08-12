@@ -43,6 +43,11 @@ FIXTURE_SOFTWARE = {
         "description": "", "url": "", "references": [], "deprecated": False,
         "platforms": [], "techniques": ["T1001"], "groups": ["G0001"],
     },
+    "S0002": {
+        "id": "S0002", "name": "SharedTool", "aliases": [], "type": "tool",
+        "description": "", "url": "", "references": [], "deprecated": False,
+        "platforms": [], "techniques": ["T1002"], "groups": ["G0001", "G0002"],
+    },
 }
 
 FIXTURE_TECHNIQUES = {
@@ -143,7 +148,7 @@ async def test_group_and_software_coverage_counts_are_independent(client, db_ses
     data = resp.json()
 
     assert data["total_groups"] == 3
-    assert data["total_software"] == 1
+    assert data["total_software"] == 2
     assert data["groups_with_coverage"] == 2
     assert data["software_with_coverage"] == 1
 
@@ -217,6 +222,27 @@ async def test_filtered_mode_sort_and_pagination(client, db_session):
 async def test_filtered_mode_invalid_sort_is_400(client, db_session):
     resp = await client.get("/api/actors?sort=bogus")
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_software_defaults_to_used_by_actor_count(client, db_session):
+    resp = await client.get("/api/actors?kind=software")
+    data = resp.json()
+    assert [i["id"] for i in data["items"]] == ["S0002", "S0001"]
+    assert data["items"][0]["used_by_actor_count"] == 2
+    assert data["facets"]["type"] == {"malware": 1, "tool": 1}
+
+
+@pytest.mark.asyncio
+async def test_software_type_and_used_by_actor_filters(client, db_session):
+    resp = await client.get("/api/actors?kind=software&type=tool")
+    assert [i["id"] for i in resp.json()["items"]] == ["S0002"]
+
+    resp = await client.get("/api/actors?kind=software&used_by_actor=g0002")
+    assert [i["id"] for i in resp.json()["items"]] == ["S0002"]
+
+    resp = await client.get("/api/actors?kind=software&used_by_actor=G0001")
+    assert {i["id"] for i in resp.json()["items"]} == {"S0001", "S0002"}
 
 
 @pytest.mark.asyncio

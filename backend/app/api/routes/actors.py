@@ -202,6 +202,7 @@ def _group_entry(g: dict, bundle) -> dict:
 
 def _software_entry(s: dict, bundle) -> dict:
     sc = bundle.software[s["id"]]
+    used_by = s.get("groups", [])
     return {
         "id": s["id"],
         "name": s["name"],
@@ -211,6 +212,11 @@ def _software_entry(s: dict, bundle) -> dict:
         "deprecated": s.get("deprecated", False),
         "modified": s.get("modified"),
         "platforms": s.get("platforms", []),
+        # A rule covering software many actors share is the
+        # highest-leverage detection on the site — this is the
+        # software tab's primary stat and default sort.
+        "used_by_actor_count": len(used_by),
+        "used_by_actors": used_by,
         **_scores(sc),
     }
 
@@ -223,12 +229,15 @@ def _rank_key(e: dict) -> tuple:
 
 # ── Filtering / faceting (Phase 4) ────────────────────────────────
 
-# Filterable dimensions -> entry key holding the value(s).
-FACET_DIMS = {
+# Filterable dimensions -> entry key holding the value(s), per kind.
+GROUP_FACET_DIMS = {
     "sector": "target_sectors",
     "region": "target_regions",
     "motivation": "motivations",
     "origin": "origin_country",
+}
+SOFTWARE_FACET_DIMS = {
+    "type": "type",
 }
 
 SORT_KEYS = {
@@ -243,6 +252,9 @@ SORT_KEYS = {
     ),
     "our_rule_count": lambda e: e["our_rule_count"],
     "modified": lambda e: e.get("modified") or "",
+    # Software-only keys (0 / '' on groups, harmless).
+    "used_by_actor_count": lambda e: e.get("used_by_actor_count", 0),
+    "type": lambda e: e.get("type") or "",
 }
 
 
@@ -255,20 +267,23 @@ def _entry_values(entry: dict, key: str) -> list[str]:
 
 def _apply_filters(
     entries: list[dict],
+    dims_map: dict[str, str],
     dims: dict[str, Optional[list[str]]],
     min_gaps: Optional[int],
     has_exact_rules: Optional[bool],
     q: Optional[str],
+    used_by_actor: Optional[str] = None,
 ) -> list[dict]:
     """Multi-select within a dimension is OR; across dimensions AND."""
     out = []
     ql = (q or "").strip().lower()
+    uba = (used_by_actor or "").strip().upper()
     for e in entries:
         ok = True
         for dim, wanted in dims.items():
-            if not wanted:
+            if not wanted or dim not in dims_map:
                 continue
-            values = set(_entry_values(e, FACET_DIMS[dim]))
+            values = set(_entry_values(e, dims_map[dim]))
             if not values.intersection(wanted):
                 ok = False
                 break
@@ -277,6 +292,8 @@ def _apply_filters(
         if min_gaps is not None and e["gap_count"] < min_gaps:
             continue
         if has_exact_rules is not None and (e["our_rule_count"] > 0) != has_exact_rules:
+            continue
+        if uba and uba not in e.get("used_by_actors", []):
             continue
         if ql:
             hay = " ".join([e["name"], e["id"], *e.get("aliases", [])]).lower()
@@ -288,20 +305,24 @@ def _apply_filters(
 
 def _facets(
     entries: list[dict],
+    dims_map: dict[str, str],
     dims: dict[str, Optional[list[str]]],
     min_gaps: Optional[int],
     has_exact_rules: Optional[bool],
     q: Optional[str],
+    used_by_actor: Optional[str] = None,
 ) -> dict[str, dict[str, int]]:
     """Counts per dimension value, with every OTHER filter applied —
     the count a chip would produce if the user clicked it next."""
     facets: dict[str, dict[str, int]] = {}
-    for dim in FACET_DIMS:
+    for dim in dims_map:
         others = {d: (None if d == dim else w) for d, w in dims.items()}
-        pool = _apply_filters(entries, others, min_gaps, has_exact_rules, q)
+        pool = _apply_filters(
+            entries, dims_map, others, min_gaps, has_exact_rules, q, used_by_actor
+        )
         counts: dict[str, int] = {}
         for e in pool:
-            for v in _entry_values(e, FACET_DIMS[dim]):
+            for v in _entry_values(e, dims_map[dim]):
                 counts[v] = counts.get(v, 0) + 1
         facets[dim] = dict(
             sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
@@ -320,6 +341,12 @@ async def list_actors(
     region: Optional[list[str]] = Query(None),
     motivation: Optional[list[str]] = Query(None),
     origin: Optional[list[str]] = Query(None),
+    type: Optional[list[str]] = Query(
+        None, description="Software only: tool (dual-use) | malware (bespoke)."
+    ),
+    used_by_actor: Optional[str] = Query(
+        None, description="Software only: G-ID; show software this actor uses."
+    ),
     min_gaps: Optional[int] = Query(None, ge=0),
     has_exact_rules: Optional[bool] = Query(None),
     q: Optional[str] = Query(None, description="Free text over name + aliases + ID"),
@@ -359,8 +386,8 @@ async def list_actors(
 
     filtered_mode = any(
         p is not None
-        for p in (kind, sector, region, motivation, origin, min_gaps,
-                  has_exact_rules, q, sort, page, per_page)
+        for p in (kind, sector, region, motivation, origin, type, used_by_actor,
+                  min_gaps, has_exact_rules, q, sort, page, per_page)
     )
 
     if not filtered_mode:
@@ -380,15 +407,32 @@ async def list_actors(
             detail=f"Invalid sort key: {sort}. Expected one of {sorted(SORT_KEYS)}.",
         )
 
-    entries = software if kind == "software" else groups
-    dims = {
-        "sector": sector, "region": region,
-        "motivation": motivation, "origin": origin,
-    }
-    hits = _apply_filters(entries, dims, min_gaps, has_exact_rules, q)
+    is_software = kind == "software"
+    entries = software if is_software else groups
+    dims_map = SOFTWARE_FACET_DIMS if is_software else GROUP_FACET_DIMS
+    dims = (
+        {"type": type}
+        if is_software
+        else {
+            "sector": sector, "region": region,
+            "motivation": motivation, "origin": origin,
+        }
+    )
+    hits = _apply_filters(
+        entries, dims_map, dims, min_gaps, has_exact_rules, q,
+        used_by_actor if is_software else None,
+    )
 
     if sort is not None:
         hits.sort(key=SORT_KEYS[sort], reverse=(order == "desc"))
+    elif is_software:
+        # Software default: most-shared tooling first — a rule for
+        # software used by dozens of actors is the highest-leverage
+        # detection on the site.
+        hits.sort(
+            key=lambda e: (e["used_by_actor_count"], e["weighted_gap"]),
+            reverse=(order == "desc"),
+        )
     elif order == "asc":
         hits.reverse()  # default rank is weighted_gap desc
 
@@ -401,7 +445,10 @@ async def list_actors(
         "total": len(hits),
         "page": page_n,
         "per_page": size,
-        "facets": _facets(entries, dims, min_gaps, has_exact_rules, q),
+        "facets": _facets(
+            entries, dims_map, dims, min_gaps, has_exact_rules, q,
+            used_by_actor if is_software else None,
+        ),
         "summary": {
             "total_groups": len(groups),
             "total_software": len(software),

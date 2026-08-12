@@ -300,7 +300,15 @@ export function ActorDetail() {
       {/* Associated software / groups */}
       {isGroup && actor.associated_software && actor.associated_software.length > 0 && (
         <section>
-          <SectionHead title="Associated software" subtitle="malware + tools this actor is known to use" />
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <SectionHead title="Associated software" subtitle="malware + tools this actor is known to use" />
+            <Link
+              to={`/actors?tab=software&used_by_actor=${actor.id}`}
+              className="text-[10px] font-mono text-matrix-500 hover:text-matrix-400 uppercase tracking-wider border border-matrix-500/30 hover:border-matrix-500/60 px-2 py-1 transition-colors mb-3"
+            >
+              [ filter software tab ]
+            </Link>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
             {actor.associated_software.map((s) => (
               <Link

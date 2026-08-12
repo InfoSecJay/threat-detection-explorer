@@ -94,9 +94,11 @@ function ContextChips({
   );
 }
 
-/** Headline gap stat + weighted-coverage bar + exact rules. Shared by
- *  both card kinds — cards lead with what's NOT covered. */
-function GapStats({ item }: { item: ActorsQueryItem }) {
+/** Headline stat + weighted-coverage bar + exact rules. Actors lead
+ *  with what's NOT covered; software leads with how many actors share
+ *  it — a rule for widely-shared tooling is the highest-leverage
+ *  detection on the site. */
+function GapStats({ item, isGroup }: { item: ActorsQueryItem; isGroup: boolean }) {
   const pct =
     item.weighted_coverage === null || item.weighted_coverage === undefined
       ? null
@@ -104,7 +106,23 @@ function GapStats({ item }: { item: ActorsQueryItem }) {
   const fullyCovered = item.gap_count === 0 && item.technique_count > 0;
   return (
     <div className="pt-2 border-t border-void-700 space-y-2">
-      {fullyCovered ? (
+      {!isGroup ? (
+        <div
+          className="flex items-baseline gap-1.5"
+          title="Distinct ATT&CK groups with a `uses` relationship to this software"
+        >
+          <span
+            className={`text-2xl font-display font-bold tabular-nums leading-none ${
+              (item.used_by_actor_count ?? 0) > 0 ? 'text-white' : 'text-gray-600'
+            }`}
+          >
+            {item.used_by_actor_count ?? 0}
+          </span>
+          <span className="text-[9px] font-mono text-gray-500 uppercase tracking-wider">
+            actors use this
+          </span>
+        </div>
+      ) : fullyCovered ? (
         <div className="text-xs font-mono text-gray-500 uppercase tracking-wider py-1">
           fully covered
         </div>
@@ -182,7 +200,10 @@ function EntityCard({
       style={clipSm}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${accent.label}`}>
+        <span
+          className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${accent.label}`}
+          title={!isGroup ? TYPE_TOOLTIP[item.type ?? ''] : undefined}
+        >
           {kindLabel}
         </span>
         <span className="text-[10px] font-mono text-gray-600 tabular-nums">{item.id}</span>
@@ -197,10 +218,16 @@ function EntityCard({
           {item.aliases.length > 2 && ` +${item.aliases.length - 2}`}
         </div>
       )}
-      <GapStats item={item} />
+      <GapStats item={item} isGroup={isGroup} />
     </Link>
   );
 }
+
+/** Why the tool/malware split matters for detection work. */
+const TYPE_TOOLTIP: Record<string, string> = {
+  tool: 'Dual-use: legitimate admin software abused by actors. Needs behavioral detections and carries FP cost.',
+  malware: 'Bespoke: built for the operation. Signature/IOC detections work.',
+};
 
 // ── Filters ────────────────────────────────────────────────────────
 
@@ -303,9 +330,12 @@ const TABLE_COLUMNS: {
   label: string;
   sort?: string;
   groupsOnly?: boolean;
+  softwareOnly?: boolean;
 }[] = [
   { key: 'name', label: 'Name', sort: 'name' },
   { key: 'aliases', label: 'Aliases' },
+  { key: 'type', label: 'Type', sort: 'type', softwareOnly: true },
+  { key: 'used_by', label: 'Used by', sort: 'used_by_actor_count', softwareOnly: true },
   { key: 'origin', label: 'Origin', sort: 'origin', groupsOnly: true },
   { key: 'motivation', label: 'Motivation', sort: 'motivation', groupsOnly: true },
   { key: 'sectors', label: 'Sectors', groupsOnly: true },
@@ -331,7 +361,9 @@ function ActorsTable({
   onSort: (key: string) => void;
   onSectorClick: (sector: string) => void;
 }) {
-  const columns = TABLE_COLUMNS.filter((c) => isGroup || !c.groupsOnly);
+  const columns = TABLE_COLUMNS.filter((c) =>
+    isGroup ? !c.softwareOnly : !c.groupsOnly
+  );
   return (
     <div className="overflow-x-auto border border-void-700" style={clipSm}>
       <table className="w-full text-xs font-mono">
@@ -373,6 +405,31 @@ function ActorsTable({
                   {item.aliases.length > 3 && ` +${item.aliases.length - 3}`}
                 </span>
               </td>
+              {!isGroup && (
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span
+                    className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider border ${
+                      item.type === 'malware'
+                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                        : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                    }`}
+                    title={TYPE_TOOLTIP[item.type ?? '']}
+                  >
+                    {item.type ?? 'sw'}
+                  </span>
+                </td>
+              )}
+              {!isGroup && (
+                <td
+                  className="px-3 py-2 tabular-nums"
+                  title={(item.used_by_actors ?? []).join(', ')}
+                >
+                  <span className={(item.used_by_actor_count ?? 0) > 0 ? 'text-white font-semibold' : 'text-gray-700'}>
+                    {item.used_by_actor_count ?? 0}
+                  </span>
+                  <span className="text-gray-600 ml-1">actors</span>
+                </td>
+              )}
               {isGroup && (
                 <td className="px-3 py-2 whitespace-nowrap">
                   {item.origin_country ? (
@@ -475,10 +532,14 @@ export function Actors() {
   const region = searchParams.getAll('region');
   const motivation = searchParams.getAll('motivation');
   const origin = searchParams.getAll('origin');
+  const swType = searchParams.getAll('type');
+  const usedByActor = searchParams.get('used_by_actor');
   const minGaps = searchParams.get('min_gaps');
   const hasExactRules = searchParams.get('has_exact_rules');
   const q = searchParams.get('q') ?? '';
-  const sort = searchParams.get('sort') ?? 'weighted_gap';
+  const sort =
+    searchParams.get('sort') ??
+    (tab === 'software' ? 'used_by_actor_count' : 'weighted_gap');
   const order = (searchParams.get('order') === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
   const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
 
@@ -489,6 +550,8 @@ export function Actors() {
       region: tab === 'groups' ? region : undefined,
       motivation: tab === 'groups' ? motivation : undefined,
       origin: tab === 'groups' ? origin : undefined,
+      type: tab === 'software' ? swType : undefined,
+      used_by_actor: tab === 'software' ? usedByActor ?? undefined : undefined,
       min_gaps: minGaps !== null ? Number(minGaps) : undefined,
       has_exact_rules:
         hasExactRules === 'true' ? true : hasExactRules === 'false' ? false : undefined,
@@ -500,7 +563,8 @@ export function Actors() {
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tab, JSON.stringify(sector), JSON.stringify(region), JSON.stringify(motivation),
-     JSON.stringify(origin), minGaps, hasExactRules, q, sort, order, page, view]
+     JSON.stringify(origin), JSON.stringify(swType), usedByActor,
+     minGaps, hasExactRules, q, sort, order, page, view]
   );
 
   const { data, isLoading, error } = useActorsQuery(params);
@@ -541,6 +605,7 @@ export function Actors() {
 
   const activeFilterCount =
     sector.length + region.length + motivation.length + origin.length +
+    swType.length + (usedByActor ? 1 : 0) +
     (minGaps !== null ? 1 : 0) + (hasExactRules !== null ? 1 : 0) + (q ? 1 : 0);
 
   const isGroup = tab === 'groups';
@@ -628,6 +693,11 @@ export function Actors() {
                 update((next) => {
                   if (t === 'software') next.set('tab', 'software');
                   else next.delete('tab');
+                  // Kind-specific filters and sort keys don't carry
+                  // across tabs — reset them on switch.
+                  for (const key of ['sector', 'region', 'motivation', 'origin', 'type', 'used_by_actor', 'sort', 'order']) {
+                    next.delete(key);
+                  }
                 })
               }
               className={`px-4 py-2 text-xs font-display font-semibold uppercase tracking-wider border-b-2 -mb-[1px] transition-colors ${
@@ -649,29 +719,49 @@ export function Actors() {
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
+        {!isGroup && data && (
+          <>
+            <FacetSelect
+              label="type"
+              options={data.facets.type ?? {}}
+              selected={swType}
+              onChange={(v) => setDim('type', v)}
+              renderOption={(v) => v}
+            />
+            {usedByActor && (
+              <button
+                onClick={() => update((next) => next.delete('used_by_actor'))}
+                className="text-[10px] font-mono uppercase tracking-wider text-matrix-400 border border-matrix-500/40 bg-matrix-500/10 px-2 py-1 hover:border-matrix-500/70 transition-colors"
+                title="Clear used-by-actor filter"
+              >
+                used by {usedByActor} ✕
+              </button>
+            )}
+          </>
+        )}
         {isGroup && data && (
           <>
             <FacetSelect
               label="sector"
-              options={data.facets.sector}
+              options={data.facets.sector ?? {}}
               selected={sector}
               onChange={(v) => setDim('sector', v)}
             />
             <FacetSelect
               label="region"
-              options={data.facets.region}
+              options={data.facets.region ?? {}}
               selected={region}
               onChange={(v) => setDim('region', v)}
             />
             <FacetSelect
               label="motivation"
-              options={data.facets.motivation}
+              options={data.facets.motivation ?? {}}
               selected={motivation}
               onChange={(v) => setDim('motivation', v)}
             />
             <FacetSelect
               label="origin"
-              options={data.facets.origin}
+              options={data.facets.origin ?? {}}
               selected={origin}
               onChange={(v) => setDim('origin', v)}
               renderOption={(v) => `${countryFlag(v)} ${countryName(v)}`}
@@ -712,7 +802,7 @@ export function Actors() {
           <button
             onClick={() =>
               update((next) => {
-                for (const key of ['sector', 'region', 'motivation', 'origin', 'min_gaps', 'has_exact_rules', 'q']) {
+                for (const key of ['sector', 'region', 'motivation', 'origin', 'type', 'used_by_actor', 'min_gaps', 'has_exact_rules', 'q']) {
                   next.delete(key);
                 }
               })

@@ -398,6 +398,10 @@ export interface ActorListSoftware {
   gap_count: number;
   weighted_gap: number;
   platforms: string[];
+  // Distinct actors with a `uses` relationship — the software tab's
+  // primary stat and default sort.
+  used_by_actor_count: number;
+  used_by_actors: string[];
   technique_count: number;
   covered_technique_count: number;
   our_rule_count: number;
@@ -423,6 +427,8 @@ export interface ActorsQueryParams {
   region?: string[];
   motivation?: string[];
   origin?: string[];
+  type?: string[];          // software only
+  used_by_actor?: string;   // software only: G-ID
   min_gaps?: number;
   has_exact_rules?: boolean;
   q?: string;
@@ -433,16 +439,17 @@ export interface ActorsQueryParams {
 }
 
 // A query item is a group entry; software rows additionally carry
-// type/platforms and lack the galaxy context fields.
+// type/platforms/used-by and lack the galaxy context fields.
 export type ActorsQueryItem = ActorListGroup &
-  Partial<Pick<ActorListSoftware, 'type' | 'platforms'>>;
+  Partial<Pick<ActorListSoftware, 'type' | 'platforms' | 'used_by_actor_count' | 'used_by_actors'>>;
 
 export interface ActorsQueryResponse {
   items: ActorsQueryItem[];
   total: number;
   page: number;
   per_page: number;
-  facets: Record<'sector' | 'region' | 'motivation' | 'origin', Record<string, number>>;
+  // Groups: sector/region/motivation/origin. Software: type.
+  facets: Partial<Record<'sector' | 'region' | 'motivation' | 'origin' | 'type', Record<string, number>>>;
   summary: {
     total_groups: number;
     total_software: number;
@@ -588,9 +595,10 @@ export const actorsApi = {
   query: async (params: ActorsQueryParams): Promise<ActorsQueryResponse> => {
     const search = new URLSearchParams();
     search.set('kind', params.kind);
-    for (const dim of ['sector', 'region', 'motivation', 'origin'] as const) {
+    for (const dim of ['sector', 'region', 'motivation', 'origin', 'type'] as const) {
       for (const v of params[dim] ?? []) search.append(dim, v);
     }
+    if (params.used_by_actor) search.set('used_by_actor', params.used_by_actor);
     if (params.min_gaps !== undefined) search.set('min_gaps', String(params.min_gaps));
     if (params.has_exact_rules !== undefined) search.set('has_exact_rules', String(params.has_exact_rules));
     if (params.q) search.set('q', params.q);
