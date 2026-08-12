@@ -37,7 +37,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const { data: filterOptions } = useFilterOptions();
   const [showAllTactics, setShowAllTactics] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['source', 'severity', 'status', 'telemetry'])
+    new Set(['source', 'severity', 'telemetry'])
   );
 
   const toggleSection = (section: string) => {
@@ -74,20 +74,15 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
   const hasActiveFilters =
     (filters.sources?.length || 0) > 0 ||
-    (filters.statuses?.length || 0) > 0 ||
     (filters.severities?.length || 0) > 0 ||
     (filters.languages?.length || 0) > 0 ||
     (filters.mitre_tactics?.length || 0) > 0 ||
     (filters.mitre_techniques?.length || 0) > 0 ||
-    (filters.mitre_groups?.length || 0) > 0 ||
-    (filters.mitre_software?.length || 0) > 0 ||
     (filters.platforms?.length || 0) > 0 ||
     (filters.event_categories?.length || 0) > 0 ||
     (filters.data_sources_normalized?.length || 0) > 0 ||
-    (filters.use_cases?.length || 0) > 0 ||
     (filters.event_ids?.length || 0) > 0 ||
     (filters.process_names?.length || 0) > 0 ||
-    (filters.query_complexity?.length || 0) > 0 ||
     (filters.api_actions?.length || 0) > 0 ||
     (filters.file_paths?.length || 0) > 0 ||
     (filters.registry_keys?.length || 0) > 0 ||
@@ -228,42 +223,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* Status filter */}
-      <div className="mb-3">
-        <SectionHeader title="Status" section="status" count={filters.statuses?.length} />
-        {expandedSections.has('status') && (
-          <div className="space-y-1 mt-2">
-            {[
-              { value: 'stable', label: 'Stable', color: '#00ff41' },
-              { value: 'experimental', label: 'Experimental', color: '#fbbf24' },
-              { value: 'deprecated', label: 'Deprecated', color: '#ff0040' },
-              { value: 'unknown', label: 'Unknown', color: '#6b7280' },
-            ].map((status) => (
-              <label
-                key={status.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.statuses?.includes(status.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('statuses', status.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: status.color }}
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
-                  {status.label}
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Language filter */}
       <div className="mb-3">
         <SectionHeader title="Language" section="language" count={filters.languages?.length} />
@@ -364,45 +323,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* Threat Actors (Groups) — raw G-IDs (e.g. G0016). Autocomplete
-          from live corpus facet so users only see IDs that have rules. */}
-      <div className="mb-3">
-        <SectionHeader title="Threat Actor (Group)" section="mitre_groups" count={filters.mitre_groups?.length} />
-        {expandedSections.has('mitre_groups') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.mitre_groups || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, mitre_groups: values, offset: 0 })
-              }
-              placeholder="G-ID (e.g. G0016 for APT29)…"
-              suggestions={(filterOptions?.mitre_groups || []).map((f) => ({ value: f.value, label: f.value }))}
-              normalize={(raw) => raw.trim().toUpperCase()}
-              accent="purple"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Software / Malware — raw S-IDs (e.g. S0002 Mimikatz). */}
-      <div className="mb-3">
-        <SectionHeader title="Software / Malware" section="mitre_software" count={filters.mitre_software?.length} />
-        {expandedSections.has('mitre_software') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.mitre_software || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, mitre_software: values, offset: 0 })
-              }
-              placeholder="S-ID (e.g. S0154 for Cobalt Strike)…"
-              suggestions={(filterOptions?.mitre_software || []).map((f) => ({ value: f.value, label: f.value }))}
-              normalize={(raw) => raw.trim().toUpperCase()}
-              accent="purple"
-            />
-          </div>
-        )}
-      </div>
-
       {/* Telemetry — canonical taxonomy facets (Platform / Data Source /
           Event Type). Options + counts come from the live corpus via
           /api/detections/filters; no hardcoded lists. Replaces ~170
@@ -428,25 +348,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 data_sources: filterOptions?.data_sources || [],
                 event_types: filterOptions?.event_types || [],
               }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Use Cases filter — vendor analytic story / use-case labels
-          (Splunk analytic_story, Elastic Use Case: tags, Sublime
-          attack_types). Empty on other sources. */}
-      <div className="mb-3">
-        <SectionHeader title="Use Cases" section="usecases" count={filters.use_cases?.length} />
-        {expandedSections.has('usecases') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.use_cases || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, use_cases: values, offset: 0 })
-              }
-              placeholder="e.g., Ransomware, Threat Detection"
-              accent="matrix"
             />
           </div>
         )}
@@ -483,41 +384,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               normalize={(raw) => raw.trim().toLowerCase()}
               accent="matrix"
             />
-          </div>
-        )}
-      </div>
-
-      {/* Query Complexity filter */}
-      <div className="mb-3">
-        <SectionHeader title="Query Complexity" section="complexity" count={filters.query_complexity?.length} />
-        {expandedSections.has('complexity') && (
-          <div className="space-y-1 mt-2">
-            {[
-              { value: 'simple', label: 'Simple', color: '#00ff41' },
-              { value: 'moderate', label: 'Moderate', color: '#fbbf24' },
-              { value: 'complex', label: 'Complex', color: '#ff0040' },
-            ].map((complexity) => (
-              <label
-                key={complexity.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.query_complexity?.includes(complexity.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('query_complexity', complexity.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: complexity.color }}
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
-                  {complexity.label}
-                </span>
-              </label>
-            ))}
           </div>
         )}
       </div>
