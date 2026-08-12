@@ -183,6 +183,7 @@ def _scores(sc) -> dict:
         ),
         "gap_count": sc.gap_count,
         "weighted_gap": round(sc.weighted_gap, 4),
+        "mention_count": sc.mention_count,
     }
 
 
@@ -256,6 +257,7 @@ SORT_KEYS = {
         e["weighted_coverage"] if e["weighted_coverage"] is not None else -1
     ),
     "our_rule_count": lambda e: e["our_rule_count"],
+    "mention_count": lambda e: e.get("mention_count", 0),
     "modified": lambda e: e.get("modified") or "",
     # Software-only keys (0 / '' on groups, harmless).
     "used_by_actor_count": lambda e: e.get("used_by_actor_count", 0),

@@ -51,6 +51,8 @@ SYN_TECHNIQUES = {
 
 @pytest.fixture
 def synthetic_catalog(monkeypatch):
+    from app.services.actor_context import actor_context_service
+
     monkeypatch.setattr(mitre_service, "_groups", json.loads(json.dumps(SYN_GROUPS)))
     monkeypatch.setattr(mitre_service, "_software", json.loads(json.dumps(SYN_SOFTWARE)))
     monkeypatch.setattr(mitre_service, "_techniques", json.loads(json.dumps(SYN_TECHNIQUES)))
@@ -60,6 +62,10 @@ def synthetic_catalog(monkeypatch):
         return None
 
     monkeypatch.setattr(mitre_service, "ensure_loaded", _noop)
+    # Keep the context service inert: no galaxy load, no network.
+    monkeypatch.setattr(actor_context_service, "_contexts", {})
+    monkeypatch.setattr(actor_context_service, "_loaded", True)
+    monkeypatch.setattr(actor_context_service, "ensure_loaded", _noop)
     mitre_service._recompute_actor_weights()
     yield
 
@@ -114,7 +120,67 @@ def test_no_techniques_scores_null_coverage(synthetic_catalog):
     assert sc.weighted_gap == 0.0
 
 
-# ── Cache fingerprinting ───────────────────────────────────────────
+# ── Mention counting ───────────────────────────────────────────────
+
+def test_mention_counts_word_boundary_semantics():
+    from app.services.actor_scores import compute_mention_counts
+
+    texts = [
+        "Detects Mimikatz credential dumping",       # match
+        "notmimikatz variant string",                # substring only -> no
+        "MIMIKATZ in caps with tags",                # case-insensitive match
+        "Shai-Hulud npm worm activity",              # hyphen = word boundary
+        "unrelated rule about powershell",           # no
+    ]
+    counts = compute_mention_counts(texts, {
+        "S0002": ["Mimikatz"],
+        "S9008": ["Shai-Hulud", "Shai Hulud"],
+        "G0001": ["Alpha Group"],
+    })
+    assert counts["S0002"] == 2
+    assert counts["S9008"] == 1
+    assert counts["G0001"] == 0
+
+
+def test_mention_counts_rule_level_dedupe():
+    """A rule naming an entity twice (name + alias) counts once."""
+    from app.services.actor_scores import compute_mention_counts
+
+    counts = compute_mention_counts(
+        ["APT29 aka Cozy Bear phishing campaign"],
+        {"G0016": ["APT29", "Cozy Bear"]},
+    )
+    assert counts["G0016"] == 1
+
+
+def test_mention_counts_skips_nothing_but_shares_names():
+    """The same alias owned by two entities credits both."""
+    from app.services.actor_scores import compute_mention_counts
+
+    counts = compute_mention_counts(
+        ["Uses the Empire framework"],
+        {"S0363": ["Empire"], "G9999": ["Empire"]},
+    )
+    assert counts["S0363"] == 1
+    assert counts["G9999"] == 1
+
+
+@pytest.mark.asyncio
+async def test_bundle_carries_mention_counts(synthetic_catalog, db_session):
+    from app.services.actor_scores import ActorScoreService
+
+    db_session.add(Detection(
+        source="sigma", source_file="m.yml", source_repo_url="u",
+        title="Possible A activity", description="Long-form writeup naming A.",
+        detection_logic="x", language="sigma", raw_content="raw",
+    ))
+    await db_session.commit()
+
+    svc = ActorScoreService()
+    bundle = await svc.get(db_session)
+    # Synthetic group names ("A", "B"...) are under the 3-char minimum,
+    # so nothing should count — the filter is the assertion here.
+    assert all(sc.mention_count == 0 for sc in bundle.groups.values())
 
 @pytest.mark.asyncio
 async def test_bundle_cached_until_corpus_changes(synthetic_catalog, db_session):

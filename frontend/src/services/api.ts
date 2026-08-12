@@ -405,6 +405,7 @@ export interface ActorListGroup {
   technique_count: number;         // known techniques from MITRE
   covered_technique_count: number; // raw: how many have any rules (detail-page metric)
   our_rule_count: number;          // rules tagged with this G-ID (exact match)
+  mention_count: number;           // rules mentioning name/alias as a whole word
   sources_with_coverage: string[];
   weighted_coverage: number | null; // distinctiveness-weighted, 0..1
   gap_count: number;                // techniques with no rules
@@ -436,6 +437,7 @@ export interface ActorListSoftware {
   technique_count: number;
   covered_technique_count: number;
   our_rule_count: number;
+  mention_count: number;
   sources_with_coverage: string[];
 }
 

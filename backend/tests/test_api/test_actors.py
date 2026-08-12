@@ -246,6 +246,26 @@ async def test_software_type_and_used_by_actor_filters(client, db_session):
     assert {i["id"] for i in resp.json()["items"]} == {"S0001", "S0002"}
 
 
+# ── Mention counts in list responses ────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_list_carries_mention_counts_from_merged_aliases(client, db_session):
+    db_session.add_all([
+        # Mentions G0001 via its galaxy alias, no exact tag — the
+        # "0 exact rules but N mentions" signal.
+        _rule(title="Stone Alpha implant staging"),
+        _rule(title="Unrelated PowerShell rule"),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors?kind=groups&sort=mention_count&order=desc")
+    items = resp.json()["items"]
+    assert items[0]["id"] == "G0001"
+    assert items[0]["mention_count"] == 1
+    assert items[0]["our_rule_count"] == 0
+    assert all(i["mention_count"] == 0 for i in items[1:])
+
+
 # ── Navigator layer export (Phase 6) ───────────────────────────────
 
 @pytest.mark.asyncio

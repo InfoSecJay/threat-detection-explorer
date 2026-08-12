@@ -167,7 +167,15 @@ function GapStats({ item, isGroup }: { item: ActorsQueryItem; isGroup: boolean }
       <div className="flex items-center justify-between gap-2">
         <span className={`text-[10px] font-mono tabular-nums ${item.our_rule_count > 0 ? 'text-white' : 'text-gray-600'}`}>
           <span className="font-semibold">{item.our_rule_count}</span>
-          <span className="text-gray-600 ml-1">exact-tag rules</span>
+          <span className="text-gray-600 ml-1">exact</span>
+          {item.mention_count > 0 && (
+            <span
+              className={item.our_rule_count === 0 ? 'text-cyan-400 ml-2' : 'text-gray-500 ml-2'}
+              title="Rules mentioning the name or an alias as a whole word"
+            >
+              · {item.mention_count} mentions
+            </span>
+          )}
         </span>
         <SourceDots sources={item.sources_with_coverage} />
       </div>
@@ -344,6 +352,7 @@ const TABLE_COLUMNS: {
   { key: 'gap_count', label: 'Gaps', sort: 'gap_count' },
   { key: 'weighted_coverage', label: 'Weighted cov.', sort: 'weighted_coverage' },
   { key: 'our_rule_count', label: 'Exact rules', sort: 'our_rule_count' },
+  { key: 'mention_count', label: 'Mentions', sort: 'mention_count' },
   { key: 'modified', label: 'Modified', sort: 'modified' },
 ];
 
@@ -498,6 +507,22 @@ function ActorsTable({
               <td className="px-3 py-2 tabular-nums">
                 <span className={item.our_rule_count > 0 ? 'text-white' : 'text-gray-700'}>
                   {item.our_rule_count}
+                </span>
+              </td>
+              <td
+                className="px-3 py-2 tabular-nums"
+                title="Rules whose title/description/tags mention the name or an alias as a whole word — vendor content that exists but isn't ATT&CK-tagged"
+              >
+                <span
+                  className={
+                    item.mention_count > 0 && item.our_rule_count === 0
+                      ? 'text-cyan-400 font-semibold'
+                      : item.mention_count > 0
+                        ? 'text-gray-300'
+                        : 'text-gray-700'
+                  }
+                >
+                  {item.mention_count}
                 </span>
               </td>
               <td className="px-3 py-2 text-gray-500 tabular-nums whitespace-nowrap">
