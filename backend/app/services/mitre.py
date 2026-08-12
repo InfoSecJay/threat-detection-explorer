@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -163,6 +164,7 @@ class MitreAttackService:
             self._techniques = cached_techniques
             self._groups = cached_groups
             self._software = cached_software
+            self._recompute_actor_weights()
             self._last_fetch = file_mtime
             logger.info(
                 f"Loaded MITRE data from cache: {len(self._tactics)} tactics, "
@@ -434,6 +436,34 @@ class MitreAttackService:
         self._techniques = techniques
         self._groups = groups
         self._software = software
+        self._recompute_actor_weights()
+
+    def _recompute_actor_weights(self) -> None:
+        """Derive per-technique distinctiveness weights from the
+        actor -> technique matrix.
+
+            n_t      = number of groups that use technique t
+            weight_t = log(N / n_t)     (N = total group count)
+
+        Techniques nearly every actor uses (T1059.001, T1078, ...)
+        approach weight 0; techniques a handful use carry high weight.
+        Techniques no actor uses are excluded from the corpus
+        (`actor_weight` stays None) rather than dividing by zero.
+
+        Derived purely from in-memory groups + techniques, so it runs
+        after both a fresh STIX parse and a cache load — cache files
+        written before this field existed heal themselves.
+        """
+        n = len(self._groups)
+        if n == 0 or not self._techniques:
+            return
+        usage: dict[str, int] = {}
+        for g in self._groups.values():
+            for tid in g.get("techniques", []):
+                usage[tid] = usage.get(tid, 0) + 1
+        for tid, tech in self._techniques.items():
+            n_t = usage.get(tid, 0)
+            tech["actor_weight"] = math.log(n / n_t) if n_t > 0 else None
 
     def _load_fallback_data(self) -> None:
         """Load minimal fallback data if fetch fails and no cache exists."""

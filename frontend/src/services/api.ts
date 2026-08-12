@@ -371,9 +371,12 @@ export interface ActorListGroup {
   description: string;         // truncated snippet
   deprecated: boolean;
   technique_count: number;         // known techniques from MITRE
-  covered_technique_count: number; // of MITRE techniques, how many we have any rules for
+  covered_technique_count: number; // raw: how many have any rules (detail-page metric)
   our_rule_count: number;          // rules tagged with this G-ID (exact match)
   sources_with_coverage: string[];
+  weighted_coverage: number | null; // distinctiveness-weighted, 0..1
+  gap_count: number;                // techniques with no rules
+  weighted_gap: number;             // uncovered weight mass — primary rank key
 }
 
 export interface ActorListSoftware {
@@ -383,6 +386,9 @@ export interface ActorListSoftware {
   aliases: string[];
   description: string;
   deprecated: boolean;
+  weighted_coverage: number | null;
+  gap_count: number;
+  weighted_gap: number;
   platforms: string[];
   technique_count: number;
   covered_technique_count: number;
@@ -406,6 +412,9 @@ export interface ActorTechniqueEntry {
   technique_name: string;
   has_rules: boolean;
   rule_count: number;
+  // Distinctiveness weight log(N/n_t); null when no actor uses the
+  // technique (excluded from the weight corpus).
+  weight: number | null;
 }
 
 export interface ActorAssociatedSoftware {
@@ -463,6 +472,10 @@ export interface ActorDetail {
 
   technique_count: number;
   covered_technique_count: number;
+  // Distinctiveness-weighted scores (Phase 2 scoring rework).
+  weighted_coverage: number | null;
+  gap_count: number;
+  weighted_gap: number;
   techniques: ActorTechniqueEntry[];
 
   // Cross-references (one or the other depending on kind).

@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.detection import Detection
+from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
 
 router = APIRouter(prefix="/actors", tags=["actors"])
@@ -157,45 +158,6 @@ async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
     return (await db.execute(q)).scalar() or 0
 
 
-# ── Corpus overlay ────────────────────────────────────────────────
-
-async def _load_corpus_overlay(db: AsyncSession) -> dict[str, dict]:
-    """Aggregate our corpus's per-actor + per-software coverage.
-
-    Returns:
-        {
-          "groups":   {G-ID: {"rule_count": N, "sources": {...}}},
-          "software": {S-ID: {"rule_count": N, "sources": {...}}},
-          "techniques": {T-ID: N}   # for coverage overlay per-technique
-        }
-    """
-    q = select(
-        Detection.source,
-        Detection.mitre_groups,
-        Detection.mitre_software,
-        Detection.mitre_techniques,
-    )
-    rows = (await db.execute(q)).all()
-
-    groups: dict[str, dict] = {}
-    software: dict[str, dict] = {}
-    techniques: dict[str, int] = {}
-
-    for source, rgroups, rsoftware, rtechs in rows:
-        for gid in rgroups or []:
-            e = groups.setdefault(gid.upper(), {"rule_count": 0, "sources": set()})
-            e["rule_count"] += 1
-            e["sources"].add(source)
-        for sid in rsoftware or []:
-            e = software.setdefault(sid.upper(), {"rule_count": 0, "sources": set()})
-            e["rule_count"] += 1
-            e["sources"].add(source)
-        for tid in rtechs or []:
-            techniques[tid.upper()] = techniques.get(tid.upper(), 0) + 1
-
-    return {"groups": groups, "software": software, "techniques": techniques}
-
-
 # ── Endpoints ─────────────────────────────────────────────────────
 
 @router.get("")
@@ -205,48 +167,53 @@ async def list_actors(
     """Enumerate the full MITRE catalog with corpus rule-coverage overlaid.
 
     Returns two lists:
-      - `groups`:   every G-ID from MITRE, sorted by our exact-match
-                    rule_count desc then by covered_technique_count desc.
+      - `groups`:   every G-ID from MITRE, sorted by weighted_gap desc
+                    (most outstanding detection work first).
       - `software`: same shape for S-IDs.
 
     Each entry: id, name, aliases (groups) / type (software),
     description snippet (truncated), our_rule_count (exact match),
-    technique_count (from MITRE), covered_technique_count (of those
-    we have any rules for), sources_with_coverage, deprecated.
+    technique_count (from MITRE), covered_technique_count (raw), plus
+    the distinctiveness-weighted scores: weighted_coverage (0..1 or
+    null), gap_count, weighted_gap. Scores are materialized by the
+    actor-score service — no per-request corpus scan.
     """
     await mitre_service.ensure_loaded()
     catalog_groups = mitre_service.get_all_groups()
     catalog_software = mitre_service.get_all_software()
-    corpus = await _load_corpus_overlay(db)
+    bundle = await actor_score_service.get(db)
 
     def _short(desc: str, n: int = 240) -> str:
         d = (desc or "").strip()
         return d if len(d) <= n else d[: n - 1].rstrip() + "…"
 
+    def _scores(sc) -> dict:
+        return {
+            "technique_count": sc.technique_count,
+            "covered_technique_count": sc.covered_technique_count,
+            "our_rule_count": sc.exact_rule_count,
+            "sources_with_coverage": sc.sources,
+            "weighted_coverage": (
+                round(sc.weighted_coverage, 4)
+                if sc.weighted_coverage is not None else None
+            ),
+            "gap_count": sc.gap_count,
+            "weighted_gap": round(sc.weighted_gap, 4),
+        }
+
     def _group_entry(g: dict) -> dict:
-        cov = corpus["groups"].get(g["id"], {})
-        covered = sum(
-            1 for t in g.get("techniques", [])
-            if corpus["techniques"].get(t.upper(), 0) > 0
-        )
+        sc = bundle.groups[g["id"]]
         return {
             "id": g["id"],
             "name": g["name"],
             "aliases": g["aliases"],
             "description": _short(g["description"]),
             "deprecated": g.get("deprecated", False),
-            "technique_count": len(g.get("techniques", [])),
-            "covered_technique_count": covered,
-            "our_rule_count": cov.get("rule_count", 0),
-            "sources_with_coverage": sorted(cov.get("sources", set())),
+            **_scores(sc),
         }
 
     def _software_entry(s: dict) -> dict:
-        cov = corpus["software"].get(s["id"], {})
-        covered = sum(
-            1 for t in s.get("techniques", [])
-            if corpus["techniques"].get(t.upper(), 0) > 0
-        )
+        sc = bundle.software[s["id"]]
         return {
             "id": s["id"],
             "name": s["name"],
@@ -255,19 +222,16 @@ async def list_actors(
             "description": _short(s["description"]),
             "deprecated": s.get("deprecated", False),
             "platforms": s.get("platforms", []),
-            "technique_count": len(s.get("techniques", [])),
-            "covered_technique_count": covered,
-            "our_rule_count": cov.get("rule_count", 0),
-            "sources_with_coverage": sorted(cov.get("sources", set())),
+            **_scores(sc),
         }
 
     groups = [_group_entry(g) for g in catalog_groups.values()]
     software = [_software_entry(s) for s in catalog_software.values()]
 
-    # Sort by rule_count desc first (most-covered first), then by
-    # covered_technique_count desc (widest coverage next), then name.
+    # Rank by outstanding weighted detection work, most first. Ties
+    # (e.g. zero-gap actors) break toward more exact rules, then ID.
     def _key(e: dict) -> tuple:
-        return (-e["our_rule_count"], -e["covered_technique_count"], e["id"])
+        return (-e["weighted_gap"], -e["our_rule_count"], e["id"])
 
     groups.sort(key=_key)
     software.sort(key=_key)
@@ -326,19 +290,23 @@ async def get_actor(
             detail=f"Unknown actor id: {actor_id}",
         )
 
-    corpus = await _load_corpus_overlay(db)
+    bundle = await actor_score_service.get(db)
+    scores = (bundle.groups if kind == "group" else bundle.software)[actor_id]
 
-    # Techniques used by this actor, annotated with our coverage.
+    # Techniques used by this actor, annotated with our coverage and
+    # the distinctiveness weight driving the weighted scores.
     techniques_used = []
     for tid in entity.get("techniques", []):
         tid_u = tid.upper()
-        rule_count = corpus["techniques"].get(tid_u, 0)
+        rule_count = bundle.technique_rule_counts.get(tid_u, 0)
         tech_info = mitre_service.get_technique(tid_u)
+        weight = tech_info.get("actor_weight") if tech_info else None
         techniques_used.append({
             "technique_id": tid_u,
             "technique_name": tech_info.get("name", "") if tech_info else "",
             "has_rules": rule_count > 0,
             "rule_count": rule_count,
+            "weight": round(weight, 4) if weight is not None else None,
         })
     # Sort: covered first (rule_count desc), then uncovered alphabetically.
     techniques_used.sort(key=lambda t: (-t["rule_count"], t["technique_id"]))
@@ -351,13 +319,14 @@ async def get_actor(
             s = mitre_service.get_software(sid)
             if not s:
                 continue
-            sw_cov = corpus["software"].get(sid, {})
+            sw_sc = bundle.software.get(sid)
+            sw_rules = sw_sc.exact_rule_count if sw_sc else 0
             associated.append({
                 "id": sid,
                 "name": s["name"],
                 "type": s["type"],
-                "has_rules": sw_cov.get("rule_count", 0) > 0,
-                "rule_count": sw_cov.get("rule_count", 0),
+                "has_rules": sw_rules > 0,
+                "rule_count": sw_rules,
             })
         associated_key = "associated_software"
     else:
@@ -366,13 +335,14 @@ async def get_actor(
             g = mitre_service.get_group(gid)
             if not g:
                 continue
-            gr_cov = corpus["groups"].get(gid, {})
+            gr_sc = bundle.groups.get(gid)
+            gr_rules = gr_sc.exact_rule_count if gr_sc else 0
             associated.append({
                 "id": gid,
                 "name": g["name"],
                 "aliases": g.get("aliases", []),
-                "has_rules": gr_cov.get("rule_count", 0) > 0,
-                "rule_count": gr_cov.get("rule_count", 0),
+                "has_rules": gr_rules > 0,
+                "rule_count": gr_rules,
             })
         associated_key = "associated_groups"
     associated.sort(key=lambda a: (-a["rule_count"], a["id"]))
@@ -417,8 +387,17 @@ async def get_actor(
 
     return {
         **metadata,
+        # Raw coverage — retained for the detail page ("did we look at
+        # every technique"), no longer the ranking metric.
         "technique_count": len(techniques_used),
         "covered_technique_count": covered_count,
+        # Distinctiveness-weighted scores (see actor_scores service).
+        "weighted_coverage": (
+            round(scores.weighted_coverage, 4)
+            if scores.weighted_coverage is not None else None
+        ),
+        "gap_count": scores.gap_count,
+        "weighted_gap": round(scores.weighted_gap, 4),
         "techniques": techniques_used,
         associated_key: associated,
         "match_counts": {
