@@ -167,9 +167,13 @@ async def test_reset_stuck_jobs_only_affects_old_running_rows(db_session) -> Non
     await db_session.commit()
 
     queue = JobQueueService(db_session)
-    reset_count = await queue.reset_stuck_jobs(timeout_minutes=30)
+    swept = await queue.reset_stuck_jobs(timeout_minutes=30)
 
-    assert reset_count == 1
+    assert len(swept) == 1
+    assert swept[0]["id"] == stuck.id
+    assert swept[0]["job_type"] == "full"
+    assert swept[0]["repository"] == "sentinel"
+    assert swept[0]["triggered_by"] == "scheduled"
 
     await db_session.refresh(stuck)
     await db_session.refresh(fresh)
@@ -199,9 +203,9 @@ async def test_reset_stuck_jobs_ignores_pending_and_completed(db_session) -> Non
     await db_session.commit()
 
     queue = JobQueueService(db_session)
-    reset_count = await queue.reset_stuck_jobs(timeout_minutes=30)
+    swept = await queue.reset_stuck_jobs(timeout_minutes=30)
 
-    assert reset_count == 0
+    assert swept == []
 
     await db_session.refresh(pending_old)
     await db_session.refresh(completed_old)

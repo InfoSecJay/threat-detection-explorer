@@ -7,8 +7,9 @@ themselves — that has moved to the dedicated worker service (see
 and processes them.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -35,6 +36,7 @@ class SchedulerStatusResponse(BaseModel):
     enabled: bool
     schedule_hour: int
     schedule_minute: int
+    schedule_timezone: str
     next_run_time: Optional[datetime]
     last_scheduled_run: Optional[datetime]
     message: str
@@ -82,16 +84,23 @@ def _compute_next_run(now: datetime) -> datetime:
     The API process no longer hosts APScheduler, so we can't ask "when
     does the next run happen?" — we derive it from the same config the
     worker uses. Accurate to the minute, which is all the UI needs.
+
+    The schedule hour/minute are local to `sync_schedule_timezone`
+    (matching the worker's CronTrigger); the result is converted back
+    to naive UTC, the storage convention for every timestamp this API
+    returns.
     """
-    candidate = now.replace(
+    tz = ZoneInfo(settings.sync_schedule_timezone)
+    now_local = now.replace(tzinfo=timezone.utc).astimezone(tz)
+    candidate = now_local.replace(
         hour=settings.sync_schedule_hour,
         minute=settings.sync_schedule_minute,
         second=0,
         microsecond=0,
     )
-    if candidate <= now:
+    if candidate <= now_local:
         candidate += timedelta(days=1)
-    return candidate
+    return candidate.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 @router.get("/status", response_model=SchedulerStatusResponse)
@@ -118,6 +127,7 @@ async def get_scheduler_status(db: AsyncSession = Depends(get_db)):
         enabled=settings.enable_scheduler,
         schedule_hour=settings.sync_schedule_hour,
         schedule_minute=settings.sync_schedule_minute,
+        schedule_timezone=settings.sync_schedule_timezone,
         next_run_time=_compute_next_run(now) if settings.enable_scheduler else None,
         last_scheduled_run=last_scheduled,
         message=(

@@ -58,8 +58,16 @@ class Settings(BaseSettings):
 
     # Scheduler settings
     enable_scheduler: bool = True  # Enable/disable automatic sync
-    sync_schedule_hour: int = 2  # Hour to run daily sync (UTC)
+    # The nightly sync is scheduled in sync_schedule_timezone, not UTC.
+    # 03:00 America/Toronto lands the ~2h full sync well before the
+    # morning (done by ~5AM local, DST-proof) and keeps it clear of
+    # evening pushes -- Railway redeploys the worker on every push,
+    # which kills any sync in progress (the old 02:00 UTC start was
+    # 10PM Toronto, prime deploy time; that collision killed the
+    # Aug 9/11/12 2026 nightly jobs).
+    sync_schedule_hour: int = 3  # Hour to run daily sync (local to timezone below)
     sync_schedule_minute: int = 0  # Minute to run daily sync
+    sync_schedule_timezone: str = "America/Toronto"  # IANA tz for the cron trigger
 
     # Frontend URL (for CORS in production)
     frontend_url: Optional[str] = None

@@ -164,30 +164,55 @@ class JobQueueService:
         )
         await self.db.commit()
 
-    async def reset_stuck_jobs(self, timeout_minutes: int = 30) -> int:
+    async def reset_stuck_jobs(self, timeout_minutes: int = 30) -> list[dict]:
         """Sweep `running` jobs whose `started_at` exceeds the timeout.
 
-        Called once at worker startup to clean up after a previous worker
-        that died mid-job (e.g. container killed by Railway, OOM, etc.).
-        Any row older than `timeout_minutes` is moved to `failed` so the
-        next poll cycle can pick up fresh work without ambiguity.
+        Called at worker startup and periodically from the poll loop to
+        clean up after a previous worker that died mid-job (e.g.
+        container killed by a Railway redeploy, OOM, etc.). Any row older
+        than `timeout_minutes` is moved to `failed` so the next poll
+        cycle can pick up fresh work without ambiguity.
 
-        Returns the number of rows that were reset.
+        Returns one dict per swept row ({id, job_type, repository,
+        triggered_by}) so the caller can decide to requeue the lost work
+        -- a nightly sync killed by a deploy should still happen, not
+        silently vanish until the next night.
         """
         cutoff = utcnow() - timedelta(minutes=timeout_minutes)
         result = await self.db.execute(
-            update(SyncJob)
+            select(SyncJob)
             .where(SyncJob.status == "running")
             .where(SyncJob.started_at < cutoff)
-            .values(
-                status="failed",
-                completed_at=utcnow(),
-                error_message=(
-                    f"Job reset by worker startup — exceeded "
-                    f"{timeout_minutes}m timeout (previous worker likely crashed)"
-                ),
-                error_count=1,
-            )
         )
+        stuck = list(result.scalars().all())
+
+        swept: list[dict] = []
+        for job in stuck:
+            # Conditional UPDATE mirrors the claim pattern: only sweep
+            # the row if it's still `running`, so a concurrent worker
+            # finishing the job at the last moment isn't clobbered.
+            upd = await self.db.execute(
+                update(SyncJob)
+                .where(SyncJob.id == job.id)
+                .where(SyncJob.status == "running")
+                .values(
+                    status="failed",
+                    completed_at=utcnow(),
+                    error_message=(
+                        f"Job reset by worker startup — exceeded "
+                        f"{timeout_minutes}m timeout (previous worker likely crashed)"
+                    ),
+                    error_count=1,
+                )
+            )
+            if (upd.rowcount or 0) > 0:
+                swept.append(
+                    {
+                        "id": job.id,
+                        "job_type": job.job_type,
+                        "repository": job.repository,
+                        "triggered_by": job.triggered_by,
+                    }
+                )
         await self.db.commit()
-        return result.rowcount or 0
+        return swept

@@ -116,18 +116,9 @@ class Worker:
         await init_db()
         settings.repos_dir.mkdir(parents=True, exist_ok=True)
 
-        # Sweep any stuck jobs from a previous worker that crashed mid-run.
-        # Doing this once at startup is enough because we only run one
-        # worker and jobs never become stuck while we're alive.
-        async with async_session_maker() as db:
-            queue = JobQueueService(db)
-            reset_count = await queue.reset_stuck_jobs(
-                timeout_minutes=STUCK_JOB_TIMEOUT_MINUTES
-            )
-            if reset_count > 0:
-                logger.warning(
-                    f"Reset {reset_count} stuck job(s) from a previous worker run"
-                )
+        # Sweep any stuck jobs from a previous worker that crashed mid-run
+        # (and requeue the lost work — see _sweep_and_requeue).
+        await self._sweep_and_requeue()
 
         # Start the nightly cron in-process. This is safe because this
         # worker has no HTTP workload to block — the whole point is that
@@ -139,6 +130,7 @@ class Worker:
                 CronTrigger(
                     hour=settings.sync_schedule_hour,
                     minute=settings.sync_schedule_minute,
+                    timezone=settings.sync_schedule_timezone,
                 ),
                 id="daily_full_sync",
                 name="Daily Full Sync",
@@ -148,7 +140,8 @@ class Worker:
             logger.info(
                 f"Nightly sync scheduled for "
                 f"{settings.sync_schedule_hour:02d}:"
-                f"{settings.sync_schedule_minute:02d} UTC"
+                f"{settings.sync_schedule_minute:02d} "
+                f"{settings.sync_schedule_timezone}"
             )
         else:
             logger.info("Scheduler disabled via ENABLE_SCHEDULER=false")
@@ -224,17 +217,48 @@ class Worker:
             < STUCK_JOB_SWEEP_INTERVAL_SECONDS
         ):
             return
+        await self._sweep_and_requeue()
+        self._last_sweep_at = now
+
+    async def _sweep_and_requeue(self) -> None:
+        """Reset stuck jobs, then requeue the lost work.
+
+        A stuck `running` row almost always means a Railway redeploy (or
+        OOM) killed the previous worker mid-sync. Marking it failed is
+        bookkeeping; the important part is that the night's sync still
+        has to happen — three of the four nightly runs Aug 9-12 2026
+        were lost this way and simply never ran, which left sources
+        visibly stale on the Integrations page.
+
+        Each swept job is re-inserted as a fresh pending row with
+        `triggered_by="requeue"`. A swept row that was ITSELF a requeue
+        is not requeued again — if the job dies twice in a row we assume
+        the job itself is crashing the worker and stop retrying rather
+        than clone-looping forever.
+        """
         async with async_session_maker() as db:
             queue = JobQueueService(db)
-            reset_count = await queue.reset_stuck_jobs(
+            swept = await queue.reset_stuck_jobs(
                 timeout_minutes=STUCK_JOB_TIMEOUT_MINUTES
             )
-        if reset_count > 0:
-            logger.warning(
-                f"Periodic sweep reset {reset_count} stuck job(s) "
-                f"(orphaned >{STUCK_JOB_TIMEOUT_MINUTES}m)"
-            )
-        self._last_sweep_at = now
+            for job in swept:
+                if job["triggered_by"] == "requeue":
+                    logger.error(
+                        f"Stuck job {job['id'][:8]} was already a requeue "
+                        f"and died again — NOT requeuing (possible "
+                        f"job-induced crash loop)"
+                    )
+                    continue
+                new_job = await queue.create_pending_job(
+                    job_type=job["job_type"],
+                    repository=job["repository"],
+                    triggered_by="requeue",
+                )
+                logger.warning(
+                    f"Stuck job {job['id'][:8]} (trigger={job['triggered_by']}, "
+                    f"repo={job['repository'] or 'ALL'}) reset and requeued "
+                    f"as {new_job.id[:8]}"
+                )
 
     async def stop(self) -> None:
         """Request graceful shutdown of the poll loop and health server."""
