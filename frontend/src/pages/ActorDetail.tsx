@@ -85,6 +85,9 @@ export function ActorDetail() {
   const coveredPct = actor.technique_count > 0
     ? Math.round((actor.covered_technique_count / actor.technique_count) * 100)
     : 0;
+  const weightedPct = actor.weighted_coverage === null
+    ? null
+    : Math.round(actor.weighted_coverage * 100);
 
   return (
     <div className="space-y-6">
@@ -137,12 +140,26 @@ export function ActorDetail() {
           </div>
           <div className="flex gap-6 shrink-0">
             <div>
-              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Techniques covered</div>
-              <div className="text-3xl font-display font-bold text-white tabular-nums">
-                {actor.covered_technique_count}
+              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Detection gaps</div>
+              <div className={`text-3xl font-display font-bold tabular-nums ${actor.gap_count > 0 ? 'text-white' : 'text-gray-500'}`}>
+                {actor.gap_count}
                 <span className="text-lg text-gray-500"> / {actor.technique_count}</span>
               </div>
-              <div className="text-[10px] font-mono text-gray-500 mt-1">{coveredPct}% coverage</div>
+              <div className="text-[10px] font-mono text-gray-500 mt-1">
+                techniques with no rules
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Weighted coverage</div>
+              <div className="text-3xl font-display font-bold text-white tabular-nums">
+                {weightedPct === null ? '—' : `${weightedPct}%`}
+              </div>
+              <div
+                className="text-[10px] font-mono text-gray-500 mt-1"
+                title="Raw coverage counts every technique equally; the weighted score discounts TTPs nearly every actor uses"
+              >
+                raw: {actor.covered_technique_count}/{actor.technique_count} ({coveredPct}%)
+              </div>
             </div>
             <div>
               <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Rules ({matchMode})</div>

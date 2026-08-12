@@ -15,6 +15,14 @@ import { Link } from 'react-router-dom';
 import { useActors } from '../hooks/useActors';
 import { stripMitreMarkup } from '../components/MitreText';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
+import {
+  countryFlag,
+  countryName,
+  coverageBarClass,
+  coverageTextClass,
+  GAP_ACCENT_THRESHOLD,
+  MOTIVATION_STYLE,
+} from '../utils/actorDisplay';
 import type { ActorListGroup, ActorListSoftware } from '../services/api';
 
 function SourceDots({ sources }: { sources: string[] }) {
@@ -34,45 +42,134 @@ function SourceDots({ sources }: { sources: string[] }) {
   );
 }
 
-function CoverageMeter({
-  covered,
-  total,
-  accent,
+/** Origin / motivation / sector chips. Chips with no data are omitted
+ *  entirely — no placeholders. Sector chips apply as a filter. */
+function ContextChips({
+  item,
+  onSectorClick,
 }: {
-  covered: number;
-  total: number;
-  accent: string;
+  item: ActorListGroup;
+  onSectorClick?: (sector: string) => void;
 }) {
-  const pct = total > 0 ? Math.round((covered / total) * 100) : 0;
+  const origin = item.origin_country;
+  const motivation = item.motivations?.[0];
+  const sectors = (item.target_sectors ?? []).slice(0, 2);
+  if (!origin && !motivation && sectors.length === 0) return null;
   return (
-    <div className="w-full" title={`${covered} of ${total} techniques have rules (${pct}%)`}>
-      <div className="h-1 bg-void-800 relative overflow-hidden">
-        <div
-          className={`absolute inset-y-0 left-0 ${accent}`}
-          style={{ width: `${pct}%` }}
-        />
+    <div className="flex items-center gap-1 mb-2 flex-wrap">
+      {origin && (
+        <span
+          className="text-[9px] font-mono text-gray-400 border border-void-700 bg-void-900 px-1.5 py-0.5"
+          title={`Origin: ${countryName(origin)}`}
+        >
+          {countryFlag(origin)} {countryName(origin)}
+        </span>
+      )}
+      {motivation && (
+        <span
+          className={`text-[9px] font-mono uppercase tracking-wider border px-1.5 py-0.5 ${
+            MOTIVATION_STYLE[motivation] ?? MOTIVATION_STYLE.unknown
+          }`}
+        >
+          {motivation}
+        </span>
+      )}
+      {sectors.map((sec) => (
+        <button
+          key={sec}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSectorClick?.(sec);
+          }}
+          className="text-[9px] font-mono text-gray-400 border border-void-700 bg-void-900 px-1.5 py-0.5 hover:text-matrix-400 hover:border-matrix-500/40 transition-colors"
+          title={`Filter to actors targeting ${sec}`}
+        >
+          {sec}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Headline gap stat + weighted-coverage bar + exact rules. Shared by
+ *  both card kinds — cards lead with what's NOT covered. */
+function GapStats({
+  item,
+}: {
+  item: ActorListGroup | ActorListSoftware;
+}) {
+  const pct =
+    item.weighted_coverage === null || item.weighted_coverage === undefined
+      ? null
+      : Math.round(item.weighted_coverage * 100);
+  const fullyCovered = item.gap_count === 0 && item.technique_count > 0;
+  return (
+    <div className="pt-2 border-t border-void-700 space-y-2">
+      {fullyCovered ? (
+        <div className="text-xs font-mono text-gray-500 uppercase tracking-wider py-1">
+          fully covered
+        </div>
+      ) : (
+        <div className="flex items-baseline gap-1.5">
+          <span
+            className={`text-2xl font-display font-bold tabular-nums leading-none ${
+              item.gap_count > GAP_ACCENT_THRESHOLD ? 'text-breach-400' : 'text-white'
+            }`}
+          >
+            {item.gap_count}
+          </span>
+          <span className="text-[9px] font-mono text-gray-500 uppercase tracking-wider">
+            techniques with no rules
+          </span>
+        </div>
+      )}
+      <div
+        className="w-full"
+        title={
+          pct === null
+            ? 'No weighted coverage score (no techniques in the weight corpus)'
+            : `Weighted coverage ${pct}% — techniques weighted by distinctiveness (rare TTPs count more)`
+        }
+      >
+        <div className="h-1 bg-void-800 relative overflow-hidden">
+          <div
+            className={`absolute inset-y-0 left-0 ${coverageBarClass(item.weighted_coverage ?? null)}`}
+            style={{ width: `${pct ?? 0}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className={`text-[9px] font-mono tabular-nums ${coverageTextClass(item.weighted_coverage ?? null)}`}>
+            {pct === null ? 'n/a' : `${pct}% weighted`}
+          </span>
+          <span className="text-[9px] font-mono text-gray-500 tabular-nums">
+            {item.covered_technique_count}/{item.technique_count} raw
+          </span>
+        </div>
       </div>
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-[9px] font-mono text-gray-600">
-          {covered}/{total} TTPs covered
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-[10px] font-mono tabular-nums ${item.our_rule_count > 0 ? 'text-white' : 'text-gray-600'}`}>
+          <span className="font-semibold">{item.our_rule_count}</span>
+          <span className="text-gray-600 ml-1">exact-tag rules</span>
         </span>
-        <span className="text-[9px] font-mono text-gray-500 tabular-nums">
-          {pct}%
-        </span>
+        <SourceDots sources={item.sources_with_coverage} />
       </div>
     </div>
   );
 }
 
-function GroupCard({ g }: { g: ActorListGroup }) {
-  const hasRules = g.our_rule_count > 0;
+function GroupCard({
+  g,
+  onSectorClick,
+}: {
+  g: ActorListGroup;
+  onSectorClick?: (sector: string) => void;
+}) {
   return (
     <Link
       to={`/actors/${g.id}`}
       title={g.description ? stripMitreMarkup(g.description) : g.name}
-      className={`group relative block bg-void-850 border p-3 transition-colors ${
-        hasRules ? 'border-void-700 hover:border-breach-500/50' : 'border-void-800 hover:border-void-600 opacity-70 hover:opacity-100'
-      }`}
+      className="group relative block bg-void-850 border border-void-700 hover:border-breach-500/50 p-3 transition-colors"
       style={clipSm}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -81,48 +178,33 @@ function GroupCard({ g }: { g: ActorListGroup }) {
         </span>
         <span className="text-[10px] font-mono text-gray-600 tabular-nums">{g.id}</span>
       </div>
-      <div className="text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 min-h-[2.5rem] group-hover:text-breach-300">
+      <div className="text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 group-hover:text-breach-300">
         {g.name}
       </div>
+      <ContextChips item={g} onSectorClick={onSectorClick} />
       {g.aliases.length > 0 && (
         <div className="text-[10px] font-mono text-gray-500 mb-2 truncate" title={g.aliases.join(', ')}>
           aka {g.aliases.slice(0, 2).join(' · ')}
           {g.aliases.length > 2 && ` +${g.aliases.length - 2}`}
         </div>
       )}
-      <div className="pt-2 border-t border-void-700 space-y-2">
-        <CoverageMeter
-          covered={g.covered_technique_count}
-          total={g.technique_count}
-          accent="bg-breach-500/60"
-        />
-        <div className="flex items-center justify-between gap-2">
-          <span className={`text-[10px] font-mono tabular-nums ${hasRules ? 'text-white' : 'text-gray-600'}`}>
-            <span className="font-semibold">{g.our_rule_count}</span>
-            <span className="text-gray-600 ml-1">exact-tag rules</span>
-          </span>
-          <SourceDots sources={g.sources_with_coverage} />
-        </div>
-      </div>
+      <GapStats item={g} />
     </Link>
   );
 }
 
 function SoftwareCard({ s }: { s: ActorListSoftware }) {
-  const hasRules = s.our_rule_count > 0;
   const kindLabel = s.type === 'tool' ? 'TOOL' : s.type === 'malware' ? 'MALWARE' : 'SW';
   const accent =
     s.type === 'malware'
-      ? { label: 'bg-orange-500/10 text-orange-400 border-orange-500/30', border: 'hover:border-orange-500/50', name: 'group-hover:text-orange-300', bar: 'bg-orange-500/60' }
-      : { label: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30', border: 'hover:border-cyan-500/50', name: 'group-hover:text-cyan-300', bar: 'bg-cyan-500/60' };
+      ? { label: 'bg-orange-500/10 text-orange-400 border-orange-500/30', border: 'hover:border-orange-500/50', name: 'group-hover:text-orange-300' }
+      : { label: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30', border: 'hover:border-cyan-500/50', name: 'group-hover:text-cyan-300' };
 
   return (
     <Link
       to={`/actors/${s.id}`}
       title={s.description ? stripMitreMarkup(s.description) : s.name}
-      className={`group relative block bg-void-850 border p-3 transition-colors ${
-        hasRules ? `border-void-700 ${accent.border}` : `border-void-800 hover:border-void-600 opacity-70 hover:opacity-100`
-      }`}
+      className={`group relative block bg-void-850 border border-void-700 ${accent.border} p-3 transition-colors`}
       style={clipSm}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -131,7 +213,7 @@ function SoftwareCard({ s }: { s: ActorListSoftware }) {
         </span>
         <span className="text-[10px] font-mono text-gray-600 tabular-nums">{s.id}</span>
       </div>
-      <div className={`text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 min-h-[2.5rem] ${accent.name}`}>
+      <div className={`text-sm font-mono font-semibold text-white leading-tight line-clamp-2 mb-2 ${accent.name}`}>
         {s.name}
       </div>
       {s.aliases.length > 0 && (
@@ -140,20 +222,7 @@ function SoftwareCard({ s }: { s: ActorListSoftware }) {
           {s.aliases.length > 2 && ` +${s.aliases.length - 2}`}
         </div>
       )}
-      <div className="pt-2 border-t border-void-700 space-y-2">
-        <CoverageMeter
-          covered={s.covered_technique_count}
-          total={s.technique_count}
-          accent={accent.bar}
-        />
-        <div className="flex items-center justify-between gap-2">
-          <span className={`text-[10px] font-mono tabular-nums ${hasRules ? 'text-white' : 'text-gray-600'}`}>
-            <span className="font-semibold">{s.our_rule_count}</span>
-            <span className="text-gray-600 ml-1">exact-tag rules</span>
-          </span>
-          <SourceDots sources={s.sources_with_coverage} />
-        </div>
-      </div>
+      <GapStats item={s} />
     </Link>
   );
 }
@@ -165,12 +234,17 @@ export function Actors() {
   const [tab, setTab] = useState<Tab>('groups');
   const [query, setQuery] = useState('');
   const [coverageOnly, setCoverageOnly] = useState(false);
+  const [sectorFilter, setSectorFilter] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!data) return { groups: [] as ActorListGroup[], software: [] as ActorListSoftware[] };
     const q = query.trim().toLowerCase();
     const bucket = (group: boolean) => (item: ActorListGroup | ActorListSoftware) => {
       if (coverageOnly && item.our_rule_count === 0) return false;
+      if (group && sectorFilter) {
+        const sectors = (item as ActorListGroup).target_sectors ?? [];
+        if (!sectors.includes(sectorFilter)) return false;
+      }
       if (!q) return true;
       const hay = [
         item.name,
@@ -185,7 +259,7 @@ export function Actors() {
       groups: data.groups.filter(bucket(true)) as ActorListGroup[],
       software: data.software.filter(bucket(false)) as ActorListSoftware[],
     };
-  }, [data, query, coverageOnly]);
+  }, [data, query, coverageOnly, sectorFilter]);
 
   return (
     <div className="space-y-6">
@@ -226,6 +300,15 @@ export function Actors() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {sectorFilter && (
+              <button
+                onClick={() => setSectorFilter(null)}
+                className="text-[10px] font-mono uppercase tracking-wider text-matrix-400 border border-matrix-500/40 bg-matrix-500/10 px-2 py-1 hover:border-matrix-500/70 transition-colors"
+                title="Clear sector filter"
+              >
+                sector: {sectorFilter} ✕
+              </button>
+            )}
             <label className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-gray-400 cursor-pointer">
               <input
                 type="checkbox"
@@ -290,7 +373,9 @@ export function Actors() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-            {filtered.groups.map((g) => <GroupCard key={g.id} g={g} />)}
+            {filtered.groups.map((g) => (
+              <GroupCard key={g.id} g={g} onSectorClick={setSectorFilter} />
+            ))}
           </div>
         )
       )}

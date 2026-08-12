@@ -377,6 +377,12 @@ export interface ActorListGroup {
   weighted_coverage: number | null; // distinctiveness-weighted, 0..1
   gap_count: number;                // techniques with no rules
   weighted_gap: number;             // uncovered weight mass — primary rank key
+  // MISP-galaxy enrichment (Phase 1) — every field nullable; roughly a
+  // third of actors have partial or no galaxy match.
+  origin_country?: string | null;   // ISO-2
+  motivations?: string[];
+  target_sectors?: string[];
+  target_regions?: string[];
 }
 
 export interface ActorListSoftware {
