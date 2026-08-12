@@ -98,7 +98,9 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   const [draft, setDraft] = useState(value);
   const [caret, setCaret] = useState(0);
   const [focused, setFocused] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);
+  // -1 = nothing highlighted: Enter submits the query. Arrow keys
+  // highlight a suggestion, and only then does Enter accept it.
+  const [activeIdx, setActiveIdx] = useState(-1);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -184,16 +186,21 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
       );
       return { suggestions: rank(fieldSug, info.value), tokenInfo: info };
     }
-    // Have `field:` — suggest values for it (if we know any).
+    // Have `field:` — suggest values for it (if we know any). A
+    // suggestion identical to what's already typed is noise (and used
+    // to trap Enter in apply-loops), so drop it.
     const values = valueIndex[info.field.toLowerCase()] || [];
-    return { suggestions: rank(values, info.value), tokenInfo: info };
+    const typedValue = info.value.replace(/^"|"$/g, '').toLowerCase();
+    const remaining = values.filter((v) => v.value.toLowerCase() !== typedValue);
+    return { suggestions: rank(remaining, info.value), tokenInfo: info };
   }, [draft, caret, fields, valueIndex]);
 
   const showDropdown = focused && suggestions.length > 0;
 
   useEffect(() => {
-    // Reset highlighted item whenever the visible list changes.
-    setActiveIdx(0);
+    // Reset to "nothing highlighted" whenever the visible list
+    // changes, so Enter submits by default.
+    setActiveIdx(-1);
   }, [draft, caret]);
 
   const applySuggestion = (sug: Suggestion) => {
@@ -238,16 +245,22 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setActiveIdx((i) => Math.max(i - 1, 0));
+        // Back past the top returns to "nothing highlighted".
+        setActiveIdx((i) => Math.max(i - 1, -1));
         return;
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && suggestions[activeIdx])) {
-        // Enter with a highlighted suggestion accepts it, not submits.
-        if (suggestions[activeIdx]) {
-          e.preventDefault();
-          applySuggestion(suggestions[activeIdx]);
-          return;
-        }
+      if (e.key === 'Tab' && suggestions.length > 0) {
+        // Tab always completes (top suggestion if none highlighted).
+        e.preventDefault();
+        applySuggestion(suggestions[Math.max(activeIdx, 0)]);
+        return;
+      }
+      if (e.key === 'Enter' && activeIdx >= 0 && suggestions[activeIdx]) {
+        // Enter accepts only an explicitly highlighted suggestion;
+        // otherwise it falls through and submits the query.
+        e.preventDefault();
+        applySuggestion(suggestions[activeIdx]);
+        return;
       }
     }
     if (e.key === 'Enter') {
@@ -361,7 +374,6 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
                   e.preventDefault();
                   applySuggestion(sug);
                 }}
-                onMouseEnter={() => setActiveIdx(i)}
                 className={`px-3 py-1.5 cursor-pointer flex items-center gap-3 text-xs font-mono ${active ? 'bg-matrix-500/10 text-white' : 'text-gray-300 hover:bg-void-800'}`}
               >
                 <span className={`shrink-0 uppercase text-[9px] tracking-wider ${sug.kind === 'field' ? 'text-cyan-400' : 'text-matrix-500'}`}>
