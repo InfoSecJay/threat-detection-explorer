@@ -3,20 +3,17 @@
  * techniques). STIX descriptions carry a narrow markup subset that we
  * handle explicitly instead of piping through a full markdown engine:
  *
- *   - [text](url) links — routed internally when the URL is an
- *     attack.mitre.org group/software/technique we have a page for,
- *     external anchor otherwise
+ *   - [text](url) links — external anchors to their real URL
  *   - (Citation: Foo) markers — stripped; the sources they point at are
  *     already listed in each page's References section
  *   - <code>...</code> spans — rendered as styled inline code
  *
  * react-markdown is the wrong tool here: it escapes the raw <code>
- * HTML MITRE uses and can't rewrite MITRE URLs onto our routes.
+ * HTML MITRE uses.
  */
 
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 
 const CITATION_RE = /\s*\(Citation:[^)]*\)/g;
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
@@ -37,19 +34,6 @@ export function stripMitreMarkup(text: string): string {
     .trim();
 }
 
-/** Maps an attack.mitre.org URL onto our own route, if we have one. */
-function internalPath(url: string): string | null {
-  const m = url.match(
-    /^https?:\/\/attack\.mitre\.org\/(?:wiki\/)?(groups|software|techniques)\/([A-Z]+\d+)(?:\/(\d+))?\/?$/i
-  );
-  if (!m) return null;
-  const kind = m[1].toLowerCase();
-  const id = m[2].toUpperCase();
-  if (kind === 'groups' || kind === 'software') return `/actors/${id}`;
-  if (kind === 'techniques') return `/mitre/${m[3] ? `${id}.${m[3]}` : id}`;
-  return null;
-}
-
 function renderInline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
@@ -68,19 +52,16 @@ function renderInline(text: string): ReactNode[] {
         </code>
       );
     } else {
-      const to = internalPath(url);
-      const cls =
-        'text-matrix-500 hover:text-matrix-400 underline decoration-matrix-500/40 underline-offset-2 transition-colors';
       out.push(
-        to ? (
-          <Link key={key++} to={to} className={cls}>
-            {label}
-          </Link>
-        ) : (
-          <a key={key++} href={url} target="_blank" rel="noopener noreferrer" className={cls}>
-            {label}
-          </a>
-        )
+        <a
+          key={key++}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-matrix-500 hover:text-matrix-400 underline decoration-matrix-500/40 underline-offset-2 transition-colors"
+        >
+          {label}
+        </a>
       );
     }
     last = idx + m[0].length;

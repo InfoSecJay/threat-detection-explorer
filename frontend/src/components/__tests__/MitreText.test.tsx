@@ -3,8 +3,8 @@
  *
  * MITRE STIX text carries [label](url) links, (Citation: ...) markers,
  * and <code> spans. The G0063/BlackOasis description was rendering all
- * of that verbatim — these tests pin the fix: links become anchors
- * (internal route for attack.mitre.org entities we host), citations
+ * of that verbatim — these tests pin the fix: links become external
+ * anchors to their real URL (no rewriting onto our routes), citations
  * disappear, code spans render as <code>, and stripMitreMarkup gives
  * tooltip-safe plain text.
  */
@@ -30,13 +30,14 @@ function renderText(text: string) {
 }
 
 describe('MitreText', () => {
-  it('renders attack.mitre.org group links as internal actor routes', () => {
+  it('renders attack.mitre.org links as external anchors to their real URL', () => {
     renderText(BLACKOASIS);
     const links = screen.getAllByRole('link', { name: 'BlackOasis' });
     expect(links).toHaveLength(2);
-    expect(links[0].getAttribute('href')).toBe('/actors/G0063');
+    expect(links[0].getAttribute('href')).toBe('https://attack.mitre.org/groups/G0063');
+    expect(links[0].getAttribute('target')).toBe('_blank');
     expect(screen.getByRole('link', { name: 'NEODYMIUM' }).getAttribute('href')).toBe(
-      '/actors/G0055'
+      'https://attack.mitre.org/groups/G0055'
     );
   });
 
@@ -44,19 +45,6 @@ describe('MitreText', () => {
     const { container } = renderText(BLACKOASIS);
     expect(container.textContent).not.toContain('Citation:');
     expect(container.textContent).toContain('customer of Gamma Group.');
-  });
-
-  it('routes software and sub-technique links internally', () => {
-    renderText(
-      'Uses [FinFisher](https://attack.mitre.org/software/S0182) and ' +
-        '[PowerShell](https://attack.mitre.org/techniques/T1059/001).'
-    );
-    expect(screen.getByRole('link', { name: 'FinFisher' }).getAttribute('href')).toBe(
-      '/actors/S0182'
-    );
-    expect(screen.getByRole('link', { name: 'PowerShell' }).getAttribute('href')).toBe(
-      '/mitre/T1059.001'
-    );
   });
 
   it('renders non-MITRE links as external anchors', () => {
