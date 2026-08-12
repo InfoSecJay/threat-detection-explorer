@@ -237,19 +237,6 @@ export function ActorDetail() {
         </section>
       )}
 
-      {/* References — numbered to match the citation markers in the
-          About text, uncited refs appended unnumbered */}
-      {(actor.references.length > 0 ||
-        resolveCitations(actor.description || '').length > 0) && (
-        <section>
-          <SectionHead title="References" subtitle="external sources cited by mitre" />
-          <MitreReferences
-            citations={resolveCitations(actor.description || '', actor.references)}
-            references={actor.references}
-          />
-        </section>
-      )}
-
       {/* Techniques used — with coverage indicator */}
       <section>
         <SectionHead
@@ -482,6 +469,18 @@ export function ActorDetail() {
         )}
       </section>
 
+      {/* References — numbered to match the citation markers in the
+          About text, uncited refs appended unnumbered */}
+      {(actor.references.length > 0 ||
+        resolveCitations(actor.description || '').length > 0) && (
+        <section>
+          <SectionHead title="References" subtitle="external sources cited by mitre" />
+          <MitreReferences
+            citations={resolveCitations(actor.description || '', actor.references)}
+            references={actor.references}
+          />
+        </section>
+      )}
     </div>
   );
 }
