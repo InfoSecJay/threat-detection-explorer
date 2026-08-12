@@ -53,6 +53,43 @@ function formatRelativeDate(dateStr: string | null): string {
   return `${Math.floor(diffDays / 365)}y`;
 }
 
+// Cap visible tags per cell; overflow collapses into a "+N" tag
+const MAX_VISIBLE_TAGS = 3;
+
+function TagList({ items, colorClass }: { items: string[] | null | undefined; colorClass: string }) {
+  if (!items || items.length === 0) {
+    return <span className="text-xs text-gray-600">-</span>;
+  }
+
+  const visible = items.slice(0, MAX_VISIBLE_TAGS);
+  const hidden = items.slice(MAX_VISIBLE_TAGS);
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {visible.map((item) => (
+        <span
+          key={item}
+          className={`px-1.5 py-0.5 text-xs font-mono border ${
+            item === 'unknown'
+              ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
+              : colorClass
+          }`}
+        >
+          {item}
+        </span>
+      ))}
+      {hidden.length > 0 && (
+        <span
+          className="px-1.5 py-0.5 text-xs font-mono border bg-gray-500/10 text-gray-400 border-gray-500/30"
+          title={hidden.join(', ')}
+        >
+          +{hidden.length}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
@@ -390,64 +427,22 @@ export function RuleList({
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {detection.platforms && detection.platforms.length > 0 ? (
-                          detection.platforms.map((p) => (
-                            <span
-                              key={p}
-                              className={`px-1.5 py-0.5 text-xs font-mono border ${
-                                p === 'unknown'
-                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
-                                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
-                              }`}
-                            >
-                              {p}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-600">-</span>
-                        )}
-                      </div>
+                      <TagList
+                        items={detection.platforms}
+                        colorClass="bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {detection.data_sources && detection.data_sources.length > 0 ? (
-                          detection.data_sources.map((d) => (
-                            <span
-                              key={d}
-                              className={`px-1.5 py-0.5 text-xs font-mono border ${
-                                d === 'unknown'
-                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
-                                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                              }`}
-                            >
-                              {d}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-600">-</span>
-                        )}
-                      </div>
+                      <TagList
+                        items={detection.data_sources}
+                        colorClass="bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {detection.event_types && detection.event_types.length > 0 ? (
-                          detection.event_types.map((e) => (
-                            <span
-                              key={e}
-                              className={`px-1.5 py-0.5 text-xs font-mono border ${
-                                e === 'unknown'
-                                  ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
-                                  : 'bg-orange-500/10 text-orange-300 border-orange-500/30'
-                              }`}
-                            >
-                              {e}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-600">-</span>
-                        )}
-                      </div>
+                      <TagList
+                        items={detection.event_types}
+                        colorClass="bg-orange-500/10 text-orange-300 border-orange-500/30"
+                      />
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span
