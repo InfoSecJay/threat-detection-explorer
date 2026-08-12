@@ -25,6 +25,31 @@ def _normalize_security_domain(value: Any) -> str:
     return str(value).lower().strip()
 
 
+# Fields that historically lived under `tags:` in Splunk's schema but
+# in the current schema (as of the 2025-2026 detection-format migration)
+# frequently appear at the TOP LEVEL of the YAML with no `tags:` block
+# at all. Every downstream extraction helper on this parser
+# (_extract_mitre, _extract_tags, _derive_severity, _determine_log_source)
+# reads from a single flattened `all_tags` dict, so promoting these
+# fields lets the SAME code path handle both schemas. See
+# https://github.com/splunk/security_content/blob/develop/detections/endpoint/windows_powgoop_beacon_decoding.yml
+# for a live example of the new-schema shape.
+_TOP_LEVEL_TAG_FIELDS = (
+    "mitre_attack_id",
+    "kill_chain_phases",
+    "analytic_story",
+    "asset_type",
+    "security_domain",
+    "context",
+    "impact",
+    "confidence",
+    "risk_severity",
+    "cve",
+    "product",
+    "custom_frameworks",
+)
+
+
 class SplunkParser(BaseParser):
     """Parser for Splunk Security Content detection rules (YAML format)."""
 
@@ -56,23 +81,45 @@ class SplunkParser(BaseParser):
                 return None
             title, search = validated
 
-            # Extract MITRE ATT&CK
-            mitre_attack = self._extract_mitre(data)
-
-            # Extract tags. Newer Splunk rules also promote some
-            # fields (`analytic_story`, `asset_type`) to the top
-            # level of the YAML in addition to (or instead of) the
-            # nested `tags:` block. Merge the top-level values in
-            # so the tag extractor + story surfacing catch them.
+            # Build the flattened tag dict FIRST -- every downstream
+            # helper (_extract_mitre, _extract_tags, _derive_severity,
+            # _determine_log_source) reads from it. Splunk's schema is
+            # mid-migration: older rules keep everything under `tags:`,
+            # newer rules (windows_powgoop_beacon_decoding, etc.) hoist
+            # the same fields to the top level with no `tags:` block at
+            # all. Promoting the fields listed in _TOP_LEVEL_TAG_FIELDS
+            # makes the extractors schema-agnostic. Old-schema value
+            # wins on conflict so rules mid-transition (both placements
+            # populated) prefer the historically-authoritative nested
+            # value.
             all_tags = dict(data.get("tags", {}) or {})
-            if "analytic_story" in data and "analytic_story" not in all_tags:
-                all_tags["analytic_story"] = data["analytic_story"]
-            if "asset_type" in data and "asset_type" not in all_tags:
-                all_tags["asset_type"] = data["asset_type"]
+            for field in _TOP_LEVEL_TAG_FIELDS:
+                if field in data and field not in all_tags:
+                    all_tags[field] = data[field]
+
+            # Extract MITRE ATT&CK from the merged tag dict so top-level
+            # mitre_attack_id / kill_chain_phases in the new schema are
+            # picked up.
+            mitre_attack = self._extract_mitre(all_tags)
+
             tags = self._extract_tags(all_tags)
 
-            # Derive severity from rba or tags
-            rba = data.get("rba", {})
+            # Derive severity from rba or tags. New-schema rules drop
+            # the `rba:` block and instead put the risk score under
+            # `finding.entity.score`. Synthesize an rba-shaped dict so
+            # _derive_severity's existing risk-score logic works either
+            # way.
+            rba = data.get("rba", {}) or {}
+            if not rba and "finding" in data:
+                entity = (data.get("finding") or {}).get("entity")
+                entities = entity if isinstance(entity, list) else [entity]
+                risk_objects = [
+                    {"score": e["score"]}
+                    for e in entities
+                    if isinstance(e, dict) and e.get("score") is not None
+                ]
+                if risk_objects:
+                    rba = {"risk_objects": risk_objects}
             severity = self._derive_severity(all_tags, rba)
 
             # Determine log source from data model and tags
@@ -133,7 +180,12 @@ class SplunkParser(BaseParser):
                     # older rules (nested under `tags:`) both work.
                     "analytic_stories": all_tags.get("analytic_story", []) or [],
                     "references": data.get("references", []),
-                    "date": data.get("date"),
+                    # `date` is the old-schema created field; new
+                    # schema uses `creation_date` (and `modification_date`
+                    # for updated). Fall back so both schemas produce
+                    # a valid rule_created_date in the normalizer.
+                    "date": data.get("date") or data.get("creation_date"),
+                    "modification_date": data.get("modification_date"),
                     "cve": all_tags.get("cve", []),
                     "rba": rba,
                 },
@@ -146,13 +198,20 @@ class SplunkParser(BaseParser):
             logger.warning(f"Error parsing {file_path}: {e}")
             return None
 
-    def _extract_mitre(self, data: dict) -> dict:
-        """Extract MITRE ATT&CK from Splunk detection."""
-        tags = data.get("tags", {})
+    def _extract_mitre(self, tags: dict) -> dict:
+        """Extract MITRE ATT&CK from Splunk detection.
+
+        Args:
+            tags: Flattened tag dict built in parse() -- already
+                includes top-level promotions for the new schema.
+
+        Returns:
+            {"tactics": [...], "techniques": [...]}
+        """
         tactics = []
         techniques = []
 
-        # Get MITRE attack IDs from tags
+        # Get MITRE attack IDs
         mitre_ids = tags.get("mitre_attack_id", []) or []
         for mitre_id in mitre_ids:
             if not mitre_id:

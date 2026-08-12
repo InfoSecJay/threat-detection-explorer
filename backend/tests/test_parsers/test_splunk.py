@@ -6,6 +6,50 @@ from app.parsers.splunk import SplunkParser
 from tests.conftest import SAMPLE_SPLUNK_RULE
 
 
+# A real-world sample of the CURRENT (2025-2026) Splunk security-content
+# schema. Key differences from the legacy schema exercised in
+# SAMPLE_SPLUNK_RULE:
+#   - No `tags:` block at all -- everything hoisted to top level
+#   - `mitre_attack_id`, `security_domain`, `asset_type`, `analytic_story`,
+#     `product`, `category` all live at TOP LEVEL
+#   - `creation_date` / `modification_date` replace `date`
+#   - Severity comes from `finding.entity.score` instead of `rba` or
+#     `tags.impact`/`tags.confidence`
+# Source: windows_powgoop_beacon_decoding.yml in splunk/security_content
+NEW_SCHEMA_SPLUNK_RULE = """
+name: Windows PowGoop Beacon Decoding
+id: 4d0480d8-80c4-4f74-84fe-2ab7fb514c85
+version: 2
+creation_date: '2026-05-05'
+modification_date: '2026-05-13'
+author: Raven Tait, Splunk
+status: production
+type: TTP
+description: Detects DLL decoding and executing the PowGoop config.txt payload.
+data_source:
+    - Sysmon EventID 1
+search: |-
+    | tstats count from datamodel=Endpoint.Processes
+    where Processes.parent_process_path="*rundll32.exe"
+finding:
+    title: Potential PowGoop Beacon Decoding activity observed.
+    entity:
+        field: dest
+        type: system
+        score: 50
+analytic_story:
+    - Compromised Windows Host
+asset_type: Endpoint
+mitre_attack_id:
+    - T1059.001
+    - T1001
+product:
+    - Splunk Enterprise
+category: endpoint
+security_domain: endpoint
+"""
+
+
 class TestSplunkParser:
     """Tests for SplunkParser."""
 
@@ -79,6 +123,89 @@ search: [unclosed
 """
         result = self.parser.parse(Path("detections/test.yml"), malformed)
         assert result is None
+
+    # ── New-schema tests (top-level fields, no `tags:` block) ────────
+
+    def test_new_schema_extracts_mitre_techniques(self):
+        """Regression test for the PowGoop bug: mitre_attack_id at the
+        TOP LEVEL of the YAML (no tags: block) must still be extracted."""
+        result = self.parser.parse(
+            Path("detections/endpoint/windows_powgoop_beacon_decoding.yml"),
+            NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        techs = result.mitre_attack.get("techniques", [])
+        assert "T1059.001" in techs
+        assert "T1001" in techs
+
+    def test_new_schema_infers_mitre_tactic_from_technique(self):
+        """T1059.001 -> TA0002 (Execution) should be inferred even when
+        kill_chain_phases isn't present."""
+        result = self.parser.parse(
+            Path("detections/endpoint/test.yml"), NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        assert "TA0002" in result.mitre_attack.get("tactics", [])
+
+    def test_new_schema_extracts_analytic_story_from_top_level(self):
+        """analytic_story at top level (not under tags:) must surface
+        as a story: tag so the Threat Pulse feature keeps working."""
+        result = self.parser.parse(
+            Path("detections/endpoint/test.yml"), NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        assert any(t.startswith("story:") for t in result.tags), (
+            f"Expected a story: tag; got {result.tags}"
+        )
+
+    def test_new_schema_security_domain_from_top_level(self):
+        """security_domain at top level must populate extra so the
+        taxonomy resolver's Tier 4 fallback works."""
+        result = self.parser.parse(
+            Path("detections/endpoint/test.yml"), NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        assert result.extra.get("security_domain") == "endpoint"
+
+    def test_new_schema_severity_from_finding_entity_score(self):
+        """finding.entity.score=50 -> medium (40-59 bucket) via
+        synthetic rba mapping."""
+        result = self.parser.parse(
+            Path("detections/endpoint/test.yml"), NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        assert result.severity == "medium"
+
+    def test_new_schema_creation_date_fallback(self):
+        """When `date:` is absent, `creation_date:` must be used as the
+        rule-created source so the normalizer's date resolver gets a
+        real value instead of falling back to git log."""
+        result = self.parser.parse(
+            Path("detections/endpoint/test.yml"), NEW_SCHEMA_SPLUNK_RULE,
+        )
+        assert result is not None
+        assert result.extra.get("date") == "2026-05-05"
+        assert result.extra.get("modification_date") == "2026-05-13"
+
+    def test_old_schema_still_wins_on_conflict(self):
+        """If a rule mid-migration populates BOTH tags.mitre_attack_id
+        AND top-level mitre_attack_id, the nested (historically
+        authoritative) value must win -- we don't want the new-schema
+        promotion to silently override an existing nested value."""
+        mixed = """
+name: Mixed Schema
+search: test
+tags:
+  mitre_attack_id:
+    - T9999   # nested value
+mitre_attack_id:
+  - T1059     # top-level value; should be ignored
+"""
+        result = self.parser.parse(Path("detections/x.yml"), mixed)
+        assert result is not None
+        techs = result.mitre_attack.get("techniques", [])
+        assert "T9999" in techs
+        assert "T1059" not in techs
 
     def test_severity_derivation(self):
         """Test severity is derived from confidence and impact."""

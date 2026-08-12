@@ -18,10 +18,17 @@ class SplunkNormalizer(BaseNormalizer):
         search_str = self._format_detection_logic(parsed.detection_logic_raw)
         extracted = extract_splunk_fields(search_str)
 
-        # Splunk rules embed `date` (created) but not modified — git log fills in modified
+        # Splunk's date fields vary by schema:
+        #   old schema: `date` (created only)
+        #   new schema: `creation_date` + `modification_date`
+        # The parser normalizes `date` to be either the old-schema
+        # value OR the new-schema `creation_date`. New schema also
+        # gives us `modification_date` explicitly; fall back to git
+        # log for old-schema rules that don't embed it.
         rule_created, rule_modified = self._resolve_rule_dates(
             parsed.file_path,
             embedded_created=self.parse_date(extra.get("date")),
+            embedded_modified=self.parse_date(extra.get("modification_date")),
         )
 
         # Canonical taxonomy
