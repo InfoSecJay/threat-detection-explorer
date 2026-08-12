@@ -191,11 +191,14 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         examples=["actor:APT29", 'actor:"Cozy Bear"', "group:G0016"],
     ),
     FieldSpec(
-        aliases=["malware", "tool", "software"],
+        # `software` is the canonical name (matches the filter pills
+        # and the /actors terminology, where tool|malware is a TYPE of
+        # software). `tool:` / `malware:` still parse for old links.
+        aliases=["software", "tool", "malware"],
         kind="list_mitre_software",
         columns=["mitre_software"],
         description="ATT&CK Software. Accepts raw S-ID or a known name.",
-        examples=["malware:Mimikatz", "tool:S0154"],
+        examples=["software:Mimikatz", "software:S0154"],
     ),
     FieldSpec(
         aliases=["usecase", "story", "use_case"],

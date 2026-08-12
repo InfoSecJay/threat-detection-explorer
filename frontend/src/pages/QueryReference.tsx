@@ -26,8 +26,8 @@ const RECIPES: Array<{ title: string; query: string; explains: string }> = [
   },
   {
     title: 'Cobalt Strike detections in Splunk',
-    query: 'malware:"Cobalt Strike" AND source:splunk',
-    explains: 'Multi-word values need quotes. `malware:` also accepts the S-ID directly.',
+    query: 'software:"Cobalt Strike" AND source:splunk',
+    explains: 'Multi-word values need quotes. `software:` also accepts the S-ID directly.',
   },
   {
     title: 'Credential dumping without linux noise',
@@ -36,7 +36,7 @@ const RECIPES: Array<{ title: string; query: string; explains: string }> = [
   },
   {
     title: 'Anything mentioning Mimikatz outside actor tags',
-    query: 'content:mimikatz NOT malware:Mimikatz',
+    query: 'content:mimikatz NOT software:Mimikatz',
     explains: 'Free-text `content:` searches raw rule body — useful for finding gaps in vendor tagging.',
   },
 ];

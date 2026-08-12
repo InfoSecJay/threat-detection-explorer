@@ -31,7 +31,7 @@ const PLACEHOLDERS = [
   'actor:APT29',
   'tech:T1059.001 platform:windows',
   'title:"cobalt strike"',
-  'malware:Mimikatz OR malware:"Cobalt Strike"',
+  'software:Mimikatz OR software:"Cobalt Strike"',
   'usecase:Ransomware source:splunk',
 ];
 
@@ -147,10 +147,10 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
       add(['data', 'datasource'], filterOpts.data_sources || []);
       add(['event', 'eventtype'], filterOpts.event_types || []);
       add(['usecase', 'story', 'use_case'], filterOpts.use_cases || []);
-      // For actor / malware: the facet gives us IDs (G0016 etc). Users
+      // For actor / software: the facet gives us IDs (G0016 etc). Users
       // can also type names — the backend resolves either way.
       add(['actor', 'group'], filterOpts.mitre_groups || []);
-      add(['malware', 'tool', 'software'], filterOpts.mitre_software || []);
+      add(['software', 'tool', 'malware'], filterOpts.mitre_software || []);
     }
     if (techniques && Object.keys(techniques).length) {
       const techItems = Object.values(techniques)
@@ -167,14 +167,20 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   const { suggestions, tokenInfo } = useMemo(() => {
     const info = currentToken(draft, caret);
     if (info.field === null) {
-      // No colon yet — suggesting field names.
+      // No colon yet — suggesting field names. Offer each field's
+      // canonical (first) alias only; secondary aliases (`malware:`,
+      // `sev:`, …) still parse and still surface once the user starts
+      // typing one, but don't clutter the default list.
+      const typed = info.value.toLowerCase();
       const fieldSug: Suggestion[] = fields.flatMap((f) =>
-        f.aliases.map((a) => ({
-          value: `${a}:`,
-          label: `${a}:`,
-          hint: f.description,
-          kind: 'field' as const,
-        })),
+        f.aliases
+          .filter((a, i) => i === 0 || (typed.length > 0 && a.startsWith(typed)))
+          .map((a) => ({
+            value: `${a}:`,
+            label: `${a}:`,
+            hint: f.description,
+            kind: 'field' as const,
+          })),
       );
       return { suggestions: rank(fieldSug, info.value), tokenInfo: info };
     }
