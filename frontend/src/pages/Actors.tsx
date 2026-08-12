@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useActorsQuery } from '../hooks/useActors';
+import { actorsApi } from '../services/api';
 import { stripMitreMarkup } from '../components/MitreText';
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import {
@@ -510,6 +511,35 @@ function ActorsTable({
   );
 }
 
+/** Combined Navigator layer for the current filter set — "everything
+ *  targeting telecom, scored by our coverage" as one download. */
+function BulkExportButton({
+  params,
+}: {
+  params: Parameters<typeof actorsApi.downloadBulkNavigatorLayer>[0];
+}) {
+  const [exporting, setExporting] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
+          await actorsApi.downloadBulkNavigatorLayer(params);
+        } finally {
+          setExporting(false);
+        }
+      }}
+      disabled={exporting}
+      className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 uppercase tracking-wider border border-cyan-500/30 hover:border-cyan-500/60 px-2 py-1 transition-colors disabled:opacity-50"
+      style={clipSm}
+      title="Download a combined ATT&CK Navigator layer for every actor matching the current filters, scored by our rule coverage"
+    >
+      {exporting ? '[ exporting… ]' : '[ export navigator layer ]'}
+    </button>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────
 
 type Tab = 'groups' | 'software';
@@ -816,6 +846,17 @@ export function Actors() {
           <span className="ml-auto text-[10px] font-mono text-gray-600 tabular-nums">
             {data.total} result{data.total === 1 ? '' : 's'}
           </span>
+        )}
+        {isGroup && data && data.total > 0 && (
+          <BulkExportButton
+            params={{
+              sector, region, motivation, origin,
+              min_gaps: minGaps !== null ? Number(minGaps) : undefined,
+              has_exact_rules:
+                hasExactRules === 'true' ? true : hasExactRules === 'false' ? false : undefined,
+              q: q || undefined,
+            }}
+          />
         )}
       </div>
 

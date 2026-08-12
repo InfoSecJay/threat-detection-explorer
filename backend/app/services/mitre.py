@@ -92,6 +92,10 @@ class MitreAttackService:
         # S-ID. Same shape as groups plus `type` (malware|tool) and
         # `groups` (reverse index of groups that use this software).
         self._software: dict[str, dict] = {}
+        # ATT&CK content version actually ingested (x-mitre-collection
+        # x_mitre_version, e.g. "17.1") — pinned into Navigator layer
+        # exports instead of a hardcoded string.
+        self._attack_version: Optional[str] = None
         self._last_fetch: Optional[datetime] = None
         self._loaded = False
 
@@ -176,6 +180,7 @@ class MitreAttackService:
             self._techniques = cached_techniques
             self._groups = cached_groups
             self._software = cached_software
+            self._attack_version = data.get("attack_version")
             self._recompute_actor_weights()
             self._last_fetch = file_mtime
             logger.info(
@@ -199,6 +204,7 @@ class MitreAttackService:
                     "techniques": self._techniques,
                     "groups": self._groups,
                     "software": self._software,
+                    "attack_version": self._attack_version,
                     "fetched_at": utcnow().isoformat(),
                 }, f, indent=2)
             logger.info(f"Saved MITRE data to cache: {CACHE_FILE}")
@@ -255,6 +261,13 @@ class MitreAttackService:
         # technique and empties out the coverage matrix. Two passes
         # make ordering irrelevant.
         objects = mitre_data.get("objects", [])
+
+        # ATT&CK content version from the collection object.
+        self._attack_version = None
+        for obj in objects:
+            if obj.get("type") == "x-mitre-collection":
+                self._attack_version = obj.get("x_mitre_version")
+                break
 
         for obj in objects:
             if obj.get("type") != "x-mitre-tactic":
@@ -546,9 +559,14 @@ class MitreAttackService:
         """Get a single software entry by S-ID."""
         return self._software.get(software_id.upper())
 
+    def get_attack_version(self) -> Optional[str]:
+        """ATT&CK content version actually ingested (e.g. '17.1')."""
+        return self._attack_version
+
     def get_stats(self) -> dict:
         """Get stats about loaded MITRE data."""
         return {
+            "attack_version": self._attack_version,
             "tactics_count": len(self._tactics),
             "techniques_count": len(self._techniques),
             "subtechniques_count": sum(1 for t in self._techniques.values() if t.get("is_subtechnique")),

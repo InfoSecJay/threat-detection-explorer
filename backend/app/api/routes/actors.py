@@ -35,8 +35,13 @@ from app.models.detection import Detection
 from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
+from app.utils.datetime_utils import utcnow
 
 router = APIRouter(prefix="/actors", tags=["actors"])
+
+# Alias router so the documented /api/software/{S-ID}/navigator-layer
+# path works; software detail itself lives under /actors/{S-ID}.
+software_router = APIRouter(prefix="/software", tags=["actors"])
 
 
 MatchMode = Literal["exact", "coverage", "mention"]
@@ -456,6 +461,292 @@ async def list_actors(
             "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
         },
     }
+
+
+# ── ATT&CK Navigator layer export (Phase 6) ───────────────────────
+
+NAVIGATOR_VERSION = "5.1.0"
+LAYER_FORMAT = "4.5"
+COMMENT_TITLE_CAP = 10
+# Rules scanned for per-technique comments; far above the corpus size,
+# just a runaway guard.
+LAYER_RULES_CAP = 50000
+
+# Red -> amber -> green. Score 0 (gap) renders red — the zeros are
+# the point of the export.
+LAYER_GRADIENT = ["#b71c1c", "#f9a825", "#2e7d32"]
+
+
+async def _technique_rule_titles(
+    db: AsyncSession, technique_ids: list[str], restrict_rows=None,
+) -> dict[str, list[str]]:
+    """technique id -> titles of rules tagging it. `restrict_rows`
+    (rows with .title / .mitre_techniques-like tuple) limits the pool
+    for exact/mention modes; otherwise the corpus is queried."""
+    titles: dict[str, list[str]] = {t: [] for t in technique_ids}
+    wanted = set(technique_ids)
+    if restrict_rows is not None:
+        pool = [(r[2], r[6] or []) for r in restrict_rows]  # title, techniques
+    else:
+        conds = [
+            cast(Detection.mitre_techniques, String).ilike(f'%"{t}"%')
+            for t in technique_ids
+        ]
+        if not conds:
+            return titles
+        q = (
+            select(Detection.title, Detection.mitre_techniques)
+            .where(or_(*conds))
+            .limit(LAYER_RULES_CAP)
+        )
+        pool = [(row[0], row[1] or []) for row in (await db.execute(q)).all()]
+    for title, techs in pool:
+        for t in techs:
+            t_u = t.upper()
+            if t_u in wanted:
+                titles[t_u].append(title)
+    return titles
+
+
+def _technique_comment(titles: list[str]) -> str:
+    if not titles:
+        return ""
+    shown = titles[:COMMENT_TITLE_CAP]
+    overflow = len(titles) - len(shown)
+    comment = " | ".join(shown)
+    if overflow > 0:
+        comment += f" | (+{overflow} more)"
+    return comment
+
+
+def _build_layer(
+    *,
+    name: str,
+    description: str,
+    technique_scores: dict[str, int],
+    technique_comments: dict[str, str],
+    metadata: list[dict],
+) -> dict:
+    max_score = max(technique_scores.values(), default=0)
+    techniques = [
+        {
+            "techniqueID": tid,
+            "score": score,
+            "comment": technique_comments.get(tid, ""),
+            "enabled": True,  # zeros stay enabled — they ARE the point
+            "showSubtechniques": False,
+        }
+        for tid, score in sorted(technique_scores.items())
+    ]
+    return {
+        "name": name,
+        "versions": {
+            "attack": mitre_service.get_attack_version() or "unknown",
+            "navigator": NAVIGATOR_VERSION,
+            "layer": LAYER_FORMAT,
+        },
+        "domain": "enterprise-attack",
+        "description": description,
+        "techniques": techniques,
+        "gradient": {
+            "colors": LAYER_GRADIENT,
+            "minValue": 0,
+            "maxValue": max(max_score, 1),
+        },
+        "legendItems": [
+            {"color": LAYER_GRADIENT[0], "label": "0 rules — detection gap"},
+            {"color": LAYER_GRADIENT[1], "label": "partial rule coverage"},
+            {"color": LAYER_GRADIENT[2], "label": f"{max(max_score, 1)} rules (max observed)"},
+        ],
+        "metadata": metadata,
+        "sorting": 0,
+    }
+
+
+def _layer_response(layer: dict, filename: str):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content=layer,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/navigator-layer")
+async def bulk_navigator_layer(
+    sector: Optional[list[str]] = Query(None),
+    region: Optional[list[str]] = Query(None),
+    motivation: Optional[list[str]] = Query(None),
+    origin: Optional[list[str]] = Query(None),
+    min_gaps: Optional[int] = Query(None, ge=0),
+    has_exact_rules: Optional[bool] = Query(None),
+    q: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Combined Navigator layer for the current actor filter set —
+    "everything targeting telecom, scored by our coverage" as one
+    downloadable deliverable. Scores are corpus rule counts per
+    technique (coverage semantics); comments say how many of the
+    filtered actors use each technique.
+    """
+    await mitre_service.ensure_loaded()
+    await actor_context_service.ensure_loaded()
+    bundle = await actor_score_service.get(db)
+
+    groups = [_group_entry(g, bundle) for g in mitre_service.get_all_groups().values()]
+    dims = {
+        "sector": sector, "region": region,
+        "motivation": motivation, "origin": origin,
+    }
+    hits = _apply_filters(groups, GROUP_FACET_DIMS, dims, min_gaps, has_exact_rules, q)
+    if not hits:
+        raise HTTPException(status_code=404, detail="No actors match this filter set.")
+
+    catalog = mitre_service.get_all_groups()
+    usage: dict[str, int] = {}
+    for e in hits:
+        for tid in catalog[e["id"]].get("techniques", []):
+            usage[tid.upper()] = usage.get(tid.upper(), 0) + 1
+
+    technique_scores = {
+        tid: bundle.technique_rule_counts.get(tid, 0) for tid in usage
+    }
+    technique_titles = await _technique_rule_titles(db, list(usage))
+    # Actor-usage context first, then matching rule titles.
+    technique_comments = {}
+    for tid in usage:
+        prefix = f"used by {usage[tid]}/{len(hits)} filtered actors"
+        rules = _technique_comment(technique_titles.get(tid, []))
+        technique_comments[tid] = f"{prefix} | {rules}" if rules else prefix
+
+    filters_desc = ", ".join(
+        f"{k}={'|'.join(v)}" for k, v in dims.items() if v
+    ) or "no filters"
+    if min_gaps is not None:
+        filters_desc += f", min_gaps={min_gaps}"
+    if has_exact_rules is not None:
+        filters_desc += f", has_exact_rules={has_exact_rules}"
+    if q:
+        filters_desc += f", q={q}"
+
+    layer = _build_layer(
+        name=f"Detection coverage — {len(hits)} actors ({filters_desc})",
+        description=(
+            f"Union of techniques used by {len(hits)} ATT&CK groups matching "
+            f"[{filters_desc}], scored by detection-rule count in the "
+            "Detection Explorer corpus (coverage match mode)."
+        ),
+        technique_scores=technique_scores,
+        technique_comments=technique_comments,
+        metadata=[
+            {"name": "source", "value": "detectionexplorer.io"},
+            {"name": "actors", "value": ", ".join(e["id"] for e in hits[:50])},
+            {"name": "filter", "value": filters_desc},
+            {"name": "generated", "value": utcnow().isoformat()},
+        ],
+    )
+    return _layer_response(layer, "detection-coverage-actors.json")
+
+
+@router.get("/{actor_id}/navigator-layer")
+async def actor_navigator_layer(
+    actor_id: str,
+    match_mode: MatchMode = Query(
+        "coverage",
+        description="Which rules count toward each technique's score.",
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Downloadable ATT&CK Navigator layer for one actor / software:
+    one entry per technique the object uses, score = matching rule
+    count at the selected match mode, comment = matching rule titles
+    (capped). Techniques with score 0 stay enabled — the zeros are the
+    point of the export.
+    """
+    actor_id = actor_id.upper()
+    kind, _ = _actor_type(actor_id)
+
+    await mitre_service.ensure_loaded()
+    await actor_context_service.ensure_loaded()
+    entity = (
+        mitre_service.get_group(actor_id)
+        if kind == "group" else mitre_service.get_software(actor_id)
+    )
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Unknown actor id: {actor_id}")
+
+    bundle = await actor_score_service.get(db)
+    scores_entry = (bundle.groups if kind == "group" else bundle.software)[actor_id]
+    technique_ids = sorted({t.upper() for t in entity.get("techniques", [])})
+
+    if match_mode == "coverage":
+        technique_scores = {
+            tid: bundle.technique_rule_counts.get(tid, 0) for tid in technique_ids
+        }
+        technique_titles = await _technique_rule_titles(db, technique_ids)
+    else:
+        if match_mode == "exact":
+            column = (
+                Detection.mitre_groups if kind == "group" else Detection.mitre_software
+            )
+            rows = await _rules_matching_ids(db, column, [actor_id])
+        else:  # mention
+            ctx = (
+                actor_context_service.get_context(actor_id)
+                if kind == "group" else None
+            )
+            names = [entity["name"]] + merge_aliases(
+                list(entity.get("aliases", [])), ctx, exclude=entity["name"]
+            )
+            rows = await _rules_mentioning(db, names)
+        technique_titles = await _technique_rule_titles(
+            db, technique_ids, restrict_rows=rows
+        )
+        technique_scores = {
+            tid: len(technique_titles.get(tid, [])) for tid in technique_ids
+        }
+
+    weighted = scores_entry.weighted_coverage
+    layer = _build_layer(
+        name=f"{entity['name']} ({actor_id}) — detection coverage",
+        description=(
+            f"Techniques used by {entity['name']} per MITRE ATT&CK, scored by "
+            f"detection-rule count in the Detection Explorer corpus "
+            f"({match_mode} match mode)."
+        ),
+        technique_scores=technique_scores,
+        technique_comments={
+            tid: _technique_comment(technique_titles.get(tid, []))
+            for tid in technique_ids
+        },
+        metadata=[
+            {"name": "source", "value": "detectionexplorer.io"},
+            {"name": "actor", "value": f"{entity['name']} ({actor_id})"},
+            {"name": "match_mode", "value": match_mode},
+            {
+                "name": "weighted_coverage",
+                "value": f"{weighted:.4f}" if weighted is not None else "n/a",
+            },
+            {"name": "generated", "value": utcnow().isoformat()},
+        ],
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", entity["name"].lower()).strip("-")
+    return _layer_response(layer, f"{slug}-{actor_id.lower()}-navigator-layer.json")
+
+
+@software_router.get("/{software_id}/navigator-layer")
+async def software_navigator_layer(
+    software_id: str,
+    match_mode: MatchMode = Query("coverage"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias for /actors/{S-ID}/navigator-layer (documented path)."""
+    if not software_id.upper().startswith("S"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid software id: {software_id}. Expected S####.",
+        )
+    return await actor_navigator_layer(software_id, match_mode, db)
 
 
 @router.get("/{actor_id}")

@@ -103,6 +103,7 @@ def mitre_fixture(monkeypatch):
     monkeypatch.setattr(mitre_service, "_groups", FIXTURE_GROUPS)
     monkeypatch.setattr(mitre_service, "_software", FIXTURE_SOFTWARE)
     monkeypatch.setattr(mitre_service, "_techniques", FIXTURE_TECHNIQUES)
+    monkeypatch.setattr(mitre_service, "_attack_version", "17.1")
     monkeypatch.setattr(mitre_service, "_loaded", True)
 
     async def _noop():
@@ -243,6 +244,82 @@ async def test_software_type_and_used_by_actor_filters(client, db_session):
 
     resp = await client.get("/api/actors?kind=software&used_by_actor=G0001")
     assert {i["id"] for i in resp.json()["items"]} == {"S0001", "S0002"}
+
+
+# ── Navigator layer export (Phase 6) ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_actor_navigator_layer_coverage_mode(client, db_session):
+    db_session.add_all([
+        _rule(title="Rule A", mitre_techniques=["T1001"]),
+        _rule(title="Rule B", mitre_techniques=["T1001"]),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0001/navigator-layer")
+    assert resp.status_code == 200
+    assert "attachment" in resp.headers["content-disposition"]
+    layer = resp.json()
+
+    assert layer["versions"] == {"attack": "17.1", "navigator": "5.1.0", "layer": "4.5"}
+    assert layer["domain"] == "enterprise-attack"
+    # One entry per technique the actor uses; zeros stay enabled.
+    by_id = {t["techniqueID"]: t for t in layer["techniques"]}
+    assert set(by_id) == {"T1001", "T1002"}
+    assert by_id["T1001"]["score"] == 2
+    assert "Rule A | Rule B" == by_id["T1001"]["comment"]
+    assert by_id["T1002"]["score"] == 0
+    assert by_id["T1002"]["enabled"] is True
+    assert layer["gradient"]["maxValue"] == 2
+    meta = {m["name"]: m["value"] for m in layer["metadata"]}
+    assert meta["actor"] == "Alpha Group (G0001)"
+    assert meta["match_mode"] == "coverage"
+    assert "weighted_coverage" in meta and "generated" in meta
+
+
+@pytest.mark.asyncio
+async def test_actor_navigator_layer_exact_mode_restricts_rules(client, db_session):
+    db_session.add_all([
+        # Tags the actor AND T1001.
+        _rule(title="Tagged rule", mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+        # Covers T1001 but not tagged with the actor — must not count
+        # in exact mode.
+        _rule(title="Untagged rule", mitre_techniques=["T1001"]),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0001/navigator-layer?match_mode=exact")
+    by_id = {t["techniqueID"]: t for t in resp.json()["techniques"]}
+    assert by_id["T1001"]["score"] == 1
+    assert by_id["T1001"]["comment"] == "Tagged rule"
+
+
+@pytest.mark.asyncio
+async def test_software_navigator_layer_alias_route(client, db_session):
+    resp = await client.get("/api/software/S0001/navigator-layer")
+    assert resp.status_code == 200
+    layer = resp.json()
+    assert {t["techniqueID"] for t in layer["techniques"]} == {"T1001"}
+
+    resp = await client.get("/api/software/G0001/navigator-layer")
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_bulk_navigator_layer_for_filter_set(client, db_session):
+    db_session.add_all([_rule(title="Rule A", mitre_techniques=["T1001"])])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/navigator-layer?sector=telecommunications")
+    assert resp.status_code == 200
+    layer = resp.json()
+    # Only G0001 targets telecom -> union of its techniques.
+    by_id = {t["techniqueID"]: t for t in layer["techniques"]}
+    assert set(by_id) == {"T1001", "T1002"}
+    assert by_id["T1001"]["comment"].startswith("used by 1/1 filtered actors")
+
+    resp = await client.get("/api/actors/navigator-layer?sector=nonexistent")
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

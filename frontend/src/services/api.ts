@@ -587,6 +587,19 @@ export function extractQueryParseError(err: unknown): QueryParseErrorDetail | nu
   return null;
 }
 
+/** Save a blob as a file, preferring the server's filename. */
+function triggerDownload(blob: Blob, contentDisposition: string | undefined, fallback: string) {
+  const match = contentDisposition?.match(/filename="?([^";]+)"?/);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = match?.[1] ?? fallback;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const actorsApi = {
   list: async (): Promise<ActorsListResponse> => {
     const response = await api.get('/actors');
@@ -608,6 +621,35 @@ export const actorsApi = {
     if (params.per_page) search.set('per_page', String(params.per_page));
     const response = await api.get(`/actors?${search.toString()}`);
     return response.data;
+  },
+  /** Download an ATT&CK Navigator layer for one actor / software. */
+  downloadNavigatorLayer: async (
+    actorId: string,
+    matchMode: ActorMatchMode = 'coverage',
+  ): Promise<void> => {
+    const response = await api.get(
+      `/actors/${actorId}/navigator-layer?match_mode=${matchMode}`,
+      { responseType: 'blob' },
+    );
+    triggerDownload(response.data, response.headers['content-disposition'],
+      `${actorId.toLowerCase()}-navigator-layer.json`);
+  },
+  /** Download a combined Navigator layer for the current filter set. */
+  downloadBulkNavigatorLayer: async (
+    params: Omit<ActorsQueryParams, 'kind' | 'sort' | 'order' | 'page' | 'per_page'>,
+  ): Promise<void> => {
+    const search = new URLSearchParams();
+    for (const dim of ['sector', 'region', 'motivation', 'origin'] as const) {
+      for (const v of params[dim] ?? []) search.append(dim, v);
+    }
+    if (params.min_gaps !== undefined) search.set('min_gaps', String(params.min_gaps));
+    if (params.has_exact_rules !== undefined) search.set('has_exact_rules', String(params.has_exact_rules));
+    if (params.q) search.set('q', params.q);
+    const response = await api.get(`/actors/navigator-layer?${search.toString()}`, {
+      responseType: 'blob',
+    });
+    triggerDownload(response.data, response.headers['content-disposition'],
+      'detection-coverage-actors.json');
   },
   get: async (
     actorId: string,

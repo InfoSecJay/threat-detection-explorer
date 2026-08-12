@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
+import { actorsApi } from '../services/api';
 import { MitreText, MitreReferences, resolveCitations } from '../components/MitreText';
 import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
 import { countryFlag, countryName, MOTIVATION_STYLE } from '../utils/actorDisplay';
@@ -37,8 +38,19 @@ export function ActorDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [matchMode, setMatchMode] = useState<ActorMatchMode>('exact');
+  const [exporting, setExporting] = useState(false);
   const { data: actor, isLoading, error } = useActor(id, matchMode);
   const resolveRoute = useAttackRouteResolver();
+
+  const exportLayer = async () => {
+    if (!actor || exporting) return;
+    setExporting(true);
+    try {
+      await actorsApi.downloadNavigatorLayer(actor.id, matchMode);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -397,6 +409,15 @@ export function ActorDetail() {
               {m} <span className="ml-1 tabular-nums text-gray-500">{actor.match_counts[m]}</span>
             </button>
           ))}
+          <button
+            onClick={exportLayer}
+            disabled={exporting}
+            className="ml-auto text-[10px] font-mono text-cyan-400 hover:text-cyan-300 uppercase tracking-wider border border-cyan-500/30 hover:border-cyan-500/60 px-2 py-1 transition-colors disabled:opacity-50"
+            style={clipSm}
+            title={`Download an ATT&CK Navigator layer: one entry per technique, scored by ${matchMode}-mode rule count. Gaps stay visible at score 0.`}
+          >
+            {exporting ? '[ exporting… ]' : '[ export navigator layer ]'}
+          </button>
           {actor.match_counts[matchMode] > 0 && (
             <button
               onClick={() => {
@@ -408,7 +429,7 @@ export function ActorDetail() {
                     : `q=${encodeURIComponent([actor.name, ...actor.aliases].map((n) => `"${n}"`).join(' OR '))}`;
                 navigate(`/detections?${qs}`);
               }}
-              className="ml-auto text-[10px] font-mono text-matrix-500 hover:text-matrix-400 uppercase tracking-wider border border-matrix-500/30 hover:border-matrix-500/60 px-2 py-1 transition-colors"
+              className="text-[10px] font-mono text-matrix-500 hover:text-matrix-400 uppercase tracking-wider border border-matrix-500/30 hover:border-matrix-500/60 px-2 py-1 transition-colors"
               style={clipSm}
             >
               [ open in catalog ]
