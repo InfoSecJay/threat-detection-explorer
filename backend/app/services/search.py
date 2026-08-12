@@ -577,6 +577,21 @@ class SearchService:
 
         return conditions
 
+    # Sort fields whose column stores a JSON list (platforms,
+    # data_sources, event_types). These are sorted by their string
+    # serialization so rules whose first list element is `"aws"` cluster
+    # together before those starting with `"gcp"`. Not perfect for
+    # multi-element lists but it matches what the user sees in the
+    # cell's first tag, which is the intuitive expectation.
+    _JSON_LIST_SORT_FIELDS = {"platforms", "data_sources", "event_types"}
+
+    # Date fields where NULLs are semantically "unknown" and belong at
+    # the bottom of both asc and desc sorts -- otherwise a huge cluster
+    # of null-dated rules pushes the interesting extremes off the top.
+    _NULLS_LAST_SORT_FIELDS = {
+        "rule_created_date", "rule_modified_date",
+    } | _JSON_LIST_SORT_FIELDS
+
     def _apply_sorting(self, query, sort_by: str, sort_order: str):
         """Apply sorting to query."""
         # Map sort field names to columns
@@ -590,17 +605,25 @@ class SearchService:
             "updated_at": Detection.updated_at,
             "rule_created_date": Detection.rule_created_date,
             "rule_modified_date": Detection.rule_modified_date,
+            "platforms": Detection.platforms,
+            "data_sources": Detection.data_sources,
+            "event_types": Detection.event_types,
         }
 
         column = sort_columns.get(sort_by, Detection.title)
 
-        if sort_order.lower() == "desc":
-            # For date columns, put nulls last when sorting desc
-            if sort_by in ["rule_created_date", "rule_modified_date"]:
-                return query.order_by(column.desc().nullslast())
-            return query.order_by(column.desc())
+        # JSON list columns aren't natively orderable -- cast to string
+        # (works on both Postgres jsonb and SQLite JSON-as-text) so the
+        # DB can order them lexicographically. Portable, no dialect
+        # branches needed.
+        if sort_by in self._JSON_LIST_SORT_FIELDS:
+            column = cast(column, String)
 
-        # For date columns, put nulls last when sorting asc
-        if sort_by in ["rule_created_date", "rule_modified_date"]:
-            return query.order_by(column.asc().nullslast())
-        return query.order_by(column.asc())
+        nulls_last = sort_by in self._NULLS_LAST_SORT_FIELDS
+        if sort_order.lower() == "desc":
+            return query.order_by(
+                column.desc().nullslast() if nulls_last else column.desc()
+            )
+        return query.order_by(
+            column.asc().nullslast() if nulls_last else column.asc()
+        )

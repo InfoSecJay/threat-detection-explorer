@@ -329,6 +329,56 @@ async def test_unknown_sort_field_falls_back_to_title(search):
     assert [d.title for d in rows] == sorted(d.title for d in rows)
 
 
+# JSON-list sorting -- platforms/data_sources/event_types were unsortable
+# until we cast them to string for portable lexicographic ordering.
+# Regression: a rule with platforms=["aws"] must sort before one with
+# platforms=["windows"] under asc, and after under desc.
+
+
+@pytest.mark.asyncio
+async def test_sort_by_platforms_asc(search):
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="platforms", sort_order="asc", limit=1000)
+    )
+    # Skip rules with empty platforms -- they cluster with nulls_last.
+    populated = [r for r in rows if r.platforms]
+    firsts = [(r.platforms or [""])[0] for r in populated]
+    assert firsts == sorted(firsts), (
+        f"platforms:asc did not sort by first element -- got {firsts[:5]}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sort_by_platforms_desc(search):
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="platforms", sort_order="desc", limit=1000)
+    )
+    populated = [r for r in rows if r.platforms]
+    firsts = [(r.platforms or [""])[0] for r in populated]
+    assert firsts == sorted(firsts, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_sort_by_data_sources_asc(search):
+    """data_sources column must also sort -- same cast(String) path."""
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="data_sources", sort_order="asc", limit=1000)
+    )
+    populated = [r for r in rows if r.data_sources]
+    firsts = [(r.data_sources or [""])[0] for r in populated]
+    assert firsts == sorted(firsts)
+
+
+@pytest.mark.asyncio
+async def test_sort_by_event_types_asc(search):
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="event_types", sort_order="asc", limit=1000)
+    )
+    populated = [r for r in rows if r.event_types]
+    firsts = [(r.event_types or [""])[0] for r in populated]
+    assert firsts == sorted(firsts)
+
+
 # ── Pagination + total drift ────────────────────────────────────────────
 
 

@@ -23,7 +23,10 @@ const severityColors: Record<string, { bg: string; text: string; border: string 
   unknown: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/30' },
 };
 
-// Sort options
+// Sort options -- mirrors the clickable column headers below. Any
+// field listed here must also appear in the backend
+// _apply_sorting sort_columns map or the sort silently falls back
+// to Title.
 const sortOptions = [
   { value: 'title:asc', label: 'Title (A-Z)' },
   { value: 'title:desc', label: 'Title (Z-A)' },
@@ -34,6 +37,10 @@ const sortOptions = [
   { value: 'rule_modified_date:desc', label: 'Modified (Newest)' },
   { value: 'rule_modified_date:asc', label: 'Modified (Oldest)' },
   { value: 'source:asc', label: 'Source (A-Z)' },
+  { value: 'language:asc', label: 'Language (A-Z)' },
+  { value: 'platforms:asc', label: 'Platform (A-Z)' },
+  { value: 'data_sources:asc', label: 'Data Source (A-Z)' },
+  { value: 'event_types:asc', label: 'Event Type (A-Z)' },
 ];
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -344,14 +351,26 @@ export function RuleList({
                 >
                   Severity <SortIndicator field="severity" />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Platform
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('platforms')}
+                  title="Sort by first platform (alphabetical)"
+                >
+                  Platform <SortIndicator field="platforms" />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Data Source
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('data_sources')}
+                  title="Sort by first data source (alphabetical)"
+                >
+                  Data Source <SortIndicator field="data_sources" />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider">
-                  Event Type
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('event_types')}
+                  title="Sort by first event type (alphabetical)"
+                >
+                  Event Type <SortIndicator field="event_types" />
                 </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
