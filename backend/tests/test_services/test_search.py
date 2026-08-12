@@ -460,3 +460,51 @@ async def test_empty_string_search_is_treated_as_no_search(search, corpus):
     set to zero — it should behave like no text filter at all."""
     rows, total = await search.search_detections(SearchFilters(search=""))
     assert total == len(corpus)
+
+
+# ── Facets (filter-sidebar counts) ──────────────────────────────────────
+
+
+def facet_map(facet: list[dict]) -> dict[str, int]:
+    return {f["value"]: f["count"] for f in facet}
+
+
+@pytest.mark.asyncio
+async def test_facets_unfiltered_counts_whole_corpus(search):
+    facets = await search.get_facets(SearchFilters())
+    assert facet_map(facets["sources"])["sigma"] == 3
+    assert facet_map(facets["severities"])["critical"] == 3
+    assert facet_map(facets["mitre_techniques"])["T1059"] == 1
+    assert facet_map(facets["platforms"])["windows"] == 3
+
+
+@pytest.mark.asyncio
+async def test_facets_narrow_with_other_dimensions(search):
+    """With sources=sigma applied, the severity facet counts only
+    sigma rules — counts must track the active query."""
+    facets = await search.get_facets(SearchFilters(sources=["sigma"]))
+    sev = facet_map(facets["severities"])
+    assert sev == {"high": 1, "critical": 1, "low": 1}
+
+
+@pytest.mark.asyncio
+async def test_facets_exclude_own_dimension_selection(search):
+    """Selecting severity=critical must NOT collapse the severity facet
+    to critical-only — sibling options stay visible so users can widen
+    the multi-select. Other dimensions (source) DO narrow."""
+    facets = await search.get_facets(SearchFilters(severities=["critical"]))
+    sev = facet_map(facets["severities"])
+    assert "high" in sev and "medium" in sev, (
+        "severity facet must ignore its own selection"
+    )
+    src = facet_map(facets["sources"])
+    assert src == {"sigma": 1, "elastic": 1, "sentinel": 1}, (
+        "source facet must narrow to critical-only rules"
+    )
+
+
+@pytest.mark.asyncio
+async def test_facets_empty_result_set_yields_empty_facets(search):
+    facets = await search.get_facets(SearchFilters(sources=["nonexistent"]))
+    assert facets["severities"] == []
+    assert facets["platforms"] == []

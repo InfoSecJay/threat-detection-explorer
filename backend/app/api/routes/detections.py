@@ -212,6 +212,83 @@ async def get_filter_options(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/facets")
+async def get_facets(
+    search: Optional[str] = None,
+    q: Optional[str] = Query(None, description="Lucene-syntax query (same as /detections)"),
+    sources: Optional[str] = Query(None),
+    statuses: Optional[str] = Query(None),
+    severities: Optional[str] = Query(None),
+    languages: Optional[str] = Query(None),
+    mitre_tactics: Optional[str] = Query(None),
+    mitre_techniques: Optional[str] = Query(None),
+    mitre_groups: Optional[str] = Query(None),
+    mitre_software: Optional[str] = Query(None),
+    tags: Optional[str] = Query(None),
+    platforms: Optional[str] = Query(None),
+    event_categories: Optional[str] = Query(None),
+    data_sources_normalized: Optional[str] = Query(None),
+    use_cases: Optional[str] = Query(None),
+    event_ids: Optional[str] = Query(None),
+    process_names: Optional[str] = Query(None),
+    query_complexity: Optional[str] = Query(None),
+    api_actions: Optional[str] = Query(None),
+    file_paths: Optional[str] = Query(None),
+    registry_keys: Optional[str] = Query(None),
+    network_indicators: Optional[str] = Query(None),
+    target_resources: Optional[str] = Query(None),
+    source_tables: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Faceted counts for the filter sidebar, scoped to the active query.
+
+    Accepts the same filter params as GET /detections (minus pagination
+    and sorting) and returns per-dimension [{value, count}] lists.
+    Counts narrow as filters apply; each dimension excludes its own
+    selection so sibling options within a dimension stay visible.
+    """
+    filters = SearchFilters(
+        search=search,
+        q=q,
+        sources=_parse_csv(sources),
+        statuses=_parse_csv(statuses),
+        severities=_parse_csv(severities),
+        languages=_parse_csv(languages),
+        mitre_tactics=_parse_csv(mitre_tactics),
+        mitre_techniques=_parse_csv(mitre_techniques),
+        mitre_groups=_parse_csv(mitre_groups),
+        mitre_software=_parse_csv(mitre_software),
+        tags=_parse_csv(tags),
+        platforms=_parse_csv(platforms),
+        event_categories=_parse_csv(event_categories),
+        data_sources_normalized=_parse_csv(data_sources_normalized),
+        use_cases=_parse_csv(use_cases),
+        event_ids=_parse_csv(event_ids),
+        process_names=_parse_csv(process_names),
+        query_complexity=_parse_csv(query_complexity),
+        api_actions=_parse_csv(api_actions),
+        file_paths=_parse_csv(file_paths),
+        registry_keys=_parse_csv(registry_keys),
+        network_indicators=_parse_csv(network_indicators),
+        target_resources=_parse_csv(target_resources),
+        source_tables=_parse_csv(source_tables),
+    )
+
+    search_service = SearchService(db)
+    try:
+        return await search_service.get_facets(filters)
+    except Exception as e:
+        from app.services.query_parser import QueryParseError
+        if isinstance(e, QueryParseError):
+            raise HTTPException(status_code=400, detail={
+                "error": "query_parse_error",
+                "message": e.message,
+                "position": e.position,
+                "suggestion": e.suggestion,
+            })
+        raise
+
+
 @router.get("/{detection_id}", response_model=DetectionResponse)
 async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
     """Get a single detection by ID."""

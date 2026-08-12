@@ -1,7 +1,7 @@
 """Search and filter service for detection rules."""
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 from sqlalchemy import select, or_, and_, func, cast, String
@@ -364,6 +364,69 @@ class SearchService:
             for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         ]
         return facet
+
+    # Facet dimensions for the filter sidebar. Maps response key ->
+    # (SearchFilters field the dimension filters on, Detection column,
+    # whether the column stores a JSON list).
+    _FACET_DIMENSIONS: dict[str, tuple[str, str, bool]] = {
+        "sources": ("sources", "source", False),
+        "severities": ("severities", "severity", False),
+        "languages": ("languages", "language", False),
+        "mitre_tactics": ("mitre_tactics", "mitre_tactics", True),
+        "mitre_techniques": ("mitre_techniques", "mitre_techniques", True),
+        "platforms": ("platforms", "platforms", True),
+        "data_sources": ("data_sources_normalized", "data_sources", True),
+        "event_types": ("event_categories", "event_types", True),
+    }
+
+    async def get_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
+        """Faceted counts for the filter sidebar, computed against the
+        active query so counts narrow as filters apply.
+
+        Each dimension's counts exclude that dimension's OWN selection
+        (standard multi-select facet semantics): with severity=high
+        applied, the severity facet still counts medium/low/etc under
+        the remaining filters, while every other dimension narrows to
+        the fully filtered result set. The sidebar then answers "what
+        would I get if I clicked this?" instead of showing options
+        that lead to empty result sets.
+
+        Returns:
+            Dict of response key -> [{"value": str, "count": int}]
+            sorted by descending count. JSON-list columns aggregate in
+            Python (portable across SQLite + Postgres, cheap at ~12k
+            rows -- same tradeoff as get_taxonomy_facet).
+        """
+        out: dict[str, list[dict]] = {}
+        for key, (own_field, column_name, is_json) in self._FACET_DIMENSIONS.items():
+            sub_filters = replace(filters, **{own_field: []})
+            conditions = self._build_conditions(sub_filters)
+            column = getattr(Detection, column_name)
+
+            counts: dict[str, int] = {}
+            if is_json:
+                query = select(column)
+                if conditions:
+                    query = query.where(and_(*conditions))
+                result = await self.db.execute(query)
+                for row in result.scalars().all():
+                    if not row:
+                        continue
+                    for v in (row if isinstance(row, list) else []):
+                        if isinstance(v, str):
+                            counts[v] = counts.get(v, 0) + 1
+            else:
+                query = select(column, func.count(Detection.id)).group_by(column)
+                if conditions:
+                    query = query.where(and_(*conditions))
+                result = await self.db.execute(query)
+                counts = {str(v): c for v, c in result.all() if v}
+
+            out[key] = [
+                {"value": v, "count": c}
+                for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+            ]
+        return out
 
     def _build_conditions(self, filters: SearchFilters) -> list:
         """Build SQLAlchemy filter conditions from search filters."""
