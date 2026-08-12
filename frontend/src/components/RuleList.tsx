@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sourceColors, sourceLabelsShort as sourceLabels } from '../constants/sources';
 import type { Detection, SearchFilters } from '../types';
@@ -120,6 +120,10 @@ export function RuleList({
 }: RuleListProps) {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Rows expanded inline to show query logic / references / FP notes.
+  // Keeps the result list and scroll position intact — previously
+  // scanning 25 rules meant 25 detail-page round trips.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const limit = filters.limit || 25;
   const offset = filters.offset || 0;
@@ -149,9 +153,17 @@ export function RuleList({
     setSelectedIds(new Set());
   };
 
-  const handleCompareSelected = () => {
-    const ids = Array.from(selectedIds);
-    navigate(`/compare/side-by-side?ids=${ids.join(',')}`);
+  const toggleExpanded = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const isSelected = (id: string) => selectedIds.has(id);
@@ -255,19 +267,6 @@ export function RuleList({
               >
                 CLEAR
               </button>
-              {selectedIds.size >= 2 && selectedIds.size <= 6 && (
-                <button
-                  onClick={handleCompareSelected}
-                  className="px-3 py-1 bg-matrix-500 text-void-950 text-xs font-display font-semibold uppercase hover:bg-matrix-400 transition-colors"
-                >
-                  COMPARE ({selectedIds.size})
-                </button>
-              )}
-              {selectedIds.size > 6 && (
-                <span className="text-xs font-mono text-gray-500" title="Side-by-side comparison supports a maximum of 6 rules">
-                  COMPARE (max 6)
-                </span>
-              )}
               {onExportSelected && selectedIds.size >= 1 && (
                 <button
                   onClick={() => onExportSelected(Array.from(selectedIds))}
@@ -332,6 +331,8 @@ export function RuleList({
                     />
                   </th>
                 )}
+                {/* Expand-chevron column — no header label */}
+                <th className="px-2 py-3 w-8" aria-label="Expand row" />
                 <th
                   className="px-4 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
                   onClick={() => handleSort('title')}
@@ -341,14 +342,9 @@ export function RuleList({
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
                   onClick={() => handleSort('source')}
+                  title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering."
                 >
                   Source <SortIndicator field="source" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('language')}
-                >
-                  Lang <SortIndicator field="language" />
                 </th>
                 <th
                   className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
@@ -395,10 +391,18 @@ export function RuleList({
               {detections.map((detection) => {
                 const sevColors = severityColors[detection.severity] || severityColors.unknown;
                 const sourceColor = sourceColors[detection.source] || '#6b7280';
+                const expanded = expandedIds.has(detection.id);
+                // SOURCE · LANG merged chip. The language suffix only
+                // carries information when it's a real value — lolrmm
+                // and freshly-ingested rules have language "unknown".
+                const lang =
+                  detection.language && detection.language !== 'unknown'
+                    ? detection.language.toUpperCase()
+                    : null;
 
                 return (
+                  <Fragment key={detection.id}>
                   <tr
-                    key={detection.id}
                     className={`hover:bg-void-800/50 cursor-pointer transition-colors ${
                       isSelected(detection.id) ? 'bg-matrix-500/5' : ''
                     }`}
@@ -416,6 +420,24 @@ export function RuleList({
                         />
                       </td>
                     )}
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => toggleExpanded(detection.id, e)}
+                        className="p-1 text-gray-500 hover:text-matrix-500 transition-colors"
+                        aria-expanded={expanded}
+                        aria-label={expanded ? 'Collapse rule preview' : 'Expand rule preview'}
+                        title={expanded ? 'Collapse preview' : 'Preview query logic, references, FP notes'}
+                      >
+                        <svg
+                          className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </td>
                     <td className="px-4 py-3 max-w-md">
                       <Link
                         to={`/detections/${detection.id}`}
@@ -436,11 +458,7 @@ export function RuleList({
                         }}
                       >
                         {sourceLabels[detection.source] || detection.source.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 text-xs font-mono uppercase">
-                        {detection.language || '?'}
+                        {lang && <span className="opacity-60"> · {lang}</span>}
                       </span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
@@ -485,6 +503,79 @@ export function RuleList({
                       </span>
                     </td>
                   </tr>
+                  {expanded && (
+                    <tr className="bg-void-900/60">
+                      <td colSpan={enableSelection ? 10 : 9} className="px-6 py-4">
+                        <div className="space-y-4">
+                          {/* Query logic */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
+                                Detection Logic
+                              </span>
+                              {lang && (
+                                <span className="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 text-[10px] font-mono">
+                                  {lang}
+                                </span>
+                              )}
+                            </div>
+                            <pre className="p-3 bg-void-950 border border-void-700 text-xs font-mono text-gray-300 whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
+                              {detection.detection_logic || 'No query logic available'}
+                            </pre>
+                          </div>
+
+                          {/* References */}
+                          {detection.references && detection.references.length > 0 && (
+                            <div>
+                              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                References
+                              </div>
+                              <ul className="space-y-1">
+                                {detection.references.map((ref) => (
+                                  <li key={ref} className="text-xs font-mono truncate">
+                                    <a
+                                      href={ref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {ref}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* False positives */}
+                          {detection.false_positives && detection.false_positives.length > 0 && (
+                            <div>
+                              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                False Positives
+                              </div>
+                              <ul className="space-y-1">
+                                {detection.false_positives.map((fp, i) => (
+                                  <li key={i} className="text-xs text-gray-400 flex gap-2">
+                                    <span className="text-yellow-500/70 shrink-0">!</span>
+                                    <span>{fp}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <Link
+                            to={`/detections/${detection.id}`}
+                            className="inline-block text-xs font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
+                          >
+                            VIEW FULL RULE -&gt;
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
