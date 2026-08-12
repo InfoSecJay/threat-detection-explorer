@@ -159,25 +159,192 @@ async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
     return (await db.execute(q)).scalar() or 0
 
 
+# ── List building ─────────────────────────────────────────────────
+
+def _short(desc: str, n: int = 240) -> str:
+    d = (desc or "").strip()
+    return d if len(d) <= n else d[: n - 1].rstrip() + "…"
+
+
+def _scores(sc) -> dict:
+    return {
+        "technique_count": sc.technique_count,
+        "covered_technique_count": sc.covered_technique_count,
+        "our_rule_count": sc.exact_rule_count,
+        "sources_with_coverage": sc.sources,
+        "weighted_coverage": (
+            round(sc.weighted_coverage, 4)
+            if sc.weighted_coverage is not None else None
+        ),
+        "gap_count": sc.gap_count,
+        "weighted_gap": round(sc.weighted_gap, 4),
+    }
+
+
+def _group_entry(g: dict, bundle) -> dict:
+    sc = bundle.groups[g["id"]]
+    ctx = actor_context_service.get_context(g["id"]) or {}
+    return {
+        "id": g["id"],
+        "name": g["name"],
+        "aliases": merge_aliases(g["aliases"], ctx, exclude=g["name"]),
+        "description": _short(g["description"]),
+        "deprecated": g.get("deprecated", False),
+        "modified": g.get("modified"),
+        # MISP-galaxy context — nullable/empty when no match.
+        "origin_country": ctx.get("origin_country"),
+        "motivations": ctx.get("motivations", []),
+        "target_sectors": ctx.get("target_sectors", []),
+        "target_regions": ctx.get("target_regions", []),
+        **_scores(sc),
+    }
+
+
+def _software_entry(s: dict, bundle) -> dict:
+    sc = bundle.software[s["id"]]
+    return {
+        "id": s["id"],
+        "name": s["name"],
+        "type": s["type"],
+        "aliases": s.get("aliases", []),
+        "description": _short(s["description"]),
+        "deprecated": s.get("deprecated", False),
+        "modified": s.get("modified"),
+        "platforms": s.get("platforms", []),
+        **_scores(sc),
+    }
+
+
+def _rank_key(e: dict) -> tuple:
+    """Default rank: outstanding weighted detection work, most first.
+    Ties (e.g. zero-gap actors) break toward more exact rules, then ID."""
+    return (-e["weighted_gap"], -e["our_rule_count"], e["id"])
+
+
+# ── Filtering / faceting (Phase 4) ────────────────────────────────
+
+# Filterable dimensions -> entry key holding the value(s).
+FACET_DIMS = {
+    "sector": "target_sectors",
+    "region": "target_regions",
+    "motivation": "motivations",
+    "origin": "origin_country",
+}
+
+SORT_KEYS = {
+    "name": lambda e: (e["name"] or "").lower(),
+    "origin": lambda e: (e.get("origin_country") or "￿"),
+    "motivation": lambda e: (e.get("motivations") or ["￿"])[0],
+    "technique_count": lambda e: e["technique_count"],
+    "gap_count": lambda e: e["gap_count"],
+    "weighted_gap": lambda e: e["weighted_gap"],
+    "weighted_coverage": lambda e: (
+        e["weighted_coverage"] if e["weighted_coverage"] is not None else -1
+    ),
+    "our_rule_count": lambda e: e["our_rule_count"],
+    "modified": lambda e: e.get("modified") or "",
+}
+
+
+def _entry_values(entry: dict, key: str) -> list[str]:
+    v = entry.get(key)
+    if v is None:
+        return []
+    return v if isinstance(v, list) else [v]
+
+
+def _apply_filters(
+    entries: list[dict],
+    dims: dict[str, Optional[list[str]]],
+    min_gaps: Optional[int],
+    has_exact_rules: Optional[bool],
+    q: Optional[str],
+) -> list[dict]:
+    """Multi-select within a dimension is OR; across dimensions AND."""
+    out = []
+    ql = (q or "").strip().lower()
+    for e in entries:
+        ok = True
+        for dim, wanted in dims.items():
+            if not wanted:
+                continue
+            values = set(_entry_values(e, FACET_DIMS[dim]))
+            if not values.intersection(wanted):
+                ok = False
+                break
+        if not ok:
+            continue
+        if min_gaps is not None and e["gap_count"] < min_gaps:
+            continue
+        if has_exact_rules is not None and (e["our_rule_count"] > 0) != has_exact_rules:
+            continue
+        if ql:
+            hay = " ".join([e["name"], e["id"], *e.get("aliases", [])]).lower()
+            if ql not in hay:
+                continue
+        out.append(e)
+    return out
+
+
+def _facets(
+    entries: list[dict],
+    dims: dict[str, Optional[list[str]]],
+    min_gaps: Optional[int],
+    has_exact_rules: Optional[bool],
+    q: Optional[str],
+) -> dict[str, dict[str, int]]:
+    """Counts per dimension value, with every OTHER filter applied —
+    the count a chip would produce if the user clicked it next."""
+    facets: dict[str, dict[str, int]] = {}
+    for dim in FACET_DIMS:
+        others = {d: (None if d == dim else w) for d, w in dims.items()}
+        pool = _apply_filters(entries, others, min_gaps, has_exact_rules, q)
+        counts: dict[str, int] = {}
+        for e in pool:
+            for v in _entry_values(e, FACET_DIMS[dim]):
+                counts[v] = counts.get(v, 0) + 1
+        facets[dim] = dict(
+            sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+    return facets
+
+
 # ── Endpoints ─────────────────────────────────────────────────────
 
 @router.get("")
 async def list_actors(
+    kind: Optional[Literal["groups", "software"]] = Query(
+        None, description="Object class to query (filtered mode)."
+    ),
+    sector: Optional[list[str]] = Query(None),
+    region: Optional[list[str]] = Query(None),
+    motivation: Optional[list[str]] = Query(None),
+    origin: Optional[list[str]] = Query(None),
+    min_gaps: Optional[int] = Query(None, ge=0),
+    has_exact_rules: Optional[bool] = Query(None),
+    q: Optional[str] = Query(None, description="Free text over name + aliases + ID"),
+    sort: Optional[str] = Query(None, description=f"One of {sorted(SORT_KEYS)}"),
+    order: Literal["asc", "desc"] = Query("desc"),
+    page: Optional[int] = Query(None, ge=1),
+    per_page: Optional[int] = Query(None, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ):
-    """Enumerate the full MITRE catalog with corpus rule-coverage overlaid.
+    """Enumerate the MITRE catalog with corpus rule-coverage overlaid.
 
-    Returns two lists:
-      - `groups`:   every G-ID from MITRE, sorted by weighted_gap desc
-                    (most outstanding detection work first).
-      - `software`: same shape for S-IDs.
+    Two response shapes:
 
-    Each entry: id, name, aliases (groups) / type (software),
-    description snippet (truncated), our_rule_count (exact match),
-    technique_count (from MITRE), covered_technique_count (raw), plus
-    the distinctiveness-weighted scores: weighted_coverage (0..1 or
-    null), gap_count, weighted_gap. Scores are materialized by the
-    actor-score service — no per-request corpus scan.
+    - **No query params** (legacy, public API): `{groups, software,
+      total_groups, total_software, groups_with_coverage,
+      software_with_coverage}` — the full catalog, both classes,
+      ranked by weighted_gap desc.
+    - **Any param present** (filtered): `{items, total, page,
+      per_page, facets, summary}` for the requested `kind` (default
+      groups). Multi-select filters OR within a dimension, AND across
+      dimensions; `facets` carries value counts with every other
+      filter applied so chips can show result counts up front.
+
+    Everything is served from the precomputed score bundle — no
+    per-request corpus scan.
     """
     await mitre_service.ensure_loaded()
     await actor_context_service.ensure_loaded()
@@ -185,73 +352,62 @@ async def list_actors(
     catalog_software = mitre_service.get_all_software()
     bundle = await actor_score_service.get(db)
 
-    def _short(desc: str, n: int = 240) -> str:
-        d = (desc or "").strip()
-        return d if len(d) <= n else d[: n - 1].rstrip() + "…"
+    groups = [_group_entry(g, bundle) for g in catalog_groups.values()]
+    software = [_software_entry(s, bundle) for s in catalog_software.values()]
+    groups.sort(key=_rank_key)
+    software.sort(key=_rank_key)
 
-    def _scores(sc) -> dict:
+    filtered_mode = any(
+        p is not None
+        for p in (kind, sector, region, motivation, origin, min_gaps,
+                  has_exact_rules, q, sort, page, per_page)
+    )
+
+    if not filtered_mode:
         return {
-            "technique_count": sc.technique_count,
-            "covered_technique_count": sc.covered_technique_count,
-            "our_rule_count": sc.exact_rule_count,
-            "sources_with_coverage": sc.sources,
-            "weighted_coverage": (
-                round(sc.weighted_coverage, 4)
-                if sc.weighted_coverage is not None else None
-            ),
-            "gap_count": sc.gap_count,
-            "weighted_gap": round(sc.weighted_gap, 4),
+            "groups": groups,
+            "software": software,
+            "total_groups": len(groups),
+            "total_software": len(software),
+            # Count of entries we have ANY rule coverage for.
+            "groups_with_coverage": sum(1 for g in groups if g["our_rule_count"] > 0),
+            "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
         }
 
-    def _group_entry(g: dict) -> dict:
-        sc = bundle.groups[g["id"]]
-        ctx = actor_context_service.get_context(g["id"]) or {}
-        return {
-            "id": g["id"],
-            "name": g["name"],
-            "aliases": merge_aliases(g["aliases"], ctx, exclude=g["name"]),
-            "description": _short(g["description"]),
-            "deprecated": g.get("deprecated", False),
-            # MISP-galaxy context — nullable/empty when no match.
-            "origin_country": ctx.get("origin_country"),
-            "motivations": ctx.get("motivations", []),
-            "target_sectors": ctx.get("target_sectors", []),
-            "target_regions": ctx.get("target_regions", []),
-            **_scores(sc),
-        }
+    if sort is not None and sort not in SORT_KEYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort key: {sort}. Expected one of {sorted(SORT_KEYS)}.",
+        )
 
-    def _software_entry(s: dict) -> dict:
-        sc = bundle.software[s["id"]]
-        return {
-            "id": s["id"],
-            "name": s["name"],
-            "type": s["type"],
-            "aliases": s.get("aliases", []),
-            "description": _short(s["description"]),
-            "deprecated": s.get("deprecated", False),
-            "platforms": s.get("platforms", []),
-            **_scores(sc),
-        }
+    entries = software if kind == "software" else groups
+    dims = {
+        "sector": sector, "region": region,
+        "motivation": motivation, "origin": origin,
+    }
+    hits = _apply_filters(entries, dims, min_gaps, has_exact_rules, q)
 
-    groups = [_group_entry(g) for g in catalog_groups.values()]
-    software = [_software_entry(s) for s in catalog_software.values()]
+    if sort is not None:
+        hits.sort(key=SORT_KEYS[sort], reverse=(order == "desc"))
+    elif order == "asc":
+        hits.reverse()  # default rank is weighted_gap desc
 
-    # Rank by outstanding weighted detection work, most first. Ties
-    # (e.g. zero-gap actors) break toward more exact rules, then ID.
-    def _key(e: dict) -> tuple:
-        return (-e["weighted_gap"], -e["our_rule_count"], e["id"])
-
-    groups.sort(key=_key)
-    software.sort(key=_key)
+    page_n = page or 1
+    size = per_page or 50
+    start = (page_n - 1) * size
 
     return {
-        "groups": groups,
-        "software": software,
-        "total_groups": len(groups),
-        "total_software": len(software),
-        # Count of entries we have ANY rule coverage for. Useful signal.
-        "groups_with_coverage": sum(1 for g in groups if g["our_rule_count"] > 0),
-        "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
+        "items": hits[start:start + size],
+        "total": len(hits),
+        "page": page_n,
+        "per_page": size,
+        "facets": _facets(entries, dims, min_gaps, has_exact_rules, q),
+        "summary": {
+            "total_groups": len(groups),
+            "total_software": len(software),
+            "groups_with_coverage": sum(1 for g in groups if g["our_rule_count"] > 0),
+            "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
+        },
     }
 
 

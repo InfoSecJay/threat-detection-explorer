@@ -370,6 +370,7 @@ export interface ActorListGroup {
   aliases: string[];
   description: string;         // truncated snippet
   deprecated: boolean;
+  modified: string | null;     // ATT&CK last-modified timestamp
   technique_count: number;         // known techniques from MITRE
   covered_technique_count: number; // raw: how many have any rules (detail-page metric)
   our_rule_count: number;          // rules tagged with this G-ID (exact match)
@@ -392,6 +393,7 @@ export interface ActorListSoftware {
   aliases: string[];
   description: string;
   deprecated: boolean;
+  modified: string | null;
   weighted_coverage: number | null;
   gap_count: number;
   weighted_gap: number;
@@ -412,6 +414,42 @@ export interface ActorsListResponse {
 }
 
 export type ActorMatchMode = 'exact' | 'coverage' | 'mention';
+
+// Filtered /actors mode (Phase 4): same endpoint, any query param
+// switches the response to items + facets.
+export interface ActorsQueryParams {
+  kind: 'groups' | 'software';
+  sector?: string[];
+  region?: string[];
+  motivation?: string[];
+  origin?: string[];
+  min_gaps?: number;
+  has_exact_rules?: boolean;
+  q?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  page?: number;
+  per_page?: number;
+}
+
+// A query item is a group entry; software rows additionally carry
+// type/platforms and lack the galaxy context fields.
+export type ActorsQueryItem = ActorListGroup &
+  Partial<Pick<ActorListSoftware, 'type' | 'platforms'>>;
+
+export interface ActorsQueryResponse {
+  items: ActorsQueryItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  facets: Record<'sector' | 'region' | 'motivation' | 'origin', Record<string, number>>;
+  summary: {
+    total_groups: number;
+    total_software: number;
+    groups_with_coverage: number;
+    software_with_coverage: number;
+  };
+}
 
 export interface ActorTechniqueEntry {
   technique_id: string;
@@ -545,6 +583,22 @@ export function extractQueryParseError(err: unknown): QueryParseErrorDetail | nu
 export const actorsApi = {
   list: async (): Promise<ActorsListResponse> => {
     const response = await api.get('/actors');
+    return response.data;
+  },
+  query: async (params: ActorsQueryParams): Promise<ActorsQueryResponse> => {
+    const search = new URLSearchParams();
+    search.set('kind', params.kind);
+    for (const dim of ['sector', 'region', 'motivation', 'origin'] as const) {
+      for (const v of params[dim] ?? []) search.append(dim, v);
+    }
+    if (params.min_gaps !== undefined) search.set('min_gaps', String(params.min_gaps));
+    if (params.has_exact_rules !== undefined) search.set('has_exact_rules', String(params.has_exact_rules));
+    if (params.q) search.set('q', params.q);
+    if (params.sort) search.set('sort', params.sort);
+    if (params.order) search.set('order', params.order);
+    if (params.page) search.set('page', String(params.page));
+    if (params.per_page) search.set('per_page', String(params.per_page));
+    const response = await api.get(`/actors?${search.toString()}`);
     return response.data;
   },
   get: async (

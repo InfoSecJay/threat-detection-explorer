@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from app.database import get_db
 from app.main import app
 from app.models.detection import Detection
+from app.services.actor_context import actor_context_service
 from app.services.mitre import mitre_service
 
 
@@ -64,9 +65,36 @@ def _rule(**kw) -> Detection:
     return Detection(**base)
 
 
+FIXTURE_CONTEXTS = {
+    "G0001": {
+        "origin_country": "RU",
+        "motivations": ["espionage"],
+        "target_sectors": ["telecommunications", "government"],
+        "target_regions": ["europe"],
+        "target_countries": ["Germany"],
+        "galaxy_aliases": ["Stone Alpha"],
+        "references": [],
+        "galaxy_uuid": "u1",
+        "galaxy_value": "AlphaBear",
+    },
+    "G0002": {
+        "origin_country": "CN",
+        "motivations": ["ransomware"],
+        "target_sectors": ["finance"],
+        "target_regions": ["north-america"],
+        "target_countries": ["United States"],
+        "galaxy_aliases": [],
+        "references": [],
+        "galaxy_uuid": "u2",
+        "galaxy_value": "BetaCrew",
+    },
+}
+
+
 @pytest.fixture
 def mitre_fixture(monkeypatch):
-    """Point the mitre_service singleton at a tiny deterministic catalog."""
+    """Point the mitre_service + context singletons at a tiny
+    deterministic catalog."""
     monkeypatch.setattr(mitre_service, "_groups", FIXTURE_GROUPS)
     monkeypatch.setattr(mitre_service, "_software", FIXTURE_SOFTWARE)
     monkeypatch.setattr(mitre_service, "_techniques", FIXTURE_TECHNIQUES)
@@ -76,6 +104,10 @@ def mitre_fixture(monkeypatch):
         return None
 
     monkeypatch.setattr(mitre_service, "ensure_loaded", _noop)
+
+    monkeypatch.setattr(actor_context_service, "_contexts", FIXTURE_CONTEXTS)
+    monkeypatch.setattr(actor_context_service, "_loaded", True)
+    monkeypatch.setattr(actor_context_service, "ensure_loaded", _noop)
     yield
 
 
@@ -122,6 +154,69 @@ async def test_group_and_software_coverage_counts_are_independent(client, db_ses
     assert data["software_with_coverage"] == sum(
         1 for s in data["software"] if s["our_rule_count"] > 0
     )
+
+
+# ── Filtered mode (Phase 4) ────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_filtered_mode_sector_and_facets(client, db_session):
+    db_session.add_all([
+        _rule(title="r1", mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors?sector=telecommunications")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [i["id"] for i in data["items"]] == ["G0001"]
+    assert data["total"] == 1
+    # Facet counts for OTHER dimensions reflect the sector filter…
+    assert data["facets"]["origin"] == {"RU": 1}
+    # …while the sector facet itself ignores it (what would clicking
+    # another sector chip produce?).
+    assert data["facets"]["sector"] == {"government": 1, "telecommunications": 1, "finance": 1}
+    assert data["summary"]["total_groups"] == 3
+
+
+@pytest.mark.asyncio
+async def test_filtered_mode_min_gaps_and_tri_state(client, db_session):
+    db_session.add_all([
+        _rule(title="r1", mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+    ])
+    await db_session.commit()
+
+    # G0001: covers T1001, gap T1002 -> 1 gap. G0002: gap T1002 -> 1.
+    # G0003: no techniques -> 0 gaps.
+    resp = await client.get("/api/actors?min_gaps=1")
+    assert {i["id"] for i in resp.json()["items"]} == {"G0001", "G0002"}
+
+    resp = await client.get("/api/actors?min_gaps=1&has_exact_rules=true")
+    assert [i["id"] for i in resp.json()["items"]] == ["G0001"]
+
+    resp = await client.get("/api/actors?min_gaps=1&has_exact_rules=false")
+    assert [i["id"] for i in resp.json()["items"]] == ["G0002"]
+
+
+@pytest.mark.asyncio
+async def test_filtered_mode_q_matches_galaxy_alias(client, db_session):
+    resp = await client.get("/api/actors?q=stone+alpha")
+    assert [i["id"] for i in resp.json()["items"]] == ["G0001"]
+
+
+@pytest.mark.asyncio
+async def test_filtered_mode_sort_and_pagination(client, db_session):
+    resp = await client.get("/api/actors?sort=name&order=asc&page=1&per_page=2")
+    data = resp.json()
+    assert [i["name"] for i in data["items"]] == ["Alpha Group", "Beta Group"]
+    assert data["total"] == 3
+    resp = await client.get("/api/actors?sort=name&order=asc&page=2&per_page=2")
+    assert [i["name"] for i in resp.json()["items"]] == ["Gamma Group"]
+
+
+@pytest.mark.asyncio
+async def test_filtered_mode_invalid_sort_is_400(client, db_session):
+    resp = await client.get("/api/actors?sort=bogus")
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

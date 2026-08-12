@@ -160,6 +160,18 @@ class MitreAttackService:
                 )
                 return False
 
+            # Third: caches written before the `modified` field shipped
+            # would leave the table's last-modified column empty for up
+            # to 24h. Discard and refetch once.
+            if cached_groups and not any(
+                g.get("modified") for g in list(cached_groups.values())[:20]
+            ):
+                logger.warning(
+                    "MITRE cache predates group `modified` timestamps; "
+                    "discarding and re-fetching."
+                )
+                return False
+
             self._tactics = cached_tactics
             self._techniques = cached_techniques
             self._groups = cached_groups
@@ -368,6 +380,7 @@ class MitreAttackService:
                         if r.get("url") and r.get("source_name") != "mitre-attack"
                     ],
                     "deprecated": obj.get("x_mitre_deprecated", False),
+                    "modified": obj.get("modified"),
                     # Filled in the relationship pass below.
                     "techniques": [],
                     "software": [],
@@ -391,6 +404,7 @@ class MitreAttackService:
                         if r.get("url") and r.get("source_name") != "mitre-attack"
                     ],
                     "deprecated": obj.get("x_mitre_deprecated", False),
+                    "modified": obj.get("modified"),
                     "platforms": obj.get("x_mitre_platforms") or [],
                     # Filled in the relationship pass below.
                     "techniques": [],
