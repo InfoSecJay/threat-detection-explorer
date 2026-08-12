@@ -1,24 +1,26 @@
 /**
- * Detection Intelligence — organized around whether a signal is
- * always-current or scoped to a rolling window. Two visual groups:
+ * Detection Intelligence — organized top-to-bottom by signal density:
  *
- *   ── CATALOG (always current) ─────────────────────────────
- *     RepoHealthStrip   freshness + 12-week new-rules sparkline per
- *                       repo. Cadence is fixed at 12 weeks — that
- *                       question ("is this repo actively developed?")
- *                       doesn't map onto a 30d window.
- *     UpstreamReleases  latest tagged GitHub releases for
- *                       sigma/splunk/elastic. Latest N; not windowed.
+ *   RepoHealthStrip   Always current. 12-week new-rules sparkline
+ *                     per repo. Answers "is this repo actively
+ *                     developed?" -- a question that doesn't map
+ *                     onto a 30/60/90 window.
  *
  *   ── ACTIVITY IN THE LAST [30/60/90] DAYS ─────────────────
  *     (the window toggle IS this group's header)
  *     PulseBanner       total new + modified rules in the window.
- *     What's New        newest rules + trending techniques / platforms
- *                       / use cases in the window. Inline source
- *                       filter narrows all four data hooks together.
+ *     What's New        newest rules + trending techniques /
+ *                       platforms in the window. Inline source
+ *                       filter narrows all three data hooks together.
+ *
+ *   UpstreamReleases  Latest tagged GitHub releases for
+ *                     sigma/splunk/elastic. Big markdown bodies so
+ *                     it lives at the very bottom -- the expanded
+ *                     view is capped at 400px with an inner scroll
+ *                     to avoid burying the sections above it.
  *
  * The visual band with the toggle in the middle of the page makes
- * it obvious which sections respect the window and which don't —
+ * it obvious which sections respect the window and which don't --
  * an earlier version put the toggle at the top-right and implied
  * (wrongly) that it controlled Repo Health.
  *
@@ -38,7 +40,6 @@ import { NotableNewRulesSection } from './intel/NotableNewRules';
 import {
   TrendingTechniquesList,
   TrendingPlatformsList,
-  TrendingUseCasesList,
 } from './intel/Trending';
 import { periodOptions } from './intel/lib';
 
@@ -188,29 +189,23 @@ export function IndustryIntel() {
       {/* Page header — no toggle here on purpose. The toggle only
           scopes the Activity group, so it lives with that group's
           header below, not up here where it would falsely imply
-          it controls Repo Health. */}
+          it controls Repo Health. Subtitle folds in what used to
+          be the CATALOG / CURRENT STATE eyebrow so the eye reaches
+          real data after one heading, not four. */}
       <div>
         <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
           Detection Intelligence
         </h1>
         <p className="text-xs text-gray-500 mt-1 font-mono">
-          what&apos;s new across every upstream detection-rule repo we track
+          repo health + activity across every upstream detection-rule repo we track
         </p>
       </div>
 
-      {/* ── CATALOG ── always-current sections ─────────────────── */}
-      <GroupHeader
-        eyebrow="Catalog"
-        title="Current state"
-        subtitle="repo freshness + latest tagged releases · always current, not scoped by any window"
-      />
-
+      {/* Catalog: always-current, unwindowed. Was preceded by
+          CATALOG / CURRENT STATE headings -- removed since the
+          section title carries enough context on its own. */}
       <Section title="Repo Health" subtitle="12-week trend per repo · click a card to filter the catalog">
         <RepoHealthStrip />
-      </Section>
-
-      <Section title="Upstream Releases" subtitle="latest tagged releases · sigma · splunk · elastic">
-        <UpstreamReleases />
       </Section>
 
       {/* ── ACTIVITY ── windowed sections ─────────────────────── */}
@@ -240,12 +235,18 @@ export function IndustryIntel() {
               <TrendingTile title="Trending Platforms" accent="cyan">
                 <TrendingPlatformsList days={period} filters={filters} />
               </TrendingTile>
-              <TrendingTile title="Trending Use Cases" accent="amber">
-                <TrendingUseCasesList days={period} filters={filters} />
-              </TrendingTile>
             </div>
           </div>
         </div>
+      </Section>
+
+      {/* Upstream Releases lives at the very bottom -- large blocks
+          of markdown release notes shouldn't push the higher-signal
+          activity data off-screen. Expanded body is capped to 400px
+          with an inner scroll so a long Elastic release note doesn't
+          own the viewport. */}
+      <Section title="Upstream Releases" subtitle="latest tagged releases · sigma · splunk · elastic">
+        <UpstreamReleases />
       </Section>
     </div>
   );

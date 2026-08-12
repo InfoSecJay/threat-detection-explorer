@@ -72,7 +72,14 @@ export function UpstreamReleases() {
             </button>
             {expanded && release.body && (
               <div className="px-3 pb-3 border-t border-void-700">
-                <div className="pt-2.5 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-display prose-headings:mt-2 prose-headings:mb-1 prose-h2:text-xs prose-h3:text-xs prose-p:text-gray-300 prose-p:my-1 prose-a:text-matrix-500 prose-a:no-underline hover:prose-a:underline prose-strong:text-white prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:rounded prose-code:text-xs prose-ul:my-1 prose-ul:pl-4 prose-ol:my-1 prose-ol:pl-4 prose-li:text-gray-300 prose-li:my-0 prose-li:marker:text-matrix-500">
+                {/* Cap the markdown body at ~400px with its own
+                    scrollbar so a long release note (Elastic's are
+                    routinely thousands of lines) doesn't dominate the
+                    viewport and force the reader to scroll past it to
+                    reach the next release. Author + GitHub link stay
+                    OUTSIDE the scroll container so they remain reachable
+                    without hunting to the end of the notes. */}
+                <div className="mt-2.5 max-h-[400px] overflow-y-auto pr-2 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-display prose-headings:mt-2 prose-headings:mb-1 prose-h2:text-xs prose-h3:text-xs prose-p:text-gray-300 prose-p:my-1 prose-a:text-matrix-500 prose-a:no-underline hover:prose-a:underline prose-strong:text-white prose-code:text-matrix-400 prose-code:bg-void-800 prose-code:px-1 prose-code:rounded prose-code:text-xs prose-ul:my-1 prose-ul:pl-4 prose-ol:my-1 prose-ol:pl-4 prose-li:text-gray-300 prose-li:my-0 prose-li:marker:text-matrix-500">
                   <ReactMarkdown>{release.body}</ReactMarkdown>
                 </div>
                 <div className="mt-2 pt-2 border-t border-void-700 flex items-center justify-between">
