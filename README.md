@@ -81,8 +81,9 @@ curl "https://threat-detection-explorer-production.up.railway.app/api/detections
   rate-limited yet; please don't queue floods.
 - **Browser CORS** is allow-listed to `detectionexplorer.io`. Server-side
   callers (scripts, MCP servers, backend integrations) aren't affected.
-- **Best-effort availability.** Hosted on Railway Pro; nightly sync at
-  02:00 UTC. No SLA.
+- **Best-effort availability.** Hosted on Railway Pro; nightly sync in
+  the early morning America/Toronto (see `SYNC_SCHEDULE_*` settings).
+  No SLA.
 
 ---
 
