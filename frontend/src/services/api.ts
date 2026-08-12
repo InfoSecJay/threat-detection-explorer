@@ -55,43 +55,74 @@ export const repositoriesApi = {
   },
 };
 
-// Detection endpoints
-export const detectionsApi = {
-  list: async (filters: SearchFilters = {}): Promise<DetectionListResponse> => {
-    const params = new URLSearchParams();
+/** Serialize SearchFilters to URL params — shared by list() and
+ * getFacets() so both hit the API with identical filter semantics. */
+function buildFilterParams(filters: SearchFilters, includePagination = true): URLSearchParams {
+  const params = new URLSearchParams();
 
-    if (filters.search) params.set('search', filters.search);
-    if (filters.q) params.set('q', filters.q);
-    if (filters.sources?.length) params.set('sources', filters.sources.join(','));
-    if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
-    if (filters.severities?.length) params.set('severities', filters.severities.join(','));
-    if (filters.languages?.length) params.set('languages', filters.languages.join(','));
-    if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
-    if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
-    if (filters.mitre_groups?.length) params.set('mitre_groups', filters.mitre_groups.join(','));
-    if (filters.mitre_software?.length) params.set('mitre_software', filters.mitre_software.join(','));
-    if (filters.tags?.length) params.set('tags', filters.tags.join(','));
-    // Canonical taxonomy filters
-    if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
-    if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
-    if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
-    if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
-    // Extracted observable filters
-    if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
-    if (filters.process_names?.length) params.set('process_names', filters.process_names.join(','));
-    if (filters.query_complexity?.length) params.set('query_complexity', filters.query_complexity.join(','));
-    if (filters.api_actions?.length) params.set('api_actions', filters.api_actions.join(','));
-    if (filters.file_paths?.length) params.set('file_paths', filters.file_paths.join(','));
-    if (filters.registry_keys?.length) params.set('registry_keys', filters.registry_keys.join(','));
-    if (filters.network_indicators?.length) params.set('network_indicators', filters.network_indicators.join(','));
-    if (filters.target_resources?.length) params.set('target_resources', filters.target_resources.join(','));
-    if (filters.source_tables?.length) params.set('source_tables', filters.source_tables.join(','));
+  if (filters.search) params.set('search', filters.search);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.sources?.length) params.set('sources', filters.sources.join(','));
+  if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
+  if (filters.severities?.length) params.set('severities', filters.severities.join(','));
+  if (filters.languages?.length) params.set('languages', filters.languages.join(','));
+  if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
+  if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
+  if (filters.mitre_groups?.length) params.set('mitre_groups', filters.mitre_groups.join(','));
+  if (filters.mitre_software?.length) params.set('mitre_software', filters.mitre_software.join(','));
+  if (filters.tags?.length) params.set('tags', filters.tags.join(','));
+  // Canonical taxonomy filters
+  if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
+  if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
+  if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+  if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
+  // Extracted observable filters
+  if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
+  if (filters.process_names?.length) params.set('process_names', filters.process_names.join(','));
+  if (filters.query_complexity?.length) params.set('query_complexity', filters.query_complexity.join(','));
+  if (filters.api_actions?.length) params.set('api_actions', filters.api_actions.join(','));
+  if (filters.file_paths?.length) params.set('file_paths', filters.file_paths.join(','));
+  if (filters.registry_keys?.length) params.set('registry_keys', filters.registry_keys.join(','));
+  if (filters.network_indicators?.length) params.set('network_indicators', filters.network_indicators.join(','));
+  if (filters.target_resources?.length) params.set('target_resources', filters.target_resources.join(','));
+  if (filters.source_tables?.length) params.set('source_tables', filters.source_tables.join(','));
+
+  if (includePagination) {
     if (filters.offset !== undefined) params.set('offset', String(filters.offset));
     if (filters.limit !== undefined) params.set('limit', String(filters.limit));
     if (filters.sort_by) params.set('sort_by', filters.sort_by);
     if (filters.sort_order) params.set('sort_order', filters.sort_order);
+  }
 
+  return params;
+}
+
+export type FacetOption = { value: string; count: number };
+
+/** Per-dimension facet counts from /detections/facets, scoped to the
+ * active query (each dimension excludes its own selection). */
+export interface DetectionFacets {
+  sources: FacetOption[];
+  severities: FacetOption[];
+  languages: FacetOption[];
+  mitre_tactics: FacetOption[];
+  mitre_techniques: FacetOption[];
+  platforms: FacetOption[];
+  data_sources: FacetOption[];
+  event_types: FacetOption[];
+}
+
+// Detection endpoints
+export const detectionsApi = {
+  list: async (filters: SearchFilters = {}): Promise<DetectionListResponse> => {
+    const params = buildFilterParams(filters);
     const response = await api.get(`/detections?${params.toString()}`);
+    return response.data;
+  },
+
+  getFacets: async (filters: SearchFilters = {}): Promise<DetectionFacets> => {
+    const params = buildFilterParams(filters, false);
+    const response = await api.get(`/detections/facets?${params.toString()}`);
     return response.data;
   },
 

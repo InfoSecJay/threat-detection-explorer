@@ -30,6 +30,19 @@ vi.mock('../../hooks/useDetections', () => ({
       event_types: [],
     },
   }),
+  // FilterPanel renders query-scoped facet counts from useFacets.
+  useFacets: () => ({
+    data: {
+      sources: [{ value: 'sigma', count: 10 }, { value: 'splunk', count: 5 }],
+      severities: [{ value: 'high', count: 8 }],
+      languages: [{ value: 'sigma', count: 10 }],
+      mitre_tactics: [],
+      mitre_techniques: [{ value: 'T1059', count: 3 }],
+      platforms: [{ value: 'windows', count: 12 }],
+      data_sources: [],
+      event_types: [],
+    },
+  }),
   // ExportModal is mounted (with isOpen=false) via DetectionList. Even
   // though it returns null when closed, useMutation gets called during
   // hook init and needs a non-null mutation handle.

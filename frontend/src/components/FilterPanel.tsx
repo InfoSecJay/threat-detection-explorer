@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useFilterOptions } from '../hooks/useDetections';
+import { useFacets } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
 import { ALL_SOURCES, sourceColors, sourceLabels } from '../constants/sources';
 import { TelemetryFilter } from './TelemetryFilter';
@@ -12,8 +12,38 @@ interface FilterPanelProps {
   onFiltersChange: (filters: SearchFilters) => void;
 }
 
+/** [{value, count}] -> {value: count} lookup. */
+function countMap(facet?: Array<{ value: string; count: number }>): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const f of facet || []) map[f.value] = f.count;
+  return map;
+}
+
+/** Count badge rendered on every facet option — shows how many rules
+ * the option matches under the current query, dimmed when zero so
+ * users stop clicking into empty result sets. */
+function FacetCount({ count }: { count: number | undefined }) {
+  return (
+    <span
+      className={`ml-auto text-[10px] font-mono shrink-0 ${
+        count ? 'text-gray-600' : 'text-gray-700'
+      }`}
+    >
+      {(count || 0).toLocaleString()}
+    </span>
+  );
+}
+
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const { tactics, techniques } = useMitre();
+
+  // Facet counts scoped to the active query — every section below
+  // renders live "what would this click yield" numbers from these.
+  const { data: facets } = useFacets(filters);
+  const sourceCounts = useMemo(() => countMap(facets?.sources), [facets]);
+  const severityCounts = useMemo(() => countMap(facets?.severities), [facets]);
+  const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
+  const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
 
   // Convert tactics from context into sorted options array
   const tacticOptions = useMemo(() => {
@@ -25,16 +55,20 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     return options.sort((a, b) => a.value.localeCompare(b.value));
   }, [tactics]);
 
-  // MITRE technique suggestions for the autocomplete filter.
+  // MITRE technique suggestions for the autocomplete filter — built
+  // from the live facet so users only see techniques that actually
+  // have rules under the current query, with match counts inline.
   const techniqueSuggestions = useMemo(
     () =>
-      Object.values(techniques)
-        .filter((t) => !t.deprecated)
-        .map((t) => ({ value: t.id, label: t.name }))
-        .sort((a, b) => a.value.localeCompare(b.value)),
-    [techniques],
+      (facets?.mitre_techniques || []).map((f) => {
+        const t = techniques[f.value];
+        return {
+          value: f.value,
+          label: `${t?.name || 'Unknown technique'} · ${f.count.toLocaleString()}`,
+        };
+      }),
+    [facets, techniques],
   );
-  const { data: filterOptions } = useFilterOptions();
   const [showAllTactics, setShowAllTactics] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['source', 'severity', 'telemetry'])
@@ -81,14 +115,11 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     (filters.platforms?.length || 0) > 0 ||
     (filters.event_categories?.length || 0) > 0 ||
     (filters.data_sources_normalized?.length || 0) > 0 ||
-    (filters.event_ids?.length || 0) > 0 ||
     (filters.process_names?.length || 0) > 0 ||
     (filters.api_actions?.length || 0) > 0 ||
     (filters.file_paths?.length || 0) > 0 ||
     (filters.registry_keys?.length || 0) > 0 ||
-    (filters.network_indicators?.length || 0) > 0 ||
-    (filters.target_resources?.length || 0) > 0 ||
-    (filters.source_tables?.length || 0) > 0;
+    (filters.network_indicators?.length || 0) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -143,20 +174,24 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Source" section="source" count={filters.sources?.length} />
         {expandedSections.has('source') && (
           <div className="space-y-1 mt-2">
-            {/* Sources come from the live /detections/filters facet so
-                new upstream repos appear automatically without a code
-                change. Preserves the intentional ALL_SOURCES ordering
-                as the render order so long-standing sources stay in
-                their familiar visual position. Unknown-to-ALL_SOURCES
-                values (e.g. right after ingest of a new source that
-                predates the FE deploy) append at the bottom. */}
+            {/* Sources come from the live facet (scoped to the active
+                query) so new upstream repos appear automatically
+                without a code change. Preserves the intentional
+                ALL_SOURCES ordering as the render order so
+                long-standing sources stay in their familiar visual
+                position. Unknown-to-ALL_SOURCES values (e.g. right
+                after ingest of a new source that predates the FE
+                deploy) append at the bottom. Sources with zero
+                matches under the current query stay listed (their
+                own selection is excluded from the count, and the
+                query may change) but render dimmed. */}
             {(() => {
-              const facet = filterOptions?.sources || [];
+              const facetValues = (facets?.sources || []).map((f) => f.value);
               const ordered: string[] = [];
               for (const s of ALL_SOURCES) {
-                if (facet.includes(s)) ordered.push(s);
+                if (facetValues.includes(s)) ordered.push(s);
               }
-              for (const s of facet) {
+              for (const s of facetValues) {
                 if (!ordered.includes(s)) ordered.push(s);
               }
               return ordered.map((value) => (
@@ -179,6 +214,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                   <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
                     {sourceLabels[value] || value}
                   </span>
+                  <FacetCount count={sourceCounts[value]} />
                 </label>
               ));
             })()}
@@ -217,6 +253,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
                   {severity.label}
                 </span>
+                <FacetCount count={severityCounts[severity.value]} />
               </label>
             ))}
           </div>
@@ -261,6 +298,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
                   {lang.label}
                 </span>
+                <FacetCount count={languageCounts[lang.value]} />
               </label>
             ))}
           </div>
@@ -289,6 +327,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                   <span className="text-sm text-gray-400 group-hover:text-white transition-colors truncate" title={tactic.value}>
                     {tactic.label}
                   </span>
+                  <FacetCount count={tacticCounts[tactic.value]} />
                 </label>
               ))}
             </div>
@@ -324,10 +363,9 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
       </div>
 
       {/* Telemetry — canonical taxonomy facets (Platform / Data Source /
-          Event Type). Options + counts come from the live corpus via
-          /api/detections/filters; no hardcoded lists. Replaces ~170
-          lines of stale Platform subcategories + hardcoded Event
-          Category list. */}
+          Event Type). Options + counts come from the live query-scoped
+          facets; no hardcoded lists, and counts narrow as other
+          filters apply. */}
       <div className="mb-3">
         <SectionHeader
           title="Telemetry"
@@ -344,27 +382,10 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               filters={filters}
               onFiltersChange={onFiltersChange}
               options={{
-                platforms: filterOptions?.platforms || [],
-                data_sources: filterOptions?.data_sources || [],
-                event_types: filterOptions?.event_types || [],
+                platforms: facets?.platforms || [],
+                data_sources: facets?.data_sources || [],
+                event_types: facets?.event_types || [],
               }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Event IDs filter */}
-      <div className="mb-3">
-        <SectionHeader title="Event IDs" section="eventids" count={filters.event_ids?.length} />
-        {expandedSections.has('eventids') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.event_ids || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, event_ids: values, offset: 0 })
-              }
-              placeholder="e.g., 4688"
-              accent="orange"
             />
           </div>
         )}
@@ -451,40 +472,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }
               placeholder="e.g., 10.0.0.0/8 or evil.com"
               accent="cyan"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Target Resources filter */}
-      <div className="mb-3">
-        <SectionHeader title="Target Resources" section="targetresources" count={filters.target_resources?.length} />
-        {expandedSections.has('targetresources') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.target_resources || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, target_resources: values, offset: 0 })
-              }
-              placeholder="e.g., s3_bucket or iam_role"
-              accent="cyan"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Source Tables filter */}
-      <div className="mb-3">
-        <SectionHeader title="Source Tables" section="sourcetables" count={filters.source_tables?.length} />
-        {expandedSections.has('sourcetables') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.source_tables || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, source_tables: values, offset: 0 })
-              }
-              placeholder="e.g., SecurityAlert"
-              accent="matrix"
             />
           </div>
         )}

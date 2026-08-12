@@ -31,6 +31,19 @@ export function useFilterOptions() {
   });
 }
 
+/** Facet counts scoped to the active query — powers the filter
+ * sidebar so every option shows how many rules a click yields.
+ * Pagination/sort changes don't affect counts, so they're stripped
+ * from the query key to avoid refetching on page flips. */
+export function useFacets(filters: SearchFilters = {}) {
+  const { offset, limit, sort_by, sort_order, ...facetFilters } = filters;
+  return useQuery({
+    queryKey: ['facets', facetFilters],
+    queryFn: () => detectionsApi.getFacets(facetFilters),
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useExport() {
   return useMutation({
     mutationFn: async (request: ExportRequest) => {
