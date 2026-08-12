@@ -37,10 +37,15 @@ const sortOptions = [
   { value: 'rule_modified_date:desc', label: 'Modified (Newest)' },
   { value: 'rule_modified_date:asc', label: 'Modified (Oldest)' },
   { value: 'source:asc', label: 'Source (A-Z)' },
+  { value: 'source:desc', label: 'Source (Z-A)' },
   { value: 'language:asc', label: 'Language (A-Z)' },
+  { value: 'language:desc', label: 'Language (Z-A)' },
   { value: 'platforms:asc', label: 'Platform (A-Z)' },
+  { value: 'platforms:desc', label: 'Platform (Z-A)' },
   { value: 'data_sources:asc', label: 'Data Source (A-Z)' },
+  { value: 'data_sources:desc', label: 'Data Source (Z-A)' },
   { value: 'event_types:asc', label: 'Event Type (A-Z)' },
+  { value: 'event_types:desc', label: 'Event Type (Z-A)' },
 ];
 
 function formatRelativeDate(dateStr: string | null): string {

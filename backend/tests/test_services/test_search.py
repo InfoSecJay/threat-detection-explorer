@@ -359,6 +359,47 @@ async def test_sort_by_platforms_desc(search):
 
 
 @pytest.mark.asyncio
+async def test_sort_by_platforms_desc_puts_empty_last(search):
+    """Regression: an empty list serialized to '[]' string-sorts AFTER
+    populated ones (0x22 `"` beats 0x5D `]`). Under desc that used to
+    put empty-platform rules FIRST -- exactly the opposite of what a
+    user expects when they click a column header to cluster rules
+    that HAVE data. NULLIF('[]', '[]') + nullslast() must push them
+    to the bottom for both orders."""
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="platforms", sort_order="desc", limit=1000)
+    )
+    # Find where populated rules end and empty rules begin.
+    saw_empty = False
+    for r in rows:
+        if not r.platforms:
+            saw_empty = True
+        else:
+            # Must never see a populated row AFTER an empty row.
+            assert not saw_empty, (
+                "empty-platform rows appeared before populated ones "
+                "under desc -- NULLIF/nullslast is not being applied"
+            )
+
+
+@pytest.mark.asyncio
+async def test_sort_by_platforms_asc_puts_empty_last(search):
+    """Same guarantee, other direction."""
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="platforms", sort_order="asc", limit=1000)
+    )
+    saw_empty = False
+    for r in rows:
+        if not r.platforms:
+            saw_empty = True
+        else:
+            assert not saw_empty, (
+                "empty-platform rows appeared before populated ones "
+                "under asc -- NULLIF/nullslast is not being applied"
+            )
+
+
+@pytest.mark.asyncio
 async def test_sort_by_data_sources_asc(search):
     """data_sources column must also sort -- same cast(String) path."""
     rows, _ = await search.search_detections(

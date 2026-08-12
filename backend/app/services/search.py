@@ -616,8 +616,17 @@ class SearchService:
         # (works on both Postgres jsonb and SQLite JSON-as-text) so the
         # DB can order them lexicographically. Portable, no dialect
         # branches needed.
+        #
+        # The NULLIF is load-bearing. Empty lists serialize to '[]',
+        # which lexicographically sorts AFTER any populated list
+        # ('[' == 0x5B, but the next char is `"` (0x22) for populated
+        # vs `]` (0x5D) for empty). Under desc that puts the empties
+        # FIRST -- exactly the opposite of what users expect when they
+        # click a column header to see rules that HAVE that data.
+        # Coercing '[]' to NULL lets nullslast() push empties to the
+        # bottom of both asc and desc.
         if sort_by in self._JSON_LIST_SORT_FIELDS:
-            column = cast(column, String)
+            column = func.nullif(cast(column, String), "[]")
 
         nulls_last = sort_by in self._NULLS_LAST_SORT_FIELDS
         if sort_order.lower() == "desc":
