@@ -359,3 +359,76 @@ async def test_covered_technique_count_uses_technique_tags(client, db_session):
     assert by_id["G0001"]["covered_technique_count"] == 1
     # G0002 uses only T1002 — uncovered.
     assert by_id["G0002"]["covered_technique_count"] == 0
+
+
+# == Story-label exact + separator-tolerant mention (Salt Typhoon bug) ==
+#
+# Production case: 60 Splunk ESCU rules carried the actor ONLY as
+# use_cases=["Salt Typhoon"] / tags=["story:salt_typhoon"] plus
+# advisory URLs in references. Exact showed 0 (ESCU never tags G-IDs)
+# and mention showed 4 (\b regex can't cross underscores; use_cases/
+# references weren't searched at all).
+
+def _story_rules() -> list[Detection]:
+    return [
+        # Explicit tag via analytic story named after the actor.
+        _rule(title="VTY tampering", use_cases=["Alpha Group"]),
+        # Underscore story tag -- mention, not exact.
+        _rule(title="Tunnel config", tags=["story:alpha_group"]),
+        # Advisory URL in references -- mention.
+        _rule(
+            title="Log clearing",
+            references=["https://blog.example.com/alpha-group-analysis/"],
+        ),
+        # Alias in prose -- mention.
+        _rule(title="AlphaBear staging activity"),
+        # Longer story label CONTAINING the name -- mention, NOT exact.
+        _rule(title="Recon burst", use_cases=["Alpha Group Campaign 2025"]),
+        _rule(title="Unrelated rule"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_detail_exact_counts_story_labeled_rules(client, db_session):
+    db_session.add_all(_story_rules())
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0001?match_mode=exact")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["match_counts"]["exact"] == 1
+    assert [r["title"] for r in data["rules"]] == ["VTY tampering"]
+    # use_cases mention + tag mention + reference mention + alias
+    # mention + campaign-label mention (+ the exact rule's own label).
+    assert data["match_counts"]["mention"] == 5
+
+
+@pytest.mark.asyncio
+async def test_detail_mention_rules_cover_tags_usecases_references(client, db_session):
+    db_session.add_all(_story_rules())
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0001?match_mode=mention")
+    titles = {r["title"] for r in resp.json()["rules"]}
+    assert titles == {
+        "VTY tampering",
+        "Tunnel config",
+        "Log clearing",
+        "AlphaBear staging activity",
+        "Recon burst",
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_scores_match_detail_semantics(client, db_session):
+    """our_rule_count / mention_count on the list page use the same
+    story-label + separator-tolerant semantics as the detail page."""
+    db_session.add_all(_story_rules())
+    await db_session.commit()
+
+    resp = await client.get("/api/actors?kind=groups&sort=mention_count&order=desc")
+    items = resp.json()["items"]
+    g1 = next(i for i in items if i["id"] == "G0001")
+    assert g1["our_rule_count"] == 1
+    assert g1["mention_count"] == 5

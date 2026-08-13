@@ -6,15 +6,20 @@ picks a `match_mode` that decides which rules count as "this actor's":
 
 - **exact**    rules tagged with the actor's raw ATT&CK ID via the
                `mitre_groups` / `mitre_software` JSON columns
-               (populated during Sigma + LOLRMM ingestion). Strictest.
+               (populated during Sigma + LOLRMM ingestion), OR whose
+               `use_cases` labels (vendor analytic stories) equal the
+               actor's name or an alias — a Splunk analytic story
+               named "Salt Typhoon" is an explicit tag, not prose.
 - **coverage** rules tagged with ANY of the techniques this actor
                is known to use (from MITRE STIX relationships).
                Reveals rules that would catch the actor's TTPs even
                without explicitly citing them.
-- **mention**  rules whose title / description / tags contain the
-               actor's name or one of its aliases as a whole word.
-               Catches rules that reference the actor by name in
-               prose but haven't been formally tagged.
+- **mention**  rules whose title / description / tags / use_cases /
+               references contain the actor's name or one of its
+               aliases, separator-tolerant ("salt_typhoon",
+               "salt-typhoon", "SaltTyphoon" all count — see
+               app.services.actor_matching). Catches rules that
+               reference the actor but haven't been formally tagged.
 
 The response carries counts for all three modes so the UI can render
 a mode switcher without a round-trip. Rules for the SELECTED mode
@@ -33,6 +38,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.detection import Detection
 from app.services.actor_context import actor_context_service, merge_aliases
+from app.services.actor_matching import (
+    compile_name_regex,
+    label_like_patterns,
+    sql_like_patterns,
+)
 from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
 from app.utils.datetime_utils import utcnow
@@ -62,13 +72,33 @@ def _actor_type(actor_id: str) -> tuple[str, str]:
     )
 
 
-async def _rules_matching_ids(
-    db: AsyncSession, column, ids: list[str],
-) -> list[Detection]:
-    """Rules where the JSON list column contains ANY of `ids`."""
-    if not ids:
-        return []
+def _exact_conditions(column, ids: list[str], story_names: list[str]) -> list:
+    """SQL conditions for exact mode: ATT&CK ID in the JSON tag column,
+    OR a `use_cases` label equal to the actor's name / an alias.
+
+    Label equality is enforced by the quoted-element LIKE from
+    label_like_patterns — the quotes pin both ends of the label, so
+    "Salt Typhoon Campaign" does NOT count, while `["Salt Typhoon"]`
+    and separator variants do.
+    """
     conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
+    for n in story_names:
+        conds.extend(
+            cast(Detection.use_cases, String).ilike(p)
+            for p in label_like_patterns(n)
+        )
+    return conds
+
+
+async def _rules_matching_ids(
+    db: AsyncSession, column, ids: list[str], story_names: list[str] | None = None,
+) -> list[Detection]:
+    """Rules where the JSON list column contains ANY of `ids`, or (when
+    `story_names` is given — exact mode) a use_cases label equals one
+    of those names."""
+    conds = _exact_conditions(column, ids, story_names or [])
+    if not conds:
+        return []
     q = (
         select(
             Detection.id, Detection.rule_id, Detection.title, Detection.source,
@@ -84,11 +114,14 @@ async def _rules_matching_ids(
 async def _rules_mentioning(
     db: AsyncSession, names: list[str],
 ) -> list[Detection]:
-    """Rules whose title/description/tags mention any of `names` as a whole word.
+    """Rules whose title/description/tags/use_cases/references mention
+    any of `names`, separator-tolerant.
 
-    Two-stage: DB-side ilike substring pre-filter (portable) narrows
-    the set, then a Python word-boundary regex removes false-matches
-    like `apt29ish` or `notmimikatz`.
+    Two-stage: DB-side LIKE pre-filter (portable; `_` wildcard covers
+    space/underscore/hyphen variants) narrows the set, then the shared
+    actor_matching regex — alphanumeric-boundary lookarounds, flexible
+    separators — removes false matches like `apt29ish` while still
+    hitting `story:salt_typhoon` and `.../salt-typhoon-analysis/`.
     """
     if not names:
         return []
@@ -97,37 +130,43 @@ async def _rules_mentioning(
     filtered = [n for n in names if len(n) >= 3]
     if not filtered:
         return []
+    text_columns = (
+        Detection.title,
+        Detection.description,
+        cast(Detection.tags, String),
+        cast(Detection.use_cases, String),
+        cast(Detection.references, String),
+    )
     ilike_conds = []
     for n in filtered:
-        pattern = f"%{n}%"
-        ilike_conds.extend([
-            Detection.title.ilike(pattern),
-            Detection.description.ilike(pattern),
-            cast(Detection.tags, String).ilike(pattern),
-        ])
+        for pattern in sql_like_patterns(n):
+            ilike_conds.extend(col.ilike(pattern) for col in text_columns)
     q = (
         select(
             Detection.id, Detection.rule_id, Detection.title, Detection.source,
             Detection.severity, Detection.language, Detection.mitre_techniques,
             Detection.platforms, Detection.rule_created_date,
             Detection.description, Detection.tags,
+            Detection.use_cases, Detection.references,
         )
         .where(or_(*ilike_conds))
         .limit(RULES_LIMIT * 3)  # over-fetch; Python regex filters below
     )
     raw = list((await db.execute(q)).all())
 
-    # Word-boundary regex, case-insensitive. Escape names for regex.
-    pattern = re.compile(
-        r"\b(" + "|".join(re.escape(n) for n in filtered) + r")\b",
-        re.IGNORECASE,
-    )
+    pattern = compile_name_regex(filtered)
+    if pattern is None:
+        return []
     hits = []
     for row in raw:
-        title = row[2] or ""
-        description = row[9] or ""
-        tags = " ".join(t for t in (row[10] or []) if isinstance(t, str))
-        if pattern.search(title) or pattern.search(description) or pattern.search(tags):
+        haystack = " ".join([
+            row[2] or "",   # title
+            row[9] or "",   # description
+            " ".join(t for t in (row[10] or []) if isinstance(t, str)),  # tags
+            " ".join(u for u in (row[11] or []) if isinstance(u, str)),  # use_cases
+            " ".join(r for r in (row[12] or []) if isinstance(r, str)),  # references
+        ])
+        if pattern.search(haystack):
             hits.append(row)
         if len(hits) >= RULES_LIMIT:
             break
@@ -149,17 +188,20 @@ def _serialize_rule(row) -> dict:
     }
 
 
-async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
-    """Count of rules matching any of `ids` in the JSON list column.
+async def _count_matches(
+    db: AsyncSession, column, ids: list[str], story_names: list[str] | None = None,
+) -> int:
+    """Count of rules matching any of `ids` in the JSON list column
+    (plus, for exact mode, use_cases labels equal to `story_names`).
 
     Kept as a separate query so we can return counts for all three
     modes on the detail response without over-fetching rules for the
     non-selected modes.
     """
-    if not ids:
-        return 0
     from sqlalchemy import func
-    conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
+    conds = _exact_conditions(column, ids, story_names or [])
+    if not conds:
+        return 0
     q = select(func.count(Detection.id)).where(or_(*conds))
     return (await db.execute(q)).scalar() or 0
 
@@ -687,19 +729,19 @@ async def actor_navigator_layer(
         }
         technique_titles = await _technique_rule_titles(db, technique_ids)
     else:
+        ctx = (
+            actor_context_service.get_context(actor_id)
+            if kind == "group" else None
+        )
+        names = [entity["name"]] + merge_aliases(
+            list(entity.get("aliases", [])), ctx, exclude=entity["name"]
+        )
         if match_mode == "exact":
             column = (
                 Detection.mitre_groups if kind == "group" else Detection.mitre_software
             )
-            rows = await _rules_matching_ids(db, column, [actor_id])
+            rows = await _rules_matching_ids(db, column, [actor_id], story_names=names)
         else:  # mention
-            ctx = (
-                actor_context_service.get_context(actor_id)
-                if kind == "group" else None
-            )
-            names = [entity["name"]] + merge_aliases(
-                list(entity.get("aliases", [])), ctx, exclude=entity["name"]
-            )
             rows = await _rules_mentioning(db, names)
         technique_titles = await _technique_rule_titles(
             db, technique_ids, restrict_rows=rows
@@ -852,28 +894,33 @@ async def get_actor(
         associated_key = "associated_groups"
     associated.sort(key=lambda a: (-a["rule_count"], a["id"]))
 
-    # Match counts across all three modes — always populated so the
-    # UI can render the switcher without a round-trip.
-    column = Detection.mitre_groups if kind == "group" else Detection.mitre_software
-    exact_count = await _count_matches(db, column, [actor_id])
-    coverage_ids = [t["technique_id"] for t in techniques_used]
-    coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids)
-
-    # Mention count: names to search for = primary name + aliases,
-    # including galaxy synonyms (a rule citing "GOLD SAHARA" counts
-    # as mentioning Akira).
+    # Names for exact-story and mention matching = primary name +
+    # aliases, including galaxy synonyms (a rule citing "GOLD SAHARA"
+    # counts as mentioning Akira).
     mention_ctx = (
         actor_context_service.get_context(actor_id) if kind == "group" else None
     )
     mention_names = [entity["name"]] + merge_aliases(
         list(entity.get("aliases", [])), mention_ctx, exclude=entity["name"]
     )
+
+    # Match counts across all three modes — always populated so the
+    # UI can render the switcher without a round-trip. Exact includes
+    # use_cases labels equal to the actor name/alias (analytic stories
+    # named after the actor are tags, not prose).
+    column = Detection.mitre_groups if kind == "group" else Detection.mitre_software
+    exact_count = await _count_matches(db, column, [actor_id], story_names=mention_names)
+    coverage_ids = [t["technique_id"] for t in techniques_used]
+    coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids)
+
     mention_hits = await _rules_mentioning(db, mention_names)
     mention_count = len(mention_hits)
 
     # Fetch rules for the SELECTED mode
     if match_mode == "exact":
-        rule_rows = await _rules_matching_ids(db, column, [actor_id])
+        rule_rows = await _rules_matching_ids(
+            db, column, [actor_id], story_names=mention_names
+        )
     elif match_mode == "coverage":
         rule_rows = await _rules_matching_ids(db, Detection.mitre_techniques, coverage_ids)
     else:  # mention
