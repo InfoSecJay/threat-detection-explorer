@@ -622,6 +622,196 @@ def is_canonical_platform(value: str) -> bool:
     return value in PLATFORMS
 
 
+# ---------------------------------------------------------------------------
+# OBSERVABLE SCHEMA — extracted_observables `type` / `subtype` vocabulary
+# ---------------------------------------------------------------------------
+# Single source of truth for the `type` and `subtype` values an
+# ExtractedObservable may carry (issue #6, phase 1). The extractor's
+# FIELD_TYPE_MAP and its heuristic fallback must only emit pairs listed
+# here — a test pins that, so adding a new pair means adding it HERE
+# first, deliberately.
+#
+# Two tiers of subtype:
+#
+# - Precise subtypes ("process_name", "api_action", "sender_domain")
+#   come from FIELD_TYPE_MAP entries — a known field name mapped by
+#   hand.
+# - `*_field` subtypes ("process_field", "network_field", ...) are the
+#   heuristic fallback's admission that it only recognized the DOMAIN
+#   of an unmapped field, not its meaning. They are transitional: the
+#   per-source extractor rebuilds (issue #6) should shrink their share
+#   in favor of precise subtypes, and the extraction audit
+#   (scripts/audit_extraction.py) reports that share per source.
+#
+# ("other", "unknown") is the fallback of last resort — the field name
+# matched no domain heuristic at all.
+
+OBSERVABLE_TYPES: frozenset[str] = frozenset(
+    {
+        "process",         # process execution: names, paths, command lines, hashes
+        "file",            # filesystem artifacts: names, paths, extensions, hashes
+        "registry",        # Windows registry keys and values
+        "network",         # connections: IPs, ports, domains, URLs, protocols
+        "dns",             # DNS-specific: query names/types, answers, rcodes
+        "email",           # email channel: senders, recipients, subjects, attachments
+        "cloud",           # cloud control plane: API actions, principals, resources
+        "identity",        # identity providers: actors, targets, auth factors
+        "authentication",  # OS/host logon telemetry: users, logon types/ids
+        "endpoint",        # host identity: hostnames, device ids
+        "event",           # bare event identifiers (Windows Event ID etc.)
+        "other",           # unclassifiable field — extraction gap signal
+    }
+)
+
+OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
+    "process": frozenset(
+        {
+            "process_name",
+            "process_path",
+            "process_hash",
+            "command_line_pattern",
+            "parent_process_name",
+            "parent_process_path",
+            "parent_command_line",
+            "process_field",  # heuristic fallback
+        }
+    ),
+    "file": frozenset(
+        {
+            "file_name",
+            "file_path",
+            "file_extension",
+            "file_hash",
+            "file_content",
+            "file_field",  # heuristic fallback
+        }
+    ),
+    "registry": frozenset(
+        {
+            "registry_key",
+            "registry_value",
+            "registry_field",  # heuristic fallback
+        }
+    ),
+    "network": frozenset(
+        {
+            "ip_address",
+            "port",
+            "domain",
+            "url",
+            "protocol",
+            "direction",
+            "action",
+            "http_method",
+            "http_status",
+            # Legacy pin: FIELD_TYPE_MAP maps `network.type`-style
+            # fields to the literal subtype "type". Rename to
+            # `network_type` during the network extractor rebuild.
+            "type",
+            "network_field",  # heuristic fallback
+        }
+    ),
+    "dns": frozenset(
+        {
+            "query_name",
+            "query_type",
+            "answer",
+            "answer_type",
+            "response_code",
+            "dns_field",  # heuristic fallback
+        }
+    ),
+    "email": frozenset(
+        {
+            "sender",
+            "sender_name",
+            "sender_domain",
+            "recipient",
+            "reply_to",
+            "return_path",
+            "subject",
+            "body_content",
+            "attachment",
+            "attachment_type",
+            "url",
+            "auth_result",
+            "ml_classifier",
+            "email_field",  # heuristic fallback
+        }
+    ),
+    "cloud": frozenset(
+        {
+            "api_action",
+            "event_source",
+            "principal",
+            "principal_type",
+            "account_id",
+            "resource",
+            "resource_type",
+            "resource_group",
+            "region",
+            "cloud_provider",
+            "source_ip",
+            "user_agent",
+            "request_params",
+            "response_elements",
+            "error_code",
+            "error_message",
+            "result",
+            "context",
+        }
+    ),
+    "identity": frozenset(
+        {
+            "action",
+            "actor",
+            "target",
+            "target_type",
+            "auth_factor",
+            "outcome",
+            "outcome_reason",
+            "risk",
+            "device",
+            "geo",
+            "source_ip",
+            "user_agent",
+            "context",
+            "identity_field",  # heuristic fallback
+        }
+    ),
+    "authentication": frozenset(
+        {
+            "user",
+            "user_id",
+            "user_email",
+            "domain",
+            "logon_id",
+            "logon_type",
+            "auth_field",  # heuristic fallback
+        }
+    ),
+    "endpoint": frozenset(
+        {
+            "hostname",
+            "remote_hostname",
+            "device_id",
+        }
+    ),
+    "event": frozenset({"event_id"}),
+    "other": frozenset({UNKNOWN}),
+}
+
+
+def is_valid_observable_type(obs_type: str) -> bool:
+    """True if `obs_type` is a recognized observable type."""
+    return obs_type in OBSERVABLE_TYPES
+
+
+def is_valid_observable(obs_type: str, obs_subtype: str) -> bool:
+    """True if the (type, subtype) pair is in the pinned vocabulary."""
+    return obs_subtype in OBSERVABLE_SUBTYPES.get(obs_type, frozenset())
+
+
 def is_canonical_data_source(value: str) -> bool:
     """True if `value` is a recognized data source identifier."""
     return value in DATA_SOURCES

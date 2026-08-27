@@ -23,6 +23,18 @@ For each source, per-rule metrics computed:
     (e.g. reserved keywords, obvious junk). See `is_suspect_value()`.
   - **Field-name reasonableness**: how many `fields_used` values look
     like real dotted field paths vs raw strings.
+  - **Per-surface FP classes** (issue #6 phase 1): shape tripwires per
+    extracted surface — process names that are paths/patterns, event
+    IDs that aren't numeric, "network indicators" that are field names
+    or booleans, file paths without separators, source tables with
+    whitespace. Each violation is tallied under a named FP class so
+    the per-source rebuild knows exactly which failure mode to fix.
+  - **Observable schema conformance**: every `extracted_observables`
+    (type, subtype) pair is checked against the canonical vocabulary
+    pinned in `taxonomy/canonical.py` — out-of-vocabulary pairs mean
+    extractor drift (or stale rows from an older extractor). The
+    share of heuristic `*_field` fallback subtypes is reported as a
+    mapping-precision metric.
 
 Anomaly thresholds (heuristic):
 
@@ -54,8 +66,13 @@ import urllib.parse
 import urllib.request
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Iterable, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+from app.services.taxonomy.canonical import (  # noqa: E402
+    is_valid_observable,
+)
 
 PROD_API = "https://threat-detection-explorer-production.up.railway.app/api"
 PAGE_SIZE = 200
@@ -121,6 +138,115 @@ _SUSPECT_VALUE_PATTERNS = [
 _FIELD_NAME_RE = re.compile(r"^[A-Za-z_@][\w\-.@]*$")
 
 
+# ── Per-surface FP-class tripwires (issue #6 phase 1) ──────────────
+#
+# Each checker returns an FP-class label (short slug) when the value
+# violates the surface's contract, else None. Labels are tallied per
+# source so the extractor rebuild knows WHICH failure mode dominates.
+
+_NUMERIC_EVENT_ID = re.compile(r"^\d{1,6}$")
+_BOOLEANISH = re.compile(r"^(true|false|null|none|yes|no)$", re.IGNORECASE)
+
+# A dotted lowercase value is only "a field name leaked into a value
+# surface" when its first segment is a known telemetry-schema namespace
+# — otherwise it's likely a legitimate domain (microsoftonline.com).
+_FIELD_NAMESPACES = frozenset(
+    {
+        "process", "event", "network", "source", "destination", "http",
+        "dns", "user", "file", "registry", "winlog", "cloud", "aws",
+        "azure", "gcp", "o365", "okta", "email", "tls", "url", "host",
+        "agent", "client", "server", "related", "rule", "threat",
+        "signal", "kibana", "container", "orchestrator", "processes",
+    }
+)
+_DOTTED_IDENT = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)+$")
+
+
+def _looks_like_field_name(value: str) -> bool:
+    if not _DOTTED_IDENT.match(value):
+        return False
+    return value.split(".", 1)[0] in _FIELD_NAMESPACES
+
+
+def _fp_process_name(v: str) -> Optional[str]:
+    # Contract: bare executable names ("powershell.exe", "curl").
+    if "\\" in v or "/" in v:
+        return "path-not-name"
+    if "*" in v or "?" in v:
+        return "wildcard-pattern"
+    if " " in v.strip():
+        return "contains-space"
+    if len(v) > 60:
+        return "overlong"
+    return None
+
+
+def _fp_event_id(v: str) -> Optional[str]:
+    # Contract: numeric vendor event codes ("4688", "1102"). Vendor
+    # string codes exist, but free text / operators do not belong.
+    if _NUMERIC_EVENT_ID.match(v.strip()):
+        return None
+    if " " in v.strip():
+        return "free-text"
+    return "non-numeric"
+
+
+def _fp_file_path(v: str) -> Optional[str]:
+    if "\\" not in v and "/" not in v:
+        return "no-separator"
+    if set(v.strip()) <= {"*", "\\", "/", "."}:
+        return "pure-wildcard"
+    return None
+
+
+def _fp_registry_key(v: str) -> Optional[str]:
+    up = v.upper()
+    if not any(
+        m in up for m in ("HK", "\\SOFTWARE\\", "\\SYSTEM\\", "\\CURRENTVERSION\\")
+    ):
+        return "no-hive-marker"
+    return None
+
+
+def _fp_network_indicator(v: str) -> Optional[str]:
+    s = v.strip()
+    if _looks_like_field_name(s):
+        return "field-name-as-value"
+    if _BOOLEANISH.match(s):
+        return "boolean-noise"
+    # Bare numerics are legitimate (ports); long spaced text is not.
+    if " " in s and len(s) > 40:
+        return "free-text"
+    return None
+
+
+def _fp_source_table(v: str) -> Optional[str]:
+    if re.search(r"\s", v):
+        return "contains-whitespace"
+    return None
+
+
+# extracted surface -> checker
+SURFACE_CHECKS = {
+    "extracted_process_names": _fp_process_name,
+    "extracted_event_ids": _fp_event_id,
+    "extracted_file_paths": _fp_file_path,
+    "extracted_registry_keys": _fp_registry_key,
+    "extracted_network_indicators": _fp_network_indicator,
+    "extracted_source_tables": _fp_source_table,
+}
+
+# Heuristic-fallback subtypes — the extractor recognized the domain of
+# a field but not its meaning (see canonical.OBSERVABLE_SUBTYPES).
+_FALLBACK_SUBTYPES = frozenset(
+    {
+        "process_field", "registry_field", "file_field", "email_field",
+        "dns_field", "identity_field", "network_field", "auth_field",
+        "unknown",
+    }
+)
+
+
 # ── Data shapes ────────────────────────────────────────────────────
 
 
@@ -150,6 +276,18 @@ class SourceAudit:
     # Unreasonable field names
     unreasonable_fields_total: int = 0
     unreasonable_fields_sample: list[tuple[str, str]] = field(default_factory=list)
+
+    # Per-surface FP classes (issue #6 phase 1): (surface, class) -> count,
+    # plus total values per checked surface for rate computation.
+    fp_classes: Counter = field(default_factory=Counter)
+    fp_samples: dict = field(default_factory=dict)  # (surface, class) -> [values]
+    surface_value_totals: Counter = field(default_factory=Counter)
+
+    # Observable schema conformance
+    obs_total: int = 0
+    obs_pair_dist: Counter = field(default_factory=Counter)      # (type, subtype) -> count
+    obs_out_of_vocab: Counter = field(default_factory=Counter)   # (type, subtype) -> count
+    obs_fallback_subtypes: int = 0
 
     anomalies: list[str] = field(default_factory=list)
 
@@ -230,6 +368,20 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
                                 audit.unreasonable_fields_sample.append(
                                     (str(v)[:60], rule_id)
                                 )
+                # Per-surface FP-class tripwires (issue #6 phase 1)
+                checker = SURFACE_CHECKS.get(f)
+                if checker:
+                    for v in vals:
+                        if not isinstance(v, str):
+                            continue
+                        audit.surface_value_totals[f] += 1
+                        fp_class = checker(v)
+                        if fp_class:
+                            key = (f, fp_class)
+                            audit.fp_classes[key] += 1
+                            bucket = audit.fp_samples.setdefault(key, [])
+                            if len(bucket) < 4:
+                                bucket.append(str(v)[:70])
 
         audit.any_extraction += int(any_populated)
         audit.no_extraction += int(not any_populated)
@@ -237,6 +389,18 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
         obs = rule.get("extracted_observables") or []
         audit.observables_counts.append(len(obs))
         audit.complexity_dist[rule.get("query_complexity") or "unknown"] += 1
+
+        # Observable schema conformance (issue #6 phase 1)
+        for o in obs:
+            if not isinstance(o, dict):
+                continue
+            pair = (str(o.get("type")), str(o.get("subtype")))
+            audit.obs_total += 1
+            audit.obs_pair_dist[pair] += 1
+            if not is_valid_observable(*pair):
+                audit.obs_out_of_vocab[pair] += 1
+            if pair[1] in _FALLBACK_SUBTYPES:
+                audit.obs_fallback_subtypes += 1
 
     # ── Anomaly heuristics ─────────────────────────────────────────
     if audit.rule_count and audit.extractor_status == "have_extractor":
@@ -275,6 +439,37 @@ def audit_source(api_base: str, source: str) -> SourceAudit:
                 "entries don't look like real field names — extractor emitting "
                 "raw strings or keywords"
             )
+
+        # Per-surface FP rates > 5% of that surface's values
+        for surface, total in audit.surface_value_totals.items():
+            bad = sum(
+                n for (surf, _cls), n in audit.fp_classes.items()
+                if surf == surface
+            )
+            rate = pct(bad, total)
+            if total >= 20 and rate > 5:
+                audit.anomalies.append(
+                    f"{surface}: {rate:.1f}% of values ({bad}/{total}) hit an "
+                    "FP-class tripwire — surface contract violated"
+                )
+
+        # Out-of-vocabulary observable pairs are drift by definition.
+        if audit.obs_out_of_vocab:
+            oov = sum(audit.obs_out_of_vocab.values())
+            audit.anomalies.append(
+                f"{oov} observables carry a (type, subtype) outside the "
+                "canonical vocabulary — extractor drift or stale rows"
+            )
+
+        # Fallback-subtype share: the extractor only recognized the
+        # DOMAIN of the field, not its meaning.
+        if audit.obs_total:
+            fb_pct = pct(audit.obs_fallback_subtypes, audit.obs_total)
+            if fb_pct > 30:
+                audit.anomalies.append(
+                    f"{fb_pct:.1f}% of observables use heuristic *_field "
+                    "fallback subtypes — field mapping imprecise for this source"
+                )
 
     return audit
 
@@ -321,6 +516,30 @@ def render_text(audit: SourceAudit) -> str:
     out.append("  query_complexity:")
     for level, n in audit.complexity_dist.most_common():
         out.append(f"    {n:>5} ({pct(n, audit.rule_count):>5.1f}%) {level}")
+
+    if audit.obs_total:
+        fb_pct = pct(audit.obs_fallback_subtypes, audit.obs_total)
+        out.append(
+            f"  observables: {audit.obs_total} total, "
+            f"{fb_pct:.1f}% heuristic *_field fallback subtypes"
+        )
+        out.append("  top (type, subtype) pairs:")
+        for (t, st), n in audit.obs_pair_dist.most_common(8):
+            out.append(f"    {n:>6}  {t}/{st}")
+        if audit.obs_out_of_vocab:
+            out.append("  OUT-OF-VOCABULARY pairs:")
+            for (t, st), n in audit.obs_out_of_vocab.most_common(8):
+                out.append(f"    {n:>6}  {t}/{st}")
+
+    if audit.fp_classes:
+        out.append("  per-surface FP classes:")
+        for (surface, cls), n in audit.fp_classes.most_common(12):
+            total = audit.surface_value_totals.get(surface, 0)
+            out.append(
+                f"    {n:>6} ({pct(n, total):>5.1f}% of {surface.replace('extracted_', '')}) {cls}"
+            )
+            for v in audit.fp_samples.get((surface, cls), [])[:3]:
+                out.append(f"        e.g. {v!r}")
 
     if audit.suspect_values_total:
         out.append(f"  suspect values: {audit.suspect_values_total}")
@@ -400,6 +619,12 @@ def main() -> int:
         def _serialize(a: SourceAudit) -> dict:
             d = asdict(a)
             d["complexity_dist"] = dict(a.complexity_dist)
+            # Tuple-keyed counters -> "a/b" string keys for JSON.
+            d["fp_classes"] = {f"{s}/{c}": n for (s, c), n in a.fp_classes.items()}
+            d["fp_samples"] = {f"{s}/{c}": v for (s, c), v in a.fp_samples.items()}
+            d["surface_value_totals"] = dict(a.surface_value_totals)
+            d["obs_pair_dist"] = {f"{t}/{st}": n for (t, st), n in a.obs_pair_dist.items()}
+            d["obs_out_of_vocab"] = {f"{t}/{st}": n for (t, st), n in a.obs_out_of_vocab.items()}
             return d
         sys.stdout.write(json.dumps([_serialize(a) for a in audits], indent=2) + "\n")
     else:

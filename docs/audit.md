@@ -1,13 +1,16 @@
 # Pipeline audits
 
-Two scripts, two questions:
+Three scripts, three questions:
 
 - [`scripts/audit_coverage.py`](../scripts/audit_coverage.py) -- *are we
   ingesting everything upstream has?* (Phase 1)
 - [`scripts/audit_normalization.py`](../scripts/audit_normalization.py)
   -- *are the rules we ingest classified correctly?* (Phase 2)
+- [`scripts/audit_extraction.py`](../scripts/audit_extraction.py) -- *are
+  the observables we extract from rule logic real and precise?*
+  (issue #6 baseline)
 
-Both are read-only, exit 0 always, run any time.
+All are read-only, exit 0 always, run any time.
 
 # Coverage audit (Phase 1)
 
@@ -193,3 +196,84 @@ Run against production: **5/8 sources clean, 3 with anomalies.**
 - Heuristic thresholds are tuned for the current ruleset shape; if a
   source's character changes (e.g. Sublime starts mapping MITRE), update
   the thresholds rather than silencing the script.
+
+# Extraction audit (issue #6)
+
+[`scripts/audit_extraction.py`](../scripts/audit_extraction.py) is the
+baseline instrument for the extracted-observables redesign (issue #6):
+per source, it measures extraction **coverage** (population rates for
+the 9 `extracted_*` array surfaces), **schema conformance** (every
+observable's `(type, subtype)` pair validated against the canonical
+vocabulary pinned in
+[`taxonomy/canonical.py`](../backend/app/services/taxonomy/canonical.py)),
+**mapping precision** (share of heuristic `*_field` fallback subtypes,
+where the extractor recognized only the *domain* of a field, not its
+meaning), and **per-surface FP classes** (named shape tripwires:
+process names that are paths, event IDs that aren't event IDs, network
+indicators that are booleans or free text, ...).
+
+## Usage
+
+```bash
+python scripts/audit_extraction.py
+python scripts/audit_extraction.py --source splunk
+python scripts/audit_extraction.py --json
+python scripts/audit_extraction.py --api http://localhost:8000/api
+```
+
+## Baseline findings (2026-08-26, production)
+
+**Coverage is not the problem — precision is.** Every source with an
+extractor populates observables for 97-100% of rules, but the share of
+imprecise fallback classification and the junk rate vary wildly:
+
+| Source              | Rules | Coverage | Observables | `*_field` fallback | Bad `fields_used` | Dominant FP class |
+| ---                 | ---:  | ---:     | ---:        | ---:               | ---:              | ---               |
+| sigma               | 3783  | 100.0%   | 12465       | 24.1%              | 17                | 22.8% of file_paths are bare extensions (`.bat`, `.7z`) |
+| elastic_protections | 1314  | 99.8%    | 12373       | 28.9%              | 0                 | (clean) |
+| elastic             | 2069  | 99.9%    | 13250       | 49.4%              | 27                | 36.9% of event_ids are O365 operation names (`ComplianceDLPExchange`) |
+| elastic_hunting     | 140   | 97.1%    | 982         | 54.2%              | 25                | osquery SQL fragments leak into fields_used |
+| splunk              | 2156  | 99.9%    | 8125        | 60.0%              | **2066**          | multi-field `\| fields` lines stored unsplit (`"dest user process_id FilterName"`) |
+| sentinel            | 2351  | 99.4%    | 4565        | 71.0%              | **1675**          | KQL fragments as field names (`"1d)"`, `"RiskScore desc"`); let-expressions leak into source_tables |
+| sublime             | 1196  | 99.4%    | 10971       | 74.3%              | **3092**          | leading-dot MQL fields (`.display_text`) parsed as junk; 218 bare `"."` values |
+| lolrmm              | 631   | 100.0%   | 892         | 0.2%               | 0                 | 6.4% of file_paths are bare filenames |
+| google_secops       | 379   | 0.0%     | 0           | —                  | —                 | no extractor (YARA-L) |
+| panther             | 877   | 0.0%     | 0           | —                  | —                 | no extractor (Python bodies) |
+| okta                | 34    | 0.0%     | 0           | —                  | —                 | no extractor |
+| auth0               | 34    | 100.0%   | 202         | 97.0%              | 24                | flagged `no_extractor` but generic path fires — 97% fallback, worst precision on the site |
+
+Schema conformance: **zero out-of-vocabulary `(type, subtype)` pairs**
+across all 15k rules — the vocabulary pinned in `canonical.py` matches
+production reality exactly, so any future out-of-vocab hit is real
+drift.
+
+### What this means for the rebuild order (issue #6)
+
+1. **splunk** — biggest junk volume (2,066 unsplit field lists) and
+   60% fallback share on 8k observables. The real-grammar rebuild
+   (`splunk-sdk` search parser) fixes the `| fields`/`| table`
+   splitting class wholesale.
+2. **sublime** — 74.3% fallback share and 3,092 junk field names from
+   one lexical cause: MQL's leading-dot field syntax. Likely the
+   cheapest big win.
+3. **sentinel** — 71% fallback, KQL fragments in two surfaces; needs
+   real KQL tokenization rather than regex.
+4. **elastic** — event-ID misrouting (O365 operation names) plus 49.4%
+   fallback; the ECS field map is good, the non-ECS integrations
+   aren't.
+5. **sigma** — best structured source (YAML detection blocks), so its
+   noise is small; the extension-as-path class is a routing fix
+   (extensions belong in `file/file_extension`, not file_paths).
+
+`elastic_protections` and `lolrmm` are near-clean and shouldn't be
+touched until the big four land. `auth0`'s flag should be corrected
+(it *does* extract, badly) or its generic extraction suppressed.
+
+## Limitations
+
+- FP-class tripwires are shape heuristics — they catch contract
+  violations (a path in a name surface), not semantic errors (a wrong
+  but well-formed value). Semantic accuracy needs the per-source
+  fixture corpora that the rebuild arc (issue #6) builds.
+- Same production-API caveat as the other audits: it measures what
+  production has now, not `master`.
