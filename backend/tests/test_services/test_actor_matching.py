@@ -166,7 +166,6 @@ from app.services.actor_matching import is_ambiguous_name
 def test_is_ambiguous_name_classification():
     assert is_ambiguous_name("Net")
     assert is_ambiguous_name("PS1")
-    assert is_ambiguous_name("Wiper")
     assert is_ambiguous_name("route")
     # Multi-token aliases of the same entities stay flexible.
     assert not is_ambiguous_name("net.exe")
@@ -191,12 +190,6 @@ def test_ambiguous_name_rejects_extension_url_and_compound_glue():
         "Backdoors/DNS_TXT_Pwnage.ps1",
         "Invoke-EventVwrBypass.ps1#L64",
         "Launch-VsDevShell.PS1 Proxy Execution",
-    ):
-        assert not rx.search(text), text
-    rx = compile_name_regex(["Wiper"])
-    for text in (
-        "tags: hermetic_wiper suspicious_emails",
-        "threat-update-awfulshred-script-wiper.html",
     ):
         assert not rx.search(text), text
     rx = compile_name_regex(["route"])
@@ -233,6 +226,11 @@ def test_unmatchable_alias_is_dropped_from_regex_but_not_labels():
     from app.services.actor_matching import is_unmatchable_name
 
     assert is_unmatchable_name("Page")
+    # "Wiper" promoted from AMBIGUOUS after production showed 58
+    # residual hits via space-separated compounds ("Hermetic Wiper"
+    # story labels) that strict boundaries allow by design.
+    assert is_unmatchable_name("Wiper")
+    assert compile_name_regex(["Wiper"]) is None
     assert not is_unmatchable_name("Elise")
     rx = compile_name_regex(["Elise", "BKDR_ESILE", "Page"])
     assert not rx.search("Potential Persistence Via Outlook Home Page")

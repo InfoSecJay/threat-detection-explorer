@@ -69,7 +69,7 @@ def normalize_label(value: str) -> str:
 # distinctive single tokens NEED separator glue to hit URL slugs
 # (`/qbot-and-zerologon-...`).
 AMBIGUOUS_TOKENS = frozenset({
-    "net", "cmd", "ping", "route", "ps1", "wiper",
+    "net", "cmd", "ping", "route", "ps1",
 })
 
 # Aliases that are unmatchable in free text at ANY boundary strictness:
@@ -77,10 +77,16 @@ AMBIGUOUS_TOKENS = frozenset({
 # S0081 Elise's alias "Page" produced 72 of its 74 mention hits from
 # "Outlook Home Page" / "code page" / "?page=" prose (issue #35 audit)
 # — strict boundaries can't help a word that legitimately stands alone.
-# Dropped from regex matching entirely; still honored by
-# labels_matching(), where whole-label equality keeps FP risk low.
+# S0041 "Wiper" (a 2013 one-off) started as AMBIGUOUS, but production
+# showed 58 residual hits from SPACE-separated compound labels
+# ("Hermetic Wiper" analytic stories, "BiBi wiper" prose) that
+# strict boundaries deliberately allow — modern "wiper" references are
+# essentially never S0041. Dropped from regex matching entirely; still
+# honored by labels_matching(), where whole-label equality keeps FP
+# risk low.
 UNMATCHABLE_TOKENS = frozenset({
     "page",
+    "wiper",
 })
 
 
