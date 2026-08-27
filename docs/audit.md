@@ -269,6 +269,28 @@ drift.
 touched until the big four land. `auth0`'s flag should be corrected
 (it *does* extract, badly) or its generic extraction suppressed.
 
+### Rebuild progress
+
+**splunk — rebuilt 2026-08-26** (stage-aware SPL tokenizer replacing
+flat regexes). Before/after over the 1,983-rule local corpus, same
+audit checkers:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| junk fields_used | 1,890 (22.6%) | **0 (0.0%)** |
+| fields_used values | 8,371 | 27,730 (by-lists now split) |
+| event_ids non-numeric FP | 18 | 0 |
+| file_paths no-separator FP | 12 (17.6%) | 0 |
+| file_paths extracted | 68 | 299 |
+| process_names | 1,132 | 1,149 |
+| network_indicators | 512 | 961 (enum metadata now excluded) |
+| `*_field` fallback share | 59.7% | 45.0% |
+
+Production columns refresh automatically on the next nightly sync
+(every rule is re-normalized on upsert). The remaining fallback share
+is a FIELD_TYPE_MAP vocabulary gap, not a parsing gap — tracked for a
+later pass.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract

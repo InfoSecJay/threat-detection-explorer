@@ -134,8 +134,9 @@ _SUSPECT_VALUE_PATTERNS = [
 ]
 
 # fields_used entries should look like dotted field paths. This is
-# permissive — segments can be `@timestamp`, `field-name` etc.
-_FIELD_NAME_RE = re.compile(r"^[A-Za-z_@][\w\-.@]*$")
+# permissive — segments can be `@timestamp`, `field-name`, and Splunk
+# multivalue paths like `sourceIPs{}` / `user.groups{}.name`.
+_FIELD_NAME_RE = re.compile(r"^[A-Za-z_@][\w\-.@{}]*$")
 
 
 # ── Per-surface FP-class tripwires (issue #6 phase 1) ──────────────

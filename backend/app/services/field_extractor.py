@@ -748,6 +748,336 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
 # ===========================================================================
 # SPLUNK EXTRACTOR (SPL)
 # ===========================================================================
+#
+# Stage-aware tokenizer (issue #6 rebuild). The previous extractor ran
+# flat regexes over the whole search string: `by` clauses were split on
+# commas although ESCU writes them space-separated — so entire clauses
+# ("dest user process_id FilterName") were stored as single field names,
+# 2,066 junk fields_used entries in the 2026-08-26 baseline audit —
+# and `| fields` / `| table` / `values(x) as y` aggregations were not
+# understood at all. This version splits the pipeline into stages
+# (quote-, backtick- and bracket-aware), dispatches per command,
+# validates every candidate field name, and tracks derived fields
+# (`as` aliases, eval/rename targets) so they don't masquerade as
+# telemetry fields.
+
+_SPL_COMMENT_RE = re.compile(r"```.*?```", re.DOTALL)
+_SPL_MACRO_RE = re.compile(r"`[^`]*`")
+# {} for ESCU multivalue paths (assocs{}.name); no ':' — colons appear
+# in values (WinEventLog:Security), not field names.
+_SPL_FIELD_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.{}\-]*$")
+
+# Tokens that are SPL syntax, never telemetry field names.
+_SPL_LIST_KEYWORDS = frozenset({
+    "as", "by", "over", "where", "output", "outputnew", "and", "or",
+    "not", "in", "like", "true", "false", "null", "asc", "desc",
+})
+# Search-language meta fields: real k=v syntax, not observables.
+_SPL_META_FIELDS = frozenset({
+    "index", "sourcetype", "source", "datamodel", "count", "span",
+    "limit", "earliest", "latest", "nodename", "maxspan", "type",
+})
+_SPL_STATS_CMDS = frozenset({
+    "stats", "tstats", "eventstats", "streamstats", "chart",
+    "timechart", "top", "rare", "sistats",
+})
+# Commands we recognize but deliberately don't extract from.
+_SPL_SKIP_CMDS = frozenset({
+    "eval", "bin", "bucket", "fillnull", "sort", "dedup", "head",
+    "tail", "join", "append", "appendpipe", "appendcols", "lookup",
+    "inputlookup", "mvexpand", "rex", "regex", "spath", "xyseries",
+    "transaction", "convert", "makemv", "foreach", "map",
+    "multisearch", "union", "from", "eventcount", "makeresults",
+    "iplocation", "outputlookup", "collect", "format", "return",
+})
+_SPL_AGG_RE = re.compile(
+    r"\b(?:count|dc|distinct_count|estdc|values|list|min|max|sum|avg|"
+    r"mean|median|mode|stdev|var|earliest|latest|first|last|range|"
+    r"per_second|per_minute|per_hour)\s*\(\s*([^()]*?)\s*\)",
+    re.IGNORECASE,
+)
+_SPL_AS_RE = re.compile(r"\bas\s+([A-Za-z_][A-Za-z0-9_.{}\-]*)", re.IGNORECASE)
+_SPL_EXPR_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_.{}\-]*)\s*(!?=|<=|>=|<|>)\s*"
+    r"(?:\"([^\"]*)\"|'([^']*)'|(\S+))"
+)
+_SPL_IN_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_.{}\-]*)\s+IN\s*\(([^)]*)\)", re.IGNORECASE
+)
+_SPL_FUNC_FIELD_RE = re.compile(
+    r"\b(?:match|like|cidrmatch|searchmatch)\s*\(\s*"
+    r"([A-Za-z_][A-Za-z0-9_.{}\-]*)",
+    re.IGNORECASE,
+)
+_SPL_EVENT_ID_FIELDS = frozenset({
+    "eventcode", "eventid", "event_id", "event.code", "message_id",
+    "signature_id",
+})
+_MAX_SUBSEARCH_DEPTH = 5
+
+
+def _spl_valid_field(name: str, derived: set[str]) -> bool:
+    return (
+        bool(_SPL_FIELD_NAME_RE.match(name))
+        and name.lower() not in _SPL_LIST_KEYWORDS
+        and name.lower() not in _SPL_META_FIELDS
+        and name not in derived
+    )
+
+
+def _tokenize_spl(text: str) -> tuple[list[str], list[str]]:
+    """Split a search into pipeline stages and top-level [subsearches].
+
+    Splits on `|` only at bracket depth 0 outside quotes; bracket
+    contents are returned separately (they are full sub-pipelines) and
+    excluded from the enclosing stage. Quote state is tracked so
+    brackets/pipes inside string literals (rex character classes, URL
+    values) don't confuse the scanner.
+    """
+    stages: list[str] = []
+    subsearches: list[str] = []
+    buf: list[str] = []
+    quote: Optional[str] = None
+    in_macro = False
+    depth = 0
+    sub_start = -1
+    escaped = False
+    for i, ch in enumerate(text):
+        if escaped:
+            # Previous char was a backslash inside a quote — this char
+            # is literal (rex patterns are full of \" escapes).
+            escaped = False
+            if depth == 0:
+                buf.append(ch)
+            continue
+        if quote:
+            if ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = None
+        elif in_macro:
+            if ch == "`":
+                in_macro = False
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "`":
+            in_macro = True
+        elif ch == "[":
+            depth += 1
+            if depth == 1:
+                sub_start = i + 1
+                continue
+        elif ch == "]":
+            if depth == 1 and sub_start >= 0:
+                subsearches.append(text[sub_start:i])
+                sub_start = -1
+            depth = max(0, depth - 1)
+            continue
+        elif ch == "|" and depth == 0:
+            stages.append("".join(buf))
+            buf = []
+            continue
+        if depth == 0:
+            buf.append(ch)
+    stages.append("".join(buf))
+    return [s for s in (st.strip() for st in stages) if s], subsearches
+
+
+def _spl_add_observable(
+    field_name: str,
+    values: list[str],
+    negated: bool,
+    result: ExtractedFields,
+) -> None:
+    """Record one (field, values) hit on every relevant surface."""
+    result.fields_used.append(field_name)
+    values = [v for v in values if v]
+    if not values:
+        return
+    obs_type, obs_subtype = _classify_field(field_name)
+    result.observables.append(
+        ExtractedObservable(
+            field=field_name,
+            values=values,
+            type=obs_type,
+            subtype=obs_subtype,
+            negated=negated,
+        )
+    )
+    if field_name.lower() in _SPL_EVENT_ID_FIELDS:
+        # Numeric codes only — "success"/operation names are not IDs.
+        result.event_ids.extend(v for v in values if v.isdigit())
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+        result.process_names.extend(_extract_exe_names(values))
+    if obs_type == "file" and "path" in obs_subtype:
+        # Extensions and bare filenames are not paths.
+        result.file_paths.extend(
+            v for v in values if ("\\" in v or "/" in v)
+        )
+    if obs_type == "registry":
+        result.registry_keys.extend(_extract_registry_paths(values))
+    if obs_type == "network" and obs_subtype not in (
+        # Enum-ish network metadata (action=allowed, direction=outbound,
+        # protocol=tcp) is not an INDICATOR — only value-bearing
+        # subtypes belong on the network_indicators surface.
+        "action", "direction", "protocol", "http_method", "http_status",
+        "type",
+    ):
+        result.network_indicators.extend(values)
+    _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+
+
+def _spl_clean_bare_value(value: str) -> str:
+    """Trim grouping punctuation regexes drag along with bare values:
+    `(Processes.process=*-a*)` captures `*-a*)`."""
+    return value.strip().strip(",").rstrip(")]").lstrip("([")
+
+
+def _parse_spl_expression(
+    text: str, result: ExtractedFields, derived: set[str]
+) -> None:
+    """field=value / field IN (...) / match(field, ...) terms."""
+    for m in _SPL_IN_RE.finditer(text):
+        field_name, values_str = m.group(1), m.group(2)
+        if not _spl_valid_field(field_name, derived):
+            continue
+        if field_name.lower() in _SPL_EVENT_ID_FIELDS:
+            result.fields_used.append(field_name)
+            result.event_ids.extend(re.findall(r"\d+", values_str))
+            continue
+        values = re.findall(r'"([^"]*)"', values_str)
+        if not values:
+            values = [
+                v.strip().strip("'\"")
+                for v in values_str.split(",")
+                if v.strip()
+            ]
+        if values:
+            _spl_add_observable(field_name, values, False, result)
+
+    remainder = _SPL_IN_RE.sub(" ", text)
+    for m in _SPL_EXPR_RE.finditer(remainder):
+        field_name, op = m.group(1), m.group(2)
+        value = m.group(3) or m.group(4) or _spl_clean_bare_value(m.group(5) or "")
+        if not _spl_valid_field(field_name, derived):
+            continue
+        # A "value" that is pure wildcard/punctuation is match-anything
+        # noise, not an observable.
+        if not value or not re.search(r"[A-Za-z0-9]", value):
+            result.fields_used.append(field_name)
+            continue
+        _spl_add_observable(field_name, [value], op == "!=", result)
+
+    for m in _SPL_FUNC_FIELD_RE.finditer(remainder):
+        if _spl_valid_field(m.group(1), derived):
+            result.fields_used.append(m.group(1))
+
+
+def _parse_spl_field_list(
+    text: str, result: ExtractedFields, derived: set[str]
+) -> None:
+    """Space/comma-separated field list (`by` clause, `fields`, `table`)."""
+    for token in re.split(r"[,\s]+", text):
+        token = token.strip().strip("\"'")
+        if token and _spl_valid_field(token, derived):
+            result.fields_used.append(token)
+
+
+def _parse_spl_stats(
+    stage: str, result: ExtractedFields, derived: set[str], cmd: str
+) -> None:
+    """stats/tstats/chart/... — aggregation args + where-expr + by list."""
+    parts = re.split(r"\bby\b", stage, flags=re.IGNORECASE)
+    head = parts[0]
+    if len(parts) > 1:
+        _parse_spl_field_list(" ".join(parts[1:]), result, derived)
+
+    # tstats carries its filter inline: ... from datamodel=X where <expr>
+    if cmd == "tstats":
+        where_split = re.split(r"\bwhere\b", head, flags=re.IGNORECASE, maxsplit=1)
+        if len(where_split) > 1:
+            _parse_spl_expression(where_split[1], result, derived)
+        head = where_split[0]
+
+    for m in _SPL_AGG_RE.finditer(head):
+        arg = m.group(1).strip()
+        if arg and arg != "*" and _spl_valid_field(arg, derived):
+            result.fields_used.append(arg)
+
+
+def _extract_spl_pipeline(
+    text: str, result: ExtractedFields, depth: int = 0
+) -> None:
+    if depth > _MAX_SUBSEARCH_DEPTH:
+        return
+    stages, subsearches = _tokenize_spl(text)
+
+    # Pass 1: derived field names (`as` aliases, eval/rename targets)
+    # so later stages don't report them as telemetry fields.
+    derived: set[str] = set()
+    parsed: list[tuple[str, str, str]] = []
+    for raw_stage in stages:
+        stage = _SPL_MACRO_RE.sub(" ", raw_stage).strip()
+        if not stage:
+            continue
+        first, _, rest = stage.partition(" ")
+        cmd = first.lower()
+        known = (
+            cmd in _SPL_STATS_CMDS
+            or cmd in _SPL_SKIP_CMDS
+            or cmd in ("search", "where", "fields", "table", "rename")
+        )
+        if not known:
+            # Base search / bare filter stage — the whole stage is an
+            # expression ("index=x EventCode=1", "message_id IN (...)").
+            cmd, rest = "search", stage
+        parsed.append((cmd, rest, stage))
+        if cmd in _SPL_STATS_CMDS or cmd == "rename":
+            derived.update(_SPL_AS_RE.findall(stage))
+        elif cmd == "rex":
+            # rex named capture groups define new fields.
+            derived.update(
+                re.findall(r"\(\?P?<([A-Za-z_][A-Za-z0-9_]*)>", stage)
+            )
+        elif cmd == "eval":
+            # Only top-level assignment targets are derived — strip
+            # parenthesized args first so `case(message_id="x", ...)`
+            # doesn't mark message_id as derived.
+            expr = rest
+            for _ in range(10):
+                stripped = re.sub(r"\([^()]*\)", " ", expr)
+                if stripped == expr:
+                    break
+                expr = stripped
+            derived.update(
+                m.group(1)
+                for m in re.finditer(
+                    r"(?:^|,)\s*([A-Za-z_][A-Za-z0-9_.{}\-]*)\s*=", expr
+                )
+            )
+
+    # Pass 2: per-command extraction.
+    for cmd, rest, stage in parsed:
+        if cmd in ("search", "where"):
+            _parse_spl_expression(rest, result, derived)
+        elif cmd in _SPL_STATS_CMDS:
+            _parse_spl_stats(rest, result, derived, cmd)
+        elif cmd in ("fields", "table"):
+            body = rest.strip()
+            if body.startswith("-"):
+                continue  # removal list — fields being dropped, not used
+            _parse_spl_field_list(body.lstrip("+ "), result, derived)
+        elif cmd == "rename":
+            for m in re.finditer(
+                r"([A-Za-z_][A-Za-z0-9_.{}\-]*)\s+as\s+", rest, re.IGNORECASE
+            ):
+                if _spl_valid_field(m.group(1), derived):
+                    result.fields_used.append(m.group(1))
+        # _SPL_SKIP_CMDS: recognized, deliberately no extraction.
+
+    for sub in subsearches:
+        _extract_spl_pipeline(sub, result, depth + 1)
+
 
 def extract_splunk_fields(search: str) -> ExtractedFields:
     """Extract fields from Splunk SPL search queries.
@@ -764,7 +1094,7 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
 
     search = search.strip()
 
-    # Determine complexity
+    # Determine complexity (same heuristic as pre-rebuild).
     if re.search(r'\bjoin\b', search, re.IGNORECASE) or '|' in search and search.count('|') > 5:
         result.query_complexity = "complex"
     elif re.search(r'\b(transaction|append|subsearch)\b', search, re.IGNORECASE):
@@ -774,113 +1104,22 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
     else:
         result.query_complexity = "simple"
 
-    # Extract datamodel references
-    dm_matches = re.findall(r'datamodel\s*=\s*([\w.]+)', search, re.IGNORECASE)
-    result.source_tables.extend(dm_matches)
+    # ``` comments ``` are prose, not SPL.
+    cleaned = _SPL_COMMENT_RE.sub(" ", search)
 
-    # Extract index references
-    idx_matches = re.findall(r'\bindex\s*=\s*(\S+)', search, re.IGNORECASE)
-    result.source_tables.extend(idx_matches)
+    # Source tables: datamodel / index / sourcetype (global — these
+    # regexes are precise and subsearches legitimately contribute).
+    result.source_tables.extend(
+        re.findall(r'datamodel\s*=\s*([\w.]+)', cleaned, re.IGNORECASE)
+    )
+    result.source_tables.extend(
+        re.findall(r'\bindex\s*=\s*([^\s|\])]+)', cleaned, re.IGNORECASE)
+    )
+    result.source_tables.extend(
+        re.findall(r'\bsourcetype\s*=\s*([^\s|\])]+)', cleaned, re.IGNORECASE)
+    )
 
-    # Extract sourcetype
-    st_matches = re.findall(r'\bsourcetype\s*=\s*(\S+)', search, re.IGNORECASE)
-    result.source_tables.extend(st_matches)
-
-    # Extract EventCode / EventID
-    ec_matches = re.findall(r'\b(?:EventCode|EventID)\s*(?:=|IN)\s*(?:(\d+)|\(([^)]+)\))', search, re.IGNORECASE)
-    for single, multi in ec_matches:
-        if single:
-            result.event_ids.append(single)
-        if multi:
-            result.event_ids.extend(re.findall(r'(\d+)', multi))
-
-    # Extract field=value from tstats where clause and search terms
-    field_eq = re.findall(r'([\w.]+)\s*=\s*(?:"([^"]*)"|(\S+))', search)
-    for field_name, quoted, bare in field_eq:
-        value = quoted if quoted else bare
-        # Skip meta-fields
-        if field_name.lower() in ('index', 'sourcetype', 'source', 'datamodel', 'count', 'span'):
-            continue
-        result.fields_used.append(field_name)
-        obs_type, obs_subtype = _classify_field(field_name)
-        observable = ExtractedObservable(
-            field=field_name,
-            values=[value],
-            type=obs_type,
-            subtype=obs_subtype,
-        )
-        result.observables.append(observable)
-
-        if _is_event_id_field(field_name):
-            result.event_ids.append(value)
-        if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
-            result.process_names.extend(_extract_exe_names([value]))
-        if obs_type == "file" and "path" in obs_subtype:
-            result.file_paths.append(value)
-        if obs_type == "registry":
-            result.registry_keys.extend(_extract_registry_paths([value]))
-        if obs_type == "network":
-            result.network_indicators.append(value)
-        # Route domain-specific fields
-        _route_domain_fields(obs_type, obs_subtype, [value], False, result)
-
-    # Extract fields from IN() operator
-    in_matches = re.findall(r'([\w.]+)\s+IN\s*\(([^)]+)\)', search, re.IGNORECASE)
-    for field_name, values_str in in_matches:
-        if field_name.lower() in ('eventcode', 'eventid', 'message_id'):
-            ids = re.findall(r'(\d+)', values_str)
-            result.event_ids.extend(ids)
-            result.fields_used.append(field_name)
-            continue
-        values = re.findall(r'"([^"]*)"', values_str)
-        if not values:
-            values = [v.strip().strip("'\"") for v in values_str.split(",") if v.strip()]
-        if values:
-            result.fields_used.append(field_name)
-            obs_type, obs_subtype = _classify_field(field_name)
-            observable = ExtractedObservable(
-                field=field_name,
-                values=values,
-                type=obs_type,
-                subtype=obs_subtype,
-            )
-            result.observables.append(observable)
-            if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
-                result.process_names.extend(_extract_exe_names(values))
-            # Route domain-specific fields
-            _route_domain_fields(obs_type, obs_subtype, values, False, result)
-
-    # Extract fields from "by" clause (stats ... by field1, field2)
-    by_matches = re.findall(r'\bby\s+([^|]+?)(?:\||$)', search, re.IGNORECASE)
-    for by_clause in by_matches:
-        by_fields = [f.strip() for f in by_clause.split(',') if f.strip()]
-        for f in by_fields:
-            # Clean field name (remove quotes, spaces)
-            clean = f.strip().strip('"').strip("'")
-            if clean and not clean.startswith('`') and clean not in result.fields_used:
-                result.fields_used.append(clean)
-
-    # Extract where clause field references
-    where_matches = re.findall(r'\bwhere\s+(.+?)(?:\||$)', search, re.IGNORECASE)
-    for where_clause in where_matches:
-        # Extract field IN ("val1", "val2") from where
-        where_in = re.findall(r'([\w.]+)\s+IN\s*\(([^)]+)\)', where_clause, re.IGNORECASE)
-        for field_name, values_str in where_in:
-            values = re.findall(r'"([^"]*)"', values_str)
-            if values:
-                result.fields_used.append(field_name)
-                obs_type, obs_subtype = _classify_field(field_name)
-                observable = ExtractedObservable(
-                    field=field_name,
-                    values=values,
-                    type=obs_type,
-                    subtype=obs_subtype,
-                )
-                result.observables.append(observable)
-                if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
-                    result.process_names.extend(_extract_exe_names(values))
-                # Route domain-specific fields
-                _route_domain_fields(obs_type, obs_subtype, values, False, result)
+    _extract_spl_pipeline(cleaned, result)
 
     _deduplicate_all(result)
     return result
