@@ -103,6 +103,24 @@ def test_normalize_preserves_tags_verbatim(normalizer):
     assert "NOBELIUM" in n.tags
 
 
+def test_threat_tags_become_story_labels(normalizer, monkeypatch):
+    """Tags naming a threat actor land verbatim in use_cases (issue
+    #20) — the dedicated tier resolves story labels to actors at query
+    time. Framework tags stay out; `tags` passthrough is untouched."""
+    from app.services.actor_context import actor_context_service
+
+    monkeypatch.setattr(
+        actor_context_service, "_alias_to_gids", {"nobelium": ["G0016"]}
+    )
+    n = normalizer.normalize(
+        _parsed(tags=["NOBELIUM", "DEV-0537", "NIST 800-53 r5", "SigninLogs"])
+    )
+    # NOBELIUM via the alias registry, DEV-0537 via the tracking-code
+    # pattern; compliance/table tags don't classify.
+    assert n.use_cases == ["NOBELIUM", "DEV-0537"]
+    assert n.tags == ["NOBELIUM", "DEV-0537", "NIST 800-53 r5", "SigninLogs"]
+
+
 def test_normalize_resolves_canonical_taxonomy_for_office_activity(normalizer):
     """An OfficeActivity-querying rule should resolve to the
     `microsoft_365` canonical platform via the Sentinel KQL-table

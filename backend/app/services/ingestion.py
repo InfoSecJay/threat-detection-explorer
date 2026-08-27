@@ -137,6 +137,23 @@ class IngestionService:
         stats.start_time = utcnow()
         ingest_start = stats.start_time
 
+        if repo_name == "sentinel":
+            # The Sentinel normalizer classifies threat tags against the
+            # ATT&CK + galaxy alias registries (issue #20). Best-effort:
+            # an unloaded registry degrades to pattern-only tags, which
+            # beats failing the whole ingest.
+            try:
+                from app.services.actor_context import actor_context_service
+                from app.services.mitre import mitre_service
+
+                await mitre_service.ensure_loaded()
+                await actor_context_service.ensure_loaded()
+            except Exception as exc:  # pragma: no cover - network/env
+                logger.warning(
+                    f"Alias registries unavailable for threat-tag "
+                    f"classification, pattern-only fallback: {exc}"
+                )
+
         logger.info(f"Starting ingestion for {repo_name}")
 
         # Discover and process rules

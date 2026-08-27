@@ -5,6 +5,7 @@ from typing import Any
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_sentinel_fields
+from app.services.threat_tags import threat_reference_tags
 
 
 class SentinelNormalizer(BaseNormalizer):
@@ -41,6 +42,11 @@ class SentinelNormalizer(BaseNormalizer):
             detection_logic=query_str,
             language="kql",
             tags=parsed.tags,
+            # Tags naming a threat actor/software (NOBELIUM, Solorigate,
+            # DEV-0537) become story labels — the dedicated tier resolves
+            # them to actors at query time (issues #20/#34). Ingestion
+            # pre-loads the alias registries for this source.
+            use_cases=threat_reference_tags(parsed.tags),
             references=[],
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
