@@ -34,6 +34,12 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 # so concatenated forms ("SaltTyphoon") match too.
 _SEP = r"[\s_\-.]*"
 
+# Strict boundaries for AMBIGUOUS_TOKENS names: reject `.`/`-`/`_`
+# adjacency outright, so `linux.die.net` / `Pwnage.ps1` /
+# `hermetic_wiper` can't glue a common word onto a neighboring token.
+_STRICT_L = r"(?<![._\-])"
+_STRICT_R = r"(?![._\-])"
+
 
 def tokenize(name: str) -> list[str]:
     """Lowercase alphanumeric tokens of a name. "Salt Typhoon" -> ["salt", "typhoon"]."""
@@ -47,6 +53,57 @@ def normalize_label(value: str) -> str:
     "salt typhoon".
     """
     return " ".join(tokenize(value))
+
+
+# Single-token software names that are ordinary words, OS-utility
+# names, or file-extension lookalikes (issue #35). The separator-
+# tolerant matcher exists so "Salt Typhoon" hits `story:salt_typhoon`,
+# but for these names the same tolerance is the dominant FP source:
+# S0039 "Net" matched the `.net` TLD in every reference URL
+# (`linux.die.net`) and ".NET framework" prose; S0613 "PS1" (a Turla
+# backdoor) matched every `.ps1` script path; S0041 "Wiper" (a
+# specific 2013 malware) absorbed OTHER wipers' compound names
+# (`hermetic_wiper`); S0103 "route" matched AWS `route_53` tags.
+# Curated from the issue #35 corpus audit — extend it when a new
+# catalog entry shows the same hazard, and keep names like QakBot out:
+# distinctive single tokens NEED separator glue to hit URL slugs
+# (`/qbot-and-zerologon-...`).
+AMBIGUOUS_TOKENS = frozenset({
+    "net", "cmd", "ping", "route", "ps1", "wiper",
+})
+
+# Aliases that are unmatchable in free text at ANY boundary strictness:
+# ordinary prose words with no casing or separator signal to exploit.
+# S0081 Elise's alias "Page" produced 72 of its 74 mention hits from
+# "Outlook Home Page" / "code page" / "?page=" prose (issue #35 audit)
+# — strict boundaries can't help a word that legitimately stands alone.
+# Dropped from regex matching entirely; still honored by
+# labels_matching(), where whole-label equality keeps FP risk low.
+UNMATCHABLE_TOKENS = frozenset({
+    "page",
+})
+
+
+def is_unmatchable_name(name: str) -> bool:
+    """Names skipped by compile_name_regex — see UNMATCHABLE_TOKENS."""
+    tokens = tokenize(name)
+    return len(tokens) == 1 and tokens[0] in UNMATCHABLE_TOKENS
+
+
+def is_ambiguous_name(name: str) -> bool:
+    """Single-token names that collide with English words, URLs, or
+    file extensions — matched standalone only (issue #35).
+
+    These names must not be glued to a neighboring token by `.`, `-`,
+    or `_`: "net use" and "Ping Hex IP" still match, `linux.die.net`,
+    `Pwnage.ps1`, and `hermetic_wiper` no longer do. Distinctive
+    aliases of the same entity ("net.exe", "cmd.exe") are multi-token
+    and keep the flexible-separator semantics. Accepted FP remainder:
+    standalone prose usage ("a route table", "BiBi wiper") survives —
+    killing it needs semantics, not boundaries.
+    """
+    tokens = tokenize(name)
+    return len(tokens) == 1 and tokens[0] in AMBIGUOUS_TOKENS
 
 
 def is_case_sensitive_name(name: str) -> bool:
@@ -80,12 +137,20 @@ def compile_name_regex(names: list[str]) -> re.Pattern | None:
     sensitive = []
     for name in names:
         tokens = tokenize(name)
-        if not tokens:
+        if not tokens or is_unmatchable_name(name):
             continue
         if is_case_sensitive_name(name):
             # Preserve the original casing — tokenize() lowercases, and
             # an all-caps alphabetic name is a single token anyway.
-            sensitive.append(re.escape(name))
+            body = re.escape(name)
+            if is_ambiguous_name(name):
+                body = _STRICT_L + body + _STRICT_R
+            sensitive.append(body)
+        elif is_ambiguous_name(name):
+            # Standalone-word only: no `.`/`-`/`_` glue to a neighbor
+            # token (issue #35) — the outer lookarounds already reject
+            # adjacent alphanumerics.
+            insensitive.append(_STRICT_L + re.escape(tokens[0]) + _STRICT_R)
         else:
             insensitive.append(_SEP.join(re.escape(t) for t in tokens))
     alts = []

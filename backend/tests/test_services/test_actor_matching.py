@@ -153,6 +153,96 @@ def test_allcaps_codename_matches_exact_case_usage():
         assert rx.search(text), text
 
 
+# == Ambiguous single-token software names (issue #35) ==============
+#
+# S0039 "Net" matched the `.net` TLD in every reference URL, S0613
+# "PS1" matched every `.ps1` script path, S0041 "Wiper" absorbed
+# `hermetic_wiper`. Ambiguous names match standalone words only — no
+# `.`/`-`/`_` glue to a neighboring token.
+
+from app.services.actor_matching import is_ambiguous_name
+
+
+def test_is_ambiguous_name_classification():
+    assert is_ambiguous_name("Net")
+    assert is_ambiguous_name("PS1")
+    assert is_ambiguous_name("Wiper")
+    assert is_ambiguous_name("route")
+    # Multi-token aliases of the same entities stay flexible.
+    assert not is_ambiguous_name("net.exe")
+    assert not is_ambiguous_name("cmd.exe")
+    # Distinctive names stay flexible — URL slugs must keep matching.
+    assert not is_ambiguous_name("QakBot")
+    assert not is_ambiguous_name("Salt Typhoon")
+
+
+def test_ambiguous_name_rejects_extension_url_and_compound_glue():
+    rx = compile_name_regex(["Net"])
+    for text in (
+        "https://linux.die.net/man/1/arecord",       # .net TLD
+        "DNS Query To AzureWebsites.NET",             # domain suffix
+        "old .Net Framework folders",                 # framework prose
+        "Potentially Suspicious ASP.NET Compilation", # glued acronym
+        "network activity",                           # token continues
+    ):
+        assert not rx.search(text), text
+    rx = compile_name_regex(["PS1"])
+    for text in (
+        "Backdoors/DNS_TXT_Pwnage.ps1",
+        "Invoke-EventVwrBypass.ps1#L64",
+        "Launch-VsDevShell.PS1 Proxy Execution",
+    ):
+        assert not rx.search(text), text
+    rx = compile_name_regex(["Wiper"])
+    for text in (
+        "tags: hermetic_wiper suspicious_emails",
+        "threat-update-awfulshred-script-wiper.html",
+    ):
+        assert not rx.search(text), text
+    rx = compile_name_regex(["route"])
+    assert not rx.search("persistence_route_53_domain_transfer")
+
+
+def test_ambiguous_name_still_matches_standalone_usage():
+    rx = compile_name_regex(["Net"])
+    assert rx.search("net use \\\\share")            # the actual tool
+    assert rx.search("story:net")                     # tag boundary ':'
+    rx = compile_name_regex(["Ping"])
+    assert rx.search("Ping Hex IP")
+    assert rx.search('combines "ping" to wait a couple of seconds')
+    rx = compile_name_regex(["cmd"])
+    assert rx.search("cmd /c start")
+    assert not rx.search("firewall-cmd.html")
+
+
+def test_ambiguous_entity_distinctive_aliases_keep_flexible_glue():
+    # S0039's alias "net.exe" is multi-token: "Net.EXE" in titles and
+    # `netexe` squashed forms still count, even though bare "Net" is
+    # ambiguous.
+    rx = compile_name_regex(["Net", "net.exe"])
+    assert rx.search("Account Reconnaissance Activity Using Net.EXE")
+    assert rx.search("system-service-discovery---netexe")
+    assert not rx.search("https://linux.die.net/man/8/pam_tty_audit")
+
+
+def test_unmatchable_alias_is_dropped_from_regex_but_not_labels():
+    # S0081 Elise's alias "Page": 72 of 74 mention hits were "Outlook
+    # Home Page" / "code page" prose — no boundary rule can save a
+    # standalone English word. Excluded from free-text matching; a
+    # whole use_cases label equal to it still counts.
+    from app.services.actor_matching import is_unmatchable_name
+
+    assert is_unmatchable_name("Page")
+    assert not is_unmatchable_name("Elise")
+    rx = compile_name_regex(["Elise", "BKDR_ESILE", "Page"])
+    assert not rx.search("Potential Persistence Via Outlook Home Page")
+    assert not rx.search("code page switch in command line")
+    assert rx.search("Detects Elise backdoor activity used by APT32")
+    # A name list holding ONLY unmatchable aliases compiles to nothing.
+    assert compile_name_regex(["Page"]) is None
+    assert labels_matching(["Page"], ["Page"])
+
+
 def test_mixed_name_list_keeps_insensitive_semantics_for_safe_names():
     # One regex holding both classes: APT41 stays case-insensitive
     # (lowercase URLs must still count), LEAD goes exact-case.
