@@ -404,8 +404,8 @@ export interface ActorListGroup {
   modified: string | null;     // ATT&CK last-modified timestamp
   technique_count: number;         // known techniques from MITRE
   covered_technique_count: number; // raw: how many have any rules (detail-page metric)
-  our_rule_count: number;          // rules tagged with this G-ID (exact match)
-  mention_count: number;           // rules mentioning name/alias as a whole word
+  our_rule_count: number;          // DEDICATED rules: ID-tagged, story-labeled, or name-in-title
+  mention_count: number;           // REFERENCED rules: named in prose/refs only, minus dedicated
   sources_with_coverage: string[];
   weighted_coverage: number | null; // distinctiveness-weighted, 0..1
   gap_count: number;                // techniques with no rules
@@ -529,6 +529,13 @@ export interface ActorMatchCounts {
   mention: number;
 }
 
+// Why a rule counted under the selected match mode (issue #34).
+// Dedicated: id-tag / story / title. Referenced: description / tag /
+// use-case / reference. Empty in coverage mode.
+export type ActorMatchReason =
+  | 'id-tag' | 'story' | 'title'
+  | 'description' | 'tag' | 'use-case' | 'reference';
+
 export interface ActorDetailRule {
   id: string;
   rule_id: string | null;
@@ -539,6 +546,7 @@ export interface ActorDetailRule {
   techniques: string[];
   platforms: string[];
   date: string | null;
+  match_reasons: ActorMatchReason[];
 }
 
 export interface ActorDetail {

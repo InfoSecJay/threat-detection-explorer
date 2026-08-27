@@ -4,22 +4,27 @@ The full MITRE catalog (~180 groups + ~700 software) enumerated with
 our corpus rule-coverage overlaid. For each detail request the client
 picks a `match_mode` that decides which rules count as "this actor's":
 
-- **exact**    rules tagged with the actor's raw ATT&CK ID via the
-               `mitre_groups` / `mitre_software` JSON columns
-               (populated during Sigma + LOLRMM ingestion), OR whose
-               `use_cases` labels (vendor analytic stories) equal the
-               actor's name or an alias — a Splunk analytic story
-               named "Salt Typhoon" is an explicit tag, not prose.
-- **coverage** rules tagged with ANY of the techniques this actor
-               is known to use (from MITRE STIX relationships).
-               Reveals rules that would catch the actor's TTPs even
-               without explicitly citing them.
-- **mention**  rules whose title / description / tags / use_cases /
-               references contain the actor's name or one of its
-               aliases, separator-tolerant ("salt_typhoon",
-               "salt-typhoon", "SaltTyphoon" all count — see
-               app.services.actor_matching). Catches rules that
-               reference the actor but haven't been formally tagged.
+The three modes are DISJOINT tiers of attribution strength (issue #34).
+Wire values keep their historical names (`exact` / `coverage` /
+`mention`) so URLs and deployed frontends never skew; the UI renders
+them as DEDICATED / COVERAGE / REFERENCED.
+
+- **exact** ("Dedicated") — the rule was built FOR this actor:
+  tagged with the raw ATT&CK ID (`mitre_groups` / `mitre_software`),
+  OR a `use_cases` label (vendor analytic story) equal to the actor's
+  name or an alias, OR the actor's name/alias in the rule TITLE.
+  A rule titled "APT29 2018 Phishing Campaign ..." is an APT29 rule.
+- **coverage** — rules tagged with ANY of the techniques this actor
+  is known to use (from MITRE STIX relationships). Reveals rules that
+  would catch the actor's TTPs even without citing them.
+- **mention** ("Referenced") — the name or an alias appears only in
+  description prose, non-story tags, longer use_cases labels, or
+  reference URLs — MINUS everything Dedicated. Separator-tolerant
+  matching throughout (see app.services.actor_matching).
+
+Every rule returned in exact/mention mode carries `match_reasons`
+(subset of: id-tag, story, title, description, tag, use-case,
+reference) so the UI can show WHY each rule counted.
 
 The response carries counts for all three modes so the UI can render
 a mode switcher without a round-trip. Rules for the SELECTED mode
@@ -42,6 +47,7 @@ from app.services.actor_matching import (
     compile_name_regex,
     is_case_sensitive_name,
     label_like_patterns,
+    labels_matching,
     sql_like_patterns,
 )
 from app.services.actor_scores import actor_score_service
@@ -73,43 +79,115 @@ def _actor_type(actor_id: str) -> tuple[str, str]:
     )
 
 
-def _exact_conditions(column, ids: list[str], story_names: list[str]) -> list:
-    """SQL conditions for exact mode: ATT&CK ID in the JSON tag column,
-    OR a `use_cases` label equal to the actor's name / an alias.
+# Fetch window for dedicated candidates. Above RULES_LIMIT because
+# len() of the verified set IS the exact-mode count shown in the UI —
+# a display cap must not silently truncate the count. No actor comes
+# near this today (Salt Typhoon, the largest, has 60).
+DEDICATED_FETCH_CAP = 2000
 
-    Label equality is enforced by the quoted-element LIKE from
-    label_like_patterns — the quotes pin both ends of the label, so
-    "Salt Typhoon Campaign" does NOT count, while `["Salt Typhoon"]`
-    and separator variants do.
-    """
-    conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
-    for n in story_names:
-        conds.extend(
-            cast(Detection.use_cases, String).ilike(p)
-            for p in label_like_patterns(n)
-        )
+# The nine columns every rule-row tuple starts with; extra columns
+# needed for verification are appended after these.
+_RULE_COLS = (
+    Detection.id, Detection.rule_id, Detection.title, Detection.source,
+    Detection.severity, Detection.language, Detection.mitre_techniques,
+    Detection.platforms, Detection.rule_created_date,
+)
+
+
+def _name_text_conds(column, names: list[str]) -> list:
+    """LIKE pre-filter conditions for `names` over one text column,
+    honoring the case-sensitivity policy (LEAD matches only LEAD)."""
+    conds = []
+    for n in names:
+        if is_case_sensitive_name(n):
+            conds.append(column.like(f"%{n}%"))
+            continue
+        conds.extend(column.ilike(p) for p in sql_like_patterns(n))
     return conds
 
 
 async def _rules_matching_ids(
-    db: AsyncSession, column, ids: list[str], story_names: list[str] | None = None,
+    db: AsyncSession, column, ids: list[str],
 ) -> list[Detection]:
-    """Rules where the JSON list column contains ANY of `ids`, or (when
-    `story_names` is given — exact mode) a use_cases label equals one
-    of those names."""
-    conds = _exact_conditions(column, ids, story_names or [])
-    if not conds:
+    """Rules where the JSON list column contains ANY of `ids` —
+    coverage mode."""
+    if not ids:
         return []
-    q = (
-        select(
-            Detection.id, Detection.rule_id, Detection.title, Detection.source,
-            Detection.severity, Detection.language, Detection.mitre_techniques,
-            Detection.platforms, Detection.rule_created_date,
-        )
-        .where(or_(*conds))
-        .limit(RULES_LIMIT)
-    )
+    conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
+    q = select(*_RULE_COLS).where(or_(*conds)).limit(RULES_LIMIT)
     return list((await db.execute(q)).all())
+
+
+async def _dedicated_rules(
+    db: AsyncSession, column, actor_id: str, names: list[str],
+) -> tuple[list, dict[str, list[str]]]:
+    """Rules BUILT FOR this actor, with the reason(s) each qualified.
+
+    Three signals, any of which qualifies a rule (issue #34):
+    - `id-tag`  the raw ATT&CK ID in the mitre_groups/software column
+    - `story`   a use_cases label EQUAL to the name/an alias
+    - `title`   the name/an alias in the rule title
+
+    SQL is a pre-filter; each candidate is verified in Python so the
+    LIKE over-match ("%lead%") never inflates the count. Returns
+    (rows, {rule_id: [reasons]}).
+    """
+    filtered = [n for n in names if len(n) >= 3]
+    conds = [cast(column, String).ilike(f'%"{actor_id}"%')]
+    for n in filtered:
+        conds.extend(
+            cast(Detection.use_cases, String).ilike(p)
+            for p in label_like_patterns(n)
+        )
+    conds.extend(_name_text_conds(Detection.title, filtered))
+    q = (
+        select(*_RULE_COLS, Detection.use_cases, cast(column, String))
+        .where(or_(*conds))
+        .limit(DEDICATED_FETCH_CAP)
+    )
+    raw = list((await db.execute(q)).all())
+
+    title_rx = compile_name_regex(filtered)
+    rows, reasons = [], {}
+    for row in raw:
+        why = []
+        if f'"{actor_id}"'.lower() in (row[10] or "").lower():
+            why.append("id-tag")
+        if labels_matching(row[9] or [], filtered):
+            why.append("story")
+        if title_rx and title_rx.search(row[2] or ""):
+            why.append("title")
+        if why:
+            rows.append(row)
+            reasons[row[0]] = why
+    return rows, reasons
+
+
+async def _referenced_rules(
+    db: AsyncSession, names: list[str], dedicated_ids: set[str],
+) -> tuple[list, dict[str, list[str]]]:
+    """Mention hits MINUS dedicated rules, with per-rule reasons
+    (description / tag / use-case / reference)."""
+    hits = await _rules_mentioning(db, names)
+    filtered = [n for n in names if len(n) >= 3]
+    rx = compile_name_regex(filtered)
+    rows, reasons = [], {}
+    for row in hits:
+        if row[0] in dedicated_ids or rx is None:
+            continue
+        why = []
+        if rx.search(row[9] or ""):
+            why.append("description")
+        if rx.search(" ".join(t for t in (row[10] or []) if isinstance(t, str))):
+            why.append("tag")
+        if rx.search(" ".join(u for u in (row[11] or []) if isinstance(u, str))):
+            why.append("use-case")
+        if rx.search(" ".join(r for r in (row[12] or []) if isinstance(r, str))):
+            why.append("reference")
+        if why:
+            rows.append(row)
+            reasons[row[0]] = why
+    return rows, reasons
 
 
 async def _rules_mentioning(
@@ -182,7 +260,7 @@ async def _rules_mentioning(
     return hits
 
 
-def _serialize_rule(row) -> dict:
+def _serialize_rule(row, reasons: dict[str, list[str]] | None = None) -> dict:
     """Turn a Detection row tuple into the wire shape."""
     return {
         "id": row[0],
@@ -194,23 +272,20 @@ def _serialize_rule(row) -> dict:
         "techniques": row[6] or [],
         "platforms": row[7] or [],
         "date": row[8].isoformat() if row[8] else None,
+        # Why this rule counted under the selected mode (issue #34).
+        # Empty for coverage mode — the technique tag is the reason.
+        "match_reasons": (reasons or {}).get(row[0], []),
     }
 
 
-async def _count_matches(
-    db: AsyncSession, column, ids: list[str], story_names: list[str] | None = None,
-) -> int:
+async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
     """Count of rules matching any of `ids` in the JSON list column
-    (plus, for exact mode, use_cases labels equal to `story_names`).
-
-    Kept as a separate query so we can return counts for all three
-    modes on the detail response without over-fetching rules for the
-    non-selected modes.
-    """
-    from sqlalchemy import func
-    conds = _exact_conditions(column, ids, story_names or [])
-    if not conds:
+    (coverage mode). Dedicated/referenced counts come from their
+    verified row sets instead — SQL alone can't apply the regex."""
+    if not ids:
         return 0
+    from sqlalchemy import func
+    conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
     q = select(func.count(Detection.id)).where(or_(*conds))
     return (await db.execute(q)).scalar() or 0
 
@@ -745,13 +820,16 @@ async def actor_navigator_layer(
         names = [entity["name"]] + merge_aliases(
             list(entity.get("aliases", [])), ctx, exclude=entity["name"]
         )
+        column = (
+            Detection.mitre_groups if kind == "group" else Detection.mitre_software
+        )
+        dedicated_rows, _ = await _dedicated_rules(db, column, actor_id, names)
         if match_mode == "exact":
-            column = (
-                Detection.mitre_groups if kind == "group" else Detection.mitre_software
+            rows = dedicated_rows
+        else:  # mention — disjoint from dedicated (issue #34)
+            rows, _ = await _referenced_rules(
+                db, names, {r[0] for r in dedicated_rows}
             )
-            rows = await _rules_matching_ids(db, column, [actor_id], story_names=names)
-        else:  # mention
-            rows = await _rules_mentioning(db, names)
         technique_titles = await _technique_rule_titles(
             db, technique_ids, restrict_rows=rows
         )
@@ -914,28 +992,32 @@ async def get_actor(
     )
 
     # Match counts across all three modes — always populated so the
-    # UI can render the switcher without a round-trip. Exact includes
-    # use_cases labels equal to the actor name/alias (analytic stories
-    # named after the actor are tags, not prose).
+    # UI can render the switcher without a round-trip. Dedicated and
+    # referenced are DISJOINT (issue #34): dedicated = id-tag / story
+    # label / name-in-title; referenced = everything else that names
+    # the actor, minus dedicated.
     column = Detection.mitre_groups if kind == "group" else Detection.mitre_software
-    exact_count = await _count_matches(db, column, [actor_id], story_names=mention_names)
+    dedicated_rows, dedicated_reasons = await _dedicated_rules(
+        db, column, actor_id, mention_names
+    )
+    referenced_rows, referenced_reasons = await _referenced_rules(
+        db, mention_names, {r[0] for r in dedicated_rows}
+    )
+    exact_count = len(dedicated_rows)
+    mention_count = len(referenced_rows)
     coverage_ids = [t["technique_id"] for t in techniques_used]
     coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids)
 
-    mention_hits = await _rules_mentioning(db, mention_names)
-    mention_count = len(mention_hits)
-
     # Fetch rules for the SELECTED mode
     if match_mode == "exact":
-        rule_rows = await _rules_matching_ids(
-            db, column, [actor_id], story_names=mention_names
-        )
+        rule_rows, rule_reasons = dedicated_rows[:RULES_LIMIT], dedicated_reasons
     elif match_mode == "coverage":
         rule_rows = await _rules_matching_ids(db, Detection.mitre_techniques, coverage_ids)
+        rule_reasons = {}
     else:  # mention
-        rule_rows = mention_hits
+        rule_rows, rule_reasons = referenced_rows[:RULES_LIMIT], referenced_reasons
 
-    rules = [_serialize_rule(r) for r in rule_rows]
+    rules = [_serialize_rule(r, rule_reasons) for r in rule_rows]
     rules.sort(key=lambda r: (r["source"], r["title"]))
 
     # Galaxy context (groups only) — merged aliases + appended refs.

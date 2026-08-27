@@ -13,7 +13,9 @@ computed by the MITRE service from the actor->technique matrix):
     weighted_gap      = uncovered weight mass — the primary ranking
                         key: how much detection work is outstanding,
                         weighted by how much it matters
-    exact_rule_count  = rules tagged with the actor's own ATT&CK ID
+    exact_rule_count  = DEDICATED rules: tagged with the actor's own
+                        ATT&CK ID, story-labeled with its name, or
+                        naming it in the title (issue #34)
 
 Everything is materialized in ONE corpus scan and cached in-memory.
 Cache validity is probed per request with a cheap fingerprint query
@@ -57,11 +59,11 @@ class EntityScores:
     weighted_coverage: Optional[float]
     gap_count: int
     weighted_gap: float
-    # Rules whose title/description/tags/use_cases/references mention
-    # the entity's name or an alias (same separator-tolerant matcher as
-    # the detail page's mention mode — app.services.actor_matching).
-    # Zero exact rules + many mentions = vendor content exists but
-    # isn't ATT&CK-tagged — notable.
+    # REFERENCED rules: name/alias appears in description, non-story
+    # tags, longer use_cases labels, or references — minus everything
+    # dedicated (disjoint tiers, issue #34; same matcher as the detail
+    # page — app.services.actor_matching). Zero dedicated + many
+    # referenced = intel chatter but no actor-specific content.
     mention_count: int = 0
 
 
@@ -144,11 +146,11 @@ def _mention_names(entity: dict, kind: str) -> list[str]:
     return [n for n in names if len(n) >= MIN_MENTION_NAME_LEN]
 
 
-def compute_mention_counts(
+def compute_mention_hits(
     rule_texts: list[str],
     entity_names: dict[str, list[str]],
-) -> dict[str, int]:
-    """Rules mentioning each entity by name/alias.
+) -> dict[str, set[int]]:
+    """entity id -> indices of rules whose text names it.
 
     Semantics match actors._rules_mentioning (separator-tolerant regex
     from app.services.actor_matching), but scanning every rule for
@@ -157,6 +159,9 @@ def compute_mention_counts(
     concatenated form so camel/squashed text like "SaltTyphoon" still
     surfaces the candidate), a token index maps rule text -> candidate
     names, and only candidates run the precise regex.
+
+    Returns index SETS rather than counts so the caller can make the
+    dedicated/referenced tiers disjoint (issue #34).
     """
     # name -> (entity ids using it, compiled regex)
     by_name: dict[str, dict] = {}
@@ -177,8 +182,8 @@ def compute_mention_counts(
                     token_to_names.setdefault("".join(tokens), set()).add(key)
             entry["ids"].add(eid)
 
-    counts: dict[str, int] = {eid: 0 for eid in entity_names}
-    for text in rule_texts:
+    hits: dict[str, set[int]] = {eid: set() for eid in entity_names}
+    for idx, text in enumerate(rule_texts):
         if not text:
             continue
         text_tokens = set(_TOKEN_RE.findall(text.lower()))
@@ -191,8 +196,8 @@ def compute_mention_counts(
                 if entry["regex"].search(text):
                     hit_ids |= entry["ids"]
         for eid in hit_ids:
-            counts[eid] += 1
-    return counts
+            hits[eid].add(idx)
+    return hits
 
 
 class ActorScoreService:
@@ -262,24 +267,27 @@ class ActorScoreService:
         story_labels.pop("", None)
 
         technique_rule_counts: dict[str, int] = {}
-        exact_groups: dict[str, dict] = {}
-        exact_software: dict[str, dict] = {}
+        # entity id -> row indices qualifying as DEDICATED (id-tag or
+        # story label; title hits merge in below). Disjoint-tier
+        # bookkeeping per issue #34.
+        dedicated_idx: dict[str, set[int]] = {}
+        rule_sources: list[str] = []
+        title_texts: list[str] = []
         rule_texts: list[str] = []
-        for (source, rgroups, rsoftware, rtechs, title, description,
-             tags, use_cases, references) in rows:
-            exact_ids = {g.upper() for g in rgroups or []}
-            exact_ids |= {s.upper() for s in rsoftware or []}
+        for idx, (source, rgroups, rsoftware, rtechs, title, description,
+                  tags, use_cases, references) in enumerate(rows):
+            rule_sources.append(source)
+            tagged = {g.upper() for g in rgroups or []}
+            tagged |= {s.upper() for s in rsoftware or []}
             for uc in use_cases or []:
                 if isinstance(uc, str):
-                    exact_ids |= story_labels.get(normalize_label(uc), set())
-            for eid in exact_ids:
-                bucket = exact_software if eid.startswith("S") else exact_groups
-                e = bucket.setdefault(eid, {"rule_count": 0, "sources": set()})
-                e["rule_count"] += 1
-                e["sources"].add(source)
+                    tagged |= story_labels.get(normalize_label(uc), set())
+            for eid in tagged:
+                dedicated_idx.setdefault(eid, set()).add(idx)
             for tid in rtechs or []:
                 tid_u = tid.upper()
                 technique_rule_counts[tid_u] = technique_rule_counts.get(tid_u, 0) + 1
+            title_texts.append(title or "")
             rule_texts.append(" ".join([
                 title or "",
                 description or "",
@@ -288,7 +296,33 @@ class ActorScoreService:
                 " ".join(r for r in (references or []) if isinstance(r, str)),
             ]))
 
-        mention_counts = compute_mention_counts(rule_texts, entity_names)
+        # Name-in-title promotes to dedicated; full-text hits minus
+        # dedicated are the referenced tier.
+        title_hits = compute_mention_hits(title_texts, entity_names)
+        full_hits = compute_mention_hits(rule_texts, entity_names)
+
+        exact_groups: dict[str, dict] = {}
+        exact_software: dict[str, dict] = {}
+        mention_counts: dict[str, int] = {}
+        for eid in entity_names:
+            dedicated = dedicated_idx.get(eid, set()) | title_hits.get(eid, set())
+            mention_counts[eid] = len(full_hits.get(eid, set()) - dedicated)
+            if dedicated:
+                bucket = exact_software if eid.startswith("S") else exact_groups
+                bucket[eid] = {
+                    "rule_count": len(dedicated),
+                    "sources": {rule_sources[i] for i in dedicated},
+                }
+        # Tagged IDs outside the loaded catalog (rare, but rgroups is
+        # verbatim rule data) still count toward exact buckets.
+        for eid, idxs in dedicated_idx.items():
+            if eid in entity_names:
+                continue
+            bucket = exact_software if eid.startswith("S") else exact_groups
+            bucket[eid] = {
+                "rule_count": len(idxs),
+                "sources": {rule_sources[i] for i in idxs},
+            }
 
         groups = {
             gid: _score_entity(g, technique_rule_counts, exact_groups)

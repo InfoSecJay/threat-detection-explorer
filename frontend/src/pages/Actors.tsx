@@ -167,13 +167,13 @@ function GapStats({ item, isGroup }: { item: ActorsQueryItem; isGroup: boolean }
       <div className="flex items-center justify-between gap-2">
         <span className={`text-[10px] font-mono tabular-nums ${item.our_rule_count > 0 ? 'text-white' : 'text-gray-600'}`}>
           <span className="font-semibold">{item.our_rule_count}</span>
-          <span className="text-gray-600 ml-1">exact</span>
+          <span className="text-gray-600 ml-1">dedicated</span>
           {item.mention_count > 0 && (
             <span
               className={item.our_rule_count === 0 ? 'text-cyan-400 ml-2' : 'text-gray-500 ml-2'}
-              title="Rules mentioning the name or an alias as a whole word"
+              title="Rules that cite the name or an alias in prose, tags, or references without being built for the actor"
             >
-              · {item.mention_count} mentions
+              · {item.mention_count} referenced
             </span>
           )}
         </span>
@@ -351,8 +351,8 @@ const TABLE_COLUMNS: {
   { key: 'technique_count', label: 'Techniques', sort: 'technique_count' },
   { key: 'gap_count', label: 'Gaps', sort: 'gap_count' },
   { key: 'weighted_coverage', label: 'Weighted cov.', sort: 'weighted_coverage' },
-  { key: 'our_rule_count', label: 'Exact rules', sort: 'our_rule_count' },
-  { key: 'mention_count', label: 'Mentions', sort: 'mention_count' },
+  { key: 'our_rule_count', label: 'Dedicated', sort: 'our_rule_count' },
+  { key: 'mention_count', label: 'Referenced', sort: 'mention_count' },
   { key: 'modified', label: 'Modified', sort: 'modified' },
 ];
 
@@ -511,7 +511,7 @@ function ActorsTable({
               </td>
               <td
                 className="px-3 py-2 tabular-nums"
-                title="Rules whose title/description/tags mention the name or an alias as a whole word — vendor content that exists but isn't ATT&CK-tagged"
+                title="Rules that cite the name or an alias in prose, tags, or references without being built for the actor — intel chatter with no dedicated content"
               >
                 <span
                   className={
@@ -847,11 +847,11 @@ export function Actors() {
             })
           }
           className="bg-void-900 border border-void-700 text-[10px] text-gray-300 font-mono uppercase tracking-wider px-2 py-1.5 focus:outline-none focus:border-matrix-500/50"
-          aria-label="Filter by exact-tag rule presence"
+          aria-label="Filter by dedicated rule presence"
         >
-          <option value="any">exact rules: any</option>
-          <option value="true">has exact rules</option>
-          <option value="false">no exact rules</option>
+          <option value="any">dedicated rules: any</option>
+          <option value="true">has dedicated rules</option>
+          <option value="false">no dedicated rules</option>
         </select>
         {activeFilterCount > 0 && (
           <button

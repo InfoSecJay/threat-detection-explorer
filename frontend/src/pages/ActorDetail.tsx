@@ -4,12 +4,14 @@
  * or software (description, aliases, references, techniques,
  * cross-references) with our rule-coverage overlaid on top.
  *
- * The value-add over the MITRE site is the match-mode toggle: users
- * pick whether to see rules that (exact) explicitly tag the actor,
- * (coverage) tag any technique the actor is known to use, or
- * (mention) reference the actor by name in title/description/tags.
- * All three counts are always displayed so the toggle is informative
- * on its own.
+ * The value-add over the MITRE site is the match-mode toggle. Modes
+ * are DISJOINT tiers of attribution strength (issue #34): DEDICATED
+ * (wire value `exact`) = rules built for the actor (ID tag, analytic
+ * story named after it, or its name in the title); COVERAGE = rules
+ * tagging any technique it uses; REFERENCED (wire value `mention`) =
+ * rules that only cite it in prose/tags/references. All three counts
+ * are always displayed, and each dedicated/referenced rule carries
+ * match-reason chips saying why it counted.
  */
 
 import { useState } from 'react';
@@ -22,6 +24,26 @@ import { countryFlag, countryName, MOTIVATION_STYLE } from '../utils/actorDispla
 import { sourceTheme as sourceConfig, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
 import type { ActorMatchMode } from '../services/api';
+
+// Wire values stay exact/coverage/mention (URL + API stability);
+// the UI names the disjoint tiers for what they are (issue #34).
+const MATCH_MODE_LABEL: Record<ActorMatchMode, string> = {
+  exact: 'dedicated',
+  coverage: 'coverage',
+  mention: 'referenced',
+};
+
+// Chip styling per match reason: dedicated signals get the matrix
+// accent, referenced signals stay neutral.
+const REASON_STYLE: Record<string, string> = {
+  'id-tag': 'text-matrix-400 border-matrix-500/40',
+  story: 'text-matrix-400 border-matrix-500/40',
+  title: 'text-matrix-400 border-matrix-500/40',
+  description: 'text-gray-400 border-void-600',
+  tag: 'text-gray-400 border-void-600',
+  'use-case': 'text-gray-400 border-void-600',
+  reference: 'text-gray-400 border-void-600',
+};
 
 function SeverityBadge({ severity }: { severity: string }) {
   const cls = severityColor[severity] || severityColor.unknown;
@@ -387,13 +409,13 @@ export function ActorDetail() {
               }`}
               title={
                 m === 'exact'
-                  ? 'Rules explicitly tagged with this ATT&CK ID'
+                  ? 'Rules built FOR this actor: ATT&CK ID tag, analytic story named after it, or its name in the rule title'
                   : m === 'coverage'
                     ? 'Rules tagged with any technique this actor is known to use'
-                    : 'Rules whose title/description/tags contain the actor name or an alias'
+                    : 'Rules that only cite the actor: name/alias in description, tags, use cases, or reference URLs (excludes dedicated rules)'
               }
             >
-              {m} <span className="ml-1 tabular-nums text-gray-500">{actor.match_counts[m]}</span>
+              {MATCH_MODE_LABEL[m]} <span className="ml-1 tabular-nums text-gray-500">{actor.match_counts[m]}</span>
             </button>
           ))}
           <button
@@ -425,7 +447,7 @@ export function ActorDetail() {
         </div>
         {actor.rules.length === 0 ? (
           <div className="text-center py-8 text-gray-500 font-mono text-xs">
-            no rules match this actor under the <span className="text-gray-300">{matchMode}</span> mode
+            no rules match this actor under the <span className="text-gray-300">{MATCH_MODE_LABEL[matchMode]}</span> mode
           </div>
         ) : (
           <div className="overflow-x-auto border border-void-700" style={clipSm}>
@@ -435,6 +457,9 @@ export function ActorDetail() {
                   <th className="px-3 py-2 text-left font-display font-semibold">Source</th>
                   <th className="px-3 py-2 text-left font-display font-semibold">Sev</th>
                   <th className="px-3 py-2 text-left font-display font-semibold">Title</th>
+                  {matchMode !== 'coverage' && (
+                    <th className="px-3 py-2 text-left font-display font-semibold">Match</th>
+                  )}
                   <th className="px-3 py-2 text-left font-display font-semibold">Techniques</th>
                 </tr>
               </thead>
@@ -456,6 +481,21 @@ export function ActorDetail() {
                           {r.title}
                         </Link>
                       </td>
+                      {matchMode !== 'coverage' && (
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span className="inline-flex gap-1">
+                            {(r.match_reasons ?? []).map((why) => (
+                              <span
+                                key={why}
+                                className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border ${REASON_STYLE[why] || 'text-gray-400 border-void-600'}`}
+                                title={`Matched via ${why}`}
+                              >
+                                {why}
+                              </span>
+                            ))}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-3 py-2 text-gray-500 tabular-nums whitespace-nowrap">
                         {r.techniques.slice(0, 3).join(' · ')}
                         {r.techniques.length > 3 && ` +${r.techniques.length - 3}`}

@@ -250,21 +250,29 @@ async def test_software_type_and_used_by_actor_filters(client, db_session):
 # ── Mention counts in list responses ────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_list_carries_mention_counts_from_merged_aliases(client, db_session):
+async def test_list_title_mention_promotes_to_dedicated(client, db_session):
     db_session.add_all([
-        # Mentions G0001 via its galaxy alias, no exact tag — the
-        # "0 exact rules but N mentions" signal.
+        # Galaxy alias in the TITLE — dedicated tier (issue #34), no
+        # longer a mere mention.
         _rule(title="Stone Alpha implant staging"),
+        # Galaxy alias in the DESCRIPTION only — referenced tier.
+        _rule(
+            title="Generic loader detection",
+            description="Loader previously used by Stone Alpha operators.",
+        ),
         _rule(title="Unrelated PowerShell rule"),
     ])
     await db_session.commit()
 
     resp = await client.get("/api/actors?kind=groups&sort=mention_count&order=desc")
     items = resp.json()["items"]
-    assert items[0]["id"] == "G0001"
-    assert items[0]["mention_count"] == 1
-    assert items[0]["our_rule_count"] == 0
-    assert all(i["mention_count"] == 0 for i in items[1:])
+    g1 = next(i for i in items if i["id"] == "G0001")
+    assert g1["our_rule_count"] == 1   # title hit is dedicated
+    assert g1["mention_count"] == 1    # description hit stays referenced
+    assert all(
+        i["mention_count"] == 0 and i["our_rule_count"] == 0
+        for i in items if i["id"] != "G0001"
+    )
 
 
 # ── Navigator layer export (Phase 6) ───────────────────────────────
@@ -390,7 +398,9 @@ def _story_rules() -> list[Detection]:
 
 
 @pytest.mark.asyncio
-async def test_detail_exact_counts_story_labeled_rules(client, db_session):
+async def test_detail_dedicated_tier_story_and_title(client, db_session):
+    """Dedicated = story label OR name-in-title; disjoint from
+    referenced (issue #34), with per-rule match_reasons."""
     db_session.add_all(_story_rules())
     await db_session.commit()
 
@@ -398,41 +408,42 @@ async def test_detail_exact_counts_story_labeled_rules(client, db_session):
     assert resp.status_code == 200
     data = resp.json()
 
-    assert data["match_counts"]["exact"] == 1
-    assert [r["title"] for r in data["rules"]] == ["VTY tampering"]
-    # use_cases mention + tag mention + reference mention + alias
-    # mention + campaign-label mention (+ the exact rule's own label).
-    assert data["match_counts"]["mention"] == 5
+    # Story-labeled rule + alias-in-title rule are dedicated.
+    assert data["match_counts"]["exact"] == 2
+    by_title = {r["title"]: r for r in data["rules"]}
+    assert set(by_title) == {"VTY tampering", "AlphaBear staging activity"}
+    assert by_title["VTY tampering"]["match_reasons"] == ["story"]
+    assert by_title["AlphaBear staging activity"]["match_reasons"] == ["title"]
+    # Referenced excludes both dedicated rules: tag + reference +
+    # campaign-label mentions remain.
+    assert data["match_counts"]["mention"] == 3
 
 
 @pytest.mark.asyncio
-async def test_detail_mention_rules_cover_tags_usecases_references(client, db_session):
+async def test_detail_referenced_tier_is_disjoint_with_reasons(client, db_session):
     db_session.add_all(_story_rules())
     await db_session.commit()
 
     resp = await client.get("/api/actors/G0001?match_mode=mention")
-    titles = {r["title"] for r in resp.json()["rules"]}
-    assert titles == {
-        "VTY tampering",
-        "Tunnel config",
-        "Log clearing",
-        "AlphaBear staging activity",
-        "Recon burst",
-    }
+    by_title = {r["title"]: r for r in resp.json()["rules"]}
+    assert set(by_title) == {"Tunnel config", "Log clearing", "Recon burst"}
+    assert by_title["Tunnel config"]["match_reasons"] == ["tag"]
+    assert by_title["Log clearing"]["match_reasons"] == ["reference"]
+    assert by_title["Recon burst"]["match_reasons"] == ["use-case"]
 
 
 @pytest.mark.asyncio
 async def test_list_scores_match_detail_semantics(client, db_session):
     """our_rule_count / mention_count on the list page use the same
-    story-label + separator-tolerant semantics as the detail page."""
+    disjoint dedicated/referenced semantics as the detail page."""
     db_session.add_all(_story_rules())
     await db_session.commit()
 
     resp = await client.get("/api/actors?kind=groups&sort=mention_count&order=desc")
     items = resp.json()["items"]
     g1 = next(i for i in items if i["id"] == "G0001")
-    assert g1["our_rule_count"] == 1
-    assert g1["mention_count"] == 5
+    assert g1["our_rule_count"] == 2
+    assert g1["mention_count"] == 3
 
 
 # == Case-sensitive alias matching (issue #33) ======================
@@ -446,15 +457,24 @@ async def test_allcaps_alias_does_not_match_prose(client, db_session):
             title="S3 bucket policy weakened",
             description="Changes that may lead to unauthorized access.",
         ),
+        # Exact-case alias in title -> dedicated tier.
         _rule(
             title="LEAD implant staging",
             description="Detects staging activity attributed to LEAD.",
         ),
+        # Exact-case alias in description only -> referenced tier.
+        _rule(
+            title="Registry persistence via print monitor",
+            description="Technique observed in LEAD intrusions.",
+        ),
     ])
     await db_session.commit()
 
-    resp = await client.get("/api/actors/G0003?match_mode=mention")
+    resp = await client.get("/api/actors/G0003?match_mode=exact")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["match_counts"]["mention"] == 1
+    # Prose "lead" counts nowhere; literal LEAD title is dedicated,
+    # literal LEAD description is referenced.
+    assert data["match_counts"]["exact"] == 1
     assert [r["title"] for r in data["rules"]] == ["LEAD implant staging"]
+    assert data["match_counts"]["mention"] == 1
