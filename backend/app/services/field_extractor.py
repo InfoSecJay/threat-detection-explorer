@@ -1155,6 +1155,322 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
 # SENTINEL / KQL EXTRACTOR
 # ===========================================================================
 
+# Stage-aware KQL tokenizer (issue #6 rebuild). The previous extractor
+# ran flat regexes over the whole query: `sort by RiskScore desc` fed
+# the summarize-by scraper ("RiskScore desc"), `bin(TimeGenerated, 1d)`
+# comma-split into "1d)", and multi-let scripts defeated the let-strip
+# regex so KQL fragments landed in source_tables — 1,675 junk
+# fields_used entries in the 2026-08-26 baseline. This version splits
+# statements and pipeline stages with a quote-aware scanner, dispatches
+# per operator, validates every field name, and tracks derived columns
+# (let names, extend/summarize/project aliases, parse captures).
+
+_KQL_IDENT_RE = re.compile(r"^[A-Za-z_][\w.]*$")
+_KQL_KEYWORDS = frozenset({
+    "and", "or", "not", "by", "on", "kind", "let", "where", "project",
+    "extend", "summarize", "join", "union", "sort", "order", "asc",
+    "desc", "nulls", "first", "last", "take", "limit", "top",
+    "distinct", "count", "bin", "ago", "now", "datetime", "timespan",
+    "dynamic", "true", "false", "null", "case", "iff", "iif",
+    "between", "with", "matches", "regex", "has", "contains",
+    "startswith", "endswith", "in", "string", "long", "int", "real",
+    "bool", "boolean", "guid", "hint", "isfuzzy", "step", "of",
+    "evaluate", "render", "serialize", "materialize", "pack",
+    "toscalar", "range", "print",
+})
+# Scalar wrappers unwrapped before term matching: tolower(Field) == "x"
+_KQL_SCALAR_FUNCS = (
+    "tolower", "toupper", "tostring", "totitle", "trim", "tolong",
+    "toint", "todouble", "todatetime", "todynamic", "tourl", "url_decode",
+    "extract", "coalesce", "column_ifexists",
+)
+_KQL_AGG_ARG_RE = re.compile(
+    r"\b(?:count|countif|dcount|dcountif|min|max|sum|sumif|avg|make_set|"
+    r"make_list|make_bag|arg_max|arg_min|any|take_any|percentile)\s*\(\s*"
+    r"([A-Za-z_][\w.]*)",
+    re.IGNORECASE,
+)
+
+
+def _kql_split(text: str, sep: str) -> list[str]:
+    """Split on `sep` at depth 0, outside strings. Handles KQL string
+    forms: "..", '..', and verbatim @".." / @'..' (no escapes)."""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote: Optional[str] = None
+    verbatim = False
+    depth = 0
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if quote:
+            if not verbatim and ch == "\\":
+                buf.append(text[i:i + 2])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+            verbatim = bool(buf) and buf[-1] == "@"
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif ch == sep and depth == 0:
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    parts.append("".join(buf))
+    return [p for p in (part.strip() for part in parts) if p]
+
+
+def _kql_valid_field(name: str, derived: set[str]) -> bool:
+    return (
+        bool(_KQL_IDENT_RE.match(name))
+        and name.lower() not in _KQL_KEYWORDS
+        and name not in derived
+    )
+
+
+def _kql_is_table(name: str, derived: set[str]) -> bool:
+    if not re.match(r"^[A-Za-z_]\w*$", name) or name in derived:
+        return False
+    return name.lower() in SENTINEL_TABLES or name[0].isupper()
+
+
+def _kql_unwrap_scalars(text: str) -> str:
+    """tolower(Field) -> Field, repeatedly, so term patterns see the
+    underlying column."""
+    pattern = re.compile(
+        r"\b(?:%s)\s*\(([^()]*)\)" % "|".join(_KQL_SCALAR_FUNCS),
+        re.IGNORECASE,
+    )
+    prev = None
+    while prev != text:
+        prev = text
+        text = pattern.sub(r"\1", text)
+    return text
+
+
+def _kql_expression(text: str, result: ExtractedFields, derived: set[str]) -> None:
+    """Terms of a `where` expression."""
+    text = _kql_unwrap_scalars(text)
+
+    # field in/!in/in~/!in~ (list...)
+    for m in re.finditer(
+        r"([A-Za-z_][\w.]*)\s+(!?in~?)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)",
+        text,
+    ):
+        field_name, op, values_str = m.group(1), m.group(2), m.group(3)
+        if not _kql_valid_field(field_name, derived):
+            continue
+        values = re.findall(r'"([^"]*)"', values_str)
+        values += re.findall(r"'([^']*)'", values_str)
+        if not values:
+            values = re.findall(r"\b(\d+)\b", values_str)
+        if values:
+            _add_sentinel_observable(
+                field_name, values, op.startswith("!"), result
+            )
+        elif field_name not in result.fields_used:
+            # `Field in (LetBoundList)` — the list content lives in a
+            # let, but the field reference is real.
+            result.fields_used.append(field_name)
+    text_wo_in = re.sub(
+        r"([A-Za-z_][\w.]*)\s+!?in~?\s*\([^()]*(?:\([^()]*\)[^()]*)*\)", " ", text
+    )
+
+    # Binary comparisons: == =~ != !~ with quoted or numeric values
+    for m in re.finditer(
+        r"([A-Za-z_][\w.]*)\s*(==|=~|!=|!~)\s*(?:\"([^\"]*)\"|'([^']*)'|(\d+))",
+        text_wo_in,
+    ):
+        field_name, op = m.group(1), m.group(2)
+        value = m.group(3) or m.group(4) or m.group(5) or ""
+        if _kql_valid_field(field_name, derived) and value != "":
+            _add_sentinel_observable(
+                field_name, [value], op.startswith("!"), result
+            )
+
+    # String operators with a single quoted value
+    for m in re.finditer(
+        r"([A-Za-z_][\w.]*)\s+(!?(?:contains|has|startswith|endswith)(?:_cs)?"
+        r"|hasprefix|hassuffix|matches\s+regex)\s+(?:\"([^\"]*)\"|'([^']*)')",
+        text_wo_in, re.IGNORECASE,
+    ):
+        field_name, op = m.group(1), m.group(2)
+        value = m.group(3) or m.group(4) or ""
+        if _kql_valid_field(field_name, derived) and value:
+            _add_sentinel_observable(
+                field_name, [value], op.startswith("!"), result
+            )
+
+    # has_any / has_all (list)
+    for m in re.finditer(
+        r"([A-Za-z_][\w.]*)\s+has_(?:any|all)\s*\(([^()]*)\)", text_wo_in,
+        re.IGNORECASE,
+    ):
+        field_name, values_str = m.group(1), m.group(2)
+        values = re.findall(r'"([^"]*)"', values_str) + re.findall(r"'([^']*)'", values_str)
+        if not _kql_valid_field(field_name, derived):
+            continue
+        if values:
+            _add_sentinel_observable(field_name, values, False, result)
+        elif field_name not in result.fields_used:
+            result.fields_used.append(field_name)
+
+    # isempty/isnotempty/isnull/isnotnull(Field) — field reference only
+    for m in re.finditer(
+        r"\bis(?:not)?(?:empty|null)\s*\(\s*([A-Za-z_][\w.]*)\s*\)",
+        text_wo_in, re.IGNORECASE,
+    ):
+        if _kql_valid_field(m.group(1), derived) and m.group(1) not in result.fields_used:
+            result.fields_used.append(m.group(1))
+
+
+def _kql_field_list(
+    text: str, result: ExtractedFields, derived: set[str],
+    alias_targets_derived: bool = True,
+) -> None:
+    """Comma-separated column list (project / distinct / by / sort).
+
+    Entries may be `Alias = expr` (alias derived, expr idents real),
+    `bin(Field, 1d)` (Field real), or bare fields with sort modifiers.
+    """
+    for entry in _kql_split(text, ","):
+        entry = entry.strip()
+        m = re.match(r"([A-Za-z_][\w.]*)\s*=(?!=)(.*)$", entry, re.DOTALL)
+        if m:
+            if alias_targets_derived:
+                derived.add(m.group(1))
+            for ident in re.findall(r"[A-Za-z_][\w.]*", m.group(2)):
+                if _kql_valid_field(ident, derived) and ident not in result.fields_used:
+                    result.fields_used.append(ident)
+            continue
+        binm = re.match(r"bin\s*\(\s*([A-Za-z_][\w.]*)", entry, re.IGNORECASE)
+        if binm:
+            entry = binm.group(1)
+        # Strip sort modifiers.
+        entry = re.sub(
+            r"\s+(?:asc|desc|nulls\s+(?:first|last))\s*$", "", entry,
+            flags=re.IGNORECASE,
+        ).strip()
+        if _kql_valid_field(entry, derived) and entry not in result.fields_used:
+            result.fields_used.append(entry)
+
+
+def _kql_source_expr(
+    text: str, result: ExtractedFields, derived: set[str], depth: int = 0
+) -> None:
+    """Stage-0 source: `Table`, `union [mods] T1, T2, (T3 | ...)`,
+    `materialize(...)`."""
+    text = text.strip()
+    um = re.match(r"union\b(.*)$", text, re.IGNORECASE | re.DOTALL)
+    if um:
+        body = um.group(1)
+        body = re.sub(r"\b(?:kind|hint\.\w+|isfuzzy)\s*=\s*\w+", " ", body)
+        for token in _kql_split(body, ","):
+            token = token.strip()
+            if token.startswith("("):
+                # Parenthesized union branch is a full sub-pipeline:
+                # union isfuzzy=true (T1 | where ...), (T2 | where ...)
+                _kql_pipeline(token, result, derived, depth + 1)
+                continue
+            token = token.rstrip("*").strip()
+            if token and _kql_is_table(token, derived):
+                result.source_tables.append(token)
+        return
+    first = re.match(r"[A-Za-z_]\w*", text)
+    if first and _kql_is_table(first.group(0), derived):
+        result.source_tables.append(first.group(0))
+
+
+def _kql_pipeline(
+    text: str, result: ExtractedFields, derived: set[str], depth: int = 0
+) -> None:
+    if depth > 6:
+        return
+    text = text.strip()
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1].strip()
+    text = re.sub(r"^materialize\s*\(", "(", text, flags=re.IGNORECASE)
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1].strip()
+
+    stages = _kql_split(text, "|")
+    if not stages:
+        return
+    _kql_source_expr(stages[0], result, derived, depth)
+
+    for stage in stages[1:]:
+        stage = stage.strip()
+        first, _, rest = stage.partition(" ")
+        cmd = first.lower().rstrip("-")
+        if cmd == "where" or cmd == "and":
+            _kql_expression(rest, result, derived)
+        elif cmd in ("project", "distinct"):
+            _kql_field_list(rest, result, derived)
+        elif cmd.startswith("project"):
+            # project-away/-keep/-rename/-reorder reference real columns
+            _kql_field_list(rest, result, derived, alias_targets_derived=False)
+        elif cmd == "extend":
+            _kql_field_list(rest, result, derived)
+        elif cmd == "summarize":
+            parts = re.split(r"\bby\b", rest, maxsplit=1, flags=re.IGNORECASE)
+            for m in _KQL_AGG_ARG_RE.finditer(parts[0]):
+                if _kql_valid_field(m.group(1), derived) and m.group(1) not in result.fields_used:
+                    result.fields_used.append(m.group(1))
+            # `Alias = agg(...)` targets are derived.
+            for am in re.finditer(r"(?:^|,)\s*([A-Za-z_][\w.]*)\s*=(?!=)", parts[0]):
+                derived.add(am.group(1))
+            if len(parts) > 1:
+                _kql_field_list(parts[1], result, derived)
+        elif cmd in ("sort", "order", "top"):
+            bym = re.split(r"\bby\b", rest, maxsplit=1, flags=re.IGNORECASE)
+            if len(bym) > 1:
+                _kql_field_list(bym[1], result, derived)
+        elif cmd == "join":
+            # Optional (subpipeline) then `on` keys.
+            sub = re.search(r"\((.*)\)\s*on\b", stage, re.DOTALL)
+            on_part = re.split(r"\bon\b", stage, maxsplit=1, flags=re.IGNORECASE)
+            if sub:
+                _kql_pipeline(sub.group(1), result, derived, depth + 1)
+            else:
+                jt = re.search(
+                    r"join\s+(?:kind\s*=\s*\w+\s+)?(?:hint\.\w+\s*=\s*\w+\s+)?"
+                    r"\(?\s*([A-Za-z_]\w*)", stage, re.IGNORECASE,
+                )
+                if jt and _kql_is_table(jt.group(1), derived):
+                    result.source_tables.append(jt.group(1))
+            if len(on_part) > 1:
+                for key in _kql_split(on_part[1], ","):
+                    for ident in re.findall(r"\$(?:left|right)\.([\w.]+)|^\s*([A-Za-z_][\w.]*)\s*$", key):
+                        name = ident[0] or ident[1]
+                        if name and _kql_valid_field(name, derived) and name not in result.fields_used:
+                            result.fields_used.append(name)
+        elif cmd == "union":
+            _kql_source_expr(stage, result, derived)
+        elif cmd in ("mv-expand", "mvexpand"):
+            _kql_field_list(rest, result, derived, alias_targets_derived=False)
+        elif cmd == "parse":
+            # `parse Field with * "lit" Capture ...` — source real,
+            # captures derived.
+            pm = re.match(r"(?:kind\s*=\s*\w+\s+)?([A-Za-z_][\w.]*)\s+with\b(.*)$", rest, re.IGNORECASE | re.DOTALL)
+            if pm:
+                if _kql_valid_field(pm.group(1), derived) and pm.group(1) not in result.fields_used:
+                    result.fields_used.append(pm.group(1))
+                cleaned = re.sub(r'"[^"]*"|\'[^\']*\'', " ", pm.group(2))
+                derived.update(
+                    t for t in re.findall(r"[A-Za-z_]\w*", cleaned)
+                    if t not in ("with", "kind", "regex", "simple")
+                )
+        # count/take/limit/render/serialize/evaluate/invoke: no fields.
+
+
 def extract_sentinel_fields(query: str) -> ExtractedFields:
     """Extract fields from Sentinel KQL queries.
 
@@ -1170,7 +1486,7 @@ def extract_sentinel_fields(query: str) -> ExtractedFields:
 
     query = query.strip()
 
-    # Determine complexity
+    # Determine complexity (same heuristic as pre-rebuild).
     if re.search(r'\bjoin\b', query, re.IGNORECASE):
         result.query_complexity = "complex"
     elif re.search(r'\bunion\b', query, re.IGNORECASE):
@@ -1182,98 +1498,43 @@ def extract_sentinel_fields(query: str) -> ExtractedFields:
     else:
         result.query_complexity = "simple"
 
-    # Extract table references
-    # Handle "let x = ...; TableName | ..."
-    # Strip let statements first
-    clean_query = re.sub(r'let\s+\w+\s*=\s*[^;]+;', '', query, flags=re.IGNORECASE)
-    clean_query = clean_query.strip()
+    # Strip // line comments (quote-naive strip is safe enough: URLs in
+    # strings use ://, so require whitespace or line start before //).
+    query = re.sub(r"(?:^|(?<=\s))//[^\n]*", " ", query)
 
-    # First token (or after union) is the table name
-    table_match = re.match(r'(\w+)\s*(?:\||$)', clean_query)
-    if table_match:
-        table_name = table_match.group(1)
-        if table_name.lower() in SENTINEL_TABLES or table_name[0].isupper():
-            result.source_tables.append(table_name)
+    derived: set[str] = set()
+    statements = _kql_split(query, ";")
 
-    # Union tables
-    union_match = re.findall(r'\bunion\s+(?:kind\s*=\s*\w+\s+)?([^|]+)', query, re.IGNORECASE)
-    for tables_str in union_match:
-        tables = [t.strip().strip(',') for t in tables_str.split(',')]
-        for t in tables:
-            t = t.strip()
-            if t and t[0].isupper() and not t.startswith('kind'):
-                result.source_tables.append(t)
+    # Pass 1: let-bound names are derived everywhere.
+    let_bodies: list[str] = []
+    pipelines: list[str] = []
+    for stmt in statements:
+        lm = re.match(r"let\s+([A-Za-z_]\w*)\s*=\s*(.*)$", stmt, re.IGNORECASE | re.DOTALL)
+        if lm:
+            derived.add(lm.group(1))
+            let_bodies.append(lm.group(2))
+        elif stmt.strip():
+            pipelines.append(stmt)
 
-    # Join table references
-    join_match = re.findall(r'\bjoin\s+(?:kind\s*=\s*\w+\s+)?\(?\s*(\w+)', query, re.IGNORECASE)
-    for t in join_match:
-        if t[0].isupper():
-            result.source_tables.append(t)
-
-    # Extract where clause field references
-    # Patterns: FieldName == "value", FieldName contains "value", FieldName has "value"
-    # FieldName =~ "value", FieldName != value, FieldName in ("v1", "v2")
-
-    # == comparison
-    eq_matches = re.findall(r'(\w+)\s*==\s*(?:"([^"]*)"|(\d+))', query)
-    for field_name, str_val, num_val in eq_matches:
-        value = str_val if str_val else num_val
-        _add_sentinel_observable(field_name, [value], False, result)
-
-    # =~ comparison (case insensitive)
-    eqi_matches = re.findall(r'(\w+)\s*=~\s*"([^"]*)"', query)
-    for field_name, value in eqi_matches:
-        _add_sentinel_observable(field_name, [value], False, result)
-
-    # != comparison
-    neq_matches = re.findall(r'(\w+)\s*!=\s*(?:"([^"]*)"|(\d+))', query)
-    for field_name, str_val, num_val in neq_matches:
-        value = str_val if str_val else num_val
-        _add_sentinel_observable(field_name, [value], True, result)
-
-    # contains / has / startswith / endswith operators
-    str_ops = re.findall(r'(\w+)\s+(?:contains|has|startswith|endswith|has_any|matches\s+regex)\s+"([^"]*)"', query, re.IGNORECASE)
-    for field_name, value in str_ops:
-        _add_sentinel_observable(field_name, [value], False, result)
-
-    # in operator: FieldName in ("v1", "v2")
-    in_matches = re.findall(r'(\w+)\s+in\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in in_matches:
-        values = re.findall(r'"([^"]*)"', values_str)
-        if not values:
-            values = re.findall(r'(\d+)', values_str)
-        if values:
-            _add_sentinel_observable(field_name, values, False, result)
-
-    # in~ operator (case insensitive)
-    ini_matches = re.findall(r'(\w+)\s+in~\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in ini_matches:
-        values = re.findall(r'"([^"]*)"', values_str)
-        if values:
-            _add_sentinel_observable(field_name, values, False, result)
-
-    # Extract project fields
-    project_matches = re.findall(r'\|\s*project\s+([^|]+)', query, re.IGNORECASE)
-    for proj_str in project_matches:
-        proj_fields = [f.strip().strip(',') for f in proj_str.split(',')]
-        for f in proj_fields:
-            clean = f.strip()
-            if clean and clean[0].isupper() and '=' not in clean:
-                result.fields_used.append(clean)
-
-    # Extract extend fields (new calculated fields)
-    extend_matches = re.findall(r'\|\s*extend\s+(\w+)\s*=', query, re.IGNORECASE)
-    for f in extend_matches:
-        result.fields_used.append(f)
-
-    # Extract summarize ... by fields
-    summarize_by = re.findall(r'\bby\s+([^|]+)', query, re.IGNORECASE)
-    for by_clause in summarize_by:
-        by_fields = [f.strip().strip(',') for f in by_clause.split(',')]
-        for f in by_fields:
-            clean = f.strip()
-            if clean and not clean.startswith('bin(') and '(' not in clean:
-                result.fields_used.append(clean)
+    # Pass 2: extract. Let bodies that are table expressions (contain a
+    # pipe or start with a known table) are pipelines too — scalar lets
+    # (`let timeframe = 1d`) contribute nothing and extract nothing.
+    for body in let_bodies:
+        b = body.strip()
+        # Lambda lets — `let f = (tableName:string){ Table | ... };` —
+        # carry their pipeline inside the braces.
+        lam = re.match(r"^\([^()]*\)\s*\{(.*)\}\s*$", b, re.DOTALL)
+        if lam:
+            _kql_pipeline(lam.group(1), result, derived)
+            continue
+        starts_table = re.match(r"^(?:materialize\s*\(\s*)?\(?\s*([A-Za-z_]\w*)", b)
+        if "|" in b or (
+            starts_table and _kql_is_table(starts_table.group(1), derived)
+        ):
+            if not re.match(r"^(?:dynamic|datetime|ago|pack|toscalar|tostring)\b", b, re.IGNORECASE):
+                _kql_pipeline(b, result, derived)
+    for p in pipelines:
+        _kql_pipeline(p, result, derived)
 
     _deduplicate_all(result)
     return result

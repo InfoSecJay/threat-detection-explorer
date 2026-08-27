@@ -1,5 +1,7 @@
 """Tests for Sentinel/KQL field extraction."""
 
+import re
+
 import pytest
 from app.services.field_extractor import extract_sentinel_fields
 
@@ -126,12 +128,14 @@ class TestSentinelProjectExtend:
         assert "Account" in result.fields_used
         assert "Computer" in result.fields_used
 
-    def test_extract_extend_fields(self):
-        """Extract fields from extend operator."""
+    def test_extend_source_fields_yes_targets_no(self):
+        """extend targets are DERIVED columns (issue #6 rebuild) — the
+        telemetry field is the one on the right-hand side."""
         query = 'SecurityEvent | extend AccountDomain = split(Account, "\\\\")[0]'
         result = extract_sentinel_fields(query)
 
-        assert "AccountDomain" in result.fields_used
+        assert "Account" in result.fields_used
+        assert "AccountDomain" not in result.fields_used
 
 
 class TestSentinelLetStatements:
@@ -202,6 +206,101 @@ class TestSentinelSigninLogs:
 
         assert "SigninLogs" in result.source_tables
         assert "ResultType" in result.fields_used
+
+
+class TestKqlRebuildFixture:
+    """Issue #6 rebuild fixture — the KQL junk classes the 2026-08-26
+    baseline measured (1,675 junk fields_used entries, KQL fragments in
+    source_tables)."""
+
+    def test_sort_by_desc_is_not_a_field_name(self):
+        query = (
+            "SecurityEvent | summarize count() by Account "
+            "| sort by RiskScore desc, EventTime desc"
+        )
+        r = extract_sentinel_fields(query)
+        assert "RiskScore" in r.fields_used
+        assert "EventTime" in r.fields_used
+        assert not any(" " in f for f in r.fields_used)
+
+    def test_bin_in_by_clause_yields_the_field(self):
+        query = (
+            "SecurityEvent | summarize count() by bin(TimeGenerated, 1d), Account"
+        )
+        r = extract_sentinel_fields(query)
+        assert "TimeGenerated" in r.fields_used
+        assert "Account" in r.fields_used
+        assert "1d)" not in r.fields_used
+
+    def test_multi_let_script_keeps_tables_clean(self):
+        query = (
+            'let watch = dynamic(["a.com", "b.com"]);\n'
+            "let MDE_Results = DeviceProcessEvents | where FileName =~ \"rundll32.exe\";\n"
+            "let CredentialActivity = SecurityEvent | where EventID == 4624;\n"
+            "union MDE_Results, CredentialActivity | sort by TimeGenerated desc"
+        )
+        r = extract_sentinel_fields(query)
+        assert "DeviceProcessEvents" in r.source_tables
+        assert "SecurityEvent" in r.source_tables
+        # let-bound names are NOT tables; no fragment ever is.
+        assert "MDE_Results" not in r.source_tables
+        assert "CredentialActivity" not in r.source_tables
+        assert not any(re.search(r"\s", t) for t in r.source_tables)
+
+    def test_externaldata_let_does_not_leak_fragments(self):
+        query = (
+            "let feed = externaldata(Activity:string)[\"https://x/y.csv\"] "
+            "with (format=\"csv\");\n"
+            "CommonSecurityLog | where DeviceAction == \"deny\""
+        )
+        r = extract_sentinel_fields(query)
+        assert "CommonSecurityLog" in r.source_tables
+        assert all("string" not in t for t in r.source_tables)
+
+    def test_summarize_agg_args_yes_aliases_no(self):
+        query = (
+            "SecurityEvent | summarize Total = count(), Distinct = dcount(Account), "
+            "FirstSeen = min(TimeGenerated) by Computer"
+        )
+        r = extract_sentinel_fields(query)
+        assert "Account" in r.fields_used
+        assert "TimeGenerated" in r.fields_used
+        assert "Computer" in r.fields_used
+        assert "Total" not in r.fields_used
+        assert "FirstSeen" not in r.fields_used
+
+    def test_scalar_wrappers_unwrap_to_the_column(self):
+        query = 'DeviceProcessEvents | where tolower(FileName) == "mimikatz.exe"'
+        r = extract_sentinel_fields(query)
+        assert "FileName" in r.fields_used
+        assert "mimikatz.exe" in r.process_names
+
+    def test_join_subpipeline_and_keys(self):
+        query = (
+            "SecurityEvent | where EventID == 4624 "
+            "| join kind=inner (SigninLogs | where ResultType == 0) on AccountName"
+        )
+        r = extract_sentinel_fields(query)
+        assert "SigninLogs" in r.source_tables
+        assert "AccountName" in r.fields_used
+
+    def test_has_any_list(self):
+        query = (
+            'DeviceProcessEvents | where ProcessCommandLine has_any '
+            '("-enc", "-encodedcommand")'
+        )
+        r = extract_sentinel_fields(query)
+        obs = [o for o in r.observables if o.field == "ProcessCommandLine"]
+        assert obs and set(obs[0].values) == {"-enc", "-encodedcommand"}
+
+    def test_parse_captures_are_derived(self):
+        query = (
+            'Syslog | parse SyslogMessage with * "user=" TargetUser " " * '
+            "| where TargetUser != \"root\""
+        )
+        r = extract_sentinel_fields(query)
+        assert "SyslogMessage" in r.fields_used
+        assert "TargetUser" not in r.fields_used
 
 
 class TestSentinelEdgeCases:

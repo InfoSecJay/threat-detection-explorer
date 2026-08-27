@@ -307,6 +307,26 @@ Whitespace-bearing values (regex bodies, link display text) are now
 excluded from `network_indicators` across ALL extractors — they remain
 on the observable itself.
 
+**sentinel — rebuilt 2026-08-27** (statement/stage-aware KQL tokenizer:
+quote-aware `;` / `|` splitting, per-operator dispatch, let/lambda
+bodies pipelined, derived-column tracking for let names, extend/
+summarize/project aliases and parse captures). Before/after over the
+2,125-rule local corpus:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| junk fields_used | 1,169 (7.7%) | **0 (0.0%)** |
+| fields_used values | 15,108 | 21,760 |
+| source_tables | 1,939 | 2,283 (union branches + join subqueries) |
+| source_tables whitespace FP | 16 | 0 |
+| event_ids | 121 | 134 |
+| rules with extraction | 2,117 | 2,120 |
+
+Fallback subtype share stays high (~82%) — that is the Sentinel
+field-name vocabulary gap in FIELD_TYPE_MAP (AppId, ResultType,
+TokenIssuerType, ...), not a parsing gap; it is the target of the
+deferred cross-source vocabulary pass.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract
