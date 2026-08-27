@@ -106,3 +106,59 @@ def test_tokenize():
     assert tokenize("Salt Typhoon") == ["salt", "typhoon"]
     assert tokenize("APT29") == ["apt29"]
     assert tokenize("") == []
+
+
+# == Case-sensitive all-caps codenames (issue #33) ==================
+#
+# APT41's alias "LEAD" matched every rule description containing the
+# English verb "lead" -- 197 of its 200 mention hits. All-caps
+# single-token alphabetic codenames must match with exact casing.
+
+from app.services.actor_matching import is_case_sensitive_name
+
+
+def test_is_case_sensitive_name_classification():
+    # The hazard class: single-token, purely alphabetic, all-caps.
+    assert is_case_sensitive_name("LEAD")
+    assert is_case_sensitive_name("BARIUM")
+    assert is_case_sensitive_name("BLINDINGCAN")
+    # Digits make a name distinctive -- stays case-insensitive.
+    assert not is_case_sensitive_name("APT41")
+    assert not is_case_sensitive_name("TA415")
+    # Multi-token all-caps is distinctive as a sequence.
+    assert not is_case_sensitive_name("WICKED SPIDER")
+    # Mixed/title case is not the hazard class.
+    assert not is_case_sensitive_name("Winnti")
+    assert not is_case_sensitive_name("GhostEmperor")
+
+
+def test_allcaps_codename_does_not_match_english_prose():
+    rx = compile_name_regex(["LEAD"])
+    for text in (
+        "activity that may lead to unauthorized access",
+        "Leads to remote code execution",
+        "Lead engineer approval required",
+        "misleading indicators",
+    ):
+        assert not rx.search(text), text
+
+
+def test_allcaps_codename_matches_exact_case_usage():
+    rx = compile_name_regex(["LEAD"])
+    for text in (
+        "attributed to LEAD operators",
+        "LEAD (also tracked as BARIUM)",
+        "story:LEAD",
+    ):
+        assert rx.search(text), text
+
+
+def test_mixed_name_list_keeps_insensitive_semantics_for_safe_names():
+    # One regex holding both classes: APT41 stays case-insensitive
+    # (lowercase URLs must still count), LEAD goes exact-case.
+    rx = compile_name_regex(["APT41", "Wicked Panda", "LEAD"])
+    assert rx.search("https://example.com/apt41-dual-espionage-report/")
+    assert rx.search("wicked_panda staging")
+    assert rx.search("WICKED-PANDA infra")
+    assert not rx.search("this may lead to data loss")
+    assert rx.search("overlaps with LEAD tooling")

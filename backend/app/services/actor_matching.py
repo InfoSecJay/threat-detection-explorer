@@ -49,24 +49,53 @@ def normalize_label(value: str) -> str:
     return " ".join(tokenize(value))
 
 
+def is_case_sensitive_name(name: str) -> bool:
+    """Names that must match with their exact casing.
+
+    Single-token, purely-alphabetic, ALL-CAPS vendor codenames (LEAD,
+    BARIUM, BLINDINGCAN) collide with English prose when matched
+    case-insensitively — APT41's alias "LEAD" matched every rule whose
+    description said "may lead to ...", 197 of its 200 mention hits
+    (issue #33). Intel and rule text write these codenames all-caps,
+    prose doesn't, so exact-case matching removes the FP class.
+
+    Multi-token names ("WICKED SPIDER") and names carrying digits
+    ("APT41", "TA415") are distinctive even lowercased (reference URLs
+    lowercase everything) and stay case-insensitive. Accepted FN: an
+    all-caps codename written in lowercase prose no longer counts.
+    """
+    return name.isupper() and name.isalpha()
+
+
 def compile_name_regex(names: list[str]) -> re.Pattern | None:
-    """One case-insensitive regex matching ANY of `names` in free text.
+    """One regex matching ANY of `names` in free text.
 
     Per name: tokens joined by a flexible separator, anchored by
     not-alphanumeric lookarounds (NOT `\\b`, which treats `_` as a word
-    character and misses `story:salt_typhoon`).
+    character and misses `story:salt_typhoon`). Most names match
+    case-insensitively via a scoped `(?i:...)` group; names flagged by
+    is_case_sensitive_name() must appear with their exact casing.
     """
-    alts = []
+    insensitive = []
+    sensitive = []
     for name in names:
         tokens = tokenize(name)
         if not tokens:
             continue
-        alts.append(_SEP.join(re.escape(t) for t in tokens))
+        if is_case_sensitive_name(name):
+            # Preserve the original casing — tokenize() lowercases, and
+            # an all-caps alphabetic name is a single token anyway.
+            sensitive.append(re.escape(name))
+        else:
+            insensitive.append(_SEP.join(re.escape(t) for t in tokens))
+    alts = []
+    if insensitive:
+        alts.append(r"(?i:" + "|".join(insensitive) + r")")
+    alts.extend(sensitive)
     if not alts:
         return None
     return re.compile(
-        r"(?<![a-z0-9])(" + "|".join(alts) + r")(?![a-z0-9])",
-        re.IGNORECASE,
+        r"(?<![A-Za-z0-9])(" + "|".join(alts) + r")(?![A-Za-z0-9])"
     )
 
 

@@ -31,7 +31,8 @@ FIXTURE_GROUPS = {
         "techniques": ["T1002"], "software": [],
     },
     "G0003": {
-        "id": "G0003", "name": "Gamma Group", "aliases": [],
+        # All-caps English-word alias -- the issue #33 hazard class.
+        "id": "G0003", "name": "Gamma Group", "aliases": ["LEAD"],
         "description": "", "url": "", "references": [], "deprecated": False,
         "techniques": [], "software": [],
     },
@@ -432,3 +433,28 @@ async def test_list_scores_match_detail_semantics(client, db_session):
     g1 = next(i for i in items if i["id"] == "G0001")
     assert g1["our_rule_count"] == 1
     assert g1["mention_count"] == 5
+
+
+# == Case-sensitive alias matching (issue #33) ======================
+# G0003 carries the all-caps alias "LEAD" in this fixture; prose
+# "lead" must not count as a mention, literal "LEAD" must.
+
+@pytest.mark.asyncio
+async def test_allcaps_alias_does_not_match_prose(client, db_session):
+    db_session.add_all([
+        _rule(
+            title="S3 bucket policy weakened",
+            description="Changes that may lead to unauthorized access.",
+        ),
+        _rule(
+            title="LEAD implant staging",
+            description="Detects staging activity attributed to LEAD.",
+        ),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0003?match_mode=mention")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_counts"]["mention"] == 1
+    assert [r["title"] for r in data["rules"]] == ["LEAD implant staging"]

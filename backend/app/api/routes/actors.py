@@ -40,6 +40,7 @@ from app.models.detection import Detection
 from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_matching import (
     compile_name_regex,
+    is_case_sensitive_name,
     label_like_patterns,
     sql_like_patterns,
 )
@@ -139,6 +140,14 @@ async def _rules_mentioning(
     )
     ilike_conds = []
     for n in filtered:
+        if is_case_sensitive_name(n):
+            # Exact-case codename (LEAD, BARIUM): case-sensitive LIKE
+            # on Postgres so prose hits ("may lead to") don't consume
+            # the over-fetch window. SQLite's LIKE stays
+            # case-insensitive — a looser pre-filter there is fine,
+            # the regex below is the authority.
+            ilike_conds.extend(col.like(f"%{n}%") for col in text_columns)
+            continue
         for pattern in sql_like_patterns(n):
             ilike_conds.extend(col.ilike(pattern) for col in text_columns)
     q = (
