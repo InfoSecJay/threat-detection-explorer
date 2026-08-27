@@ -338,6 +338,27 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "headers.auth_summary.dmarc.pass": ("email", "auth_result"),
     "headers.auth_summary.dkim.pass": ("email", "auth_result"),
     "ml.nlu_classifier": ("email", "ml_classifier"),
+    # Container-resolved Sublime paths (issue #6 rebuild): the MQL
+    # scope resolver now emits full paths like body.links.display_text
+    # for `any(body.links, .display_text == ...)` — map the common ones.
+    "body.links.display_text": ("email", "url"),
+    "body.links.display_url.url": ("email", "url"),
+    "body.links.href_url.url": ("email", "url"),
+    "body.links.href_url.path": ("email", "url"),
+    "body.links.href_url.query_params": ("email", "url"),
+    "body.links.href_url.domain.domain": ("email", "url"),
+    "body.links.href_url.domain.root_domain": ("email", "url"),
+    "body.links.href_url.domain.tld": ("email", "url"),
+    "recipients.to.email.email": ("email", "recipient"),
+    "recipients.to.email.domain.domain": ("email", "recipient"),
+    "recipients.to.display_name": ("email", "recipient"),
+    "attachments.file_name.file_extension": ("email", "attachment_type"),
+    "attachments.sha256": ("email", "attachment"),
+    "attachments.md5": ("email", "attachment"),
+    "ml.nlu_classifier.intents.name": ("email", "ml_classifier"),
+    "ml.nlu_classifier.intents.confidence": ("email", "ml_classifier"),
+    "ml.nlu_classifier.entities.name": ("email", "ml_classifier"),
+    "ml.nlu_classifier.entities.text": ("email", "ml_classifier"),
     # ECS / M365
     "email.from.address": ("email", "sender"),
     "email.to.address": ("email", "recipient"),
@@ -453,11 +474,16 @@ def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
     if obs_type == "identity" and obs_subtype == "target" and not negated:
         result.target_resources.extend(v for v in values if v)
 
-    # Email and DNS indicators also go to network_indicators for backward compat
+    # Email and DNS indicators also go to network_indicators for backward
+    # compat. Whitespace-bearing values are match PATTERNS (regex bodies,
+    # link display text), not indicators — keep them on the observable
+    # but off the indicator surface.
     if obs_type in ("email", "dns") and obs_subtype in (
         "sender_domain", "sender", "url", "query_name", "answer"
     ):
-        result.network_indicators.extend(v for v in values if v)
+        result.network_indicators.extend(
+            v for v in values if v and not re.search(r"\s", v)
+        )
 
 
 def _deduplicate_all(result: ExtractedFields):
@@ -1402,11 +1428,189 @@ def extract_esql_fields(query: str) -> ExtractedFields:
 # SUBLIME MQL EXTRACTOR
 # ===========================================================================
 
+# MQL iterator functions whose first argument is a container and whose
+# remaining arguments are predicates over ONE ELEMENT of it — inside
+# them, `.field` is relative to the container. `any(body.links,
+# strings.icontains(.display_text, 'x'))` means body.links.display_text.
+_MQL_ITERATORS = frozenset({"any", "all", "filter", "map", "distinct"})
+_MQL_TOKEN_RE = re.compile(r"\.?[A-Za-z_$][\w.$]*")
+_MQL_FIELD_OK_RE = re.compile(r"^[A-Za-z_][\w.]*$")
+_MQL_FIELD_STOPWORDS = frozenset({
+    "and", "or", "not", "in", "true", "false", "null", "mode", "type",
+    "strings", "regex", "ml", "length", "beta",
+})
+_MQL_MAX_DEPTH = 12
+
+
+def _mql_split_args(text: str) -> list[str]:
+    """Split a call body on top-level commas (quote- and paren-aware)."""
+    args: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    quote: Optional[str] = None
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                buf.append(text[i:i + 2])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            args.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    args.append("".join(buf))
+    return args
+
+
+def _mql_container_of(expr: str, scope: str) -> str:
+    """The field path an iterator's container expression refers to.
+
+    `body.links` -> body.links; `filter(body.links, ...)` -> body.links;
+    `ml.nlu_classifier(body.current_thread.text).intents` ->
+    ml.nlu_classifier.intents (call parens collapsed).
+    """
+    expr = expr.strip()
+    m = re.match(r"([A-Za-z_][\w.]*)\s*\(", expr)
+    if m and m.group(1).split(".")[-1] in _MQL_ITERATORS:
+        body = expr[m.end():]
+        if body.endswith(")"):
+            body = body[:-1]
+        return _mql_container_of(_mql_split_args(body)[0], scope)
+    prev = None
+    while prev != expr:
+        prev = expr
+        expr = re.sub(r"\([^()]*\)", "", expr)
+    m2 = re.search(r"[A-Za-z_][\w.]*", expr)
+    return m2.group(0) if m2 else scope
+
+
+def _mql_resolve(text: str, scope: str, depth: int = 0) -> str:
+    """Rewrite MQL so every relative `.field` carries its container path.
+
+    Walks the text (quote-aware); iterator calls recurse with their
+    container as the new scope; a bare `.` argument (the element
+    itself, as in `ml.link_analysis(., ...)`) becomes the scope path.
+    The result is a resolved query the flat term patterns can read
+    without ever seeing a leading-dot field.
+    """
+    if depth > _MQL_MAX_DEPTH:
+        return text
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "\"'":
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == ch:
+                    break
+                j += 1
+            out.append(text[i:min(j + 1, n)])
+            i = min(j + 1, n)
+            continue
+        m = _MQL_TOKEN_RE.match(text, i) if (ch == "." or ch == "_" or ch == "$" or ch.isalpha()) else None
+        if m is None:
+            # Bare `.` in argument position = the current element.
+            if ch == ".":
+                prev = next((c for c in reversed(out) for c in reversed(c) if not c.isspace()), "")
+                nxt = text[i + 1] if i + 1 < n else ""
+                if scope and prev in "(," and (nxt in ",)" or nxt.isspace()):
+                    out.append(scope)
+                    i += 1
+                    continue
+            out.append(ch)
+            i += 1
+            continue
+        token = m.group(0)
+        end = m.end()
+        rel = token.startswith(".")
+        # `.field` directly after `)` is postfix attribute access on a
+        # call result (`ml.link_analysis(...).credphish`), NOT a
+        # container-relative field — keep it verbatim.
+        prev_char = next(
+            (c for chunk in reversed(out) for c in reversed(chunk) if not c.isspace()),
+            "",
+        )
+        if rel and prev_char == ")":
+            out.append(token)
+            i = end
+            continue
+        name = token[1:] if rel else token
+        resolved = f"{scope}.{name}" if (rel and scope) else name
+        # Call?
+        k = end
+        while k < n and text[k] in " \t\r\n":
+            k += 1
+        if k < n and text[k] == "(":
+            depth_p, j = 1, k + 1
+            quote: Optional[str] = None
+            while j < n and depth_p:
+                cj = text[j]
+                if quote:
+                    if cj == "\\":
+                        j += 2
+                        continue
+                    if cj == quote:
+                        quote = None
+                elif cj in "\"'":
+                    quote = cj
+                elif cj == "(":
+                    depth_p += 1
+                elif cj == ")":
+                    depth_p -= 1
+                j += 1
+            body = text[k + 1:j - 1] if depth_p == 0 else text[k + 1:j]
+            if name.split(".")[-1] in _MQL_ITERATORS:
+                args = _mql_split_args(body)
+                cont_src = _mql_resolve(args[0], scope, depth + 1)
+                cont = _mql_container_of(cont_src, scope)
+                rest = [_mql_resolve(a, cont, depth + 1) for a in args[1:]]
+                out.append(f"{resolved}({', '.join([cont_src.strip()] + [r.strip() for r in rest])})")
+            else:
+                out.append(f"{resolved}({_mql_resolve(body, scope, depth + 1)})")
+            i = j
+            continue
+        out.append(resolved)
+        i = end
+    return "".join(out)
+
+
+def _mql_valid_field(name: str) -> bool:
+    return (
+        bool(_MQL_FIELD_OK_RE.match(name))
+        and ".." not in name
+        and not name.endswith(".")
+        and name.lower() not in _MQL_FIELD_STOPWORDS
+    )
+
+
 def extract_sublime_fields(query: str) -> ExtractedFields:
     """Extract fields from Sublime Security MQL (Message Query Language) queries.
 
-    Parses email detection rules for sender domains, recipients, subjects,
-    attachments, URLs, and other email-specific indicators.
+    Scope-resolving rebuild (issue #6). The previous extractor's
+    `([\\w.]+)` captures kept MQL's leading-dot relative fields verbatim
+    (`.display_text` — 3,092 junk fields_used entries in the 2026-08-26
+    baseline) and never connected them to their `any()`/`filter()`
+    container. This version first REWRITES the query so every relative
+    field carries its container path (`any(body.links,
+    .display_text == 'x')` reads as `body.links.display_text`), then
+    extracts terms from the resolved text with validated field names.
 
     Args:
         query: The MQL query string
@@ -1439,72 +1643,75 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
     for t in type_matches:
         result.source_tables.append(f"type.{t.lower()}")
 
-    # Pattern: field == "value"
-    eq_patterns = re.findall(r'([\w.]+)\s*==\s*"([^"]*)"', query)
-    for field_name, value in eq_patterns:
-        _add_sublime_observable(field_name, [value], False, result)
+    # Resolve iterator scopes so relative fields carry container paths.
+    resolved = _mql_resolve(query, "")
+
+    def add(field_name: str, values: list[str], negated: bool) -> None:
+        # Postfix attribute chains on call results keep a leading dot
+        # in the resolved text (`...).credphish.disposition`) — the
+        # trailing path is the usable field name.
+        field_name = field_name.lstrip(".")
+        if _mql_valid_field(field_name):
+            _add_sublime_observable(field_name, values, negated, result)
+
+    seen_pairs: set[tuple[str, str]] = set()
+
+    # Pattern: field == "value" / field == 'value'
+    for field_name, dq, sq in re.findall(
+        r'([\w.]+)\s*==\s*(?:"([^"]*)"|\'([^\']*)\')', resolved
+    ):
+        value = dq or sq
+        seen_pairs.add((field_name, value))
+        add(field_name, [value], False)
 
     # Pattern: field != "value"
-    neq_patterns = re.findall(r'([\w.]+)\s*!=\s*"([^"]*)"', query)
-    for field_name, value in neq_patterns:
-        _add_sublime_observable(field_name, [value], True, result)
+    for field_name, dq, sq in re.findall(
+        r'([\w.]+)\s*!=\s*(?:"([^"]*)"|\'([^\']*)\')', resolved
+    ):
+        add(field_name, [dq or sq], True)
 
     # Pattern: field = "value" (single equals, common in MQL)
-    single_eq = re.findall(r'([\w.]+)\s*(?<!=)=\s*(?!=)"([^"]*)"', query)
-    for field_name, value in single_eq:
-        # Skip if already captured by == pattern
-        if (field_name, value) not in eq_patterns:
-            _add_sublime_observable(field_name, [value], False, result)
+    for field_name, dq, sq in re.findall(
+        r'([\w.]+)\s*(?<![=!<>])=\s*(?!=)(?:"([^"]*)"|\'([^\']*)\')', resolved
+    ):
+        value = dq or sq
+        if (field_name, value) not in seen_pairs:
+            add(field_name, [value], False)
 
     # Pattern: field in ("v1", "v2")
-    in_patterns = re.findall(r'([\w.]+)\s+in\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in in_patterns:
-        values = re.findall(r'"([^"]*)"', values_str)
+    for field_name, values_str in re.findall(
+        r'([\w.]+)\s+in~?\s*\(([^)]+)\)', resolved, re.IGNORECASE
+    ):
+        values = re.findall(r'"([^"]*)"|\'([^\']*)\'', values_str)
+        values = [dq or sq for dq, sq in values]
         if values:
-            _add_sublime_observable(field_name, values, False, result)
+            add(field_name, values, False)
 
-    # Pattern: regex.icontains(field, "pattern") or regex.contains(field, "pattern")
-    regex_patterns = re.findall(
-        r'regex\.(?:i?contains|i?match)\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*[\'"]([^\'"]*)[\'"]',
-        query, re.IGNORECASE
-    )
-    for field_name, pattern in regex_patterns:
-        _add_sublime_observable(field_name, [pattern], False, result)
+    # Pattern: field in $named_list — the list content isn't in the
+    # rule, but the FIELD reference is real.
+    for field_name in re.findall(r'([\w.]+)\s+in\s+\$[\w]+', resolved, re.IGNORECASE):
+        field_name = field_name.lstrip(".")
+        if _mql_valid_field(field_name) and field_name not in result.fields_used:
+            result.fields_used.append(field_name)
 
-    # Pattern: strings.icontains(field, "value") or strings.contains(field, "value")
-    str_patterns = re.findall(
-        r'strings\.(?:i?contains|i?like|starts_with|ends_with)\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*[\'"]([^\'"]*)[\'"]',
-        query, re.IGNORECASE
-    )
-    for field_name, value in str_patterns:
-        _add_sublime_observable(field_name, [value], False, result)
+    # Pattern: strings./regex. predicate functions — first arg is the
+    # field, second the value/pattern.
+    for field_name, dq, sq in re.findall(
+        r'(?:strings|regex)\.\w+\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*'
+        r'(?:"([^"]*)"|\'([^\']*)\')',
+        resolved, re.IGNORECASE
+    ):
+        add(field_name, [dq or sq], False)
 
-    # Pattern: any(field, .attr == "value")
-    any_eq_patterns = re.findall(
-        r'any\s*\(\s*([\w.]+)\s*,\s*\.([\w.]+)\s*==\s*"([^"]*)"',
-        query, re.IGNORECASE
-    )
-    for container, attr, value in any_eq_patterns:
-        field_name = f"{container}.{attr}"
-        _add_sublime_observable(field_name, [value], False, result)
-
-    # Pattern: any(field, .attr in ("v1", "v2"))
-    any_in_patterns = re.findall(
-        r'any\s*\(\s*([\w.]+)\s*,\s*\.([\w.]+)\s+in\s*\(([^)]+)\)',
-        query, re.IGNORECASE
-    )
-    for container, attr, values_str in any_in_patterns:
-        values = re.findall(r'"([^"]*)"', values_str)
-        field_name = f"{container}.{attr}"
-        if values:
-            _add_sublime_observable(field_name, values, False, result)
-
-    # Pattern: .field == "value" (within any() context, dot-prefixed)
-    dot_eq_patterns = re.findall(r'\.([\w.]+)\s*==\s*"([^"]*)"', query)
-    for field_name, value in dot_eq_patterns:
-        # Only add if not already captured
-        if field_name not in result.fields_used:
-            _add_sublime_observable(field_name, [value], False, result)
+    # Unquoted comparisons (== true / >= 4 / != null): the field
+    # reference is real even though the value isn't an observable.
+    for field_name in re.findall(
+        r'([\w.]+)\s*(?:[=!]=|<=?|>=?)\s*(?:true|false|null|\d+)\b',
+        resolved, re.IGNORECASE
+    ):
+        field_name = field_name.lstrip(".")
+        if _mql_valid_field(field_name) and field_name not in result.fields_used:
+            result.fields_used.append(field_name)
 
     _deduplicate_all(result)
     return result
@@ -1531,7 +1738,12 @@ def _add_sublime_observable(field_name: str, values: list[str], negated: bool, r
         result.file_paths.extend(values)
 
     if obs_type == "network":
-        result.network_indicators.extend(v for v in values if v)
+        # Whitespace-bearing values are regex/pattern bodies or link
+        # display text, not indicators (same policy as
+        # _route_domain_fields).
+        result.network_indicators.extend(
+            v for v in values if v and not re.search(r"\s", v)
+        )
 
     # Route domain-specific fields
     _route_domain_fields(obs_type, obs_subtype, values, negated, result)

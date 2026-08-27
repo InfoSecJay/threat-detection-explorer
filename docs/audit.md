@@ -291,6 +291,22 @@ Production columns refresh automatically on the next nightly sync
 is a FIELD_TYPE_MAP vocabulary gap, not a parsing gap — tracked for a
 later pass.
 
+**sublime — rebuilt 2026-08-27** (MQL scope resolver: relative
+`.field` refs inside `any()`/`filter()` iterators now resolve to full
+container paths before term extraction; leading-dot junk is
+structurally impossible). Before/after over the 868-rule local corpus:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| junk fields_used | 2,428 (47.2%) | **0 (0.0%)** |
+| `*_field` fallback share | 74.9% | 38.2% |
+| network_indicators | 1,399 | 1,897 (resolved URL fields) |
+| indicator free-text FP | 5 | 0 (patterns stay on observables, off the indicator surface) |
+
+Whitespace-bearing values (regex bodies, link display text) are now
+excluded from `network_indicators` across ALL extractors — they remain
+on the observable itself.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract
