@@ -587,19 +587,41 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
 
         # Extract specific artifacts
         if _is_event_id_field(base_field):
-            result.event_ids.extend(str(v) for v in flat_values)
+            result.event_ids.extend(
+                str(v) for v in flat_values if str(v).isdigit()
+            )
 
         if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
             result.process_names.extend(_extract_exe_names(flat_values))
 
         if obs_type == "file" and obs_subtype == "file_path":
-            result.file_paths.extend(flat_values)
+            # `TargetFilename|endswith: '.bat'` values are EXTENSIONS,
+            # not paths — 22.8% of sigma file_paths in the 2026-08-26
+            # baseline. Keep them as a file_extension observable.
+            paths = [v for v in flat_values if ("\\" in v or "/" in v)]
+            exts = [
+                v for v in flat_values
+                if re.match(r"^\.[A-Za-z0-9]{1,10}$", v.strip())
+            ]
+            result.file_paths.extend(paths)
+            if exts:
+                result.observables.append(
+                    ExtractedObservable(
+                        field=base_field,
+                        values=exts,
+                        type="file",
+                        subtype="file_extension",
+                        negated=is_negated,
+                    )
+                )
 
         if obs_type == "registry" and obs_subtype == "registry_key":
             result.registry_keys.extend(_extract_registry_paths(flat_values))
 
         if obs_type == "network":
-            result.network_indicators.extend(flat_values)
+            result.network_indicators.extend(
+                v for v in flat_values if v and not re.search(r"\s", str(v))
+            )
 
         # Route domain-specific fields
         _route_domain_fields(obs_type, obs_subtype, flat_values, is_negated, result)
@@ -747,7 +769,16 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
     result.observables.append(observable)
 
     if _is_event_id_field(field_name):
-        result.event_ids.extend(str(v) for v in values)
+        # Numeric codes only ("4688"). O365/Azure integrations put
+        # OPERATION NAMES in event.code (AzureActiveDirectoryStsLogon,
+        # ComplianceDLPExchange) — 36.9% of elastic event_ids in the
+        # 2026-08-26 baseline. Those are API actions, not event IDs.
+        for v in values:
+            s = str(v)
+            if s.isdigit():
+                result.event_ids.append(s)
+            elif re.match(r"^[A-Za-z][\w.-]*$", s):
+                result.api_actions.append(s)
 
     if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
         result.process_names.extend(_extract_exe_names(values))
@@ -759,7 +790,8 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
                     result.process_names.append(v_clean.lower())
 
     if obs_type == "file" and "path" in obs_subtype:
-        result.file_paths.extend(values)
+        # Bare extensions / method names (".load") are not paths.
+        result.file_paths.extend(v for v in values if ("\\" in v or "/" in v))
 
     if obs_type == "registry":
         result.registry_keys.extend(_extract_registry_paths(values))
@@ -1555,7 +1587,10 @@ def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, 
     result.observables.append(observable)
 
     if _is_event_id_field(field_name):
-        result.event_ids.extend(str(v) for v in values)
+        # Numeric codes only — parity with the other extractors.
+        result.event_ids.extend(
+            str(v) for v in values if str(v).isdigit()
+        )
 
     if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
         result.process_names.extend(_extract_exe_names(values))

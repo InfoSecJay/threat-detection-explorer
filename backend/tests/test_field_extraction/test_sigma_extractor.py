@@ -265,3 +265,37 @@ class TestSigmaEdgeCases:
 
         assert result.fields_used.count("Image") == 1
         assert result.process_names.count("powershell.exe") == 1
+
+
+class TestSigmaRoutingGates:
+    """Issue #6 targeted fixes — the sigma FP classes from the
+    2026-08-26 baseline audit."""
+
+    def test_extension_values_are_not_file_paths(self):
+        # 22.8% of sigma file_paths were bare extensions from
+        # `TargetFilename|endswith` selections.
+        detection = {
+            "selection": {"TargetFilename|endswith": [".bat", ".7z"]},
+            "condition": "selection",
+        }
+        result = extract_sigma_fields(detection)
+        assert ".bat" not in result.file_paths
+        ext_obs = [o for o in result.observables if o.subtype == "file_extension"]
+        assert ext_obs and set(ext_obs[0].values) == {".bat", ".7z"}
+
+    def test_real_paths_still_extracted(self):
+        detection = {
+            "selection": {"TargetFilename|contains": "\Windows\Temp\\"},
+            "condition": "selection",
+        }
+        result = extract_sigma_fields(detection)
+        assert "\Windows\Temp\\" in result.file_paths
+
+    def test_event_ids_numeric_only(self):
+        detection = {
+            "selection": {"EventID": [4688, "ProcessCreate"]},
+            "condition": "selection",
+        }
+        result = extract_sigma_fields(detection)
+        assert "4688" in result.event_ids
+        assert "ProcessCreate" not in result.event_ids

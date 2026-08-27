@@ -327,6 +327,22 @@ field-name vocabulary gap in FIELD_TYPE_MAP (AppId, ResultType,
 TokenIssuerType, ...), not a parsing gap; it is the target of the
 deferred cross-source vocabulary pass.
 
+**sigma + elastic — targeted routing fixes 2026-08-27** (their parsing
+was otherwise clean; full rebuilds not warranted):
+
+- sigma: `TargetFilename|endswith: '.bat'` extension values no longer
+  land in file_paths (670 values, 22.8% of the surface in the
+  baseline) — they become `file/file_extension` observables (142 on
+  the local corpus). Event IDs numeric-only; whitespace values
+  excluded from network_indicators.
+- elastic: O365/Azure operation names in `event.code`
+  (`AzureActiveDirectoryStsLogon`, 36.9% of elastic event_ids) route
+  to `api_actions` instead; numeric codes stay event IDs. File paths
+  require a separator.
+
+Verified by re-extraction over the local corpora: sigma no-separator
+file_paths 670 -> 0, elastic non-numeric event_ids 72 -> 0.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract

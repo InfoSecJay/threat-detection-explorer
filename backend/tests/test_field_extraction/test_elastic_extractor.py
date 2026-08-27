@@ -201,3 +201,20 @@ class TestElasticEdgeCases:
         assert "file.name" in result.fields_used
         assert "file.path" in result.fields_used
         assert "file" in result.source_tables
+
+
+class TestElasticEventIdRouting:
+    """Issue #6 targeted fix — O365/Azure integrations put OPERATION
+    NAMES in event.code (36.9% of elastic event_ids in the baseline).
+    Those are API actions, not event IDs."""
+
+    def test_o365_operation_names_route_to_api_actions(self):
+        query = 'event.code:"AzureActiveDirectoryStsLogon" and event.dataset:"o365.audit"'
+        result = extract_elastic_fields(query, "kql")
+        assert "AzureActiveDirectoryStsLogon" not in result.event_ids
+        assert "AzureActiveDirectoryStsLogon" in result.api_actions
+
+    def test_numeric_event_codes_stay_event_ids(self):
+        query = 'event.code:"4688"'
+        result = extract_elastic_fields(query, "kql")
+        assert "4688" in result.event_ids
