@@ -7,29 +7,37 @@
 
 import type { SearchFilters } from '../types';
 
-// Keys we count in the active-filter badge. Mirrors the FilterPanel
-// sections. Deliberately excludes filters that still exist on the
-// SearchFilters type + backend API but that the panel no longer
-// exposes (statuses, mitre_groups, mitre_software, use_cases,
-// query_complexity, event_ids, target_resources, source_tables) --
-// if they arrive from a bookmarked URL the backend still honors
-// them, they just don't count as user-visible facets since there's
-// no UI to toggle them.
-const ARRAY_FILTER_KEYS: Array<keyof SearchFilters> = [
+// Keys we count in the active-filter badge -- every array filter that
+// ActiveFilterPills renders as a chip. This is deliberately BROADER than
+// the FilterPanel's sections: with the bar<->sheet translation (#13),
+// values arriving from the search bar (`actor:G0016`, `usecase:...`)
+// or from a bookmarked URL (process_names=...) appear as removable
+// pills even though the sheet has no section for them, so the badge
+// must count what the user can SEE and remove, not what the sheet
+// happens to expose. Keep in sync with ActiveFilterPills LABELS.
+export const ARRAY_FILTER_KEYS: Array<keyof SearchFilters> = [
   'sources',
+  'statuses',
   'severities',
   'languages',
   'mitre_tactics',
   'mitre_techniques',
+  'mitre_groups',
+  'mitre_software',
   'tags',
   'platforms',
   'event_categories',
   'data_sources_normalized',
+  'use_cases',
+  'event_ids',
   'process_names',
+  'query_complexity',
   'api_actions',
   'file_paths',
   'registry_keys',
   'network_indicators',
+  'target_resources',
+  'source_tables',
 ];
 
 export function countActiveFilters(filters: SearchFilters): number {

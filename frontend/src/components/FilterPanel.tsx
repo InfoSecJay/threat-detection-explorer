@@ -6,6 +6,7 @@ import { TelemetryFilter } from './TelemetryFilter';
 import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
 import { clipMd } from '../constants/style';
+import { countActiveFilters } from '../utils/filterUtils';
 
 interface FilterPanelProps {
   filters: SearchFilters;
@@ -18,6 +19,27 @@ function countMap(facet?: Array<{ value: string; count: number }>): Record<strin
   for (const f of facet || []) map[f.value] = f.count;
   return map;
 }
+
+/** Display labels for query languages. Unlisted values render raw —
+ * the facet decides what exists, this only prettifies. */
+const LANGUAGE_LABELS: Record<string, string> = {
+  sigma: 'Sigma',
+  spl: 'SPL (Splunk)',
+  eql: 'EQL (Elastic)',
+  esql: 'ES|QL (Elastic)',
+  // Both Sentinel analytic rules and Kibana KQL rules carry `kql`;
+  // the old "KQL (Kibana)" label misdescribed 3,000+ Sentinel rules.
+  kql: 'KQL (Sentinel / Kibana)',
+  mql: 'MQL (Sublime)',
+  yaral: 'YARA-L (Chronicle)',
+  oie: 'OIE (Okta)',
+  python: 'Python (Panther)',
+  panther_correlation: 'Panther Correlation',
+  panther: 'Panther Declarative',
+  osquery: 'osquery',
+  ml: 'ML',
+  threat_match: 'Threat Match',
+};
 
 /** Count badge rendered on every facet option — shows how many rules
  * the option matches under the current query, dimmed when zero so
@@ -43,6 +65,18 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const sourceCounts = useMemo(() => countMap(facets?.sources), [facets]);
   const severityCounts = useMemo(() => countMap(facets?.severities), [facets]);
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
+
+  // Language options come from the live facet (like Source) so the list
+  // can't drift from the corpus: no dead options (`lucene` shipped for
+  // months with zero rules), and new query languages appear on ingest.
+  const languageOptions = useMemo(
+    () =>
+      (facets?.languages || []).map((f) => ({
+        value: f.value,
+        label: LANGUAGE_LABELS[f.value] || f.value,
+      })),
+    [facets],
+  );
   const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
 
   // Convert tactics from context into sorted options array
@@ -106,20 +140,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
     });
   };
 
-  const hasActiveFilters =
-    (filters.sources?.length || 0) > 0 ||
-    (filters.severities?.length || 0) > 0 ||
-    (filters.languages?.length || 0) > 0 ||
-    (filters.mitre_tactics?.length || 0) > 0 ||
-    (filters.mitre_techniques?.length || 0) > 0 ||
-    (filters.platforms?.length || 0) > 0 ||
-    (filters.event_categories?.length || 0) > 0 ||
-    (filters.data_sources_normalized?.length || 0) > 0 ||
-    (filters.process_names?.length || 0) > 0 ||
-    (filters.api_actions?.length || 0) > 0 ||
-    (filters.file_paths?.length || 0) > 0 ||
-    (filters.registry_keys?.length || 0) > 0 ||
-    (filters.network_indicators?.length || 0) > 0;
+  const hasActiveFilters = countActiveFilters(filters) > 0;
 
   const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
 
@@ -265,24 +286,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         <SectionHeader title="Language" section="language" count={filters.languages?.length} />
         {expandedSections.has('language') && (
           <div className="space-y-1 mt-2">
-            {/* Static list — DB has a much longer tail (yaral, oie,
-                osquery, python, panther_correlation, ...) but this
-                curated set is what users actually filter by. Add here
-                as new query languages become worth surfacing. */}
-            {[
-              { value: 'sigma', label: 'Sigma' },
-              { value: 'spl', label: 'SPL (Splunk)' },
-              { value: 'eql', label: 'EQL (Elastic)' },
-              { value: 'esql', label: 'ES|QL (Elastic)' },
-              { value: 'kql', label: 'KQL (Kibana)' },
-              { value: 'lucene', label: 'Lucene' },
-              { value: 'mql', label: 'MQL (Sublime)' },
-              { value: 'yaral', label: 'YARA-L (Chronicle)' },
-              { value: 'oie', label: 'OIE (Okta)' },
-              { value: 'python', label: 'Python (Panther)' },
-              { value: 'ml', label: 'ML' },
-              { value: 'threat_match', label: 'Threat Match' },
-            ].map((lang) => (
+            {languageOptions.map((lang) => (
               <label
                 key={lang.value}
                 className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
@@ -391,91 +395,6 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* Process Names filter */}
-      <div className="mb-3">
-        <SectionHeader title="Process Names" section="processnames" count={filters.process_names?.length} />
-        {expandedSections.has('processnames') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.process_names || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, process_names: values, offset: 0 })
-              }
-              placeholder="e.g., powershell.exe"
-              normalize={(raw) => raw.trim().toLowerCase()}
-              accent="matrix"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* API Actions filter */}
-      <div className="mb-3">
-        <SectionHeader title="API Actions" section="apiactions" count={filters.api_actions?.length} />
-        {expandedSections.has('apiactions') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.api_actions || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, api_actions: values, offset: 0 })
-              }
-              placeholder="e.g., CreateUser"
-              accent="cyan"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* File Paths filter */}
-      <div className="mb-3">
-        <SectionHeader title="File Paths" section="filepaths" count={filters.file_paths?.length} />
-        {expandedSections.has('filepaths') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.file_paths || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, file_paths: values, offset: 0 })
-              }
-              placeholder="e.g., \\Temp\\ or .exe"
-              accent="orange"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Registry Keys filter */}
-      <div className="mb-3">
-        <SectionHeader title="Registry Keys" section="registrykeys" count={filters.registry_keys?.length} />
-        {expandedSections.has('registrykeys') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.registry_keys || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, registry_keys: values, offset: 0 })
-              }
-              placeholder="e.g., HKLM\\Software\\Microsoft"
-              accent="orange"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Network Indicators filter */}
-      <div className="mb-3">
-        <SectionHeader title="Network Indicators" section="networkindicators" count={filters.network_indicators?.length} />
-        {expandedSections.has('networkindicators') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.network_indicators || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, network_indicators: values, offset: 0 })
-              }
-              placeholder="e.g., 10.0.0.0/8 or evil.com"
-              accent="cyan"
-            />
-          </div>
-        )}
-      </div>
     </div>
   );
 }
