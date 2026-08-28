@@ -9,6 +9,11 @@ import { useDetections } from '../hooks/useDetections';
 import type { SearchFilters } from '../types';
 import { extractQueryParseError } from '../services/api';
 import { countActiveFilters } from '../utils/filterUtils';
+import {
+  mergeTokensIntoFilters,
+  parseBar,
+  reconcileFilterChange,
+} from '../utils/querySync';
 import { clipSm, clipMd } from '../constants/style';
 
 /** Filter trigger — mirrors the SearchBar's height and clip so they read as a pair. */
@@ -169,6 +174,19 @@ export function DetectionList() {
     setFilters({ ...filters, q: q || undefined, offset: 0 });
   };
 
+  // Bar <-> sheet translation (#13): the sheet and pills render a VIEW
+  // with the bar's flat `field:value` tokens merged into the array
+  // facets; edits made against that view reconcile back onto whichever
+  // surface owns each value (bar token vs array filter).
+  const parsedBar = useMemo(() => parseBar(filters.q || ''), [filters.q]);
+  const viewFilters = useMemo(
+    () => mergeTokensIntoFilters(filters, parsedBar),
+    [filters, parsedBar],
+  );
+  const handleViewFiltersChange = (next: SearchFilters) => {
+    setFilters(reconcileFilterChange(filters, viewFilters, next, parsedBar));
+  };
+
   const handleExportSelected = (ids: string[]) => {
     setSelectedIdsForExport(ids);
     setIsExportModalOpen(true);
@@ -235,15 +253,15 @@ export function DetectionList() {
             gated on md+. */}
         <div className={filterSheetPinned ? 'md:hidden' : ''}>
           <FilterButton
-            activeCount={countActiveFilters(filters)}
+            activeCount={countActiveFilters(viewFilters)}
             onClick={() => setFilterSheetOpen(true)}
           />
         </div>
       </div>
 
       <FilterSheet
-        filters={filters}
-        onFiltersChange={setFilters}
+        filters={viewFilters}
+        onFiltersChange={handleViewFiltersChange}
         open={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
         pinned={filterSheetPinned}
@@ -257,7 +275,7 @@ export function DetectionList() {
 
       {/* Results */}
       <div className="min-w-0">
-        <ActiveFilterPills filters={filters} onFiltersChange={setFilters} />
+        <ActiveFilterPills filters={viewFilters} onFiltersChange={handleViewFiltersChange} />
         <RuleList
           detections={data?.items || []}
           total={data?.total || 0}
