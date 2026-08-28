@@ -63,6 +63,16 @@ def normalize_string_list(items: list | None) -> list[str]:
 
 
 # Detection schemas
+def _int_or_none(value):
+    """Coerce to int or None — legacy rows carry junk in quality columns."""
+    return value if isinstance(value, int) else None
+
+
+def _dict_or_none(value):
+    """Coerce to dict or None — pre-#10 ingests stored `[]` here."""
+    return value if isinstance(value, dict) else None
+
+
 class DetectionBase(BaseModel):
     """Base detection schema with common fields."""
 
@@ -167,8 +177,11 @@ class DetectionResponse(DetectionBase):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
-            "quality_score": getattr(detection, 'quality_score', None),
-            "quality_details": getattr(detection, 'quality_details', None),
+            # Legacy rows (pre-#10 ingests) carry `[]` in quality_details
+            # — coerce anything non-dict to None so serialization never
+            # 500s on old data awaiting its rescore.
+            "quality_score": _int_or_none(getattr(detection, 'quality_score', None)),
+            "quality_details": _dict_or_none(getattr(detection, 'quality_details', None)),
             "raw_content": sanitize_string(detection.raw_content) or "",
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
@@ -272,7 +285,7 @@ class DetectionListItem(BaseModel):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
-            "quality_score": getattr(detection, 'quality_score', None),
+            "quality_score": _int_or_none(getattr(detection, 'quality_score', None)),
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
         }
