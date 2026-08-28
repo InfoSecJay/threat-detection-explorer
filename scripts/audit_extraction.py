@@ -110,7 +110,11 @@ EXTRACTOR_STATUS: dict[str, str] = {
     # baseline data but does NOT flag it as an anomaly.
     "google_secops":       "no_extractor",
     "okta":                "no_extractor",
-    "auth0":               "no_extractor",
+    # auth0 was flagged no_extractor, but the generic extraction path
+    # fires anyway (100% coverage at 97% fallback in the baseline).
+    # Flagging it honestly so its precision problems surface as
+    # anomalies instead of hiding behind the no-extractor exemption.
+    "auth0":               "have_extractor",
     # Panther detections are Python function bodies — regex extraction
     # doesn't understand them. Falls into the same bucket as YARA-L /
     # OIE — future Python-shape extractor is a Phase-2 arc.

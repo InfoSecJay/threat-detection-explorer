@@ -343,6 +343,32 @@ was otherwise clean; full rebuilds not warranted):
 Verified by re-extraction over the local corpora: sigma no-separator
 file_paths 670 -> 0, elastic non-numeric event_ids 72 -> 0.
 
+**FIELD_TYPE_MAP vocabulary pass — 2026-08-27.** ~110 high-frequency
+field mappings added, driven by a per-source tally of
+fallback-classified names over the local corpus. New canonical
+subtypes (pinned in `canonical.py`): event stream metadata
+(`event_category` / `event_source` / `event_outcome` / `severity`),
+`endpoint/os`, process `code_signature` / `call_stack` / `api_call` /
+`service_name` / `integrity_level`, file `code_signature`, email
+`attachment_content` / `header`, network `user_agent`. Fallback
+subtype share, before -> after (local re-extraction):
+
+| Source | Before | After |
+| --- | ---: | ---: |
+| sentinel | 82.5% | 47.2% |
+| elastic_hunting | 53.7% | 17.4% |
+| elastic | 47.9% | 13.0% |
+| splunk | 45.0% | 21.0% |
+| sublime | 38.2% | 16.4% |
+| elastic_protections | 30.9% | 6.8% |
+| sigma | 23.9% | 14.4% |
+
+Sentinel's residual tail is its unbounded custom-log (`*_s`) column
+space — diminishing returns beyond this point. `auth0` is now flagged
+`have_extractor` in the audit so its 97%-fallback generic extraction
+surfaces as an anomaly instead of hiding behind the no-extractor
+exemption.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract

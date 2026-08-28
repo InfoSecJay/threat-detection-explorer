@@ -673,6 +673,11 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             "parent_process_name",
             "parent_process_path",
             "parent_command_line",
+            "code_signature",   # signer name/status/trust
+            "call_stack",       # EDR call-stack summaries and modules
+            "api_call",         # endpoint API telemetry (VirtualProtect...)
+            "service_name",     # Windows service name
+            "integrity_level",  # token integrity level
             "process_field",  # heuristic fallback
         }
     ),
@@ -683,6 +688,7 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             "file_extension",
             "file_hash",
             "file_content",
+            "code_signature",
             "file_field",  # heuristic fallback
         }
     ),
@@ -708,6 +714,7 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             # fields to the literal subtype "type". Rename to
             # `network_type` during the network extractor rebuild.
             "type",
+            "user_agent",
             "network_field",  # heuristic fallback
         }
     ),
@@ -736,6 +743,8 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             "url",
             "auth_result",
             "ml_classifier",
+            "attachment_content",  # OCR/strings/exif scans of attachments
+            "header",              # raw header fields (hops, message-id)
             "email_field",  # heuristic fallback
         }
     ),
@@ -795,9 +804,21 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             "hostname",
             "remote_hostname",
             "device_id",
+            "os",  # host.os.type/family — OS routing metadata
         }
     ),
-    "event": frozenset({"event_id"}),
+    "event": frozenset(
+        {
+            "event_id",
+            # Telemetry-stream metadata (issue #6 vocabulary pass):
+            # not domain observables, but knowing WHAT the rule keys on
+            # beats other/unknown.
+            "event_category",  # event.type/category/kind
+            "event_source",    # event.dataset/module, CEF vendor/product
+            "event_outcome",   # event.outcome, status fields
+            "severity",        # severity/priority columns
+        }
+    ),
     "other": frozenset({UNKNOWN}),
 }
 
