@@ -22,6 +22,18 @@ import { MemoryRouter } from 'react-router-dom';
 // Stub all data hooks the page reaches into. Vitest hoists vi.mock
 // so the stubs are in place before the page module evaluates.
 vi.mock('../../hooks/useTrending', () => ({
+  useNewlyCovered: () => ({
+    data: {
+      method: 'rule_dates',
+      window_days: 30,
+      baseline_date: null,
+      new_sources: [],
+      catalog_newly_covered: [],
+      source_newly_covered: [],
+    },
+    isLoading: false,
+    error: null,
+  }),
   useTrendingTechniques: () => ({ data: { techniques: [] }, isLoading: false, error: null }),
   useTrendingPlatforms:  () => ({ data: { platforms: [] },  isLoading: false, error: null }),
   useTrendingUseCases:   () => ({ data: { use_cases: [] },  isLoading: false, error: null }),

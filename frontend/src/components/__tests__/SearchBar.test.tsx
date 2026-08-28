@@ -8,7 +8,7 @@
  * highlight, Tab completes.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SearchBar } from '../SearchBar';
@@ -130,5 +130,42 @@ describe('SearchBar keyboard interaction', () => {
     type(input, 'malw');
     const list = screen.getByRole('listbox').textContent ?? '';
     expect(list).toContain('malware:');
+  });
+});
+
+describe('saved queries panel (#14)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('records a recent query on submit and lists it in the panel', () => {
+    const { onSubmit, input } = setup();
+    fireEvent.change(input, { target: { value: 'severity:high' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledWith('severity:high');
+
+    fireEvent.click(screen.getByLabelText('Saved and recent queries'));
+    expect(screen.getByTitle('severity:high')).toBeInTheDocument();
+  });
+
+  it('starring a recent moves it to saved; clicking runs it', () => {
+    const { onSubmit, input } = setup();
+    fireEvent.change(input, { target: { value: 'source:sigma' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    fireEvent.click(screen.getByLabelText('Saved and recent queries'));
+    fireEvent.click(screen.getByLabelText('Save source:sigma'));
+    // Now in SAVED with an unstar control.
+    expect(screen.getByLabelText('Remove source:sigma from saved')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('source:sigma'));
+    expect(onSubmit).toHaveBeenLastCalledWith('source:sigma');
+  });
+
+  it('empty submits are not recorded', () => {
+    const { input } = setup();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.click(screen.getByLabelText('Saved and recent queries'));
+    expect(screen.getByText('submitted queries show up here')).toBeInTheDocument();
   });
 });
