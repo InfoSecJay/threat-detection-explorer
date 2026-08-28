@@ -26,6 +26,10 @@ vi.mock('../../hooks/useDetections', () => ({
       platforms: [],
       data_sources: [],
       event_types: [],
+      process_names: [{ value: 'powershell.exe', count: 900 }],
+      api_actions: [],
+      source_tables: [],
+      event_ids: [{ value: '4688', count: 300 }],
     },
   }),
 }));
@@ -44,14 +48,22 @@ function setup(filters = {}) {
 }
 
 describe('FilterPanel (#25 simplification)', () => {
-  it('renders exactly the six curated sections', () => {
+  it('renders exactly the seven curated sections', () => {
     setup();
-    for (const title of ['Source', 'Severity', 'Language', 'MITRE Tactics', 'MITRE Technique', 'Telemetry']) {
+    for (const title of ['Source', 'Severity', 'Language', 'MITRE Tactics', 'MITRE Technique', 'Telemetry', 'Observables']) {
       expect(screen.getByText(title)).toBeInTheDocument();
     }
     for (const gone of ['Process Names', 'API Actions', 'File Paths', 'Registry Keys', 'Network Indicators']) {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
+  });
+
+  it('observables section is facet-backed, not free text', () => {
+    setup();
+    fireEvent.click(screen.getByText('Observables'));
+    expect(screen.getByText('powershell.exe')).toBeInTheDocument();
+    expect(screen.getByText('4688')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/e\.g\., powershell\.exe/)).not.toBeInTheDocument();
   });
 
   it('language options are facet-driven with corrected labels', () => {

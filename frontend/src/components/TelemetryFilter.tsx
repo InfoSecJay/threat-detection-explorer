@@ -74,7 +74,7 @@ export function TelemetryFilter({ filters, onFiltersChange, options }: Telemetry
 // Individual facet — handles collapse, typeahead search, and selection.
 // ---------------------------------------------------------------------------
 
-type Accent = 'cyan' | 'emerald' | 'orange';
+export type Accent = 'cyan' | 'emerald' | 'orange' | 'red' | 'amber' | 'purple';
 
 const ACCENT_CLASSES: Record<Accent, { bg: string; text: string; border: string; dot: string }> = {
   cyan: {
@@ -95,9 +95,27 @@ const ACCENT_CLASSES: Record<Accent, { bg: string; text: string; border: string;
     border: 'border-orange-500/30',
     dot: 'bg-orange-500',
   },
+  red: {
+    bg: 'bg-red-500/15',
+    text: 'text-red-300',
+    border: 'border-red-500/30',
+    dot: 'bg-red-500',
+  },
+  amber: {
+    bg: 'bg-amber-500/15',
+    text: 'text-amber-300',
+    border: 'border-amber-500/30',
+    dot: 'bg-amber-500',
+  },
+  purple: {
+    bg: 'bg-purple-500/15',
+    text: 'text-purple-300',
+    border: 'border-purple-500/30',
+    dot: 'bg-purple-500',
+  },
 };
 
-function Facet({
+export function Facet({
   title,
   accent,
   options,

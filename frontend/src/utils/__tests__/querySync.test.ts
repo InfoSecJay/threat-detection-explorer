@@ -127,3 +127,22 @@ describe('reconcile (sheet -> bar)', () => {
     expect(out.sources).toEqual([]); // bar keeps ownership
   });
 });
+
+describe('observable surfaces (observables v2)', () => {
+  it('bar observable tokens check the sheet facets', () => {
+    const filters = base({ q: 'process:powershell.exe table:SecurityEvent eventid:4688' });
+    const view = mergeTokensIntoFilters(filters, parseBar(filters.q!));
+    expect(view.process_names).toEqual(['powershell.exe']);
+    expect(view.source_tables).toEqual(['SecurityEvent']);
+    expect(view.event_ids).toEqual(['4688']);
+  });
+
+  it('checking an observable facet writes its canonical bar alias', () => {
+    const current = base({ q: 'severity:high' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const next = { ...view, api_actions: ['CreateUser'] };
+    const out = reconcileFilterChange(current, view, next, parsed);
+    expect(out.q).toBe('severity:high action:CreateUser');
+  });
+});

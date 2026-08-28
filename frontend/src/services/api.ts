@@ -110,6 +110,11 @@ export interface DetectionFacets {
   platforms: FacetOption[];
   data_sources: FacetOption[];
   event_types: FacetOption[];
+  // Extracted-observable facets (observables v2)
+  process_names: FacetOption[];
+  api_actions: FacetOption[];
+  source_tables: FacetOption[];
+  event_ids: FacetOption[];
 }
 
 // Detection endpoints

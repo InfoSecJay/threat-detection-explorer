@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useFacets } from '../hooks/useDetections';
 import { useMitre } from '../contexts/MitreContext';
 import { ALL_SOURCES, sourceColors, sourceLabels } from '../constants/sources';
-import { TelemetryFilter } from './TelemetryFilter';
+import { TelemetryFilter, Facet } from './TelemetryFilter';
 import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
 import { clipMd } from '../constants/style';
@@ -395,6 +395,60 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
+
+      {/* Observables — what the rule logic actually keys on, from the
+          per-source extractors (observables v2). Facet-backed like
+          Telemetry so every option shows what a click yields; the same
+          dimensions are queryable from the bar (process: / action: /
+          table: / eventid:) and round-trip through the sheet. */}
+      <div className="mb-3">
+        <SectionHeader
+          title="Observables"
+          section="observables"
+          count={
+            (filters.process_names?.length || 0) +
+            (filters.api_actions?.length || 0) +
+            (filters.source_tables?.length || 0) +
+            (filters.event_ids?.length || 0)
+          }
+        />
+        {expandedSections.has('observables') && (
+          <div className="mt-2 space-y-4">
+            <Facet
+              title="Process"
+              filterKey="process_names"
+              accent="red"
+              options={facets?.process_names || []}
+              selected={filters.process_names || []}
+              onChange={(values) => onFiltersChange({ ...filters, process_names: values, offset: 0 })}
+            />
+            <Facet
+              title="API Action"
+              filterKey="api_actions"
+              accent="cyan"
+              options={facets?.api_actions || []}
+              selected={filters.api_actions || []}
+              onChange={(values) => onFiltersChange({ ...filters, api_actions: values, offset: 0 })}
+            />
+            <Facet
+              title="Source Table"
+              filterKey="source_tables"
+              accent="emerald"
+              options={facets?.source_tables || []}
+              selected={filters.source_tables || []}
+              onChange={(values) => onFiltersChange({ ...filters, source_tables: values, offset: 0 })}
+            />
+            <Facet
+              title="Event ID"
+              filterKey="event_ids"
+              accent="amber"
+              options={facets?.event_ids || []}
+              selected={filters.event_ids || []}
+              onChange={(values) => onFiltersChange({ ...filters, event_ids: values, offset: 0 })}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

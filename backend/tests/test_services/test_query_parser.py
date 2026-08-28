@@ -180,3 +180,45 @@ class TestFieldReference:
         all_aliases = {a for r in ref for a in r["aliases"]}
         for expected in ("title", "source", "severity", "actor", "malware", "tech", "platform"):
             assert expected in all_aliases
+
+
+class TestObservableFields:
+    """Observables v2: the extracted surfaces are queryable from the bar
+    with substring semantics (users type what they know, not the exact
+    extracted token)."""
+
+    def test_process_substring_matches_exe(self):
+        s = _sql(parse_query("process:powershell"))
+        assert "extracted_process_names" in s
+        assert "'%powershell%'" in s  # unquoted substring, not '"powershell"'
+
+    def test_aliases_route_to_the_same_column(self):
+        for alias in ("proc", "exe"):
+            assert "extracted_process_names" in _sql(parse_query(f"{alias}:certutil"))
+        for alias in ("path", "file", "filepath"):
+            assert "extracted_file_paths" in _sql(parse_query(f"{alias}:temp"))
+        for alias in ("registry", "reg", "regkey"):
+            assert "extracted_registry_keys" in _sql(parse_query(f"{alias}:run"))
+        for alias in ("network", "ioc", "indicator", "ip", "domain"):
+            assert "extracted_network_indicators" in _sql(parse_query(f"{alias}:10.0"))
+        for alias in ("action", "api", "apiaction"):
+            assert "extracted_api_actions" in _sql(parse_query(f"{alias}:CreateUser"))
+        for alias in ("table", "index", "logtype", "datamodel"):
+            assert "extracted_source_tables" in _sql(parse_query(f"{alias}:SecurityEvent"))
+        for alias in ("field", "fields"):
+            assert "extracted_fields_used" in _sql(parse_query(f"{alias}:CommandLine"))
+        for alias in ("resource", "target"):
+            assert "extracted_target_resources" in _sql(parse_query(f"{alias}:arn"))
+
+    def test_event_id_is_exact_element_match(self):
+        # 4688 must not match 46881 — event IDs use the quoted list kind.
+        s = _sql(parse_query("eventid:4688"))
+        assert "extracted_event_ids" in s
+        assert '\'%"4688"%\'' in s
+
+    def test_wildcards_anchor_to_list_element_boundaries(self):
+        # `power*` = element STARTS with power; the element edge is the
+        # JSON quote, never the column text (which starts with `[`).
+        assert "'%\"power%'" in _sql(parse_query("process:power*"))
+        assert "'%.exe\"%'" in _sql(parse_query("process:*.exe"))
+        assert "'%\"power%.exe\"%'" in _sql(parse_query("process:power*.exe"))

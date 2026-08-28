@@ -377,6 +377,13 @@ class SearchService:
         "platforms": ("platforms", "platforms", True),
         "data_sources": ("data_sources_normalized", "data_sources", True),
         "event_types": ("event_categories", "event_types", True),
+        # Extracted-observable facets (observables v2). Same own-field
+        # exclusion semantics; counts are per-rule (a rule naming
+        # powershell.exe twice counts once via list membership).
+        "process_names": ("process_names", "extracted_process_names", True),
+        "api_actions": ("api_actions", "extracted_api_actions", True),
+        "source_tables": ("source_tables", "extracted_source_tables", True),
+        "event_ids": ("event_ids", "extracted_event_ids", True),
     }
 
     async def get_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:

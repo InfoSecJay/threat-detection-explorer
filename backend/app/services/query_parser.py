@@ -79,6 +79,10 @@ class QueryParseError(ValueError):
 #   "text"      - text column, ilike substring
 #   "text_multi"- multiple text columns unioned (OR)
 #   "list"      - JSON list column, quoted-substring ilike match
+#   "list_substring" - JSON list column, UNquoted substring ilike: for the
+#                 extracted-observable surfaces, where `process:powershell`
+#                 should match `powershell.exe` and `path:\Temp\` any
+#                 path containing it. Wildcards honored.
 #   "list_mitre_group"    - JSON list of G-IDs; input can be ID or name
 #   "list_mitre_software" - JSON list of S-IDs; input can be ID or name
 
@@ -214,6 +218,73 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         description="Free-form tag from the source rule.",
         examples=["tag:persistence"],
     ),
+    # ── Extracted observables (issue: observables v2) ────────────────
+    # The surfaces the per-source extractors populate. Substring match
+    # so users type what they know (`powershell`, `\Temp\`, `.amazonaws`)
+    # rather than the exact extracted token.
+    FieldSpec(
+        aliases=["process", "proc", "exe"],
+        kind="list_substring",
+        columns=["extracted_process_names"],
+        description="Process / executable name the rule keys on.",
+        examples=["process:powershell", "exe:certutil.exe"],
+    ),
+    FieldSpec(
+        aliases=["path", "file", "filepath"],
+        kind="list_substring",
+        columns=["extracted_file_paths"],
+        description="File path pattern the rule keys on.",
+        examples=['path:"\Temp\\"', "file:.dll"],
+    ),
+    FieldSpec(
+        aliases=["registry", "reg", "regkey"],
+        kind="list_substring",
+        columns=["extracted_registry_keys"],
+        description="Registry key path the rule keys on.",
+        examples=['registry:"CurrentVersion\Run"'],
+    ),
+    FieldSpec(
+        aliases=["network", "ioc", "indicator", "ip", "domain"],
+        kind="list_substring",
+        columns=["extracted_network_indicators"],
+        description="Network indicator (IP, domain, URL, port) the rule keys on.",
+        examples=["domain:amazonaws.com", "ip:10.0.0"],
+    ),
+    FieldSpec(
+        aliases=["action", "api", "apiaction"],
+        kind="list_substring",
+        columns=["extracted_api_actions"],
+        description="Cloud / identity API action or event name the rule keys on.",
+        examples=["action:CreateUser", "api:StopLogging"],
+    ),
+    FieldSpec(
+        aliases=["eventid", "event_id", "eid"],
+        kind="list",
+        columns=["extracted_event_ids"],
+        description="Vendor event ID (exact match) the rule keys on.",
+        examples=["eventid:4688"],
+    ),
+    FieldSpec(
+        aliases=["field", "fields"],
+        kind="list_substring",
+        columns=["extracted_fields_used"],
+        description="Telemetry field name referenced by the rule logic.",
+        examples=["field:CommandLine", "field:process.args"],
+    ),
+    FieldSpec(
+        aliases=["table", "index", "logtype", "datamodel"],
+        kind="list_substring",
+        columns=["extracted_source_tables"],
+        description="Source table / index / data model / log type the rule reads.",
+        examples=["table:SecurityEvent", "datamodel:Endpoint.Processes"],
+    ),
+    FieldSpec(
+        aliases=["resource", "target"],
+        kind="list_substring",
+        columns=["extracted_target_resources"],
+        description="Cloud resource or identity target the rule keys on.",
+        examples=["resource:arn:aws:iam"],
+    ),
 ]
 
 # ── Alias index (built once) ────────────────────────────────────────
@@ -297,8 +368,30 @@ def _list_clause(column_name: str, raw_value: str) -> ColumnElement:
     return cast(col, String).ilike(f'%"{raw_value}"%')
 
 
+def _list_substring_clause(column_name: str, raw_value: str) -> ColumnElement:
+    """JSON-list column, unquoted substring: `process:powershell` hits
+    `powershell.exe`.
+
+    Wildcards mean "match a whole ELEMENT with this pattern": the JSON
+    text is `["powershell.exe", "cmd.exe"]`, so `"` is the element
+    boundary. `power*` -> `%"power%` (element starts with), `*.exe` ->
+    `%.exe"%` (element ends with). A pattern anchored to the column
+    text instead (`power%`) could never match past the leading `[`.
+    """
+    col = getattr(Detection, column_name)
+    pattern, is_wild = _wildcard_to_like(raw_value)
+    if not is_wild:
+        return cast(col, String).ilike(f"%{pattern}%")
+    core = pattern.strip("%")
+    prefix = "%" if raw_value.startswith("*") else '%"'
+    suffix = "%" if raw_value.endswith("*") else '"%'
+    return cast(col, String).ilike(f"{prefix}{core}{suffix}")
+
+
 def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
     """Build a WHERE clause for `field:value` given a FieldSpec."""
+    if spec.kind == "list_substring":
+        return _list_substring_clause(spec.columns[0], value)
     if spec.kind == "list_mitre_group":
         return _list_clause(spec.columns[0], _resolve_mitre_group(value))
     if spec.kind == "list_mitre_software":
