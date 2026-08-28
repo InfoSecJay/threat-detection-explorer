@@ -82,6 +82,13 @@ class RuleDiscoveryService:
                 "tests", "test", "workflows", "deprecated", ".git",
             ],
         },
+        "pypanther": {
+            # pypanther rules are single Python files under
+            # pypanther/rules/<vendor>/. __init__.py and non-Rule
+            # helper modules are rejected by can_parse/parse.
+            "include_patterns": ["pypanther/rules/**/*.py"],
+            "exclude_dirs": ["tests", "test", "deprecated", ".git"],
+        },
         "panther": {
             # Panther rules live one level under `rules/<vendor_rules>/`
             # as YAML+Python sibling pairs. Two nested subdirs exist

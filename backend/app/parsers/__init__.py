@@ -13,6 +13,7 @@ from app.parsers.google_secops import GoogleSecOpsParser
 from app.parsers.okta import OktaParser
 from app.parsers.auth0 import Auth0Parser
 from app.parsers.panther import PantherParser
+from app.parsers.pypanther import PyPantherParser
 
 __all__ = [
     "BaseParser",

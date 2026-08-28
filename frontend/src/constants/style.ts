@@ -58,4 +58,5 @@ export const sourceTheme: Record<string, SourceTheme> = {
   okta: { name: 'Okta',       dot: 'bg-teal-500',   text: 'text-teal-400',   border: 'border-teal-500/30',   bg: 'bg-teal-500/20' },
   auth0:               { name: 'Auth0',         dot: 'bg-rose-500',   text: 'text-rose-400',   border: 'border-rose-500/30',   bg: 'bg-rose-500/20' },
   panther:             { name: 'Panther',       dot: 'bg-fuchsia-500',text: 'text-fuchsia-400',border: 'border-fuchsia-500/30',bg: 'bg-fuchsia-500/20' },
+  pypanther:           { name: 'PyPanther',     dot: 'bg-fuchsia-600',text: 'text-fuchsia-300',border: 'border-fuchsia-600/30',bg: 'bg-fuchsia-600/20' },
 };

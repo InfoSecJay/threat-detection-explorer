@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther';
   className?: string;
   size?: number;
 }) {
@@ -21,6 +21,7 @@ export function DataSourceIcon({
     okta: '#14b8a6',
     auth0: '#f59e0b',
     panther: '#d946ef',
+    pypanther: '#c026d3',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -214,6 +215,28 @@ export function DataSourceIcon({
           {/* Keyhole */}
           <circle cx="24" cy="29" r="2" fill={color} />
           <line x1="24" y1="29" x2="24" y2="34" stroke={color} strokeWidth="2" strokeLinecap="round" />
+        </g>
+      )}
+
+      {source === 'pypanther' && (
+        // PyPanther - the panther eyes over python brackets: same cat,
+        // Pythonic framework
+        <g filter={`url(#glow-${source})`}>
+          <ellipse cx="19" cy="19" rx="2.5" ry="3.5" fill={color} />
+          <ellipse cx="29" cy="19" rx="2.5" ry="3.5" fill={color} />
+          <path
+            d="M18,27 Q24,31 30,27"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
+          {/* Python-style brackets */}
+          <path
+            d="M13,33 Q10,36 13,39"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
+          <path
+            d="M35,33 Q38,36 35,39"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
         </g>
       )}
 

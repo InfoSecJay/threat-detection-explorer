@@ -118,6 +118,7 @@ EXTRACTOR_STATUS: dict[str, str] = {
     # Panther detections are Python function bodies — extracted via
     # the ast-walking extract_panther_fields (issue #6).
     "panther":             "have_extractor",
+    "pypanther":           "have_extractor",
 }
 
 SOURCES = list(EXTRACTOR_STATUS.keys())

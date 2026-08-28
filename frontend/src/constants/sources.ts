@@ -16,6 +16,7 @@ export const ALL_SOURCES = [
   'okta',
   'auth0',
   'panther',
+  'pypanther',
 ] as const;
 
 export type SourceName = (typeof ALL_SOURCES)[number];
@@ -33,6 +34,7 @@ export const sourceColors: Record<string, string> = {
   okta: '#14b8a6',
   auth0: '#f59e0b',
   panther: '#d946ef',
+  pypanther: '#c026d3',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -48,6 +50,7 @@ export const sourceLabels: Record<string, string> = {
   okta: 'Okta',
   auth0: 'Auth0',
   panther: 'Panther',
+  pypanther: 'PyPanther',
 };
 
 export const sourceLabelsShort: Record<string, string> = {
@@ -63,6 +66,7 @@ export const sourceLabelsShort: Record<string, string> = {
   okta: 'OKTA',
   auth0: 'AUTH0',
   panther: 'PANTHER',
+  pypanther: 'PYPANTHER',
 };
 
 export const sourceTailwind: Record<string, string> = {
@@ -78,6 +82,7 @@ export const sourceTailwind: Record<string, string> = {
   okta: 'border-teal-500 bg-teal-500/10',
   auth0: 'border-amber-500 bg-amber-500/10',
   panther: 'border-fuchsia-500 bg-fuchsia-500/10',
+  pypanther: 'border-fuchsia-600 bg-fuchsia-600/10',
 };
 
 export const severityColors: Record<string, string> = {

@@ -112,6 +112,13 @@ const dataSources = [
     repoUrl: 'https://github.com/panther-labs/panther-analysis',
     color: '#d946ef',
   },
+  {
+    id: 'pypanther' as const,
+    name: 'PyPanther',
+    description: 'Panther Labs pypanther framework — the newer Pythonic rule catalog: pure Python rule classes covering AWS, GCP, Azure, Okta, GitHub, and 60+ other log sources.',
+    repoUrl: 'https://github.com/panther-labs/pypanther',
+    color: '#c026d3',
+  },
 ];
 
 // Feature cards configuration
@@ -119,7 +126,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 12 security repositories unified into a single searchable command interface.',
+    description: 'Detection rules from 13 security repositories unified into a single searchable command interface.',
     variant: 'aggregate' as const,
   },
   {

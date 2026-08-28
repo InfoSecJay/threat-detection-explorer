@@ -61,6 +61,9 @@ _VENDOR_RESOLVERS: dict[str, Callable[["ParsedRule"], dict]] = {
     "okta": okta.resolve,
     "auth0": auth0.resolve,
     "panther": panther.resolve,
+    # pypanther resolves LogType enums to the same string vocabulary
+    # ("AWS.CloudTrail") at parse time -- same mapping applies.
+    "pypanther": panther.resolve,
 }
 
 

@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # detections. Branch is `develop`, not `master`. 877 rules across
     # ~67 vendor-family subdirs.
     panther_repo_url: str = "https://github.com/panther-labs/panther-analysis.git"
+    # Panther Labs pypanther -- the newer Pythonic framework: rules are
+    # pure Python classes under pypanther/rules/ (issue #27)
+    pypanther_repo_url: str = "https://github.com/panther-labs/pypanther.git"
 
     # API settings
     api_prefix: str = "/api"

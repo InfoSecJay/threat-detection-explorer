@@ -18,13 +18,13 @@ from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
     ElasticHuntingParser, SentinelParser, GoogleSecOpsParser,
-    OktaParser, Auth0Parser, PantherParser, BaseParser
+    OktaParser, Auth0Parser, PantherParser, PyPantherParser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
     ElasticHuntingNormalizer, SentinelNormalizer, GoogleSecOpsNormalizer,
-    OktaNormalizer, Auth0Normalizer, PantherNormalizer,
+    OktaNormalizer, Auth0Normalizer, PantherNormalizer, PyPantherNormalizer,
     BaseNormalizer, NormalizedDetection
 )
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
@@ -60,6 +60,9 @@ class IngestionService:
             # Panther parser needs discovery for `.py` sibling loading
             # + repo-root `deprecated.txt`.
             "panther": PantherParser(self.discovery),
+            # pypanther parser needs discovery to read the LogType
+            # enum module for attr -> value resolution.
+            "pypanther": PyPantherParser(self.discovery),
         }
 
         # Initialize normalizers — pass local repo paths so they can fall back
@@ -94,6 +97,10 @@ class IngestionService:
             "panther": PantherNormalizer(
                 settings.panther_repo_url,
                 settings.get_repo_path("panther"),
+            ),
+            "pypanther": PyPantherNormalizer(
+                settings.pypanther_repo_url,
+                settings.get_repo_path("pypanther"),
             ),
         }
 

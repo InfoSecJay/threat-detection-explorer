@@ -13,6 +13,7 @@ from app.normalizers.google_secops import GoogleSecOpsNormalizer
 from app.normalizers.okta import OktaNormalizer
 from app.normalizers.auth0 import Auth0Normalizer
 from app.normalizers.panther import PantherNormalizer
+from app.normalizers.pypanther import PyPantherNormalizer
 
 __all__ = [
     "BaseNormalizer",
