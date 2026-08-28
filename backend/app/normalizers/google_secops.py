@@ -5,14 +5,15 @@ Converts ParsedRule output from `GoogleSecOpsParser` into the canonical
 `platform` / `data_source` meta fields, so we lean on those directly
 rather than inferring from the query body.
 
-Field extraction is intentionally not implemented for this initial
-integration -- YARA-L's `$event.field = value` style needs its own
-extractor; tracked as a follow-up. The rule body still lands in
-`detection_logic` so users can read it verbatim.
+Field extraction runs through `services.yaral_extractor` (issue #6
+tail): UDM-path terms in the `events:` block become typed observables,
+`metadata.log_type` values become source tables, and
+`product_event_type` values become event IDs (numeric) or API actions.
 """
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.yaral_extractor import extract_yaral_fields
 
 
 # Map Chronicle `platform` meta values to canonical platform tokens.
@@ -83,6 +84,8 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
         refs_raw = extra.get("references")
         references = self.normalize_references(refs_raw) if refs_raw else []
 
+        extracted = extract_yaral_fields(detection_logic)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -105,20 +108,23 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
             references=references,
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
-            # Field extraction TODO -- YARA-L needs its own extractor
-            # (the `$event.field = value` pattern is structurally
-            # different from KQL / EQL / SPL). Lands as empty for now.
-            extracted_fields_used=[],
-            extracted_event_ids=[],
-            extracted_process_names=[],
-            extracted_file_paths=[],
-            extracted_registry_keys=[],
-            extracted_network_indicators=[],
-            extracted_source_tables=[],
-            extracted_observables=[],
-            query_complexity="simple",
-            extracted_api_actions=[],
-            extracted_target_resources=[],
+            # YARA-L extraction (issue #6 tail) -- UDM-path terms in the
+            # events: block, see services/yaral_extractor.py.
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[
+                {"field": o.field, "values": o.values, "type": o.type,
+                 "subtype": o.subtype, "negated": o.negated}
+                for o in extracted.observables
+            ],
+            query_complexity=extracted.query_complexity,
+            extracted_api_actions=extracted.api_actions,
+            extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
             platforms=platforms,

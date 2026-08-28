@@ -144,14 +144,12 @@ def test_normalize_folder_fallback_when_meta_missing(normalizer):
     assert "github_audit" in n.data_sources
 
 
-def test_normalize_field_extraction_intentionally_empty(normalizer):
-    """YARA-L field extraction is deferred; all extracted_* lists
-    are empty in this initial integration. If/when a YARA-L extractor
-    lands this test should flip to assert populated."""
+def test_normalize_runs_yaral_extraction(normalizer):
+    """The events: block is extracted (issue #6 tail): UDM paths land in
+    fields_used and typed observables carry the compared values."""
     n = normalizer.normalize(_parsed())
-    assert n.extracted_fields_used == []
-    assert n.extracted_observables == []
-    assert n.query_complexity == "simple"
+    assert "metadata.event_type" in n.extracted_fields_used
+    assert isinstance(n.extracted_observables, list)
 
 
 def test_normalize_source_rule_url_deep_links_to_repo(normalizer):

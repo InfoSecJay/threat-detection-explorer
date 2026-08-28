@@ -108,7 +108,7 @@ EXTRACTOR_STATUS: dict[str, str] = {
     # These sources currently skip extraction entirely — a known gap
     # tracked in issue #6. The audit reports their coverage as
     # baseline data but does NOT flag it as an anomaly.
-    "google_secops":       "no_extractor",
+    "google_secops":       "have_extractor",  # YARA-L extractor (issue #6 tail)
     "okta":                "no_extractor",
     # auth0 was flagged no_extractor, but the generic extraction path
     # fires anyway (100% coverage at 97% fallback in the baseline).
