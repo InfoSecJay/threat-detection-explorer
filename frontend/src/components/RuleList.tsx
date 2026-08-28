@@ -46,7 +46,18 @@ const sortOptions = [
   { value: 'data_sources:desc', label: 'Data Source (Z-A)' },
   { value: 'event_types:asc', label: 'Event Type (A-Z)' },
   { value: 'event_types:desc', label: 'Event Type (Z-A)' },
+  { value: 'quality_score:desc', label: 'Hygiene (Best first)' },
+  { value: 'quality_score:asc', label: 'Hygiene (Worst first)' },
 ];
+
+// Hygiene-score band colors. The score measures rule hygiene
+// (metadata, mapping, docs, testability), NOT detection efficacy.
+function qualityBand(score: number): string {
+  if (score >= 80) return 'text-matrix-400 border-matrix-500/40 bg-matrix-500/10';
+  if (score >= 60) return 'text-lime-400 border-lime-500/40 bg-lime-500/10';
+  if (score >= 40) return 'text-amber-400 border-amber-500/40 bg-amber-500/10';
+  return 'text-breach-400 border-breach-500/40 bg-breach-500/10';
+}
 
 function formatRelativeDate(dateStr: string | null): string {
   if (!dateStr) return '-';
@@ -385,6 +396,13 @@ export function RuleList({
                 >
                   Modified <SortIndicator field="rule_modified_date" />
                 </th>
+                <th
+                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
+                  onClick={() => handleSort('quality_score')}
+                  title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy."
+                >
+                  Hygiene <SortIndicator field="quality_score" />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
@@ -502,10 +520,22 @@ export function RuleList({
                         {formatRelativeDate(detection.rule_modified_date)}
                       </span>
                     </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {typeof detection.quality_score === 'number' ? (
+                        <span
+                          className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
+                          title="Hygiene score (0-100): rule hygiene, not detection accuracy"
+                        >
+                          {detection.quality_score}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-600">-</span>
+                      )}
+                    </td>
                   </tr>
                   {expanded && (
                     <tr className="bg-void-900/60">
-                      <td colSpan={enableSelection ? 10 : 9} className="px-6 py-4">
+                      <td colSpan={enableSelection ? 11 : 10} className="px-6 py-4">
                         <div className="space-y-4">
                           {/* Query logic */}
                           <div>

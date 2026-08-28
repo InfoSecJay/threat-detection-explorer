@@ -27,6 +27,7 @@ from app.normalizers import (
     OktaNormalizer, Auth0Normalizer, PantherNormalizer, PyPantherNormalizer,
     BaseNormalizer, NormalizedDetection
 )
+from app.services.quality_score import score_detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.ingestion_errors import (
@@ -480,6 +481,10 @@ class IngestionService:
 
     def _to_detection_model(self, normalized: NormalizedDetection) -> Detection:
         """Convert normalized detection to database model."""
+        # Deterministic hygiene score (issue #10) — computed here so
+        # every source passes through one scoring point.
+        quality_score, quality_details = score_detection(normalized)
+
         return Detection(
             id=normalized.id,
             source=normalized.source,
@@ -502,6 +507,8 @@ class IngestionService:
             references=normalized.references,
             false_positives=normalized.false_positives,
             raw_content=normalized.raw_content,
+            quality_score=quality_score,
+            quality_details=quality_details,
             # Extracted observable fields
             extracted_fields_used=normalized.extracted_fields_used,
             extracted_event_ids=normalized.extracted_event_ids,

@@ -109,6 +109,10 @@ class DetectionBase(BaseModel):
     extracted_target_resources: list[str] = []
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
+    # Deterministic hygiene score (issue #10) — rule hygiene, NOT
+    # detection efficacy. Null until the row is (re)scored by ingest.
+    quality_score: Optional[int] = None
+    quality_details: Optional[dict] = None
 
 
 class DetectionResponse(DetectionBase):
@@ -163,6 +167,8 @@ class DetectionResponse(DetectionBase):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
+            "quality_score": getattr(detection, 'quality_score', None),
+            "quality_details": getattr(detection, 'quality_details', None),
             "raw_content": sanitize_string(detection.raw_content) or "",
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
@@ -213,6 +219,7 @@ class DetectionListItem(BaseModel):
     extracted_target_resources: list[str] = []
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
+    quality_score: Optional[int] = None
     created_at: datetime  # Sync timestamp
     updated_at: datetime  # Sync timestamp
 
@@ -265,6 +272,7 @@ class DetectionListItem(BaseModel):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
+            "quality_score": getattr(detection, 'quality_score', None),
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
         }

@@ -57,8 +57,23 @@ export interface Detection {
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;
+  // Hygiene score (issue #10) — rule hygiene, NOT detection efficacy.
+  quality_score?: number | null;
+  quality_details?: QualityDetails | null;
   created_at: string;  // Sync timestamp
   updated_at: string;  // Sync timestamp
+}
+
+export interface QualityDimension {
+  score: number;
+  of: number;
+  issues: string[];
+}
+
+export interface QualityDetails {
+  version: number;
+  total: number;
+  dimensions: Record<string, QualityDimension>;
 }
 
 export interface DetectionListResponse {

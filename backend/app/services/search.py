@@ -653,6 +653,8 @@ class SearchService:
     # of null-dated rules pushes the interesting extremes off the top.
     _NULLS_LAST_SORT_FIELDS = {
         "rule_created_date", "rule_modified_date",
+        # Unscored rows (pre-rescore backlog) sink, not float.
+        "quality_score",
     } | _JSON_LIST_SORT_FIELDS
 
     def _apply_sorting(self, query, sort_by: str, sort_order: str):
@@ -668,6 +670,7 @@ class SearchService:
             "updated_at": Detection.updated_at,
             "rule_created_date": Detection.rule_created_date,
             "rule_modified_date": Detection.rule_modified_date,
+            "quality_score": Detection.quality_score,
             "platforms": Detection.platforms,
             "data_sources": Detection.data_sources,
             "event_types": Detection.event_types,
