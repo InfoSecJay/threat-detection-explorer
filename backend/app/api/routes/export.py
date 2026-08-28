@@ -30,6 +30,19 @@ def _truncate(value: str | None, max_len: int = _CSV_CELL_MAX) -> str:
     return value[:max_len] + "... [TRUNCATED]"
 
 
+def _observables_cell(observables) -> str:
+    """Flatten typed observables for a CSV cell:
+    `process/process_name Image=powershell.exe|pwsh.exe; NOT network/port DestinationPort=443`."""
+    parts = []
+    for o in observables or []:
+        if not isinstance(o, dict):
+            continue
+        values = "|".join(str(v) for v in (o.get("values") or []) if v is not None)
+        prefix = "NOT " if o.get("negated") else ""
+        parts.append(f"{prefix}{o.get('type')}/{o.get('subtype')} {o.get('field')}={values}")
+    return "; ".join(parts)
+
+
 def _safe_join(items: list | None, separator: str = "; ") -> str:
     """Safely join list items to a string, handling dicts and non-string types."""
     if not items:
@@ -148,6 +161,9 @@ def _export_json(detections: list[Detection], include_raw: bool) -> StreamingRes
             "query_complexity": getattr(d, "query_complexity", "unknown") or "unknown",
             "extracted_api_actions": getattr(d, "extracted_api_actions", None) or [],
             "extracted_target_resources": getattr(d, "extracted_target_resources", None) or [],
+            # Typed observables (type/subtype/field/values/negated) —
+            # the structured form behind the flat extracted_* surfaces.
+            "extracted_observables": getattr(d, "extracted_observables", None) or [],
             "rule_created_date": d.rule_created_date.isoformat() if d.rule_created_date else None,
             "rule_modified_date": d.rule_modified_date.isoformat() if d.rule_modified_date else None,
             "created_at": d.created_at.isoformat(),
@@ -209,6 +225,7 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
         "query_complexity",
         "extracted_api_actions",
         "extracted_target_resources",
+        "extracted_observables",
         "rule_created_date",
         "rule_modified_date",
         "created_at",
@@ -256,6 +273,7 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
             getattr(d, "query_complexity", "unknown") or "unknown",
             _safe_join(getattr(d, "extracted_api_actions", None)),
             _safe_join(getattr(d, "extracted_target_resources", None)),
+            _observables_cell(getattr(d, "extracted_observables", None)),
             d.rule_created_date.isoformat() if d.rule_created_date else "",
             d.rule_modified_date.isoformat() if d.rule_modified_date else "",
             d.created_at.isoformat(),

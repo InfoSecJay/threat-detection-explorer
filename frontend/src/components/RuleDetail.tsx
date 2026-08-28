@@ -5,6 +5,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Detection } from '../types';
 import { useMitre } from '../contexts/MitreContext';
 import { resolveGroup, resolveSoftware } from '../services/mitreLookup';
+import { ObservablesPanel } from './ObservablesPanel';
 
 // Map detection languages to Prism language identifiers
 const languageMap: Record<string, string> = {
@@ -398,146 +399,15 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
           </div>
 
-          {/* Extracted Observables */}
-          {(detection.extracted_event_ids?.length > 0 ||
-            detection.extracted_process_names?.length > 0 ||
-            detection.extracted_file_paths?.length > 0 ||
-            detection.extracted_registry_keys?.length > 0 ||
-            detection.extracted_network_indicators?.length > 0 ||
-            detection.extracted_source_tables?.length > 0 ||
-            detection.extracted_api_actions?.length > 0 ||
-            detection.extracted_target_resources?.length > 0) && (
+          {/* Extracted Observables: typed view (observables v2) */}
+          {((detection.extracted_observables?.length ?? 0) > 0 ||
+            (detection.extracted_source_tables?.length ?? 0) > 0) && (
             <div className="pt-4 border-t border-cyber-700">
-              <div className="flex items-center gap-2 mb-4">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Extracted Observables
-                </label>
-                {detection.query_complexity && detection.query_complexity !== 'unknown' && (
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${
-                    detection.query_complexity === 'simple'
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                      : detection.query_complexity === 'moderate'
-                      ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                      : 'bg-red-500/20 text-red-400 border-red-500/30'
-                  }`}>
-                    {detection.query_complexity} query
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {detection.extracted_event_ids?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Event IDs
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_event_ids.map((eid) => (
-                        <span key={eid} className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-sm font-mono">
-                          {eid}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_process_names?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Process Names
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_process_names.map((pname) => (
-                        <span key={pname} className="px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded text-sm font-mono">
-                          {pname}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_file_paths?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      File Paths
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_file_paths.map((fp, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-xs font-mono break-all">
-                          {fp}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_registry_keys?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Registry Keys
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_registry_keys.map((rk, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded text-xs font-mono break-all">
-                          {rk}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_network_indicators?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Network Indicators
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_network_indicators.map((ni) => (
-                        <span key={ni} className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-sm font-mono">
-                          {ni}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_source_tables?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Source Tables
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_source_tables.map((st) => (
-                        <span key={st} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-sm font-mono">
-                          {st}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_api_actions?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      API Actions
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_api_actions.map((action) => (
-                        <span key={action} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded text-sm font-mono">
-                          {action}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {detection.extracted_target_resources?.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                      Target Resources
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detection.extracted_target_resources.map((res, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded text-sm font-mono">
-                          {res}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ObservablesPanel
+                observables={detection.extracted_observables || []}
+                sourceTables={detection.extracted_source_tables || []}
+                complexity={detection.query_complexity}
+              />
             </div>
           )}
 

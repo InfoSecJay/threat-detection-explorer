@@ -57,6 +57,15 @@ const FIELD_MAP: { key: keyof SearchFilters; canonical: string; aliases: string[
   { key: 'mitre_software', canonical: 'software', aliases: ['software', 'tool', 'malware'] },
   { key: 'use_cases', canonical: 'usecase', aliases: ['usecase', 'story', 'use_case'] },
   { key: 'tags', canonical: 'tag', aliases: ['tag'] },
+  // Extracted-observable surfaces (observables v2)
+  { key: 'process_names', canonical: 'process', aliases: ['process', 'proc', 'exe'] },
+  { key: 'file_paths', canonical: 'path', aliases: ['path', 'file', 'filepath'] },
+  { key: 'registry_keys', canonical: 'registry', aliases: ['registry', 'reg', 'regkey'] },
+  { key: 'network_indicators', canonical: 'network', aliases: ['network', 'ioc', 'indicator', 'ip', 'domain'] },
+  { key: 'api_actions', canonical: 'action', aliases: ['action', 'api', 'apiaction'] },
+  { key: 'event_ids', canonical: 'eventid', aliases: ['eventid', 'event_id', 'eid'] },
+  { key: 'source_tables', canonical: 'table', aliases: ['table', 'index', 'logtype', 'datamodel'] },
+  { key: 'target_resources', canonical: 'resource', aliases: ['resource', 'target'] },
 ];
 
 const ALIAS_TO_KEY = new Map<string, keyof SearchFilters>(
