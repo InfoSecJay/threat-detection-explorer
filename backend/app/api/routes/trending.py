@@ -583,6 +583,39 @@ def _extract_named_threat(tag: str, source: str) -> Optional[tuple[str, str]]:
     return None
 
 
+@router.get("/newly-covered")
+async def get_newly_covered(
+    days: int = Query(30, ge=7, le=365, description="Diff window in days"),
+    limit: int = Query(50, ge=5, le=200, description="Cap per list"),
+    sources: Optional[str] = Query(
+        None, description="Comma-separated source filter (source list only)"
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """MITRE coverage diff — the "just covered" signal (issue #9).
+
+    Two lists: techniques that gained their FIRST rule catalog-wide
+    inside the window, and techniques an individual source just picked
+    up while others already covered them ("Splunk just picked up
+    T1651 — Sigma's had it for two years").
+
+    `method` tells the caller how the diff was computed: "snapshot"
+    (exact — daily mitre_coverage_snapshot rows exist at least `days`
+    back) or "rule_dates" (git-derived first-rule dates, used until
+    snapshot history accumulates). Sources onboarded inside the window
+    are listed under `new_sources` rather than flooding the
+    per-source list.
+    """
+    from app.services.coverage_snapshot import compute_newly_covered
+
+    return await compute_newly_covered(
+        db,
+        days=days,
+        limit=limit,
+        sources=_parse_csv(sources) or None,
+    )
+
+
 @router.get("/threats")
 async def get_threat_pulse(
     limit: int = Query(8, ge=3, le=30, description="Items per list"),

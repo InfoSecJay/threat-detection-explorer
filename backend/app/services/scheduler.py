@@ -215,6 +215,17 @@ async def run_full_sync_job(
                 f"errors={total_errors}, duration={job.duration_seconds:.1f}s"
             )
 
+            # Daily MITRE coverage snapshot (issue #9): one
+            # technique x source x rule_count row-set per day, feeding
+            # the /trending/newly-covered diff. Same failure isolation
+            # as the notifiers below -- a snapshot bug never degrades
+            # the sync's completed status.
+            try:
+                from app.services.coverage_snapshot import write_coverage_snapshot
+                await write_coverage_snapshot(db)
+            except Exception as e:
+                logger.warning(f"Coverage snapshot failed: {e}", exc_info=True)
+
             # Taxonomy drift notifications (Issue 2 observability layer).
             # Opens/updates GitHub issues for any repo with unmapped
             # rules. Feature-flagged off by default; no-ops if the

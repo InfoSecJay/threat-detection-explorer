@@ -41,6 +41,7 @@ import {
   TrendingTechniquesList,
   TrendingPlatformsList,
 } from './intel/Trending';
+import { JustCoveredSection } from './intel/JustCovered';
 import { periodOptions } from './intel/lib';
 
 function SourceFilterChips({
@@ -234,6 +235,9 @@ export function IndustryIntel() {
               </TrendingTile>
               <TrendingTile title="Trending Platforms" accent="cyan">
                 <TrendingPlatformsList days={period} filters={filters} />
+              </TrendingTile>
+              <TrendingTile title="Just Covered" accent="amber">
+                <JustCoveredSection days={period} sources={sourceFilter} />
               </TrendingTile>
             </div>
           </div>

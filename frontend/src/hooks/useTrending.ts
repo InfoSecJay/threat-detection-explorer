@@ -25,6 +25,18 @@ export function useTrendingPlatforms(
   });
 }
 
+export function useNewlyCovered(
+  days: number = 30,
+  limit: number = 12,
+  sources: string[] = [],
+) {
+  return useQuery({
+    queryKey: ['newly-covered', days, limit, sources],
+    queryFn: () => trendingApi.getNewlyCovered(days, limit, sources),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 export function useTrendingSummary(days: number = 90) {
   return useQuery({
     queryKey: ['trending-summary', days],

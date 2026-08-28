@@ -730,7 +730,42 @@ function activityFilterParams(filters: ActivityFilters): string {
 }
 
 // Trending endpoints
+// Newly-covered (issue #9): the "just covered" coverage-diff signal
+export interface NewlyCoveredCatalogEntry {
+  technique_id: string;
+  technique_name: string;
+  sources: Record<string, number>;
+  total_rules: number;
+}
+export interface NewlyCoveredSourceEntry {
+  technique_id: string;
+  technique_name: string;
+  source: string;
+  rule_count: number;
+  covered_elsewhere: string[];
+}
+export interface NewlyCoveredResponse {
+  method: 'snapshot' | 'rule_dates';
+  window_days: number;
+  baseline_date: string | null;
+  new_sources: string[];
+  catalog_newly_covered: NewlyCoveredCatalogEntry[];
+  source_newly_covered: NewlyCoveredSourceEntry[];
+}
+
 export const trendingApi = {
+  getNewlyCovered: async (
+    days: number = 30,
+    limit: number = 50,
+    sources: string[] = [],
+  ): Promise<NewlyCoveredResponse> => {
+    const src = sources.length ? `&sources=${sources.join(',')}` : '';
+    const response = await api.get(
+      `/trending/newly-covered?days=${days}&limit=${limit}${src}`,
+    );
+    return response.data;
+  },
+
   getTechniques: async (
     days: number = 90,
     limit: number = 15,
