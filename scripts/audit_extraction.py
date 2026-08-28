@@ -115,10 +115,9 @@ EXTRACTOR_STATUS: dict[str, str] = {
     # Flagging it honestly so its precision problems surface as
     # anomalies instead of hiding behind the no-extractor exemption.
     "auth0":               "have_extractor",
-    # Panther detections are Python function bodies — regex extraction
-    # doesn't understand them. Falls into the same bucket as YARA-L /
-    # OIE — future Python-shape extractor is a Phase-2 arc.
-    "panther":             "no_extractor",
+    # Panther detections are Python function bodies — extracted via
+    # the ast-walking extract_panther_fields (issue #6).
+    "panther":             "have_extractor",
 }
 
 SOURCES = list(EXTRACTOR_STATUS.keys())

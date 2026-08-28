@@ -14,6 +14,7 @@ Domain-aware extraction maps fields by security domain:
   - Network: IPs, ports, protocols, directions
 """
 
+import ast
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -2168,3 +2169,264 @@ def _add_sublime_observable(field_name: str, values: list[str], negated: bool, r
 
     # Route domain-specific fields
     _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+
+
+# ===========================================================================
+# PANTHER PYTHON EXTRACTOR (AST)
+# ===========================================================================
+#
+# Panther detections are Python modules (`def rule(event): ...`), so
+# regex extraction is hopeless — but the field-access idioms are few
+# and structured: `event.get("field")`, `event["field"]`,
+# `event.deep_get("a", "b")`, `deep_get(event, "a", "b")`,
+# `event.udm("x")`, chained `.get("a", {}).get("b")`. An ast walk
+# collects those paths, the comparison terms around them (==, in,
+# startswith/endswith, against literals or module-level constant
+# collections), and routes them through the same classification used
+# by every other source. Serves both `panther` (panther-analysis) and
+# the pypanther source (issue #27) — same idioms.
+
+_PANTHER_GETTERS = frozenset({"get", "deep_get", "deep_walk", "udm"})
+
+
+def _panther_field_path(
+    node: ast.AST, var_fields: Optional[dict] = None
+) -> Optional[str]:
+    """Dotted field path if `node` is an event field access, else None.
+
+    `var_fields` maps local variable names to previously-resolved
+    field paths (`a = event.get("x")` ... `a == "y"`).
+    """
+    if isinstance(node, ast.Name):
+        return (var_fields or {}).get(node.id)
+    # event["field"]
+    if isinstance(node, ast.Subscript):
+        base = _panther_base_path(node.value, var_fields)
+        if base is None:
+            return None
+        key = node.slice
+        if isinstance(key, ast.Constant) and isinstance(key.value, str):
+            return f"{base}.{key.value}" if base else key.value
+        return None
+    if not isinstance(node, ast.Call):
+        return None
+    func = node.func
+    # deep_get(event, "a", "b") / deep_walk(event, "a", "b")
+    if isinstance(func, ast.Name) and func.id in ("deep_get", "deep_walk"):
+        if node.args and _panther_base_path(node.args[0], var_fields) is not None:
+            parts = [
+                a.value for a in node.args[1:]
+                if isinstance(a, ast.Constant) and isinstance(a.value, str)
+            ]
+            return ".".join(parts) if parts else None
+        return None
+    # event.get("a") / event.deep_get("a", "b") / event.udm("x"),
+    # incl. chained .get("a", {}).get("b")
+    if isinstance(func, ast.Attribute) and func.attr in _PANTHER_GETTERS:
+        base = _panther_base_path(func.value, var_fields)
+        if base is None:
+            return None
+        # .get()/.udm() take ONE key (further args are defaults);
+        # .deep_get()/.deep_walk() take a path of keys.
+        key_args = node.args[:1] if func.attr in ("get", "udm") else node.args
+        parts = [
+            a.value for a in key_args
+            if isinstance(a, ast.Constant) and isinstance(a.value, str)
+        ]
+        if not parts:
+            return None
+        prefix = f"{base}." if base else ""
+        return prefix + ".".join(parts)
+    return None
+
+
+def _panther_base_path(
+    node: ast.AST, var_fields: Optional[dict] = None
+) -> Optional[str]:
+    """'' for the event object itself, a dotted path for a chained
+    field access, None for anything else."""
+    if isinstance(node, ast.Name) and node.id == "event":
+        return ""
+    return _panther_field_path(node, var_fields)
+
+
+def _panther_literals(node: ast.AST, constants: dict) -> list[str]:
+    """String/int literals of a value expression, resolving
+    module-level constant collections by name."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (str, int)):
+        return [str(node.value)]
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        out = []
+        for el in node.elts:
+            out.extend(_panther_literals(el, constants))
+        return out
+    if isinstance(node, ast.Name):
+        return list(constants.get(node.id, []))
+    return []
+
+
+class _PantherVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.constants: dict[str, list[str]] = {}
+        self.var_fields: dict[str, str] = {}
+        self.terms: list[tuple[str, list[str], bool]] = []
+        self.fields: list[str] = []
+        self.branchiness = 0
+
+    def _path(self, node: ast.AST) -> Optional[str]:
+        return _panther_field_path(node, self.var_fields)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        # NAME = ("a", "b") / [...] / {...} of literals — value lists
+        # referenced by comparisons later.
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target = node.targets[0].id
+            if isinstance(node.value, (ast.Tuple, ast.List, ast.Set)):
+                vals = _panther_literals(node.value, self.constants)
+                if vals:
+                    self.constants[target] = vals
+            else:
+                # a = event.get("x") — later `a == "y"` resolves to x.
+                path = self._path(node.value)
+                if path:
+                    self.var_fields[target] = path
+        self.generic_visit(node)
+
+    def visit_Compare(self, node: ast.Compare) -> None:
+        op = node.ops[0]
+        comp = node.comparators[0]
+        left_path = self._path(node.left)
+        if left_path:
+            values = _panther_literals(comp, self.constants)
+            negated = isinstance(op, (ast.NotEq, ast.NotIn))
+            if isinstance(op, (ast.Eq, ast.NotEq, ast.In, ast.NotIn)) and values:
+                self.terms.append((left_path, values, negated))
+            else:
+                self.fields.append(left_path)
+        else:
+            right_path = self._path(comp)
+            if right_path:
+                # "literal" in event.get("command")
+                values = _panther_literals(node.left, self.constants)
+                if isinstance(op, (ast.In, ast.NotIn)) and values:
+                    self.terms.append(
+                        (right_path, values, isinstance(op, ast.NotIn))
+                    )
+                else:
+                    self.fields.append(right_path)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        func = node.func
+        # event.get("x").startswith("prefix") — method terms
+        if isinstance(func, ast.Attribute) and func.attr in (
+            "startswith", "endswith",
+        ):
+            path = self._path(func.value)
+            if path and node.args:
+                values = _panther_literals(node.args[0], self.constants)
+                if values:
+                    self.terms.append((path, values, False))
+                else:
+                    self.fields.append(path)
+        path = self._path(node)
+        if path:
+            self.fields.append(path)
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript) -> None:
+        path = self._path(node)
+        if path:
+            self.fields.append(path)
+        self.generic_visit(node)
+
+    def visit_If(self, node: ast.If) -> None:
+        self.branchiness += 1
+        self.generic_visit(node)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        self.branchiness += len(node.values) - 1
+        self.generic_visit(node)
+
+
+def _add_panther_observable(
+    field_name: str, values: list[str], negated: bool, result: ExtractedFields
+) -> None:
+    result.fields_used.append(field_name)
+    values = [v for v in values if v]
+    obs_type, obs_subtype = _classify_field(field_name)
+    if values:
+        result.observables.append(
+            ExtractedObservable(
+                field=field_name,
+                values=values,
+                type=obs_type,
+                subtype=obs_subtype,
+                negated=negated,
+            )
+        )
+    if field_name.lower() in ("eventid", "eventcode", "event_id"):
+        result.event_ids.extend(v for v in values if v.isdigit())
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+        result.process_names.extend(_extract_exe_names(values))
+    if obs_type == "file" and "path" in obs_subtype:
+        result.file_paths.extend(v for v in values if ("\\" in v or "/" in v))
+    if obs_type == "registry":
+        result.registry_keys.extend(_extract_registry_paths(values))
+    if obs_type == "network":
+        result.network_indicators.extend(
+            v for v in values if v and not re.search(r"\s", v)
+        )
+    _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+
+
+def extract_panther_fields(
+    source: str, log_types: Optional[list[str]] = None
+) -> ExtractedFields:
+    """Extract fields from a Panther Python detection module.
+
+    Args:
+        source: The Python source of the rule module.
+        log_types: The YAML `LogTypes` — Panther's source-table
+            equivalent, surfaced as extracted_source_tables.
+
+    Returns:
+        ExtractedFields with extracted observables.
+    """
+    result = ExtractedFields()
+    for lt in log_types or []:
+        if isinstance(lt, str) and lt.strip():
+            result.source_tables.append(lt.strip())
+    if not source or not isinstance(source, str):
+        return result
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # Correlation/declarative rules store serialized YAML here —
+        # not Python, nothing to extract.
+        return result
+
+    visitor = _PantherVisitor()
+    visitor.visit(tree)
+
+    if visitor.branchiness > 8:
+        result.query_complexity = "complex"
+    elif visitor.branchiness > 3:
+        result.query_complexity = "moderate"
+    else:
+        result.query_complexity = "simple"
+
+    seen_terms: set[tuple[str, tuple[str, ...], bool]] = set()
+    for field_name, values, negated in visitor.terms:
+        key = (field_name, tuple(values), negated)
+        if key in seen_terms:
+            continue
+        seen_terms.add(key)
+        _add_panther_observable(field_name, values, negated, result)
+    for field_name in visitor.fields:
+        if field_name and field_name not in result.fields_used:
+            result.fields_used.append(field_name)
+
+    _deduplicate_all(result)
+    return result

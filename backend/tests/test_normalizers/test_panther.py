@@ -172,14 +172,16 @@ def test_normalize_source_rule_url_uses_develop_branch(normalizer):
     assert "/blob/develop/rules/" in n.source_rule_url
 
 
-def test_normalize_no_extracted_fields(normalizer):
-    """Python detection code isn't parseable by our regex extractors;
-    Panther deliberately ships with empty extracted_* to match how
-    Google SecOps / Okta / Auth0 are tracked."""
+def test_normalize_runs_ast_extraction(normalizer):
+    """The Python module is walked with ast (issue #6): field paths,
+    comparison terms, and YAML LogTypes as source tables."""
     n = normalizer.normalize(_parsed())
-    assert n.extracted_fields_used == []
-    assert n.extracted_process_names == []
-    assert n.extracted_observables == []
+    assert "eventName" in n.extracted_fields_used
+    assert n.extracted_source_tables == ["AWS.CloudTrail"]
+    obs = [o for o in n.extracted_observables if o["field"] == "eventName"]
+    assert obs and obs[0]["values"] == ["StopLogging"]
+    # eventName -> cloud api_action -> api_actions surface
+    assert "StopLogging" in n.extracted_api_actions
 
 
 def test_normalize_report_family_tags_preserved(normalizer):

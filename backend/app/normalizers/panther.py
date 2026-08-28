@@ -5,19 +5,17 @@ Takes a `ParsedRule` from `PantherParser` and produces the canonical
 verbatim (or YAML `Detection:` block for correlation/declarative
 rules that have no `.py` sibling); language tag reflects which.
 
-Field extraction is intentionally NOT run for Panther today — the
-`services.field_extractor` module doesn't understand Python source
-(it's regex-based for query languages like SPL/KQL/EQL). Rules
-therefore land with empty `extracted_*` columns, matching what
-Google SecOps / Okta / Auth0 do today and what the extraction audit
-(`scripts/audit_extraction.py`) already tracks as "no_extractor".
-Adding a Python-shape extractor is a Phase-2 arc (see issue #6 for
-the observables redesign).
+Field extraction runs through `extract_panther_fields` (issue #6): an
+ast walk over the Python module collecting `event.get()` /
+`deep_get()` / subscript field paths and the literal comparison terms
+around them. YAML `LogTypes` land in `extracted_source_tables`.
+Correlation/declarative rules (serialized YAML, not Python) fail
+`ast.parse` and degrade to LogTypes-only extraction.
 """
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
-from app.services.field_extractor import ExtractedFields
+from app.services.field_extractor import extract_panther_fields
 
 
 class PantherNormalizer(BaseNormalizer):
@@ -45,9 +43,11 @@ class PantherNormalizer(BaseNormalizer):
         if not isinstance(detection_logic, str):
             detection_logic = str(detection_logic) if detection_logic else ""
 
-        # Skip field extraction — see module docstring. Zero-valued
-        # ExtractedFields matches the shape the DB layer expects.
-        extracted = ExtractedFields()
+        # AST field extraction (issue #6) — see module docstring.
+        extracted = extract_panther_fields(
+            detection_logic if language == "python" else "",
+            log_types=extra.get("log_types") or [],
+        )
 
         # References list from YAML `Reference:` field, plus we surface
         # `Runbook` text as a false-positive-style triage note (Panther's
@@ -82,7 +82,7 @@ class PantherNormalizer(BaseNormalizer):
             extracted_registry_keys=extracted.registry_keys,
             extracted_network_indicators=extracted.network_indicators,
             extracted_source_tables=extracted.source_tables,
-            extracted_observables=[],
+            extracted_observables=[{"field": o.field, "values": o.values, "type": o.type, "subtype": o.subtype, "negated": o.negated} for o in extracted.observables],
             query_complexity=extracted.query_complexity,
             extracted_api_actions=extracted.api_actions,
             extracted_target_resources=extracted.target_resources,
