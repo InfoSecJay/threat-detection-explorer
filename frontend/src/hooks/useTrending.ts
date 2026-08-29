@@ -77,6 +77,15 @@ export function useWeeklyActivity(weeks: number = 12) {
   });
 }
 
+/** Net per-source rule-count change over `days` (#19). */
+export function useSourceDeltas(days: number = 7) {
+  return useQuery({
+    queryKey: ['source-deltas', days],
+    queryFn: () => trendingApi.getSourceDeltas(days),
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
 
 export function useThreatPulse(limit: number = 8, days?: number) {
   return useQuery({

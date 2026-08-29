@@ -738,6 +738,20 @@ export interface WeeklyActivityResponse {
   by_source: Record<string, number[]>;
 }
 
+// Net rule-count change per source over `days` (#19), derived from the
+// nightly sync-job history. `delta` is null when there is no baseline
+// old enough (method: insufficient_history) or the source was onboarded
+// inside the window; `current` is null if the latest ingest failed.
+export interface SourceDeltasResponse {
+  days: number;
+  method: 'sync_jobs' | 'insufficient_history' | 'no_data';
+  current_job_id: string | null;
+  current_at: string | null;
+  baseline_job_id: string | null;
+  baseline_at: string | null;
+  by_source: Record<string, { current: number | null; baseline: number | null; delta: number | null }>;
+}
+
 // Activity filters — shared by trending + recent-rules. Optional
 // comma-separated narrowing so the Intel page can answer questions like
 // "top techniques in new O365 rules" or "new Splunk rules this month".
@@ -833,6 +847,11 @@ export const trendingApi = {
 
   getWeeklyActivity: async (weeks: number = 12): Promise<WeeklyActivityResponse> => {
     const response = await api.get(`/trending/weekly-activity?weeks=${weeks}`);
+    return response.data;
+  },
+
+  getSourceDeltas: async (days: number = 7): Promise<SourceDeltasResponse> => {
+    const response = await api.get(`/trending/source-deltas?days=${days}`);
     return response.data;
   },
 

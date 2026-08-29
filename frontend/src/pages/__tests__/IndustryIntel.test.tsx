@@ -48,6 +48,19 @@ vi.mock('../../hooks/useTrending', () => ({
     isLoading: false,
   }),
   useRecentRules:        () => ({ data: { most_recently_created: [], most_recently_modified: [] }, isLoading: false, error: null }),
+  useSourceDeltas:       () => ({
+    data: {
+      days: 7, method: 'sync_jobs',
+      current_job_id: 'j1', current_at: '2026-08-29T06:00:00',
+      baseline_job_id: 'j0', baseline_at: '2026-08-22T06:00:00',
+      by_source: {
+        sigma: { current: 3200, baseline: 3188, delta: 12 },
+        splunk: { current: 2100, baseline: 2103, delta: -3 },
+      },
+    },
+    isLoading: false,
+    error: null,
+  }),
   useWeeklyActivity:     () => ({
     data: {
       weeks: 12,
@@ -123,5 +136,16 @@ describe('IndustryIntel', () => {
       expect(getByText(/Detection Intelligence/i)).toBeInTheDocument();
     });
     expect(container.querySelector('section')).toBeTruthy();
+  });
+
+  it('shows week-over-week net deltas on the repo health cards (#19)', async () => {
+    const { getByTestId } = renderPage();
+    await waitFor(() => {
+      expect(getByTestId('wow-sigma')).toHaveTextContent('+12 / 7d');
+    });
+    expect(getByTestId('wow-splunk')).toHaveTextContent('-3 / 7d');
+    // Colour encodes direction: growth green, shrinkage red.
+    expect(getByTestId('wow-sigma').className).toContain('text-pulse-400');
+    expect(getByTestId('wow-splunk').className).toContain('text-breach-400');
   });
 });

@@ -722,3 +722,22 @@ async def get_threat_pulse(
             {**c, "sources": sorted(c["sources"])} for c in sorted_cves
         ],
     }
+
+
+@router.get("/source-deltas")
+async def get_source_deltas(
+    days: int = Query(7, ge=1, le=90, description="Delta window in days"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Net rule-count change per source over the window (issue #19).
+
+    Derived from completed whole-corpus sync jobs: each stores every
+    source's corpus size that night, so "latest minus the newest job at
+    least `days` old" is an exact net delta (additions minus removals),
+    which git-derived created dates cannot give. `method` is
+    `sync_jobs` (exact), `insufficient_history` (no baseline old enough
+    yet; only `current` populated) or `no_data`.
+    """
+    from app.services.source_deltas import compute_source_deltas
+
+    return await compute_source_deltas(db, days=days)

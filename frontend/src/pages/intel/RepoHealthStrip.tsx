@@ -12,7 +12,7 @@
 import { parseApiDate } from '../../utils/dates';
 import { Link } from 'react-router-dom';
 import { useRepositories } from '../../hooks/useRepositories';
-import { useWeeklyActivity } from '../../hooks/useTrending';
+import { useSourceDeltas, useWeeklyActivity } from '../../hooks/useTrending';
 import { sourceTheme as sourceConfig, clipSm } from '../../constants/style';
 import { SkeletonRow } from './Section';
 import { formatRelDate } from './lib';
@@ -53,6 +53,10 @@ function Sparkline({ counts, colorClass }: { counts: number[]; colorClass: strin
 export function RepoHealthStrip() {
   const { data: reposRaw, isLoading: reposLoading } = useRepositories();
   const { data: weekly, isLoading: weeklyLoading } = useWeeklyActivity(12);
+  // Week-over-week NET change per source (#19): additions minus
+  // removals from the nightly sync-job history. Optional -- the strip
+  // renders without it while history accumulates.
+  const { data: deltas } = useSourceDeltas(7);
 
   if (reposLoading || weeklyLoading) return <SkeletonRow height="h-28" />;
   if (!reposRaw) return null;
@@ -83,6 +87,13 @@ export function RepoHealthStrip() {
         const sparkCounts = weekly?.by_source[repo.name] || Array(12).fill(0);
         const weekTotal = totals[i];
         const isHot = weekTotal > 0 && weekTotal >= hotThreshold;
+        const wow = deltas?.by_source[repo.name]?.delta ?? null;
+        const wowClass =
+          wow === null ? '' : wow > 0 ? 'text-pulse-400' : wow < 0 ? 'text-breach-400' : 'text-gray-500';
+        const wowTitle =
+          wow === null
+            ? 'week-over-week: no baseline sync old enough yet'
+            : `net change vs ${deltas?.days ?? 7} days ago (${wow > 0 ? 'added' : wow < 0 ? 'removed' : 'unchanged'}; baseline sync ${formatRelDate(deltas?.baseline_at ?? null)})`;
 
         return (
           <Link
@@ -116,8 +127,17 @@ export function RepoHealthStrip() {
               )}
             </div>
             <Sparkline counts={sparkCounts} colorClass={cfg.dot} />
-            <div className="text-[9px] font-mono text-gray-600 mt-2 text-right" title={`last sync ${formatRelDate(repo.last_sync_at)}`}>
-              synced {formatRelDate(repo.last_sync_at)}
+            <div className="flex items-center justify-between mt-2 text-[9px] font-mono">
+              {wow !== null ? (
+                <span className={`${wowClass} tabular-nums`} title={wowTitle} data-testid={`wow-${repo.name}`}>
+                  {wow > 0 ? `+${wow}` : wow} / 7d
+                </span>
+              ) : (
+                <span className="text-gray-700" title={wowTitle}>-- / 7d</span>
+              )}
+              <span className="text-gray-600" title={`last sync ${formatRelDate(repo.last_sync_at)}`}>
+                synced {formatRelDate(repo.last_sync_at)}
+              </span>
             </div>
           </Link>
         );
