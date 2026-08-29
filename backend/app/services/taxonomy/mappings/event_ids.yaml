@@ -1,0 +1,268 @@
+# Per-event-ID taxonomy dictionary (issue #16).
+#
+# Second-pass refinement on top of the logsource-based classification in
+# the vendor mapping files. A rule whose logsource is a coarse channel
+# (Sigma `windows/security`, Sentinel `SecurityEvent`, Splunk
+# "Windows Event Log Security ...") gets `event_types: [audit_event]`
+# from the vendor mapping; when the rule ALSO pins specific event IDs,
+# this dictionary says what those IDs actually are so the rule can be
+# reclassified (4624 -> authentication, 4688 -> process_creation, ...).
+#
+# Rules:
+# - One entry per event ID across ALL providers. IDs are looked up by
+#   number alone (the extractor does not know the channel), so an ID
+#   that means different things in different channels must NOT be
+#   listed. Known collisions deliberately excluded: 8001-8004 (NTLM
+#   audit vs AppLocker EXE/DLL) and the rest of AppLocker (8005-8025).
+#   `tests/test_services/test_event_ids.py` fails on duplicates.
+# - `event_types` values must be canonical (`taxonomy/canonical.py`).
+# - `label` is the short human name shown in the UI next to the ID.
+#   ASCII only.
+# - Only Windows providers today. The refinement pass is gated on the
+#   rule being Windows-scoped (platform or data source), so a Linux rule
+#   with `type=1` never picks up a Sysmon meaning.
+#
+# References:
+#   https://learn.microsoft.com/windows/security/threat-protection/auditing/
+#   https://learn.microsoft.com/sysinternals/downloads/sysmon
+version: 1
+providers:
+  windows_security:
+    channel: Security
+    events:
+      "1100": {label: "Event logging service shut down", event_types: [log_clear]}
+      "1102": {label: "Audit log cleared", event_types: [log_clear]}
+      "4616": {label: "System time changed", event_types: [policy_change]}
+      "4624": {label: "Logon success", event_types: [authentication]}
+      "4625": {label: "Logon failure", event_types: [authentication]}
+      "4634": {label: "Logoff", event_types: [authentication]}
+      "4647": {label: "User-initiated logoff", event_types: [authentication]}
+      "4648": {label: "Logon with explicit credentials", event_types: [authentication]}
+      "4649": {label: "Replay attack detected", event_types: [authentication]}
+      "4656": {label: "Handle to object requested", event_types: [object_access]}
+      "4657": {label: "Registry value modified", event_types: [registry_set]}
+      "4658": {label: "Handle to object closed", event_types: [object_access]}
+      "4660": {label: "Object deleted", event_types: [object_access]}
+      "4661": {label: "Handle to SAM object requested", event_types: [object_access]}
+      "4662": {label: "Directory service object operation", event_types: [directory_service_event]}
+      "4663": {label: "Object access attempt", event_types: [object_access]}
+      "4670": {label: "Object permissions changed", event_types: [policy_change]}
+      "4672": {label: "Special privileges assigned to logon", event_types: [privilege_use]}
+      "4673": {label: "Privileged service called", event_types: [privilege_use]}
+      "4674": {label: "Privileged object operation", event_types: [privilege_use]}
+      "4688": {label: "Process created", event_types: [process_creation]}
+      "4689": {label: "Process exited", event_types: [process_termination]}
+      "4690": {label: "Handle duplicated", event_types: [object_access]}
+      "4697": {label: "Service installed", event_types: [service_install]}
+      "4698": {label: "Scheduled task created", event_types: [scheduled_task]}
+      "4699": {label: "Scheduled task deleted", event_types: [scheduled_task]}
+      "4700": {label: "Scheduled task enabled", event_types: [scheduled_task]}
+      "4701": {label: "Scheduled task disabled", event_types: [scheduled_task]}
+      "4702": {label: "Scheduled task updated", event_types: [scheduled_task]}
+      "4703": {label: "Token right adjusted", event_types: [privilege_use]}
+      "4704": {label: "User right assigned", event_types: [policy_change]}
+      "4705": {label: "User right removed", event_types: [policy_change]}
+      "4706": {label: "Domain trust created", event_types: [policy_change]}
+      "4707": {label: "Domain trust removed", event_types: [policy_change]}
+      "4713": {label: "Kerberos policy changed", event_types: [policy_change]}
+      "4719": {label: "System audit policy changed", event_types: [policy_change]}
+      "4720": {label: "User account created", event_types: [account_management]}
+      "4722": {label: "User account enabled", event_types: [account_management]}
+      "4723": {label: "Password change attempted", event_types: [account_management]}
+      "4724": {label: "Password reset attempted", event_types: [account_management]}
+      "4725": {label: "User account disabled", event_types: [account_management]}
+      "4726": {label: "User account deleted", event_types: [account_management]}
+      "4727": {label: "Global group created", event_types: [account_management]}
+      "4728": {label: "Member added to global group", event_types: [account_management]}
+      "4729": {label: "Member removed from global group", event_types: [account_management]}
+      "4730": {label: "Global group deleted", event_types: [account_management]}
+      "4731": {label: "Local group created", event_types: [account_management]}
+      "4732": {label: "Member added to local group", event_types: [account_management]}
+      "4733": {label: "Member removed from local group", event_types: [account_management]}
+      "4734": {label: "Local group deleted", event_types: [account_management]}
+      "4735": {label: "Local group changed", event_types: [account_management]}
+      "4737": {label: "Global group changed", event_types: [account_management]}
+      "4738": {label: "User account changed", event_types: [account_management]}
+      "4739": {label: "Domain policy changed", event_types: [policy_change]}
+      "4740": {label: "User account locked out", event_types: [account_management]}
+      "4741": {label: "Computer account created", event_types: [account_management]}
+      "4742": {label: "Computer account changed", event_types: [account_management]}
+      "4743": {label: "Computer account deleted", event_types: [account_management]}
+      "4754": {label: "Universal group created", event_types: [account_management]}
+      "4755": {label: "Universal group changed", event_types: [account_management]}
+      "4756": {label: "Member added to universal group", event_types: [account_management]}
+      "4757": {label: "Member removed from universal group", event_types: [account_management]}
+      "4758": {label: "Universal group deleted", event_types: [account_management]}
+      "4764": {label: "Group type changed", event_types: [account_management]}
+      "4765": {label: "SID History added to account", event_types: [account_management]}
+      "4766": {label: "SID History add failed", event_types: [account_management]}
+      "4767": {label: "User account unlocked", event_types: [account_management]}
+      "4768": {label: "Kerberos TGT requested", event_types: [authentication]}
+      "4769": {label: "Kerberos service ticket requested", event_types: [authentication]}
+      "4770": {label: "Kerberos service ticket renewed", event_types: [authentication]}
+      "4771": {label: "Kerberos pre-authentication failed", event_types: [authentication]}
+      "4772": {label: "Kerberos TGT request failed", event_types: [authentication]}
+      "4773": {label: "Kerberos service ticket request failed", event_types: [authentication]}
+      "4776": {label: "NTLM credential validation", event_types: [authentication]}
+      "4777": {label: "NTLM credential validation failed", event_types: [authentication]}
+      "4778": {label: "Session reconnected", event_types: [authentication]}
+      "4779": {label: "Session disconnected", event_types: [authentication]}
+      "4780": {label: "ACL set on admin group member", event_types: [account_management]}
+      "4781": {label: "Account name changed", event_types: [account_management]}
+      "4793": {label: "Password policy checking API called", event_types: [account_management]}
+      "4794": {label: "DSRM administrator password set", event_types: [account_management]}
+      "4798": {label: "User local group membership enumerated", event_types: [account_management]}
+      "4799": {label: "Local group membership enumerated", event_types: [account_management]}
+      "4800": {label: "Workstation locked", event_types: [authentication]}
+      "4801": {label: "Workstation unlocked", event_types: [authentication]}
+      "4817": {label: "Object auditing settings changed", event_types: [policy_change]}
+      "4819": {label: "Central access policies changed", event_types: [policy_change]}
+      "4902": {label: "Per-user audit policy table created", event_types: [policy_change]}
+      "4904": {label: "Security event source registered", event_types: [policy_change]}
+      "4905": {label: "Security event source unregistered", event_types: [policy_change]}
+      "4906": {label: "CrashOnAuditFail value changed", event_types: [policy_change]}
+      "4907": {label: "Object auditing settings changed", event_types: [policy_change]}
+      "4908": {label: "Special Groups logon table modified", event_types: [policy_change]}
+      "4912": {label: "Per-user audit policy changed", event_types: [policy_change]}
+      "4946": {label: "Firewall rule added", event_types: [policy_change]}
+      "4947": {label: "Firewall rule modified", event_types: [policy_change]}
+      "4948": {label: "Firewall rule deleted", event_types: [policy_change]}
+      "4950": {label: "Firewall setting changed", event_types: [policy_change]}
+      "4954": {label: "Firewall group policy changed", event_types: [policy_change]}
+      "4964": {label: "Special groups assigned to logon", event_types: [privilege_use]}
+      "5024": {label: "Firewall service started", event_types: [service_event]}
+      "5025": {label: "Firewall service stopped", event_types: [service_event]}
+      "5031": {label: "Firewall blocked inbound connection", event_types: [network_connection]}
+      "5136": {label: "Directory service object modified", event_types: [directory_service_event]}
+      "5137": {label: "Directory service object created", event_types: [directory_service_event]}
+      "5138": {label: "Directory service object undeleted", event_types: [directory_service_event]}
+      "5139": {label: "Directory service object moved", event_types: [directory_service_event]}
+      "5140": {label: "Network share accessed", event_types: [share_access]}
+      "5141": {label: "Directory service object deleted", event_types: [directory_service_event]}
+      "5142": {label: "Network share added", event_types: [share_access]}
+      "5143": {label: "Network share modified", event_types: [share_access]}
+      "5144": {label: "Network share deleted", event_types: [share_access]}
+      "5145": {label: "Network share access checked", event_types: [share_access]}
+      "5152": {label: "Filtering Platform blocked packet", event_types: [network_connection]}
+      "5154": {label: "Filtering Platform permitted listen", event_types: [network_connection]}
+      "5155": {label: "Filtering Platform blocked listen", event_types: [network_connection]}
+      "5156": {label: "Filtering Platform permitted connection", event_types: [network_connection]}
+      "5157": {label: "Filtering Platform blocked connection", event_types: [network_connection]}
+      "5158": {label: "Filtering Platform permitted bind", event_types: [network_connection]}
+      "5159": {label: "Filtering Platform blocked bind", event_types: [network_connection]}
+      "5376": {label: "Credential Manager credentials backed up", event_types: [account_management]}
+      "5377": {label: "Credential Manager credentials restored", event_types: [account_management]}
+      "5379": {label: "Credential Manager credentials read", event_types: [account_management]}
+      "5381": {label: "Vault credentials read", event_types: [account_management]}
+      "5382": {label: "Vault credentials read", event_types: [account_management]}
+      "5827": {label: "Netlogon denied vulnerable secure channel (machine)", event_types: [authentication]}
+      "5828": {label: "Netlogon denied vulnerable secure channel (trust)", event_types: [authentication]}
+      "5829": {label: "Netlogon allowed vulnerable secure channel", event_types: [authentication]}
+      "6272": {label: "NPS granted network access", event_types: [authentication]}
+      "6273": {label: "NPS denied network access", event_types: [authentication]}
+  windows_system:
+    channel: System
+    events:
+      "104": {label: "Event log cleared", event_types: [log_clear]}
+      "7009": {label: "Service connect timeout", event_types: [service_event]}
+      "7022": {label: "Service hung on start", event_types: [service_event]}
+      "7023": {label: "Service terminated with error", event_types: [service_event]}
+      "7024": {label: "Service terminated with service-specific error", event_types: [service_event]}
+      "7030": {label: "Service marked interactive", event_types: [service_event]}
+      "7031": {label: "Service terminated unexpectedly", event_types: [service_event]}
+      "7034": {label: "Service crashed", event_types: [service_event]}
+      "7035": {label: "Service control sent", event_types: [service_event]}
+      "7036": {label: "Service state changed", event_types: [service_event]}
+      "7040": {label: "Service start type changed", event_types: [service_event]}
+      "7045": {label: "Service installed", event_types: [service_install]}
+  sysmon:
+    channel: Microsoft-Windows-Sysmon/Operational
+    events:
+      "1": {label: "Process create", event_types: [process_creation]}
+      "2": {label: "File creation time changed", event_types: [file_change]}
+      "3": {label: "Network connection", event_types: [network_connection]}
+      "4": {label: "Sysmon service state changed", event_types: [sysmon_status]}
+      "5": {label: "Process terminated", event_types: [process_termination]}
+      "6": {label: "Driver loaded", event_types: [driver_load]}
+      "7": {label: "Image loaded", event_types: [image_load]}
+      "8": {label: "CreateRemoteThread", event_types: [create_remote_thread]}
+      "9": {label: "RawAccessRead", event_types: [raw_access_thread]}
+      "10": {label: "Process accessed", event_types: [process_access]}
+      "11": {label: "File created", event_types: [file_event]}
+      "12": {label: "Registry key created or deleted", event_types: [registry_event]}
+      "13": {label: "Registry value set", event_types: [registry_set]}
+      "14": {label: "Registry key or value renamed", event_types: [registry_rename]}
+      "15": {label: "File stream created", event_types: [create_stream_hash]}
+      "16": {label: "Sysmon config state changed", event_types: [sysmon_status]}
+      "17": {label: "Named pipe created", event_types: [pipe_created]}
+      "18": {label: "Named pipe connected", event_types: [pipe_created]}
+      "19": {label: "WMI event filter", event_types: [wmi_event]}
+      "20": {label: "WMI event consumer", event_types: [wmi_event]}
+      "21": {label: "WMI consumer-to-filter binding", event_types: [wmi_event]}
+      "22": {label: "DNS query", event_types: [dns_query]}
+      "23": {label: "File delete archived", event_types: [file_delete]}
+      "24": {label: "Clipboard changed", event_types: [clipboard_capture]}
+      "25": {label: "Process tampering", event_types: [process_tampering]}
+      "26": {label: "File delete logged", event_types: [file_delete_detected]}
+      "27": {label: "File block executable", event_types: [file_block_executable]}
+      "28": {label: "File block shredding", event_types: [file_block_shredding]}
+      "29": {label: "File executable detected", event_types: [file_executable_detected]}
+      "255": {label: "Sysmon error", event_types: [sysmon_error]}
+  powershell:
+    channel: Microsoft-Windows-PowerShell/Operational
+    # PowerShell logging is classified process_creation by convention
+    # (see sigma.yaml `windows/ps_*`): the events record command
+    # execution. Kept consistent here rather than inventing a split.
+    events:
+      "400": {label: "PowerShell engine started", event_types: [process_creation]}
+      "600": {label: "PowerShell provider started", event_types: [process_creation]}
+      "800": {label: "PowerShell pipeline execution", event_types: [process_creation]}
+      "4103": {label: "PowerShell module logging", event_types: [process_creation]}
+      "4104": {label: "PowerShell script block", event_types: [process_creation]}
+  windows_defender:
+    channel: Microsoft-Windows-Windows Defender/Operational
+    events:
+      "1006": {label: "Defender detected malware", event_types: [platform_alert]}
+      "1007": {label: "Defender took action on malware", event_types: [platform_alert]}
+      "1008": {label: "Defender action failed", event_types: [platform_alert]}
+      "1009": {label: "Defender restored item from quarantine", event_types: [platform_alert]}
+      "1011": {label: "Defender deleted item from quarantine", event_types: [platform_alert]}
+      "1013": {label: "Defender history deleted", event_types: [log_clear]}
+      "1015": {label: "Defender detected suspicious behavior", event_types: [platform_alert]}
+      "1116": {label: "Defender detected malware", event_types: [platform_alert]}
+      "1117": {label: "Defender took action on malware", event_types: [platform_alert]}
+      "1118": {label: "Defender action failed", event_types: [platform_alert]}
+      "1119": {label: "Defender critical action error", event_types: [platform_alert]}
+      "1121": {label: "Attack surface reduction rule blocked", event_types: [platform_alert]}
+      "1122": {label: "Attack surface reduction rule audited", event_types: [platform_alert]}
+      "1125": {label: "Network protection audited", event_types: [platform_alert]}
+      "1126": {label: "Network protection blocked", event_types: [platform_alert]}
+      "5001": {label: "Real-time protection disabled", event_types: [policy_change]}
+      "5004": {label: "Real-time protection configuration changed", event_types: [policy_change]}
+      "5007": {label: "Defender configuration changed", event_types: [policy_change]}
+      "5010": {label: "Malware scanning disabled", event_types: [policy_change]}
+      "5012": {label: "Virus scanning disabled", event_types: [policy_change]}
+      "5013": {label: "Tamper protection blocked a change", event_types: [policy_change]}
+  taskscheduler:
+    channel: Microsoft-Windows-TaskScheduler/Operational
+    events:
+      "106": {label: "Scheduled task registered", event_types: [scheduled_task]}
+      "129": {label: "Scheduled task process launched", event_types: [scheduled_task]}
+      "140": {label: "Scheduled task updated", event_types: [scheduled_task]}
+      "141": {label: "Scheduled task deleted", event_types: [scheduled_task]}
+      "200": {label: "Scheduled task action started", event_types: [scheduled_task]}
+      "201": {label: "Scheduled task action completed", event_types: [scheduled_task]}
+  wmi_activity:
+    channel: Microsoft-Windows-WMI-Activity/Operational
+    events:
+      "5857": {label: "WMI provider loaded", event_types: [wmi_event]}
+      "5858": {label: "WMI query error", event_types: [wmi_event]}
+      "5859": {label: "WMI permanent event subscription", event_types: [wmi_event]}
+      "5860": {label: "WMI temporary event consumer", event_types: [wmi_event]}
+      "5861": {label: "WMI permanent event consumer created", event_types: [wmi_event]}
+  codeintegrity:
+    channel: Microsoft-Windows-CodeIntegrity/Operational
+    events:
+      "3033": {label: "Code Integrity blocked image (signing level)", event_types: [image_load]}
+      "3076": {label: "WDAC audit: image would be blocked", event_types: [image_load]}
+      "3077": {label: "WDAC blocked image", event_types: [image_load]}

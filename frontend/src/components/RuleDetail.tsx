@@ -6,6 +6,7 @@ import type { Detection } from '../types';
 import { useMitre } from '../contexts/MitreContext';
 import { resolveGroup, resolveSoftware } from '../services/mitreLookup';
 import { ObservablesPanel } from './ObservablesPanel';
+import { useEventIds } from '../hooks/useEventIds';
 
 // Map detection languages to Prism language identifiers
 const languageMap: Record<string, string> = {
@@ -104,6 +105,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
 
 export function RuleDetail({ detection }: RuleDetailProps) {
   const { getTacticName, getTechniqueName, getTacticUrl, getTechniqueUrl } = useMitre();
+  const { labels: eventIdLabels } = useEventIds();
   const [activeTab, setActiveTab] = useState<'normalized' | 'raw'>('normalized');
 
   return (
@@ -407,6 +409,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 observables={detection.extracted_observables || []}
                 sourceTables={detection.extracted_source_tables || []}
                 complexity={detection.query_complexity}
+                eventIdLabels={eventIdLabels}
               />
             </div>
           )}

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useFacets } from '../hooks/useDetections';
+import { useEventIds } from '../hooks/useEventIds';
 import { useMitre } from '../contexts/MitreContext';
 import { ALL_SOURCES, sourceColors, sourceLabels } from '../constants/sources';
 import { TelemetryFilter, Facet } from './TelemetryFilter';
@@ -62,6 +63,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   // Facet counts scoped to the active query — every section below
   // renders live "what would this click yield" numbers from these.
   const { data: facets } = useFacets(filters);
+  const { labels: eventIdLabels } = useEventIds();
   const sourceCounts = useMemo(() => countMap(facets?.sources), [facets]);
   const severityCounts = useMemo(() => countMap(facets?.severities), [facets]);
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
@@ -445,6 +447,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               options={facets?.event_ids || []}
               selected={filters.event_ids || []}
               onChange={(values) => onFiltersChange({ ...filters, event_ids: values, offset: 0 })}
+              labels={eventIdLabels}
             />
           </div>
         )}

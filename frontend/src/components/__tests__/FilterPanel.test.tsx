@@ -34,6 +34,10 @@ vi.mock('../../hooks/useDetections', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useEventIds', () => ({
+  useEventIds: () => ({ labels: { '4688': 'Process created' }, entries: {} }),
+}));
+
 vi.mock('../../contexts/MitreContext', () => ({
   useMitre: () => ({
     tactics: { TA0002: { id: 'TA0002', name: 'Execution' } },

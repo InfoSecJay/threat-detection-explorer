@@ -9,8 +9,20 @@ docs page without a second commit.
 from fastapi import APIRouter
 
 from app.services.query_parser import field_reference
+from app.services.taxonomy.event_ids import dictionary as event_id_dictionary
 
 router = APIRouter(prefix="/query", tags=["query"])
+
+
+@router.get("/event-ids")
+async def get_event_id_dictionary():
+    """Windows event-ID dictionary (issue #16): `{id: {label, provider,
+    channel, event_types}}`. Single source of truth for the labels the
+    UI shows next to raw IDs (facet, pills, detail page) and for the
+    taxonomy refinement the worker applies at ingest. Static per deploy
+    -- cache aggressively client-side.
+    """
+    return {"event_ids": event_id_dictionary()}
 
 
 @router.get("/fields")
