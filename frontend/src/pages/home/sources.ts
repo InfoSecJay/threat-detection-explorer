@@ -1,0 +1,99 @@
+/** Per-source blurbs + repo links for the Home source grid. Colours
+ * mirror constants/sources.ts. */
+
+// Data sources configuration
+export const HOME_SOURCES = [
+  {
+    id: 'sigma' as const,
+    name: 'SigmaHQ',
+    description: 'Community-driven detection rules covering comprehensive MITRE ATT&CK techniques.',
+    repoUrl: 'https://github.com/SigmaHQ/sigma',
+    color: '#a855f7',
+  },
+  {
+    id: 'elastic' as const,
+    name: 'Elastic Detection Rules',
+    description: 'Detection rules for Elastic Security using KQL and EQL query formats.',
+    repoUrl: 'https://github.com/elastic/detection-rules',
+    color: '#3b82f6',
+  },
+  {
+    id: 'splunk' as const,
+    name: 'Splunk Security Content',
+    description: 'Analytics stories and detection searches for Splunk Enterprise Security.',
+    repoUrl: 'https://github.com/splunk/security_content',
+    color: '#f97316',
+  },
+  {
+    id: 'sublime' as const,
+    name: 'Sublime Security',
+    description: 'Email security detection rules using Message Query Language (MQL).',
+    repoUrl: 'https://github.com/sublime-security/sublime-rules',
+    color: '#ec4899',
+  },
+  {
+    id: 'elastic_protections' as const,
+    name: 'Elastic Protections',
+    description: 'Endpoint behavior rules for Elastic Endpoint Security using EQL.',
+    repoUrl: 'https://github.com/elastic/protections-artifacts',
+    color: '#06b6d4',
+  },
+  {
+    id: 'lolrmm' as const,
+    name: 'LOLRMM',
+    description: 'Detection rules for RMM tools commonly abused by threat actors.',
+    repoUrl: 'https://github.com/magicsword-io/LOLRMM',
+    color: '#22c55e',
+  },
+  {
+    id: 'elastic_hunting' as const,
+    name: 'Elastic Hunting',
+    description: 'Proactive threat hunting queries using ES|QL for Elastic Security.',
+    repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
+    color: '#8b5cf6',
+  },
+  {
+    id: 'sentinel' as const,
+    name: 'Microsoft Sentinel',
+    description: 'Analytics rules for Microsoft Sentinel SIEM using KQL queries.',
+    repoUrl: 'https://github.com/Azure/Azure-Sentinel',
+    color: '#0078d4',
+  },
+  {
+    id: 'google_secops' as const,
+    name: 'Google SecOps',
+    description: 'Community detection rules for Google SecOps (Chronicle) using YARA-L 2.0.',
+    repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
+    color: '#84cc16',
+  },
+  {
+    id: 'okta' as const,
+    name: 'Okta',
+    description: 'Okta-authored detections for Okta Identity Engine (OIE) and Splunk SIEM queries.',
+    repoUrl: 'https://github.com/okta/customer-detections',
+    color: '#14b8a6',
+  },
+  {
+    id: 'auth0' as const,
+    name: 'Auth0',
+    description: 'Auth0-authored Sigma detections with Splunk implementations, covering refresh tokens, MFA, brute force, and tenant attack protection.',
+    repoUrl: 'https://github.com/auth0/auth0-customer-detections',
+    color: '#f59e0b',
+  },
+  {
+    id: 'panther' as const,
+    name: 'Panther',
+    description: 'Panther Labs community detections — Python-based rules spanning 97 log types across AWS, GCP, Azure, Okta, GitHub, Databricks, Snowflake, and 60+ other SaaS and infrastructure sources.',
+    repoUrl: 'https://github.com/panther-labs/panther-analysis',
+    color: '#d946ef',
+  },
+  {
+    id: 'pypanther' as const,
+    name: 'PyPanther',
+    description: 'Panther Labs pypanther framework — the newer Pythonic rule catalog: pure Python rule classes covering AWS, GCP, Azure, Okta, GitHub, and 60+ other log sources.',
+    repoUrl: 'https://github.com/panther-labs/pypanther',
+    color: '#c026d3',
+  },
+];
+
+export type HomeSource = (typeof HOME_SOURCES)[number];
