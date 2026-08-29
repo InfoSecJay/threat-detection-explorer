@@ -100,12 +100,3 @@ export function useSourceDeltas(days: number = 7) {
 }
 
 
-export function useThreatPulse(limit: number = 8, days?: number) {
-  return useQuery({
-    queryKey: ['threat-pulse', limit, days ?? null],
-    queryFn: () => trendingApi.getThreatPulse(limit, days),
-    // 10 min for full-catalog scans (heavier query, slower-moving signal),
-    // 5 min for windowed scans (lighter query, fresher data is the point).
-    staleTime: days != null ? 1000 * 60 * 5 : 1000 * 60 * 10,
-  });
-}

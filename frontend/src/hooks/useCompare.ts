@@ -14,14 +14,6 @@ export function useCompare(params: {
   });
 }
 
-export function useCoverageGap(baseSource: string, compareSource: string) {
-  return useQuery({
-    queryKey: ['coverageGap', baseSource, compareSource],
-    queryFn: () => compareApi.coverageGap(baseSource, compareSource),
-    enabled: !!(baseSource && compareSource),
-  });
-}
-
 export function useCoverageMatrix(params?: {
   tactic?: string;
   include_subtechniques?: boolean;

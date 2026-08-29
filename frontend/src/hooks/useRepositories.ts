@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { repositoriesApi } from '../services/api';
 
 export function useRepositories() {
@@ -20,50 +20,3 @@ export function useRepository(name: string) {
   });
 }
 
-export function useSyncRepository() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: repositoriesApi.sync,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['repositories'] });
-    },
-  });
-}
-
-export function useSyncAllRepositories() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: repositoriesApi.syncAll,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['repositories'] });
-    },
-  });
-}
-
-export function useIngestRepository() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: repositoriesApi.ingest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['repositories'] });
-      queryClient.invalidateQueries({ queryKey: ['detections'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-    },
-  });
-}
-
-export function useIngestAllRepositories() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: repositoriesApi.ingestAll,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['repositories'] });
-      queryClient.invalidateQueries({ queryKey: ['detections'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-    },
-  });
-}

@@ -8,7 +8,6 @@ import { Link } from 'react-router-dom';
 import {
   useTrendingTechniques,
   useTrendingPlatforms,
-  useTrendingUseCases,
   useTrendingDataSources,
 } from '../../hooks/useTrending';
 import { useMitre } from '../../contexts/MitreContext';
@@ -75,31 +74,6 @@ export function TrendingTechniquesList({ days, filters }: { days: number; filter
           sources={t.sources}
           href={`/mitre/${t.technique_id}`}
           accent="matrix"
-        />
-      ))}
-    </div>
-  );
-}
-
-export function TrendingUseCasesList({ days, filters }: { days: number; filters: ActivityFilters }) {
-  const { data, isLoading, error } = useTrendingUseCases(days, 8, filters);
-
-  if (isLoading) return <div className="space-y-1">{[...Array(8)].map((_, i) => <SkeletonRow key={i} />)}</div>;
-  if (error || !data?.use_cases?.length) return <EmptyLabel label="NO_USE_CASE_DATA" />;
-
-  const max = Math.max(...data.use_cases.map((u) => u.count));
-  return (
-    <div className="space-y-1">
-      {data.use_cases.map((u, i) => (
-        <TrendingRow
-          key={u.use_case}
-          rank={i + 1}
-          primary={u.use_case}
-          count={u.count}
-          maxCount={max}
-          sources={u.sources}
-          href={`/detections?use_cases=${encodeURIComponent(u.use_case)}`}
-          accent="amber"
         />
       ))}
     </div>

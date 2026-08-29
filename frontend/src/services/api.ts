@@ -135,11 +135,6 @@ export const detectionsApi = {
     return response.data;
   },
 
-  search: async (filters: SearchFilters): Promise<DetectionListResponse> => {
-    const response = await api.post('/detections/search', filters);
-    return response.data;
-  },
-
   get: async (id: string): Promise<Detection> => {
     const response = await api.get(`/detections/${id}`);
     return response.data;
@@ -892,19 +887,6 @@ export const trendingApi = {
     );
     return response.data;
   },
-
-  getThreatPulse: async (
-    limit: number = 8,
-    days?: number,
-  ): Promise<ThreatPulseResponse> => {
-    // Pass `days` for a time-windowed pulse; omit for the full-catalog
-    // scan. Backend caps at 7-730 — we don't enforce client-side; the
-    // 422 from the API is informative enough.
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (days != null) params.set('days', String(days));
-    const response = await api.get(`/trending/threats?${params}`);
-    return response.data;
-  },
 };
 
 export interface RecentRuleItem {
@@ -921,36 +903,6 @@ export interface RecentRuleItem {
 export interface RecentRulesResponse {
   most_recently_created: RecentRuleItem[];
   most_recently_modified: RecentRuleItem[];
-}
-
-// Threat pulse — named threats (Splunk analytic_story + Sublime Malfam)
-// and CVE mentions extracted across tags/title/description.
-export interface ThreatExample {
-  id: string;
-  title: string;
-  source: string;
-}
-
-export interface NamedThreat {
-  name: string;
-  kind: string; // "campaign" | "malware"
-  count: number;
-  sources: string[];
-  examples: ThreatExample[];
-}
-
-export interface CveMention {
-  cve: string;
-  count: number;
-  sources: string[];
-  examples: ThreatExample[];
-}
-
-export interface ThreatPulseResponse {
-  scope: 'window' | 'full_catalog';
-  period_days: number | null;
-  named_threats: NamedThreat[];
-  cves: CveMention[];
 }
 
 export default api;
