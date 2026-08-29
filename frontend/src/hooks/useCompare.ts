@@ -1,19 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { compareApi } from '../services/api';
 
-export function useCompare(params: {
-  technique?: string;
-  keyword?: string;
-  platform?: string;
-  sources?: string[];
-}) {
-  return useQuery({
-    queryKey: ['compare', params],
-    queryFn: () => compareApi.compare(params),
-    enabled: !!(params.technique || params.keyword || params.platform),
-  });
-}
-
 export function useCoverageMatrix(params?: {
   tactic?: string;
   include_subtechniques?: boolean;

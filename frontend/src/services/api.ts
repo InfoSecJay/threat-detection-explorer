@@ -6,8 +6,6 @@ import type {
   SyncResponse,
   IngestionResponse,
   SearchFilters,
-  CompareResponse,
-  SideBySideResponse,
   Statistics,
   ExportRequest,
 } from '../types';
@@ -162,42 +160,10 @@ export const detectionsApi = {
   },
 };
 
-// Compare endpoints
+// Compare endpoints. Only the coverage matrix is consumed today (MITRE
+// page); the old /compare and /compare/side-by-side pages were removed
+// in #48 pending the observable-level rebuild (#11).
 export const compareApi = {
-  compare: async (params: {
-    technique?: string;
-    keyword?: string;
-    platform?: string;
-    sources?: string[];
-  }): Promise<CompareResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params.technique) searchParams.set('technique', params.technique);
-    if (params.keyword) searchParams.set('keyword', params.keyword);
-    if (params.platform) searchParams.set('platform', params.platform);
-    if (params.sources?.length) searchParams.set('sources', params.sources.join(','));
-
-    const response = await api.get(`/compare?${searchParams.toString()}`);
-    return response.data;
-  },
-
-  coverageGap: async (baseSource: string, compareSource: string): Promise<{
-    base_source: string;
-    compare_source: string;
-    base_technique_count: number;
-    compare_technique_count: number;
-    overlap_count: number;
-    gaps: string[];
-    unique_to_compare: string[];
-  }> => {
-    const response = await api.get(`/compare/coverage-gap?base_source=${baseSource}&compare_source=${compareSource}`);
-    return response.data;
-  },
-
-  sideBySide: async (ids: string[]): Promise<SideBySideResponse> => {
-    const response = await api.post('/compare/side-by-side', { ids });
-    return response.data;
-  },
-
   coverageMatrix: async (params?: {
     tactic?: string;
     include_subtechniques?: boolean;

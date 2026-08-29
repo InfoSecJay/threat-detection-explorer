@@ -17,13 +17,9 @@ const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ de
 const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({ default: m.QueryReference })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
-// Temporarily hidden — pages need rework before they're re-exposed.
-// Files stay in the tree; just don't import / route / link them.
-// Track re-enable work in docs/roadmap.md under "Hidden pages".
-//   Compare      — cross-vendor comparison needs rework
-//   SideBySide   — depends on Compare; hidden together
-// const Compare        = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
-// const SideBySide     = lazy(() => import('./pages/SideBySide').then(m => ({ default: m.SideBySide })));
+// The old Compare / SideBySide pages were removed (#48); the rebuild as
+// an observable-level diff is tracked in #11. Their routes below still
+// redirect so old links do not 404.
 const IndustryIntel     = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 
 // Lightweight loading state shown while a lazy route's chunk fetches.

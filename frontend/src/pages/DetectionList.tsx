@@ -71,9 +71,11 @@ export function DetectionList() {
     }
   }, [filterSheetPinned]);
 
-  // Global keyboard shortcuts — `/` focuses the search bar (unless
-  // typing elsewhere), Cmd/Ctrl+F opens the filter sheet. Escape
-  // closes anything open (handled by the bar + sheet locally).
+  // Global keyboard shortcuts — `/` focuses the search bar and `f`
+  // opens the filter sheet (both only when not typing in a field).
+  // Escape closes anything open (handled by the bar + sheet locally).
+  // `f` replaced Cmd/Ctrl+F (#49): intercepting that hijacked the
+  // browser's find-in-page on the one page where people most want it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -90,7 +92,7 @@ export function DetectionList() {
         bar?.focus();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      if (e.key === 'f' && !isTyping && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setFilterSheetOpen(true);
       }

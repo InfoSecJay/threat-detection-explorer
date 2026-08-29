@@ -214,8 +214,8 @@ export function QueryReference() {
                 <td className="px-3 py-2 text-gray-300">Focus the search bar.</td>
               </tr>
               <tr className="hover:bg-void-850">
-                <td className="px-3 py-2 text-matrix-500"><kbd>Cmd</kbd> / <kbd>Ctrl</kbd> + <kbd>F</kbd></td>
-                <td className="px-3 py-2 text-gray-300">Open the filters sheet.</td>
+                <td className="px-3 py-2 text-matrix-500"><kbd>f</kbd></td>
+                <td className="px-3 py-2 text-gray-300">Open the filters sheet (when not typing in a field). Cmd/Ctrl+F is left to the browser.</td>
               </tr>
               <tr className="hover:bg-void-850">
                 <td className="px-3 py-2 text-matrix-500"><kbd>↑</kbd> <kbd>↓</kbd></td>

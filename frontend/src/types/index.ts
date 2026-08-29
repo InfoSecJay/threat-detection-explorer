@@ -179,19 +179,6 @@ export interface SearchFilters {
   sort_order?: 'asc' | 'desc';
 }
 
-// Compare types
-export interface CompareResponse {
-  query_type: 'technique' | 'keyword' | 'platform';
-  query_value: string;
-  results: Record<string, Detection[]>;
-  total_by_source: Record<string, number>;
-}
-
-export interface SideBySideResponse {
-  detections: Detection[];
-  field_comparison: Record<string, (string | null)[]>;
-}
-
 // Statistics types
 export interface Statistics {
   total: number;
