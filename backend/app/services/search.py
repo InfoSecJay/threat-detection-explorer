@@ -261,43 +261,43 @@ class SearchService:
 
         return grouped
 
+    # Fixed vocabularies the statistics payload always reports, zero-filled.
+    _STAT_SEVERITIES = ("low", "medium", "high", "critical", "unknown")
+    _STAT_STATUSES = ("stable", "experimental", "deprecated", "unknown")
+
     async def get_statistics(self) -> dict:
         """Get overall statistics about stored detections.
+
+        Four round trips regardless of vocabulary size: one GROUP BY
+        each for source / severity / status (zero-filled to the fixed
+        key sets so the payload shape never depends on the corpus) and
+        one for hygiene averages. Previously one COUNT per key (22).
 
         Returns:
             Statistics dict with counts by source, severity, etc.
         """
         stats = {
             "total": 0,
-            "by_source": {},
-            "by_severity": {},
-            "by_status": {},
+            "by_source": {s: 0 for s in ALL_REPOSITORY_NAMES},
+            "by_severity": {s: 0 for s in self._STAT_SEVERITIES},
+            "by_status": {s: 0 for s in self._STAT_STATUSES},
             "top_techniques": [],
             "top_tactics": [],
         }
-
-        # Count by source
-        for source in ALL_REPOSITORY_NAMES:
-            count_result = await self.db.execute(
-                select(func.count(Detection.id)).where(Detection.source == source)
-            )
-            count = count_result.scalar() or 0
-            stats["by_source"][source] = count
-            stats["total"] += count
-
-        # Count by severity
-        for severity in ["low", "medium", "high", "critical", "unknown"]:
-            count_result = await self.db.execute(
-                select(func.count(Detection.id)).where(Detection.severity == severity)
-            )
-            stats["by_severity"][severity] = count_result.scalar() or 0
-
-        # Count by status
-        for status in ["stable", "experimental", "deprecated", "unknown"]:
-            count_result = await self.db.execute(
-                select(func.count(Detection.id)).where(Detection.status == status)
-            )
-            stats["by_status"][status] = count_result.scalar() or 0
+        for column, bucket in (
+            (Detection.source, stats["by_source"]),
+            (Detection.severity, stats["by_severity"]),
+            (Detection.status, stats["by_status"]),
+        ):
+            rows = (
+                await self.db.execute(select(column, func.count(Detection.id)).group_by(column))
+            ).all()
+            for value, n in rows:
+                if value in bucket:
+                    bucket[value] = int(n)
+        # Known sources only, matching by_source (an unregistered
+        # source in the table is a sync bug, not a statistic).
+        stats["total"] = sum(stats["by_source"].values())
 
         # Hygiene averages (#39): per source and overall, over scored
         # rows only. `scored` says how much of the source the average
@@ -330,6 +330,50 @@ class SearchService:
         )
 
         return stats
+
+    _FILTER_OPTION_SCALARS = ("source", "status", "severity", "language")
+    _FILTER_OPTION_FACETS = (
+        "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
+    )
+
+    async def get_filter_options(self) -> dict:
+        """Everything GET /detections/filters returns, from ONE corpus scan.
+
+        Scalar dimensions come back as sorted distinct values; taxonomy
+        list columns as [{value, count}] by descending count -- the same
+        shapes get_unique_values / get_taxonomy_facet produce, without
+        ten separate round trips.
+        """
+        scalar_cols = [getattr(Detection, c) for c in self._FILTER_OPTION_SCALARS]
+        facet_cols = [getattr(Detection, c) for c in self._FILTER_OPTION_FACETS]
+        rows = (await self.db.execute(select(*scalar_cols, *facet_cols))).all()
+
+        n_scalar = len(scalar_cols)
+        distinct: list[set[str]] = [set() for _ in scalar_cols]
+        counts: list[dict[str, int]] = [{} for _ in facet_cols]
+        for row in rows:
+            for i in range(n_scalar):
+                v = row[i]
+                if v:
+                    distinct[i].add(v)
+            for j, values in enumerate(row[n_scalar:]):
+                if not isinstance(values, list):
+                    continue
+                bucket = counts[j]
+                for v in values:
+                    if isinstance(v, str):
+                        bucket[v] = bucket.get(v, 0) + 1
+
+        plural = {"source": "sources", "status": "statuses", "severity": "severities", "language": "languages"}
+        out: dict = {
+            plural[name]: sorted(distinct[i]) for i, name in enumerate(self._FILTER_OPTION_SCALARS)
+        }
+        for j, name in enumerate(self._FILTER_OPTION_FACETS):
+            out[name] = [
+                {"value": v, "count": c}
+                for v, c in sorted(counts[j].items(), key=lambda kv: (-kv[1], kv[0]))
+            ]
+        return out
 
     async def get_unique_values(self, field_name: str) -> list[str]:
         """Get unique values for a field (for filter dropdowns).
@@ -438,60 +482,83 @@ class SearchService:
         would I get if I clicked this?" instead of showing options
         that lead to empty result sets.
 
+        Round trips: dimensions whose own-selection reset yields the
+        SAME effective filter share one scan (with nothing selected,
+        every dimension does -- one query for the whole sidebar; each
+        selected dimension adds one). All aggregation happens in
+        Python over the fetched columns, portable across SQLite and
+        Postgres and cheap at ~12k rows (same tradeoff as
+        get_taxonomy_facet).
+
         Returns:
             Dict of response key -> [{"value": str, "count": int}]
-            sorted by descending count. JSON-list columns aggregate in
-            Python (portable across SQLite + Postgres, cheap at ~12k
-            rows -- same tradeoff as get_taxonomy_facet).
+            sorted by descending count.
         """
-        out: dict[str, list[dict]] = {}
-        for key, (own_field, column_name, is_json) in self._FACET_DIMENSIONS.items():
-            # Own-selection reset: list dimensions clear to [], the
-            # boolean tri-state clears to None.
+        # Group dimensions by effective filter set. quality_band (#39)
+        # is a pseudo-dimension whose own field is min_quality.
+        groups: list[tuple[SearchFilters, list[str]]] = []
+
+        def _join(sub: SearchFilters, key: str) -> None:
+            for existing, keys in groups:
+                if existing == sub:
+                    keys.append(key)
+                    return
+            groups.append((sub, [key]))
+
+        for key, (own_field, _column, _is_json) in self._FACET_DIMENSIONS.items():
             reset = None if own_field == "building_block" else []
-            sub_filters = replace(filters, **{own_field: reset})
-            conditions = self._build_conditions(sub_filters)
-            column = getattr(Detection, column_name)
+            _join(replace(filters, **{own_field: reset}), key)
+        _join(replace(filters, min_quality=None), "quality_band")
 
-            counts: dict[str, int] = {}
-            if is_json:
-                query = select(column)
-                if conditions:
-                    query = query.where(and_(*conditions))
-                result = await self.db.execute(query)
-                for row in result.scalars().all():
-                    if not row:
-                        continue
-                    for v in (row if isinstance(row, list) else []):
-                        if isinstance(v, str):
-                            counts[v] = counts.get(v, 0) + 1
-            else:
-                query = select(column, func.count(Detection.id)).group_by(column)
-                if conditions:
-                    query = query.where(and_(*conditions))
-                result = await self.db.execute(query)
-                # Booleans stringify as "True"; the API contract is
-                # lowercase ("true") so the FE can compare literally.
-                counts = {
-                    (str(v).lower() if isinstance(v, bool) else str(v)): c
-                    for v, c in result.all()
-                    if v
-                }
-
-            out[key] = [
-                {"value": v, "count": c}
-                for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        counts_by_key: dict[str, dict[str, int]] = {}
+        scores: list[int] = []
+        for sub, keys in groups:
+            columns = [
+                Detection.quality_score if k == "quality_band"
+                else getattr(Detection, self._FACET_DIMENSIONS[k][1])
+                for k in keys
             ]
+            query = select(*columns)
+            conditions = self._build_conditions(sub)
+            if conditions:
+                query = query.where(and_(*conditions))
+            rows = (await self.db.execute(query)).all()
 
-        # Hygiene bands (#39): cumulative "at least N" counts for the
-        # sheet's threshold control, excluding the threshold's own
-        # selection like every other dimension. Value is the threshold
-        # so the FE can pass it straight back as min_quality.
-        band_conditions = self._build_conditions(replace(filters, min_quality=None))
-        band_query = select(Detection.quality_score).where(Detection.quality_score.isnot(None))
-        if band_conditions:
-            band_query = band_query.where(and_(*band_conditions))
-        scores = [s for s in (await self.db.execute(band_query)).scalars().all() if s is not None]
+            for i, k in enumerate(keys):
+                if k == "quality_band":
+                    scores = [r[i] for r in rows if r[i] is not None]
+                    continue
+                is_json = self._FACET_DIMENSIONS[k][2]
+                counts: dict[str, int] = {}
+                if is_json:
+                    for r in rows:
+                        values = r[i]
+                        if isinstance(values, list):
+                            for v in values:
+                                if isinstance(v, str):
+                                    counts[v] = counts.get(v, 0) + 1
+                else:
+                    for r in rows:
+                        v = r[i]
+                        # Falsy values (NULL, False, "") are not options;
+                        # booleans stringify lowercase ("true") so the
+                        # FE can compare literally.
+                        if not v:
+                            continue
+                        label = str(v).lower() if isinstance(v, bool) else str(v)
+                        counts[label] = counts.get(label, 0) + 1
+                counts_by_key[k] = counts
+
+        out: dict[str, list[dict]] = {
+            key: [
+                {"value": v, "count": c}
+                for v, c in sorted(counts_by_key[key].items(), key=lambda kv: (-kv[1], kv[0]))
+            ]
+            for key in self._FACET_DIMENSIONS
+        }
+        # Hygiene bands: cumulative "at least N" counts for the sheet's
+        # threshold control. Value is the threshold so the FE can pass
+        # it straight back as min_quality.
         out["quality_band"] = [
             {"value": str(threshold), "count": sum(1 for s in scores if s >= threshold)}
             for threshold in (80, 60, 40)

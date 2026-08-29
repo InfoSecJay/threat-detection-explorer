@@ -200,22 +200,7 @@ async def get_filter_options(db: AsyncSession = Depends(get_db)):
     descending count. Counts come directly from the corpus so the UI
     always reflects what's actually stored.
     """
-    search_service = SearchService(db)
-
-    return {
-        "sources": await search_service.get_unique_values("source"),
-        "statuses": await search_service.get_unique_values("status"),
-        "severities": await search_service.get_unique_values("severity"),
-        "languages": await search_service.get_unique_values("language"),
-        # Canonical array facets powered by corpus counts. These are
-        # what the FilterSidebar UI consumes.
-        "platforms": await search_service.get_taxonomy_facet("platforms"),
-        "data_sources": await search_service.get_taxonomy_facet("data_sources"),
-        "event_types": await search_service.get_taxonomy_facet("event_types"),
-        "use_cases": await search_service.get_taxonomy_facet("use_cases"),
-        "mitre_groups": await search_service.get_taxonomy_facet("mitre_groups"),
-        "mitre_software": await search_service.get_taxonomy_facet("mitre_software"),
-    }
+    return await SearchService(db).get_filter_options()
 
 
 @router.get("/facets")
