@@ -42,6 +42,7 @@ def _detection(
     title: str = "Sample rule",
     severity: str = "medium",
     updated_at=None,
+    sync_run_id: str | None = None,
 ) -> Detection:
     """Build a minimally-populated Detection row.
 
@@ -50,6 +51,7 @@ def _detection(
     """
     return Detection(
         id=id_,
+        sync_run_id=sync_run_id,
         source=source,
         source_file=f"{source}/{id_}.yml",
         source_repo_url=f"https://example.test/{source}",
@@ -165,17 +167,21 @@ async def test_store_rules_updates_updated_at_on_upsert(ingestion_service, db_se
 
 
 @pytest.mark.asyncio
-async def test_cleanup_removes_rows_older_than_ingest_start(
+async def test_cleanup_removes_rows_not_stamped_with_current_run(
     ingestion_service, db_session
 ):
-    """Old row (from a previous ingest) gets pruned; fresh row survives."""
-    long_ago = utcnow() - timedelta(days=30)
-    db_session.add(_detection(id_="stale", updated_at=long_ago))
-    db_session.add(_detection(id_="fresh"))  # default updated_at = now
+    """Rows from a previous run (or with no run id at all -- written
+    before the column existed) get pruned; the current run's rows
+    survive. Timestamps are irrelevant (#31): the stale row is given a
+    NEWER updated_at than the fresh one and must still go."""
+    db_session.add(_detection(id_="stale", sync_run_id="run-old", updated_at=utcnow()))
+    db_session.add(_detection(id_="legacy", sync_run_id=None))
+    db_session.add(
+        _detection(id_="fresh", sync_run_id="run-new", updated_at=utcnow() - timedelta(days=30))
+    )
     await db_session.commit()
 
-    ingest_start = utcnow() - timedelta(seconds=1)
-    await ingestion_service._cleanup_stale_rules("sigma", ingest_start)
+    await ingestion_service._cleanup_stale_rules("sigma", "run-new")
 
     surviving = {
         r.id for r in (await db_session.execute(select(Detection))).scalars().all()
@@ -187,13 +193,12 @@ async def test_cleanup_removes_rows_older_than_ingest_start(
 async def test_cleanup_only_touches_target_source(ingestion_service, db_session):
     """Cleanup must scope its DELETE to the source being ingested.
     A regression that drops the source filter would wipe other sources'
-    rules with old `updated_at`."""
-    long_ago = utcnow() - timedelta(days=30)
-    db_session.add(_detection(id_="sigma-old",  source="sigma",  updated_at=long_ago))
-    db_session.add(_detection(id_="splunk-old", source="splunk", updated_at=long_ago))
+    rules stamped by their own runs."""
+    db_session.add(_detection(id_="sigma-old",  source="sigma",  sync_run_id="run-old"))
+    db_session.add(_detection(id_="splunk-old", source="splunk", sync_run_id="run-old"))
     await db_session.commit()
 
-    await ingestion_service._cleanup_stale_rules("sigma", utcnow())
+    await ingestion_service._cleanup_stale_rules("sigma", "run-new")
 
     surviving = {
         r.id for r in (await db_session.execute(select(Detection))).scalars().all()
@@ -214,43 +219,37 @@ async def test_atomic_swap_full_cycle(ingestion_service, db_session):
         wasn't in the second ingest, C is the updated copy, D is new."""
     from app.services.ingestion_errors import IngestionStats
 
-    # First ingest. Capture ingest_start BEFORE the rows land — that's
-    # what production does in `ingest_repository`. The new rows then
-    # have updated_at >= ingest_start and the cleanup leaves them alone.
-    ingest1_start = utcnow() - timedelta(seconds=1)
+    # First ingest: every row stamped with this run's id (production
+    # does this in _to_detection_model), then cleanup for that id.
     stats1 = IngestionStats()
-    rules1 = [_detection(id_="A"), _detection(id_="B"), _detection(id_="C")]
-    for r in rules1:
-        r.updated_at = utcnow()  # production sets this in _to_detection_model
+    rules1 = [_detection(id_=i, sync_run_id="run-1") for i in ("A", "B", "C")]
     await ingestion_service._store_rules_safe(rules1, stats1)
-    await ingestion_service._cleanup_stale_rules("sigma", ingest1_start)
+    await ingestion_service._cleanup_stale_rules("sigma", "run-1")
     initial = {
         r.id for r in (await db_session.execute(select(Detection))).scalars().all()
     }
     assert initial == {"A", "B", "C"}
 
-    # Second ingest — A absent, C updated, D added.
-    # ingest2_start must come AFTER the first ingest's updated_at
-    # stamps. In production the gap is minutes; in tests the two ingests
-    # run within microseconds, so we explicitly anchor ingest2_start
-    # past the latest first-ingest write.
-    ingest2_start = utcnow() + timedelta(milliseconds=10)
+    # Second ingest — A absent, C updated, D added. No timestamp
+    # anchoring needed any more: the run id decides, however close
+    # together the two ingests run.
     stats2 = IngestionStats()
     rules2 = [
-        _detection(id_="B"),
-        _detection(id_="C", title="updated C"),
-        _detection(id_="D"),
+        _detection(id_="B", sync_run_id="run-2"),
+        _detection(id_="C", title="updated C", sync_run_id="run-2"),
+        _detection(id_="D", sync_run_id="run-2"),
     ]
-    for r in rules2:
-        r.updated_at = ingest2_start + timedelta(milliseconds=1)
     await ingestion_service._store_rules_safe(rules2, stats2)
-    await ingestion_service._cleanup_stale_rules("sigma", ingest2_start)
+    await ingestion_service._cleanup_stale_rules("sigma", "run-2")
 
     rows = {
         r.id: r for r in (await db_session.execute(select(Detection))).scalars().all()
     }
     assert set(rows.keys()) == {"B", "C", "D"}, "A should be pruned, D should be added"
     assert rows["C"].title == "updated C", "C should reflect the second ingest's content"
+    assert {r.sync_run_id for r in rows.values()} == {"run-2"}, (
+        "every surviving row is traceable to the run that wrote it"
+    )
 
 
 @pytest.mark.asyncio

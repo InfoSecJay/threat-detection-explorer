@@ -167,6 +167,14 @@ class Detection(Base):
         onupdate=utcnow,
     )
 
+    # Id of the ingest run that last upserted this row (#31). Stale-row
+    # cleanup deletes rows of a source whose run id is not the current
+    # one -- immune to clock skew between app and DB and to two ingests
+    # of the same source overlapping, which the old `updated_at <
+    # ingest_start` watermark was not. NULL only on rows written before
+    # the column existed; the next ingest of that source stamps them.
+    sync_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+
     # Indexes for common queries
     __table_args__ = (
         Index("ix_detections_title", "title"),

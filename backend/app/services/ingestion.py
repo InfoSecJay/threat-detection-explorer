@@ -8,7 +8,9 @@ from typing import Optional
 
 from app.utils.datetime_utils import utcnow
 
-from sqlalchemy import select, delete, func
+import uuid
+
+from sqlalchemy import select, delete, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -105,7 +107,9 @@ class IngestionService:
             ),
         }
 
-    async def ingest_repository(self, repo_name: str) -> IngestionStats:
+    async def ingest_repository(
+        self, repo_name: str, sync_run_id: Optional[str] = None,
+    ) -> IngestionStats:
         """Ingest all detection rules from a repository.
 
         Uses an upsert-then-cleanup pattern so that a mid-ingest crash
@@ -115,15 +119,22 @@ class IngestionService:
         steps left the source empty (this happened to sentinel on
         2026-04-11).
 
-        The new flow:
-          1. Record `ingest_start` timestamp.
+        The flow:
+          1. Pick a `sync_run_id` for this run (the scheduler passes the
+             sync job id; ad-hoc callers get a fresh UUID).
           2. Upsert every new rule via `session.merge()` (updates existing
-             rows by PK, inserts new ones). Each row's `updated_at` is
-             set to now(), which is >= `ingest_start`.
-          3. After ALL rules are stored, delete stale rows whose
-             `updated_at < ingest_start` — these are rules that existed
-             in the previous ingest but are no longer in the upstream
-             repo (deleted/moved files).
+             rows by PK, inserts new ones), each stamped with the run id.
+          3. After ALL rules are stored, delete stale rows of this source
+             whose `sync_run_id` is not this run's — rules that existed
+             in the previous ingest but are no longer upstream
+             (deleted/moved files). Keyed on the run id rather than an
+             `updated_at < ingest_start` watermark (#31): no reliance
+             on timestamp ordering (sub-millisecond writes, clock
+             adjustments), and every row is traceable to the sync job
+             that wrote it. Note this does NOT make two concurrent
+             ingests of the same source safe -- each would prune the
+             other's rows -- that needs single-flight per source, which
+             the worker's one-job-at-a-time loop provides today.
           4. If the process crashes mid-ingest, old rows (from the
              previous successful ingest) coexist with partially-updated
              new rows. No data is lost. The next successful ingest will
@@ -131,6 +142,9 @@ class IngestionService:
 
         Args:
             repo_name: Name of the repository (sigma, elastic, splunk, etc.)
+            sync_run_id: Identifier stamped on every upserted row; the
+                scheduler passes its SyncJob id so rows are traceable to
+                the job that wrote them.
 
         Returns:
             IngestionStats with detailed statistics and error information
@@ -143,7 +157,7 @@ class IngestionService:
 
         stats = IngestionStats()
         stats.start_time = utcnow()
-        ingest_start = stats.start_time
+        run_id = sync_run_id or str(uuid.uuid4())
 
         if repo_name == "sentinel":
             # The Sentinel normalizer classifies threat tags against the
@@ -228,7 +242,7 @@ class IngestionService:
                 )
 
                 # Convert to database model
-                detection = self._to_detection_model(normalized)
+                detection = self._to_detection_model(normalized, run_id)
                 rules_to_store.append(detection)
 
                 # Batch insert
@@ -252,16 +266,16 @@ class IngestionService:
             stats.stored += stored_count
 
         # Remove rules that no longer exist in the upstream repo. Any row
-        # whose updated_at is older than this ingest's start time was NOT
-        # touched by merge() above, meaning its source file has been
-        # deleted or moved upstream. Safe to remove.
+        # of this source not stamped with this run's id was NOT touched
+        # by merge() above, meaning its source file has been deleted or
+        # moved upstream. Safe to remove.
         #
         # Circuit-breaker guarded: refuses cleanup if discovery dropped
         # sharply vs the previous ingest — protects against a broken
         # sparse-checkout / branch rename / renamed rules dir silently
         # zeroing the source's rule count. See #28.
         cleanup_ran = await self._cleanup_stale_rules_guarded(
-            repo_name, ingest_start, stats,
+            repo_name, run_id, stats,
         )
 
         # Update repository.rule_count from DB truth (post-cleanup
@@ -338,15 +352,18 @@ class IngestionService:
         return stored
 
     async def _cleanup_stale_rules(
-        self, repo_name: str, ingest_start: datetime
+        self, repo_name: str, sync_run_id: str
     ) -> None:
         """Delete rules that were NOT touched by the current ingest.
 
-        Any row whose `updated_at` is older than `ingest_start` was not
+        Any row of this source whose `sync_run_id` is not this run's
+        (or NULL, for rows written before the column existed) was not
         upserted during this ingest run, meaning the corresponding
         source file no longer exists in the upstream repo (deleted,
         renamed to something unparseable, moved outside the rule
-        directory, etc.). Safe to remove.
+        directory, etc.). Safe to remove. Keyed on the run id instead
+        of an `updated_at` watermark so app/DB clock skew and
+        overlapping ingests of one source cannot delete fresh rows (#31).
 
         This runs AFTER all new rules are successfully stored, so a
         crash before this point leaves old + new rows coexisting
@@ -356,7 +373,7 @@ class IngestionService:
         result = await self.db.execute(
             delete(Detection)
             .where(Detection.source == repo_name)
-            .where(Detection.updated_at < ingest_start)
+            .where(or_(Detection.sync_run_id.is_(None), Detection.sync_run_id != sync_run_id))
         )
         stale_count = result.rowcount or 0
         if stale_count > 0:
@@ -415,7 +432,7 @@ class IngestionService:
     async def _cleanup_stale_rules_guarded(
         self,
         repo_name: str,
-        ingest_start: datetime,
+        sync_run_id: str,
         stats: IngestionStats,
     ) -> bool:
         """Run `_cleanup_stale_rules` behind a mass-delete circuit breaker.
@@ -469,7 +486,7 @@ class IngestionService:
                     await self.db.commit()
                 return False
 
-        await self._cleanup_stale_rules(repo_name, ingest_start)
+        await self._cleanup_stale_rules(repo_name, sync_run_id)
         return True
 
     @staticmethod
@@ -479,7 +496,9 @@ class IngestionService:
             return None
         return dt
 
-    def _to_detection_model(self, normalized: NormalizedDetection) -> Detection:
+    def _to_detection_model(
+        self, normalized: NormalizedDetection, sync_run_id: Optional[str] = None,
+    ) -> Detection:
         """Convert normalized detection to database model."""
         # Deterministic hygiene score (issue #10) — computed here so
         # every source passes through one scoring point.
@@ -534,6 +553,7 @@ class IngestionService:
             use_cases=normalized.use_cases,
             created_at=utcnow(),
             updated_at=utcnow(),
+            sync_run_id=sync_run_id,
         )
 
     async def get_ingestion_stats(self) -> dict:

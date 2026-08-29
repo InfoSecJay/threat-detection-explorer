@@ -145,7 +145,9 @@ async def run_full_sync_job(
                         continue
 
                     logger.info(f"Ingesting rules from: {repo_name}")
-                    stats = await ingestion_service.ingest_repository(repo_name)
+                    stats = await ingestion_service.ingest_repository(
+                        repo_name, sync_run_id=str(job_id),
+                    )
 
                     repo_result["ingest_success"] = stats.stored > 0
                     repo_result["rules_discovered"] = stats.discovered
