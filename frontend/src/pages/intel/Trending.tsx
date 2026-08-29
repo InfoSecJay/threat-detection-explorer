@@ -5,7 +5,12 @@
  */
 
 import { Link } from 'react-router-dom';
-import { useTrendingTechniques, useTrendingPlatforms, useTrendingUseCases } from '../../hooks/useTrending';
+import {
+  useTrendingTechniques,
+  useTrendingPlatforms,
+  useTrendingUseCases,
+  useTrendingDataSources,
+} from '../../hooks/useTrending';
 import { useMitre } from '../../contexts/MitreContext';
 import { sourceTheme as sourceConfig } from '../../constants/style';
 import type { ActivityFilters } from '../../services/api';
@@ -125,6 +130,40 @@ export function TrendingPlatformsList({
           maxCount={max}
           sources={p.sources}
           href={`/detections?platforms=${p.platform}`}
+          accent="cyan"
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Emerging data sources (#17): where NEW detection content is being
+ * written, by canonical data source. Keyed on created date upstream so
+ * a hygiene pass over old rules does not read as a trend. */
+export function TrendingDataSourcesList({
+  days,
+  filters,
+}: {
+  days: number;
+  filters: Omit<ActivityFilters, 'platforms'>;
+}) {
+  const { data, isLoading, error } = useTrendingDataSources(days, 8, filters);
+
+  if (isLoading) return <div className="space-y-1">{[...Array(8)].map((_, i) => <SkeletonRow key={i} />)}</div>;
+  if (error || !data?.data_sources?.length) return <EmptyLabel label="NO_NEW_RULES_IN_WINDOW" />;
+
+  const max = Math.max(...data.data_sources.map((d) => d.count));
+  return (
+    <div className="space-y-1">
+      {data.data_sources.map((d, i) => (
+        <TrendingRow
+          key={d.data_source}
+          rank={i + 1}
+          primary={d.data_source}
+          count={d.count}
+          maxCount={max}
+          sources={d.sources}
+          href={`/detections?data_sources_normalized=${encodeURIComponent(d.data_source)}`}
           accent="cyan"
         />
       ))}

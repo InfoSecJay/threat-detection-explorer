@@ -40,6 +40,7 @@ import { NotableNewRulesSection } from './intel/NotableNewRules';
 import {
   TrendingTechniquesList,
   TrendingPlatformsList,
+  TrendingDataSourcesList,
 } from './intel/Trending';
 import { JustCoveredSection } from './intel/JustCovered';
 import { periodOptions } from './intel/lib';
@@ -235,6 +236,9 @@ export function IndustryIntel() {
               </TrendingTile>
               <TrendingTile title="Trending Platforms" accent="cyan">
                 <TrendingPlatformsList days={period} filters={filters} />
+              </TrendingTile>
+              <TrendingTile title="Emerging Data Sources" accent="cyan">
+                <TrendingDataSourcesList days={period} filters={filters} />
               </TrendingTile>
               <TrendingTile title="Just Covered" accent="amber">
                 <JustCoveredSection days={period} sources={sourceFilter} />

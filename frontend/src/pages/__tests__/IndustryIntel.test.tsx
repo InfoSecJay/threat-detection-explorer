@@ -37,6 +37,17 @@ vi.mock('../../hooks/useTrending', () => ({
   useTrendingTechniques: () => ({ data: { techniques: [] }, isLoading: false, error: null }),
   useTrendingPlatforms:  () => ({ data: { platforms: [] },  isLoading: false, error: null }),
   useTrendingUseCases:   () => ({ data: { use_cases: [] },  isLoading: false, error: null }),
+  useTrendingDataSources: () => ({
+    data: {
+      period_days: 30, cutoff_date: '',
+      data_sources: [
+        { data_source: 'OfficeActivity', count: 12, sources: ['sentinel'], latest_date: null },
+        { data_source: 'Sysmon', count: 4, sources: ['sigma', 'splunk'], latest_date: null },
+      ],
+    },
+    isLoading: false,
+    error: null,
+  }),
   useTrendingSummary:    () => ({
     data: {
       period_days: 30,

@@ -128,3 +128,56 @@ async def test_summary_is_empty_on_quiet_corpus(client, db_session):
     assert resp.status_code == 200
     assert resp.json()["total_created"] == 0
     assert resp.json()["by_source"] == {}
+
+
+# -- /data-sources (#17) -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_data_sources_rank_by_new_rule_volume(client, db_session):
+    """Keyed on rule_created_date: a hygiene pass (modified only) does
+    not count; multi-source rules count once per data source; the
+    unknown sentinel is dropped; ties break alphabetically."""
+    recent = datetime(2026, 8, 20)
+    db_session.add_all([
+        _rule(source="sentinel", data_sources=["OfficeActivity", "SigninLogs"], rule_created_date=recent),
+        _rule(source="sentinel", data_sources=["OfficeActivity"], rule_created_date=datetime(2026, 8, 25)),
+        _rule(source="sigma", data_sources=["OfficeActivity"], rule_created_date=recent),
+        _rule(source="sigma", data_sources=["Sysmon", "unknown"], rule_created_date=recent),
+        _rule(source="splunk", data_sources=["Sysmon"], rule_created_date=datetime(2020, 1, 1),
+              rule_modified_date=recent),  # old rule, recently touched: ignored
+        _rule(source="splunk", data_sources=None, rule_created_date=recent),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/trending/data-sources", params={"days": 30})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["period_days"] == 30
+    rows = data["data_sources"]
+    assert [(r["data_source"], r["count"]) for r in rows] == [
+        ("OfficeActivity", 3), ("SigninLogs", 1), ("Sysmon", 1),
+    ]
+    office = rows[0]
+    assert office["sources"] == ["sentinel", "sigma"]
+    assert office["latest_date"].startswith("2026-08-25")
+    assert all(r["data_source"] != "unknown" for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_data_sources_honour_source_filter_and_limit(client, db_session):
+    recent = datetime(2026, 8, 20)
+    db_session.add_all([
+        _rule(source="sentinel", data_sources=["OfficeActivity"], rule_created_date=recent),
+        _rule(source="sigma", data_sources=["Sysmon"], rule_created_date=recent),
+        _rule(source="sigma", data_sources=["Security"], rule_created_date=recent),
+    ])
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/trending/data-sources", params={"days": 30, "sources": "sigma", "limit": 5}
+    )
+    assert resp.status_code == 200
+    names = [r["data_source"] for r in resp.json()["data_sources"]]
+    assert names == ["Security", "Sysmon"]
+    assert (await client.get("/api/trending/data-sources", params={"limit": 4})).status_code == 422

@@ -741,3 +741,66 @@ async def get_source_deltas(
     from app.services.source_deltas import compute_source_deltas
 
     return await compute_source_deltas(db, days=days)
+
+
+@router.get("/data-sources")
+async def get_trending_data_sources(
+    days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
+    limit: int = Query(15, ge=5, le=50, description="Number of data sources to return"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter"),
+    event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Emerging data sources (issue #17): canonical `data_sources`
+    ranked by NEW-rule volume in the window.
+
+    Deliberately keyed on `rule_created_date`, not modified: the
+    question is "where is new detection content being written", and a
+    hygiene pass over old Windows rules must not read as Windows
+    trending. Multi-source rules count toward every data source they
+    read from; the `unknown` sentinel is dropped.
+    """
+    cutoff_date = utcnow() - timedelta(days=days)
+
+    conditions = [
+        Detection.rule_created_date.isnot(None),
+        Detection.rule_created_date >= cutoff_date,
+    ]
+    _apply_trending_filters(conditions, _parse_csv(sources), [], _parse_csv(event_types))
+
+    query = select(
+        Detection.source,
+        Detection.data_sources,
+        Detection.rule_created_date,
+    ).where(and_(*conditions))
+
+    rows = (await db.execute(query)).all()
+
+    counts: dict[str, dict] = {}
+    for source, data_sources_list, created_date in rows:
+        for ds in data_sources_list or []:
+            if not isinstance(ds, str) or not ds or ds == "unknown":
+                continue
+            entry = counts.setdefault(
+                ds, {"data_source": ds, "count": 0, "sources": set(), "latest_date": None},
+            )
+            entry["count"] += 1
+            entry["sources"].add(source)
+            if created_date and (entry["latest_date"] is None or created_date > entry["latest_date"]):
+                entry["latest_date"] = created_date
+
+    ranked = sorted(counts.values(), key=lambda x: (-x["count"], x["data_source"]))[:limit]
+
+    return {
+        "period_days": days,
+        "cutoff_date": cutoff_date.isoformat(),
+        "data_sources": [
+            {
+                "data_source": e["data_source"],
+                "count": e["count"],
+                "sources": sorted(e["sources"]),
+                "latest_date": e["latest_date"].isoformat() if e["latest_date"] else None,
+            }
+            for e in ranked
+        ],
+    }

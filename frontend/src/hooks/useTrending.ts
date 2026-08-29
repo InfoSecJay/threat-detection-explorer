@@ -77,6 +77,19 @@ export function useWeeklyActivity(weeks: number = 12) {
   });
 }
 
+/** Emerging data sources: canonical data_sources by new-rule volume (#17). */
+export function useTrendingDataSources(
+  days: number = 90,
+  limit: number = 15,
+  filters: Omit<ActivityFilters, 'platforms'> = {},
+) {
+  return useQuery({
+    queryKey: ['trending-data-sources', days, limit, filters],
+    queryFn: () => trendingApi.getDataSources(days, limit, filters),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 /** Net per-source rule-count change over `days` (#19). */
 export function useSourceDeltas(days: number = 7) {
   return useQuery({

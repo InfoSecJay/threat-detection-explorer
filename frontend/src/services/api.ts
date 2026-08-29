@@ -380,6 +380,21 @@ export interface TrendingPlatformsResponse {
   platforms: TrendingPlatform[];
 }
 
+// Emerging data sources (#17): canonical data_sources ranked by NEW
+// rule volume in the window (created, not modified).
+export interface TrendingDataSource {
+  data_source: string;
+  count: number;
+  sources: string[];
+  latest_date: string | null;
+}
+
+export interface TrendingDataSourcesResponse {
+  period_days: number;
+  cutoff_date: string;
+  data_sources: TrendingDataSource[];
+}
+
 export interface TrendingSummaryResponse {
   period_days: number;
   cutoff_date: string;
@@ -847,6 +862,17 @@ export const trendingApi = {
 
   getWeeklyActivity: async (weeks: number = 12): Promise<WeeklyActivityResponse> => {
     const response = await api.get(`/trending/weekly-activity?weeks=${weeks}`);
+    return response.data;
+  },
+
+  getDataSources: async (
+    days: number = 90,
+    limit: number = 15,
+    filters: Omit<ActivityFilters, 'platforms'> = {},
+  ): Promise<TrendingDataSourcesResponse> => {
+    const response = await api.get(
+      `/trending/data-sources?days=${days}&limit=${limit}${activityFilterParams(filters)}`,
+    );
     return response.data;
   },
 
