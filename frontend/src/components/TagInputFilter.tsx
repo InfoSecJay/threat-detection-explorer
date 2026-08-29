@@ -60,7 +60,7 @@ export function TagInputFilter({
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const normalizedValues = new Set(values);
+  const normalizedValues = useMemo(() => new Set(values), [values]);
 
   const matches = useMemo(() => {
     if (!suggestions || !query.trim()) return [] as Suggestion[];

@@ -322,6 +322,19 @@ function TechniqueDetailPane({
     limit: 200,
   });
 
+  // Hooks must run unconditionally -- these sat below the `!tech`
+  // early return before (#45 rules-of-hooks finding), which would have
+  // corrupted hook order the first time a technique id 404'd and then
+  // resolved (e.g. MITRE data arriving after a deep link).
+  const rules = useMemo(() => rulesData?.items ?? [], [rulesData]);
+  const rulesBySource = useMemo(() => {
+    const grouped: Record<string, typeof rules> = {};
+    for (const r of rules) {
+      (grouped[r.source] ||= []).push(r);
+    }
+    return grouped;
+  }, [rules]);
+
   if (!tech) {
     return (
       <div className="bg-void-850 border border-void-700 p-8 text-center" style={clipCornerMd}>
@@ -332,15 +345,6 @@ function TechniqueDetailPane({
       </div>
     );
   }
-
-  const rules = rulesData?.items || [];
-  const rulesBySource = useMemo(() => {
-    const grouped: Record<string, typeof rules> = {};
-    for (const r of rules) {
-      (grouped[r.source] ||= []).push(r);
-    }
-    return grouped;
-  }, [rules]);
 
   const totalDetections = coverageEntry?.total_detections ?? rules.length;
   const sourcesCovered = coverageEntry?.sources_with_coverage ?? Object.keys(rulesBySource).length;
@@ -559,7 +563,11 @@ export function MitreCoverage() {
   const toggleTactic = (tacticId: string) => {
     setExpandedTactics((prev) => {
       const next = new Set(prev);
-      next.has(tacticId) ? next.delete(tacticId) : next.add(tacticId);
+      if (next.has(tacticId)) {
+        next.delete(tacticId);
+      } else {
+        next.add(tacticId);
+      }
       return next;
     });
   };

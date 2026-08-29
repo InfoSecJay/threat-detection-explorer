@@ -84,6 +84,7 @@ export function MitreProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- provider + consumer hook co-located by convention; HMR-only concern
 export function useMitre(): MitreContextType {
   const context = useContext(MitreContext);
   if (!context) {

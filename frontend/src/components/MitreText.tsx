@@ -56,6 +56,7 @@ function citeKey(name: string): string {
  * render a numbered References list that agrees with the markers
  * MitreText renders inline.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- pure helper co-located with the renderer it must agree with; HMR-only concern
 export function resolveCitations(
   text: string,
   references: MitreRef[] = []
@@ -84,6 +85,7 @@ export function resolveCitations(
  * other contexts that can't render elements: links collapse to their
  * label, citations are dropped, code tags are unwrapped.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- same as resolveCitations
 export function stripMitreMarkup(text: string): string {
   return text
     .replace(CITATION_RE, '')

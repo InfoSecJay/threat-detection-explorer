@@ -144,7 +144,9 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   const { data: filterOpts } = useFilterOptions();
   const { techniques } = useMitre();
 
-  const fields: QueryFieldSpec[] = fieldsResp?.fields || [];
+  // Memoized so the suggestion index below is not rebuilt every render
+  // while the fields query is still loading (fresh [] each time).
+  const fields: QueryFieldSpec[] = useMemo(() => fieldsResp?.fields ?? [], [fieldsResp]);
 
   // Build the value-suggestion index once from filter facets + MITRE.
   const valueIndex = useMemo(() => {

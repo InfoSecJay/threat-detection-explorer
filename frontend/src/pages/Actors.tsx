@@ -583,11 +583,18 @@ export function Actors() {
     return stored === 'cards' ? 'cards' : 'table';
   });
 
-  const sector = searchParams.getAll('sector');
-  const region = searchParams.getAll('region');
-  const motivation = searchParams.getAll('motivation');
-  const origin = searchParams.getAll('origin');
-  const swType = searchParams.getAll('type');
+  // getAll() returns a fresh array every call; memoize on searchParams
+  // (stable per URL) so the arrays are valid useMemo deps below.
+  const { sector, region, motivation, origin, swType } = useMemo(
+    () => ({
+      sector: searchParams.getAll('sector'),
+      region: searchParams.getAll('region'),
+      motivation: searchParams.getAll('motivation'),
+      origin: searchParams.getAll('origin'),
+      swType: searchParams.getAll('type'),
+    }),
+    [searchParams],
+  );
   const usedByActor = searchParams.get('used_by_actor');
   const minGaps = searchParams.get('min_gaps');
   const hasExactRules = searchParams.get('has_exact_rules');
@@ -616,9 +623,7 @@ export function Actors() {
       page: view === 'cards' ? 1 : page,
       per_page: view === 'cards' ? CARDS_PER_PAGE : TABLE_PER_PAGE,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tab, JSON.stringify(sector), JSON.stringify(region), JSON.stringify(motivation),
-     JSON.stringify(origin), JSON.stringify(swType), usedByActor,
+    [tab, sector, region, motivation, origin, swType, usedByActor,
      minGaps, hasExactRules, q, sort, order, page, view]
   );
 

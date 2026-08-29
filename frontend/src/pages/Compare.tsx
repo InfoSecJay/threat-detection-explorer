@@ -70,7 +70,7 @@ export function Compare() {
       setQueryValue(platform);
       setSubmittedQuery({ technique: undefined, keyword: undefined, platform });
     }
-  }, [searchParams]);
+  }, [searchParams, submittedQuery.technique, submittedQuery.keyword, submittedQuery.platform]);
 
   const { data: compareData, isLoading: compareLoading, error: compareError } = useCompare(submittedQuery);
 
