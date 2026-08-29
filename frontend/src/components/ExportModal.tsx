@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useExport } from '../hooks/useDetections';
 import type { SearchFilters } from '../types';
 
@@ -13,6 +13,16 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
   const [format, setFormat] = useState<'json' | 'csv'>('json');
   const [includeRaw, setIncludeRaw] = useState(false);
   const exportMutation = useExport();
+
+  // Escape closes, like the filter sheet. Registered only while open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -33,9 +43,18 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-cyber-850 rounded-lg border border-cyber-700 shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-white mb-4">Export Detections</h2>
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        className="bg-void-850 rounded-lg border border-void-700 shadow-xl p-6 w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="export-modal-title" className="text-xl font-bold text-white mb-4">Export Detections</h2>
 
         <div className="space-y-4">
           {/* Format selection */}
@@ -51,7 +70,7 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
                   value="json"
                   checked={format === 'json'}
                   onChange={() => setFormat('json')}
-                  className="mr-2 text-cyan-500 bg-cyber-900 border-cyber-600 focus:ring-cyan-500"
+                  className="mr-2 text-cyan-500 bg-void-900 border-void-600 focus:ring-cyan-500"
                 />
                 JSON
               </label>
@@ -62,7 +81,7 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
                   value="csv"
                   checked={format === 'csv'}
                   onChange={() => setFormat('csv')}
-                  className="mr-2 text-cyan-500 bg-cyber-900 border-cyber-600 focus:ring-cyan-500"
+                  className="mr-2 text-cyan-500 bg-void-900 border-void-600 focus:ring-cyan-500"
                 />
                 CSV
               </label>
@@ -76,7 +95,7 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
                 type="checkbox"
                 checked={includeRaw}
                 onChange={(e) => setIncludeRaw(e.target.checked)}
-                className="mr-2 rounded bg-cyber-900 border-cyber-600 text-cyan-500 focus:ring-cyan-500"
+                className="mr-2 rounded bg-void-900 border-void-600 text-cyan-500 focus:ring-cyan-500"
               />
               <span className="text-sm">Include raw rule content</span>
             </label>
@@ -86,7 +105,7 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
           </div>
 
           {/* Export scope info */}
-          <div className="bg-cyber-900 border border-cyber-700 p-3 rounded-lg">
+          <div className="bg-void-900 border border-void-700 p-3 rounded-lg">
             <p className="text-sm text-gray-400">
               {selectedIds?.length
                 ? `Exporting ${selectedIds.length} selected detection(s)`
@@ -99,7 +118,7 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-300 border border-cyber-700 rounded hover:bg-cyber-800 transition-colors"
+            className="px-4 py-2 text-gray-300 border border-void-700 rounded hover:bg-void-800 transition-colors"
           >
             Cancel
           </button>

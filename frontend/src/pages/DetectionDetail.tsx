@@ -49,7 +49,7 @@ export function DetectionDetail() {
 
       {/* Related detections suggestion */}
       {detection.mitre_techniques.length > 0 && (
-        <div className="mt-6 bg-cyber-850 rounded-lg border border-cyber-700 p-4">
+        <div className="mt-6 bg-void-850 rounded-lg border border-void-700 p-4">
           <h3 className="font-semibold text-white mb-2">Find Related Detections</h3>
           <div className="flex flex-wrap gap-2">
             {detection.mitre_techniques.slice(0, 5).map((tech) => (

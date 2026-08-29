@@ -9,6 +9,7 @@
  * we're flagging here is *our* ingestion, not upstream activity.
  */
 
+import { parseApiDate } from '../../utils/dates';
 import { Link } from 'react-router-dom';
 import { useRepositories } from '../../hooks/useRepositories';
 import { useWeeklyActivity } from '../../hooks/useTrending';
@@ -18,7 +19,7 @@ import { formatRelDate } from './lib';
 
 function freshnessDot(lastSyncAt: string | null): { color: string; label: string } {
   if (!lastSyncAt) return { color: 'bg-gray-500', label: 'never synced' };
-  const ageMs = Date.now() - new Date(lastSyncAt).getTime();
+  const ageMs = Date.now() - parseApiDate(lastSyncAt).getTime();
   const ageHours = ageMs / (1000 * 60 * 60);
   if (ageHours < 24) return { color: 'bg-matrix-500', label: 'fresh' };
   if (ageHours < 72) return { color: 'bg-yellow-500', label: 'stale' };

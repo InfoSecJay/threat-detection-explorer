@@ -5,7 +5,10 @@ export function useRepositories() {
   return useQuery({
     queryKey: ['repositories'],
     queryFn: repositoriesApi.list,
-    refetchInterval: 5000, // Poll every 5 seconds to update sync status
+    // Read-only surfaces (Intel health strip, Integrations) share this
+    // key; the shortest interval wins in React Query, and nothing on
+    // the site mutates sync state any more, so 30s is plenty.
+    refetchInterval: 30000,
   });
 }
 

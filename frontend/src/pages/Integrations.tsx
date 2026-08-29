@@ -1,3 +1,4 @@
+import { parseApiDate } from '../utils/dates';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { repositoriesApi } from '../services/api';
@@ -99,7 +100,7 @@ const sourceConfig: Record<string, { displayName: string; description: string; r
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return 'Never';
-  const date = new Date(dateString);
+  const date = parseApiDate(dateString);
   return date.toLocaleString('en-US', {
     year: 'numeric',
     month: 'short',

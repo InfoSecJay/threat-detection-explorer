@@ -4,6 +4,7 @@ import { ThreatRadar } from '../components/graphics/ThreatRadar';
 import { HexShield } from '../components/graphics/HexShield';
 import { DataSourceIcon } from '../components/graphics/DataSourceIcon';
 import { clipMd, clipLg } from '../constants/style';
+import { ALL_SOURCES } from '../constants/sources';
 
 // External link icon
 function ExternalLinkIcon({ size = 16 }: { size?: number }) {
@@ -126,7 +127,7 @@ const features = [
   {
     title: 'AGGREGATE',
     subtitle: 'Multi-Source Intelligence',
-    description: 'Detection rules from 13 security repositories unified into a single searchable command interface.',
+    description: `Detection rules from ${ALL_SOURCES.length} security repositories unified into a single searchable command interface.`,
     variant: 'aggregate' as const,
   },
   {
@@ -331,7 +332,7 @@ export function Home() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600 rounded mb-6">
               <span className="w-2 h-2 bg-pulse-500 rounded-full animate-pulse" />
               <span className="text-xs font-mono text-gray-400">
-                <span className="text-pulse-400">OPERATIONAL</span> // 8 INTEL FEEDS ACTIVE
+                <span className="text-pulse-400">OPERATIONAL</span> // {ALL_SOURCES.length} INTEL FEEDS ACTIVE
               </span>
             </div>
 
@@ -512,6 +513,12 @@ export function Home() {
                 label="Panther"
                 color="#d946ef"
                 delay={600}
+              />
+              <StatCard
+                value={stats.by_source.pypanther || 0}
+                label="PyPanther"
+                color="#c026d3"
+                delay={650}
               />
             </div>
           </div>

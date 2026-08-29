@@ -52,7 +52,7 @@ export function JustCoveredSection({ days, sources }: { days: number; sources: s
             {catalog.map((e) => (
               <Link
                 key={e.technique_id}
-                to={`/detections?techniques=${e.technique_id}`}
+                to={`/detections?mitre_techniques=${e.technique_id}`}
                 className="block bg-void-800/60 border border-void-700 hover:border-void-600 px-2.5 py-1.5 transition-colors"
               >
                 <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export function JustCoveredSection({ days, sources }: { days: number; sources: s
               return (
                 <Link
                   key={`${e.source}-${e.technique_id}`}
-                  to={`/detections?techniques=${e.technique_id}&sources=${e.source}`}
+                  to={`/detections?mitre_techniques=${e.technique_id}&sources=${e.source}`}
                   className="block bg-void-800/60 border border-void-700 hover:border-void-600 px-2.5 py-1.5 transition-colors"
                 >
                   <div className="flex items-center gap-2">

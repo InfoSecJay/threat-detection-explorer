@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { clipSm } from './constants/style';
+import { ALL_SOURCES } from './constants/sources';
 
 // Route-level code splitting. Each page becomes its own chunk so the
 // initial bundle only ships shared shell + the page the user lands on.
@@ -212,10 +213,7 @@ function App() {
             </span>
           </div>
           <StatusIndicator />
-          <div className="text-xs font-mono text-gray-500">
-            <span className="hidden md:inline">UTC </span>
-            <span className="text-gray-400">{new Date().toISOString().slice(0, 19).replace('T', ' ')}</span>
-          </div>
+          <UtcClock />
         </div>
       </div>
 
@@ -247,7 +245,7 @@ function App() {
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-void-800 border border-void-600 rounded">
               <span className="w-2 h-2 bg-matrix-500 rounded-full animate-pulse" />
               <span className="text-xs font-mono text-gray-400">
-                <span className="text-matrix-400">12</span> SOURCES ACTIVE
+                <span className="text-matrix-400">{ALL_SOURCES.length}</span> SOURCES ACTIVE
               </span>
             </div>
           </div>
@@ -339,3 +337,20 @@ function App() {
 }
 
 export default App;
+
+/** Header UTC clock. Was a one-shot `new Date()` evaluated on mount,
+ * so a tab left open showed a timestamp hours stale next to a
+ * "SYSTEM ONLINE" indicator. Ticks once a second. */
+function UtcClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="text-xs font-mono text-gray-500">
+      <span className="hidden md:inline">UTC </span>
+      <span className="text-gray-400">{now.toISOString().slice(0, 19).replace('T', ' ')}</span>
+    </div>
+  );
+}

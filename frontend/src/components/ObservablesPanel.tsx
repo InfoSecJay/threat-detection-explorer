@@ -111,7 +111,7 @@ export function ObservablesPanel({
                   {style.label}
                 </span>
               </div>
-              <div className="space-y-1.5 pl-3.5 border-l border-cyber-700">
+              <div className="space-y-1.5 pl-3.5 border-l border-void-700">
                 {groups.get(type)!.map((o, i) => {
                   const values = o.values.slice(0, MAX_VALUES);
                   const overflow = o.values.length - values.length;

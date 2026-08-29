@@ -4,6 +4,7 @@
  * release notes inline.
  */
 
+import { parseApiDate } from '../../utils/dates';
 import { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useReleases } from '../../hooks/useReleases';
@@ -24,7 +25,7 @@ export function UpstreamReleases() {
     if (elasticReleases) all.push(...elasticReleases.map((r) => ({ ...r, source: 'elastic' })));
     if (splunkReleases) all.push(...splunkReleases.map((r) => ({ ...r, source: 'splunk' })));
     return all
-      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+      .sort((a, b) => parseApiDate(b.published_at).getTime() - parseApiDate(a.published_at).getTime())
       .slice(0, 6);
   }, [sigmaReleases, elasticReleases, splunkReleases]);
 

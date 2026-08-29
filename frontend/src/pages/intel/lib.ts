@@ -3,6 +3,7 @@
  * Anything that's pure (no JSX, no hooks) lives here.
  */
 
+import { parseApiDate } from '../../utils/dates';
 import type { Release } from '../../services/api';
 
 export const severityColor: Record<string, string> = {
@@ -21,7 +22,7 @@ export interface ReleaseWithSource extends Release {
 /** Compact "today | 1d | 7d | 3mo | 2y" relative-time formatter. */
 export function formatRelDate(iso: string | null): string {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   const diffDays = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays < 1) return 'today';
   if (diffDays === 1) return '1d';
