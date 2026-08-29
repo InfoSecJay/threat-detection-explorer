@@ -30,6 +30,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sync_job import SyncJob
+from app.utils.datetime_utils import to_utc_iso
 
 
 def _stored_counts(job: Optional[SyncJob]) -> dict[str, int]:
@@ -94,8 +95,8 @@ async def compute_source_deltas(db: AsyncSession, days: int = 7) -> dict:
         "days": days,
         "method": "sync_jobs" if baseline is not None else "insufficient_history",
         "current_job_id": latest.id,
-        "current_at": latest.completed_at.isoformat(),
+        "current_at": to_utc_iso(latest.completed_at),
         "baseline_job_id": baseline.id if baseline else None,
-        "baseline_at": baseline.completed_at.isoformat() if baseline and baseline.completed_at else None,
+        "baseline_at": to_utc_iso(baseline.completed_at) if baseline else None,
         "by_source": by_source,
     }

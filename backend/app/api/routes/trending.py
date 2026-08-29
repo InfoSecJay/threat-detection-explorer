@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.detection import Detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import to_utc_iso, utcnow
 
 router = APIRouter(prefix="/trending", tags=["trending"])
 
@@ -113,13 +113,13 @@ async def get_trending_techniques(
     # Convert sets to lists and format dates
     return {
         "period_days": days,
-        "cutoff_date": cutoff_date.isoformat(),
+        "cutoff_date": to_utc_iso(cutoff_date),
         "techniques": [
             {
                 "technique_id": t["technique_id"],
                 "count": t["count"],
                 "sources": list(t["sources"]),
-                "latest_date": t["latest_date"].isoformat() if t["latest_date"] else None,
+                "latest_date": to_utc_iso(t["latest_date"]),
             }
             for t in sorted_techniques
         ],
@@ -186,13 +186,13 @@ async def get_trending_platforms(
 
     return {
         "period_days": days,
-        "cutoff_date": cutoff_date.isoformat(),
+        "cutoff_date": to_utc_iso(cutoff_date),
         "platforms": [
             {
                 "platform": p["platform"],
                 "count": p["count"],
                 "sources": list(p["sources"]),
-                "latest_date": p["latest_date"].isoformat() if p["latest_date"] else None,
+                "latest_date": to_utc_iso(p["latest_date"]),
             }
             for p in sorted_platforms
         ],
@@ -253,7 +253,7 @@ async def get_recent_rules(
             "severity": row[4],
             "platforms": row[5] or [],
             "event_types": row[6] or [],
-            "date": date_value.isoformat() if date_value else None,
+            "date": to_utc_iso(date_value),
         }
 
     src_list = _parse_csv(sources)
@@ -341,7 +341,7 @@ async def get_trending_summary(
 
     return {
         "period_days": days,
-        "cutoff_date": cutoff_date.isoformat(),
+        "cutoff_date": to_utc_iso(cutoff_date),
         "total_created": total_created,
         "total_modified": total_modified,
         "by_source": by_source,
@@ -401,13 +401,13 @@ async def get_trending_use_cases(
 
     return {
         "period_days": days,
-        "cutoff_date": cutoff_date.isoformat(),
+        "cutoff_date": to_utc_iso(cutoff_date),
         "use_cases": [
             {
                 "use_case": c["use_case"],
                 "count": c["count"],
                 "sources": sorted(c["sources"]),
-                "latest_date": c["latest_date"].isoformat() if c["latest_date"] else None,
+                "latest_date": to_utc_iso(c["latest_date"]),
             }
             for c in sorted_counts
         ],
@@ -793,13 +793,13 @@ async def get_trending_data_sources(
 
     return {
         "period_days": days,
-        "cutoff_date": cutoff_date.isoformat(),
+        "cutoff_date": to_utc_iso(cutoff_date),
         "data_sources": [
             {
                 "data_source": e["data_source"],
                 "count": e["count"],
                 "sources": sorted(e["sources"]),
-                "latest_date": e["latest_date"].isoformat() if e["latest_date"] else None,
+                "latest_date": to_utc_iso(e["latest_date"]),
             }
             for e in ranked
         ],

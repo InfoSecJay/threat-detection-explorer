@@ -52,7 +52,7 @@ from app.services.actor_matching import (
 )
 from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import to_utc_iso, utcnow
 
 router = APIRouter(prefix="/actors", tags=["actors"])
 
@@ -271,7 +271,7 @@ def _serialize_rule(row, reasons: dict[str, list[str]] | None = None) -> dict:
         "language": row[5],
         "techniques": row[6] or [],
         "platforms": row[7] or [],
-        "date": row[8].isoformat() if row[8] else None,
+        "date": to_utc_iso(row[8]),
         # Why this rule counted under the selected mode (issue #34).
         # Empty for coverage mode — the technique tag is the reason.
         "match_reasons": (reasons or {}).get(row[0], []),
@@ -770,7 +770,7 @@ async def bulk_navigator_layer(
             {"name": "source", "value": "detectionexplorer.io"},
             {"name": "actors", "value": ", ".join(e["id"] for e in hits[:50])},
             {"name": "filter", "value": filters_desc},
-            {"name": "generated", "value": utcnow().isoformat()},
+            {"name": "generated", "value": to_utc_iso(utcnow())},
         ],
     )
     return _layer_response(layer, "detection-coverage-actors.json")
@@ -858,7 +858,7 @@ async def actor_navigator_layer(
                 "name": "weighted_coverage",
                 "value": f"{weighted:.4f}" if weighted is not None else "n/a",
             },
-            {"name": "generated", "value": utcnow().isoformat()},
+            {"name": "generated", "value": to_utc_iso(utcnow())},
         ],
     )
     slug = re.sub(r"[^a-z0-9]+", "-", entity["name"].lower()).strip("-")

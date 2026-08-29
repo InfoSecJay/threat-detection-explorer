@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import to_utc_iso, utcnow
 
 
 class ErrorStage(str, Enum):
@@ -42,7 +42,7 @@ class IngestionError:
             "severity": self.severity.value,
             "message": self.message,
             "details": self.details,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": to_utc_iso(self.timestamp),
         }
 
 

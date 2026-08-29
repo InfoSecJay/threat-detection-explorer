@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.coverage_snapshot import MitreCoverageSnapshot
 from app.models.detection import Detection
 from app.services.mitre import mitre_service
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import to_utc_iso, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +239,7 @@ async def compute_newly_covered(
     return {
         "method": method,
         "window_days": days,
-        "baseline_date": baseline_date.isoformat() if baseline_date else None,
+        "baseline_date": to_utc_iso(baseline_date),
         "new_sources": new_sources,
         "catalog_newly_covered": catalog_payload[:limit],
         "source_newly_covered": source_payload[:limit],

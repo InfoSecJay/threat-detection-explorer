@@ -4,7 +4,24 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+from app.utils.datetime_utils import to_utc_iso
+
+
+class UtcTimestampsModel(BaseModel):
+    """Base for response models carrying stored (naive UTC) datetimes.
+
+    Serializes every datetime field with a trailing ``Z`` (#52) so API
+    consumers -- browsers included -- parse them as UTC instead of local
+    time. Column storage stays naive; only the wire format changes.
+    """
+
+    @field_serializer("*", mode="wrap")
+    def _serialize_utc(self, value, handler, info):
+        if isinstance(value, datetime):
+            return to_utc_iso(value)
+        return handler(value)
 
 
 def sanitize_string(value: str | None) -> str:
@@ -73,7 +90,7 @@ def _dict_or_none(value):
     return value if isinstance(value, dict) else None
 
 
-class DetectionBase(BaseModel):
+class DetectionBase(UtcTimestampsModel):
     """Base detection schema with common fields."""
 
     id: str
@@ -193,7 +210,7 @@ class DetectionResponse(DetectionBase):
         return cls(**data)
 
 
-class DetectionListItem(BaseModel):
+class DetectionListItem(UtcTimestampsModel):
     """Detection item for list views (without raw_content)."""
 
     id: str
@@ -310,7 +327,7 @@ class DetectionListResponse(BaseModel):
 
 
 # Repository schemas
-class RepositoryResponse(BaseModel):
+class RepositoryResponse(UtcTimestampsModel):
     """Repository metadata response."""
 
     id: str

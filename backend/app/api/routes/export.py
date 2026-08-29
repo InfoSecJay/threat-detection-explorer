@@ -13,6 +13,7 @@ from app.database import get_db
 from app.api.schemas import ExportRequest, SearchParams
 from app.services.search import SearchService, SearchFilters
 from app.models.detection import Detection
+from app.utils.datetime_utils import to_utc_iso
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -165,10 +166,10 @@ def _export_json(detections: list[Detection], include_raw: bool) -> StreamingRes
             # Typed observables (type/subtype/field/values/negated) —
             # the structured form behind the flat extracted_* surfaces.
             "extracted_observables": getattr(d, "extracted_observables", None) or [],
-            "rule_created_date": d.rule_created_date.isoformat() if d.rule_created_date else None,
-            "rule_modified_date": d.rule_modified_date.isoformat() if d.rule_modified_date else None,
-            "created_at": d.created_at.isoformat(),
-            "updated_at": d.updated_at.isoformat(),
+            "rule_created_date": to_utc_iso(d.rule_created_date),
+            "rule_modified_date": to_utc_iso(d.rule_modified_date),
+            "created_at": to_utc_iso(d.created_at),
+            "updated_at": to_utc_iso(d.updated_at),
         }
         if include_raw:
             item["raw_content"] = d.raw_content
@@ -277,10 +278,10 @@ def _export_csv(detections: list[Detection], include_raw: bool) -> StreamingResp
             _safe_join(getattr(d, "extracted_api_actions", None)),
             _safe_join(getattr(d, "extracted_target_resources", None)),
             _observables_cell(getattr(d, "extracted_observables", None)),
-            d.rule_created_date.isoformat() if d.rule_created_date else "",
-            d.rule_modified_date.isoformat() if d.rule_modified_date else "",
-            d.created_at.isoformat(),
-            d.updated_at.isoformat(),
+            to_utc_iso(d.rule_created_date) or "",
+            to_utc_iso(d.rule_modified_date) or "",
+            to_utc_iso(d.created_at),
+            to_utc_iso(d.updated_at),
         ]
         if include_raw:
             row.append(_truncate(d.raw_content))

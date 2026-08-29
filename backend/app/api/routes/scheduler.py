@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.schemas import UtcTimestampsModel
 from app.database import get_db
 from app.config import settings
 from app.models.sync_job import SyncJob
@@ -30,7 +31,7 @@ from app.services.scheduler import (
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
 
-class SchedulerStatusResponse(BaseModel):
+class SchedulerStatusResponse(UtcTimestampsModel):
     """Response model for scheduler status."""
 
     enabled: bool
@@ -42,7 +43,7 @@ class SchedulerStatusResponse(BaseModel):
     message: str
 
 
-class SyncJobResponse(BaseModel):
+class SyncJobResponse(UtcTimestampsModel):
     """Response model for sync job details."""
 
     id: str
