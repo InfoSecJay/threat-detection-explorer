@@ -88,25 +88,38 @@ def _migrate_taxonomy_phase_3(connection):
 
     cols = {col["name"] for col in inspector.get_columns("detections")}
 
+    # SQLite refuses `DROP COLUMN` while an index references the column
+    # ("error in index ix_detections_platform after drop column") and
+    # the pre-Phase-3 legacy columns were indexed, so restoring an old
+    # dev snapshot wedged here (#37). Postgres drops dependent indexes
+    # automatically; doing it explicitly is harmless there.
+    indexes_by_column: dict[str, list[str]] = {}
+    for idx in inspector.get_indexes("detections"):
+        for col_name in idx.get("column_names") or []:
+            if col_name and idx.get("name"):
+                indexes_by_column.setdefault(col_name, []).append(idx["name"])
+
+    def _drop_column(name: str, kind: str) -> None:
+        for index_name in indexes_by_column.pop(name, []):
+            connection.execute(text(f'DROP INDEX IF EXISTS {index_name}'))
+            logger.info(f"Phase 3: dropped index {index_name} before dropping detections.{name}")
+        connection.execute(text(f'ALTER TABLE detections DROP COLUMN {name}'))
+        logger.info(f"Phase 3: dropped {kind} column detections.{name}")
+        cols.discard(name)
+
     # 1. Drop legacy single-value columns.
     for legacy in ("platform", "event_category", "data_source_normalized"):
         if legacy in cols:
-            connection.execute(text(f'ALTER TABLE detections DROP COLUMN {legacy}'))
-            logger.info(f"Phase 3: dropped legacy column detections.{legacy}")
-            cols.discard(legacy)
+            _drop_column(legacy, "legacy")
 
     # 2. Drop raw vendor list columns. `data_sources` is dropped here
     # so the canonical `taxonomy_data_sources` rename below can take
     # over the name. A bare `data_sources` with no `taxonomy_data_sources`
     # alongside it is the already-migrated canonical column — leave it.
     if "log_sources" in cols:
-        connection.execute(text('ALTER TABLE detections DROP COLUMN log_sources'))
-        logger.info("Phase 3: dropped raw column detections.log_sources")
-        cols.discard("log_sources")
+        _drop_column("log_sources", "raw")
     if "data_sources" in cols and "taxonomy_data_sources" in cols:
-        connection.execute(text('ALTER TABLE detections DROP COLUMN data_sources'))
-        logger.info("Phase 3: dropped raw column detections.data_sources")
-        cols.discard("data_sources")
+        _drop_column("data_sources", "raw")
 
     # 3. Rename `taxonomy_*` -> final names.
     renames = (
