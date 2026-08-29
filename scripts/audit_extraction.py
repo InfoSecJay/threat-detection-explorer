@@ -105,11 +105,10 @@ EXTRACTOR_STATUS: dict[str, str] = {
     "sublime":             "have_extractor",
     "lolrmm":              "have_extractor",
     "sentinel":            "have_extractor",
-    # These sources currently skip extraction entirely — a known gap
-    # tracked in issue #6. The audit reports their coverage as
-    # baseline data but does NOT flag it as an anomaly.
+    # Every source now has an extractor (issue #6 tail closed
+    # 2026-08-28); `no_extractor` remains supported for future sources.
     "google_secops":       "have_extractor",  # YARA-L extractor (issue #6 tail)
-    "okta":                "no_extractor",
+    "okta":                "have_extractor",  # OIE + SPL (issue #6 tail)
     # auth0 was flagged no_extractor, but the generic extraction path
     # fires anyway (100% coverage at 97% fallback in the baseline).
     # Flagging it honestly so its precision problems surface as

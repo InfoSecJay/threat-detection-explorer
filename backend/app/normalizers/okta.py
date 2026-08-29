@@ -8,6 +8,7 @@ upstream YAML never carries severity.
 
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
+from app.services.oie_extractor import extract_okta_fields
 
 
 class OktaNormalizer(BaseNormalizer):
@@ -31,6 +32,8 @@ class OktaNormalizer(BaseNormalizer):
         # priority order; pass through verbatim.
         primary_language = extra.get("primary_language") or "oie"
 
+        extracted = extract_okta_fields(parsed.detection_logic_raw or "", primary_language)
+
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
             source=parsed.source,
@@ -51,21 +54,24 @@ class OktaNormalizer(BaseNormalizer):
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,
-            # Field extraction TODO for OIE / Okta SPL -- the OIE syntax
-            # (e.g. `eventType eq "user.session.access_admin_app"`) is
-            # similar enough to KQL that a small extractor could be
-            # added. Skipping for now to keep the integration tight.
-            extracted_fields_used=[],
-            extracted_event_ids=[],
-            extracted_process_names=[],
-            extracted_file_paths=[],
-            extracted_registry_keys=[],
-            extracted_network_indicators=[],
-            extracted_source_tables=[],
-            extracted_observables=[],
-            query_complexity="simple",
-            extracted_api_actions=[],
-            extracted_target_resources=[],
+            # Field extraction (issue #6 tail): OIE filter terms via
+            # services/oie_extractor.py; SPL variants via the Splunk
+            # extractor.
+            extracted_fields_used=extracted.fields_used,
+            extracted_event_ids=extracted.event_ids,
+            extracted_process_names=extracted.process_names,
+            extracted_file_paths=extracted.file_paths,
+            extracted_registry_keys=extracted.registry_keys,
+            extracted_network_indicators=extracted.network_indicators,
+            extracted_source_tables=extracted.source_tables,
+            extracted_observables=[
+                {"field": o.field, "values": o.values, "type": o.type,
+                 "subtype": o.subtype, "negated": o.negated}
+                for o in extracted.observables
+            ],
+            query_complexity=extracted.query_complexity,
+            extracted_api_actions=extracted.api_actions,
+            extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
             platforms=platforms,

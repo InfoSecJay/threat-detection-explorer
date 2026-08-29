@@ -343,6 +343,25 @@ was otherwise clean; full rebuilds not warranted):
 Verified by re-extraction over the local corpora: sigma no-separator
 file_paths 670 -> 0, elastic non-numeric event_ids 72 -> 0.
 
+**google_secops + okta extractors -- 2026-08-28.** The last two
+no-extractor sources are closed, so every one of the 13 sources is
+extractor-backed:
+
+| Source | Rules | Coverage | Junk fields | Fallback share | FP hits |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| google_secops (YARA-L, `services/yaral_extractor.py`) | 379 | 100% (from 0%) | 9 / 2,199 | 6.4% | 0 |
+| okta (OIE + SPL, `services/oie_extractor.py`) | 34 | 100% (from 0%) | 0 / 122 | 4.3% | 0 |
+
+YARA-L walks the `events:` block for `<UDM path> OP <literal>` terms
+(scalar helpers unwrapped, `%reference_list` and placeholders as
+field-only, `!=`/`not` as negation); `metadata.log_type` values are
+source tables and `product_event_type` values become event IDs
+(numeric) or API actions. ~60 Chronicle UDM paths joined
+FIELD_TYPE_MAP (principal.* = initiating process, target.* =
+launched). OIE terms (`eq`/`ne`/`co`/`sw`/`pr`) map onto the Okta
+System Log vocabulary; Okta rules shipping a Splunk variant route to
+the SPL extractor.
+
 **FIELD_TYPE_MAP vocabulary pass — 2026-08-27.** ~110 high-frequency
 field mappings added, driven by a per-source tally of
 fallback-classified names over the local corpus. New canonical
