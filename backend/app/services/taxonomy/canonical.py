@@ -414,6 +414,13 @@ EVENT_TYPES: frozenset[str] = frozenset(
         # ── ML-based anomaly detection — no specific event pivot, the
         # rule fires when an ML job scores the anomaly above threshold.
         "ml_detection",
+        # ── EDR raw telemetry stream (CrowdStrike FDR / Event Streams,
+        # SentinelOne Activity, ...): process, network, file and registry
+        # events multiplexed in one feed. The endpoint analogue of
+        # `audit_event` -- coarse because the feed is, not because we
+        # declined to look. Panther mappings used this value before it
+        # was canonical (issue #42); it is also a DATA_SOURCE above.
+        "endpoint_behavior",
         UNKNOWN,
     }
 )

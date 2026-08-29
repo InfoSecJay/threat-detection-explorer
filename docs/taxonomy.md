@@ -437,7 +437,12 @@ cd backend && python -m pytest tests/test_services/test_taxonomy.py -v
 
 If the YAML loader logs `Mapping <repo>.yaml references non-canonical
 ...` warnings on import, fix the typos in the YAML (or add the missing
-canonical value).
+canonical value). You will not get that far in practice:
+`tests/test_services/test_mapping_integrity.py` loads every mapping
+file with `strict=True` and fails the suite on the same condition --
+added after `endpoint_behavior` reached production as a non-canonical
+event_type on 63 Panther rules with only a warning to show for it
+(issue #42).
 
 ### 8. Backfill existing data
 
@@ -455,7 +460,8 @@ POST /api/scheduler/trigger {"repository": "<repo_name>"}
 The mapping YAML files are designed to be edited by humans.
 `backend/app/services/taxonomy/_loader.py` validates references at
 import time — if you accidentally write `data_sources: [crowdstrik_fdr]`
-(typo), the worker will log a `WARNING` at startup but won't crash.
+(typo), the worker will log a `WARNING` at startup but won't crash --
+and the test suite will fail, which is the gate that actually matters.
 
 Workflow:
 

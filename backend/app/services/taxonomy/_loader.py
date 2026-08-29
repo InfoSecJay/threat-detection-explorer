@@ -24,13 +24,19 @@ logger = logging.getLogger(__name__)
 _MAPPINGS_DIR = Path(__file__).resolve().parent / "mappings"
 
 
-def load_mapping(vendor: str) -> dict[str, Any]:
+def load_mapping(vendor: str, strict: bool = False) -> dict[str, Any]:
     """Load `mappings/<vendor>.yaml` and validate its referenced values.
 
     Returns the parsed YAML as a dict. Logs (but does not raise) for any
     referenced platform/data_source/event_type that isn't in the canonical
     vocabulary — that way a typo in a mapping file produces a loud warning
     in the worker logs at startup but doesn't crash ingestion.
+
+    `strict=True` raises `ValueError` instead. The test suite loads every
+    mapping this way (`tests/test_services/test_mapping_integrity.py`)
+    because a warning is not a gate: `endpoint_behavior` shipped to
+    production as a non-canonical event_type on 63 rules before anyone
+    read the worker log (issue #42).
     """
     path = _MAPPINGS_DIR / f"{vendor}.yaml"
     if not path.exists():
@@ -42,12 +48,13 @@ def load_mapping(vendor: str) -> dict[str, Any]:
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
-    _validate_mapping(vendor, data)
+    _validate_mapping(vendor, data, strict=strict)
     return data
 
 
-def _validate_mapping(vendor: str, data: dict[str, Any]) -> None:
-    """Walk a parsed mapping and warn about any non-canonical values."""
+def _validate_mapping(vendor: str, data: dict[str, Any], strict: bool = False) -> None:
+    """Walk a parsed mapping and warn (or raise, when strict) about any
+    non-canonical values."""
     bad_platforms: set[str] = set()
     bad_data_sources: set[str] = set()
     bad_event_types: set[str] = set()
@@ -75,7 +82,10 @@ def _validate_mapping(vendor: str, data: dict[str, Any]) -> None:
         ("event_types", bad_event_types),
     ):
         if bad:
-            logger.warning(
+            message = (
                 f"Mapping {vendor}.yaml references non-canonical {kind}: "
                 f"{sorted(bad)}. Add to canonical.py or fix the typo."
             )
+            if strict:
+                raise ValueError(message)
+            logger.warning(message)
