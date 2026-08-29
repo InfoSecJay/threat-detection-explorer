@@ -30,6 +30,9 @@ class SearchFilters:
     # Building-block tri-state (issue #26): True = only, False = hide,
     # None = no filter. NULL rows (pre-column) count as False.
     building_block: Optional[bool] = None
+    # Minimum hygiene score (0-100), inclusive (#39). None = no filter;
+    # unscored rows never satisfy a threshold.
+    min_quality: Optional[int] = None
     severities: list[str] = field(default_factory=list)
     languages: list[str] = field(default_factory=list)
 
@@ -296,6 +299,36 @@ class SearchService:
             )
             stats["by_status"][status] = count_result.scalar() or 0
 
+        # Hygiene averages (#39): per source and overall, over scored
+        # rows only. `scored` says how much of the source the average
+        # rests on (a freshly onboarded source may have none yet).
+        rows = (
+            await self.db.execute(
+                select(
+                    Detection.source,
+                    func.avg(Detection.quality_score),
+                    func.count(Detection.quality_score),
+                )
+                .where(Detection.quality_score.isnot(None))
+                .group_by(Detection.source)
+            )
+        ).all()
+        stats["quality_by_source"] = {
+            source: {"avg": round(float(avg), 1), "scored": int(scored)}
+            for source, avg, scored in rows
+            if avg is not None
+        }
+        total_scored = sum(v["scored"] for v in stats["quality_by_source"].values())
+        stats["quality_avg"] = (
+            round(
+                sum(v["avg"] * v["scored"] for v in stats["quality_by_source"].values())
+                / total_scored,
+                1,
+            )
+            if total_scored
+            else None
+        )
+
         return stats
 
     async def get_unique_values(self, field_name: str) -> list[str]:
@@ -449,6 +482,20 @@ class SearchService:
                 {"value": v, "count": c}
                 for v, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
             ]
+
+        # Hygiene bands (#39): cumulative "at least N" counts for the
+        # sheet's threshold control, excluding the threshold's own
+        # selection like every other dimension. Value is the threshold
+        # so the FE can pass it straight back as min_quality.
+        band_conditions = self._build_conditions(replace(filters, min_quality=None))
+        band_query = select(Detection.quality_score).where(Detection.quality_score.isnot(None))
+        if band_conditions:
+            band_query = band_query.where(and_(*band_conditions))
+        scores = [s for s in (await self.db.execute(band_query)).scalars().all() if s is not None]
+        out["quality_band"] = [
+            {"value": str(threshold), "count": sum(1 for s in scores if s >= threshold)}
+            for threshold in (80, 60, 40)
+        ]
         return out
 
     def _build_conditions(self, filters: SearchFilters) -> list:
@@ -493,6 +540,10 @@ class SearchService:
             conditions.append(Detection.is_building_block.is_(True))
         elif filters.building_block is False:
             conditions.append(Detection.is_building_block.isnot(True))
+
+        # Hygiene threshold (#39)
+        if filters.min_quality is not None:
+            conditions.append(Detection.quality_score >= filters.min_quality)
 
         # Severity filter
         if filters.severities:

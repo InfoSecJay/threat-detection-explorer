@@ -48,5 +48,6 @@ export function countActiveFilters(filters: SearchFilters): number {
   }
   // Scalar tri-state (building blocks only / hidden) counts as one.
   if (filters.building_block !== undefined) n += 1;
+  if (filters.min_quality !== undefined) n += 1;
   return n;
 }

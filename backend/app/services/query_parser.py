@@ -42,6 +42,8 @@ from luqum.tree import (
     Phrase,
     Prohibit,
     Range,
+    From,
+    To,
     Regex,
     SearchField,
     UnknownOperation,
@@ -151,6 +153,17 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
             "alerting on their own. true / false."
         ),
         examples=["building_block:true", "NOT building_block:true"],
+    ),
+    FieldSpec(
+        aliases=["quality", "hygiene", "score"],
+        kind="int",
+        columns=["quality_score"],
+        description=(
+            "Hygiene score 0-100 (metadata, ATT&CK mapping, specificity, docs, "
+            "testability -- rule hygiene, not detection accuracy). Supports "
+            "comparisons and ranges; unscored rules never match."
+        ),
+        examples=["quality:>=60", "hygiene:<40", "quality:[60 TO 79]", "score:80"],
     ),
     FieldSpec(
         aliases=["lang", "language"],
@@ -421,8 +434,54 @@ def _bool_clause(column_name: str, raw_value: str) -> ColumnElement:
     )
 
 
+def _parse_int(field_name: str, node: Item) -> Optional[int]:
+    """Integer out of a luqum Word (`*` = unbounded -> None)."""
+    if not isinstance(node, Word):
+        raise QueryParseError(f"'{field_name}' expects a number, got {node!r}")
+    raw = node.value.strip()
+    if raw == "*":
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        raise QueryParseError(
+            f"'{field_name}' expects a whole number, got {raw!r}",
+            suggestion=f"Use {field_name}:>=60, {field_name}:<40 or {field_name}:[40 TO 79].",
+        )
+
+
+def _int_clause(spec: FieldSpec, field_name: str, child: Item) -> ColumnElement:
+    """Comparison / range / equality on an integer column. NULL never
+    matches (an unscored rule is neither above nor below a threshold)."""
+    col = getattr(Detection, spec.columns[0])
+    if isinstance(child, From):
+        bound = _parse_int(field_name, child.a)
+        if bound is None:
+            return col.isnot(None)
+        return col >= bound if child.include else col > bound
+    if isinstance(child, To):
+        bound = _parse_int(field_name, child.a)
+        if bound is None:
+            return col.isnot(None)
+        return col <= bound if child.include else col < bound
+    if isinstance(child, Range):
+        low = _parse_int(field_name, child.low)
+        high = _parse_int(field_name, child.high)
+        clauses = [col.isnot(None)]
+        if low is not None:
+            clauses.append(col >= low if child.include_low else col > low)
+        if high is not None:
+            clauses.append(col <= high if child.include_high else col < high)
+        return and_(*clauses)
+    if isinstance(child, Word):
+        return col == _parse_int(field_name, child)
+    raise QueryParseError(f"unsupported value shape after '{field_name}:'")
+
+
 def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
     """Build a WHERE clause for `field:value` given a FieldSpec."""
+    if spec.kind == "int":
+        return _int_clause(spec, spec.aliases[0], Word(value))
     if spec.kind == "bool":
         return _bool_clause(spec.columns[0], value)
     if spec.kind == "list_substring":
@@ -468,6 +527,10 @@ def _walk(node: Item) -> ColumnElement:
         # text out. luqum's Phrase includes the surrounding quotes;
         # strip them.
         child = node.expr
+        if spec.kind == "int":
+            # Numeric fields accept `>=60` / `<40` (luqum From / To),
+            # `[60 TO 79]` ranges, or a bare number for equality (#39).
+            return _int_clause(spec, node.name, child)
         if isinstance(child, Phrase):
             value = child.value.strip('"')
         elif isinstance(child, Word):

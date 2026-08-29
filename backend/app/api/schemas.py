@@ -410,6 +410,8 @@ class SearchParams(BaseModel):
     statuses: list[str] = Field(default_factory=list)
     # True = building blocks only, False = hide them, None = both.
     building_block: Optional[bool] = None
+    # Minimum hygiene score, inclusive (#39).
+    min_quality: Optional[int] = Field(default=None, ge=0, le=100)
     severities: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
     mitre_tactics: list[str] = Field(default_factory=list)
@@ -493,3 +495,7 @@ class StatisticsResponse(BaseModel):
     by_source: dict[str, int]
     by_severity: dict[str, int]
     by_status: dict[str, int]
+    # Hygiene averages over scored rows (#39). Optional so an older
+    # service response shape still validates.
+    quality_avg: Optional[float] = None
+    quality_by_source: dict[str, dict[str, float]] = Field(default_factory=dict)

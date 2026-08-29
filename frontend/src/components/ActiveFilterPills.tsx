@@ -22,6 +22,7 @@ const LABELS: Record<string, string> = {
   sources: 'Source',
   statuses: 'Status',
   building_block: 'Building blocks',
+  min_quality: 'Hygiene',
   severities: 'Severity',
   languages: 'Language',
   platforms: 'Platform',
@@ -79,6 +80,9 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
   if (filters.building_block !== undefined) {
     pills.push({ key: 'building_block', value: filters.building_block ? 'only' : 'hidden' });
   }
+  if (filters.min_quality !== undefined) {
+    pills.push({ key: 'min_quality', value: `>= ${filters.min_quality}` });
+  }
 
   if (pills.length === 0 && !filters.search) {
     return null;
@@ -87,6 +91,10 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
   const removePill = (key: keyof SearchFilters, value: string) => {
     if (key === 'building_block') {
       onFiltersChange({ ...filters, building_block: undefined, offset: 0 });
+      return;
+    }
+    if (key === 'min_quality') {
+      onFiltersChange({ ...filters, min_quality: undefined, offset: 0 });
       return;
     }
     const current = (filters[key] as string[]) || [];

@@ -148,6 +148,8 @@ export interface SearchFilters {
   // Tri-state: true = building blocks only, false = hide them,
   // undefined = both (issue #26).
   building_block?: boolean;
+  // Minimum hygiene score (0-100), inclusive (#39).
+  min_quality?: number;
   severities?: string[];
   languages?: string[];
   mitre_tactics?: string[];
@@ -185,6 +187,9 @@ export interface Statistics {
   by_source: Record<string, number>;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
+  // Hygiene averages over scored rows (#39); absent on older responses.
+  quality_avg?: number | null;
+  quality_by_source?: Record<string, { avg: number; scored: number }>;
 }
 
 // Export types

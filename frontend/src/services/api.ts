@@ -63,6 +63,7 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.sources?.length) params.set('sources', filters.sources.join(','));
   if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
   if (filters.building_block !== undefined) params.set('building_block', String(filters.building_block));
+  if (filters.min_quality !== undefined) params.set('min_quality', String(filters.min_quality));
   if (filters.severities?.length) params.set('severities', filters.severities.join(','));
   if (filters.languages?.length) params.set('languages', filters.languages.join(','));
   if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
@@ -106,6 +107,8 @@ export interface DetectionFacets {
   severities: FacetOption[];
   // Scalar boolean dimension: only the `true` bucket is reported.
   building_block: FacetOption[];
+  // Cumulative "score >= value" counts for thresholds 80 / 60 / 40 (#39).
+  quality_band: FacetOption[];
   languages: FacetOption[];
   mitre_tactics: FacetOption[];
   mitre_techniques: FacetOption[];

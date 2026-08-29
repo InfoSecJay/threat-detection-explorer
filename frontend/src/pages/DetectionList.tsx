@@ -113,6 +113,11 @@ export function DetectionList() {
         : searchParams.get('building_block') === 'false'
           ? false
           : undefined,
+    min_quality: (() => {
+      const raw = searchParams.get('min_quality');
+      const n = raw === null ? NaN : parseInt(raw, 10);
+      return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
+    })(),
     severities: searchParams.get('severities')?.split(',').filter(Boolean) || [],
     mitre_tactics: searchParams.get('mitre_tactics')?.split(',').filter(Boolean) || [],
     mitre_techniques: searchParams.get('mitre_techniques')?.split(',').filter(Boolean) || [],
@@ -152,6 +157,7 @@ export function DetectionList() {
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
     if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
     if (filters.building_block !== undefined) params.set('building_block', String(filters.building_block));
+    if (filters.min_quality !== undefined) params.set('min_quality', String(filters.min_quality));
     if (filters.severities?.length) params.set('severities', filters.severities.join(','));
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));

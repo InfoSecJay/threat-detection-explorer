@@ -155,12 +155,15 @@ function StatCard({
   value,
   label,
   color,
-  delay = 0
+  delay = 0,
+  caption,
 }: {
   value: number;
   label: string;
   color: string;
   delay?: number;
+  /** Secondary line under the label, e.g. the source's hygiene average. */
+  caption?: string;
 }) {
   return (
     <div
@@ -200,6 +203,11 @@ function StatCard({
           <p className="text-xs font-mono text-gray-500 mt-1 uppercase tracking-wider">
             {label}
           </p>
+          {caption && (
+            <p className="text-[10px] font-mono text-gray-600 mt-0.5 tabular-nums" title="Average hygiene score of this source's scored rules (metadata, ATT&CK mapping, docs, testability -- not detection accuracy)">
+              {caption}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -315,6 +323,12 @@ function DataSourceCard({
 
 export function Home() {
   const { data: stats, isLoading, error, refetch } = useStatistics();
+  // Per-source hygiene average for the stat cards (#39); empty while a
+  // source has no scored rules yet.
+  const hygiene = (source: string): string | undefined => {
+    const q = stats?.quality_by_source?.[source];
+    return q ? `hygiene ${q.avg}` : undefined;
+  };
 
   return (
     <div className="space-y-16">
@@ -459,6 +473,11 @@ export function Home() {
                     <p className="text-sm font-mono text-gray-400 mt-2">
                       Detection Rules
                     </p>
+                    {stats.quality_avg != null && (
+                      <p className="text-xs font-mono text-gray-500 mt-1 tabular-nums" title="Corpus-wide average hygiene score over scored rules">
+                        avg hygiene {stats.quality_avg}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -468,78 +487,91 @@ export function Home() {
             <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               <StatCard
                 value={stats.by_source.sigma || 0}
+                caption={hygiene("sigma")}
                 label="Sigma"
                 color="#a855f7"
                 delay={50}
               />
               <StatCard
                 value={stats.by_source.elastic || 0}
+                caption={hygiene("elastic")}
                 label="Elastic"
                 color="#3b82f6"
                 delay={100}
               />
               <StatCard
                 value={stats.by_source.splunk || 0}
+                caption={hygiene("splunk")}
                 label="Splunk"
                 color="#f97316"
                 delay={150}
               />
               <StatCard
                 value={stats.by_source.sublime || 0}
+                caption={hygiene("sublime")}
                 label="Sublime"
                 color="#ec4899"
                 delay={200}
               />
               <StatCard
                 value={stats.by_source.elastic_protections || 0}
+                caption={hygiene("elastic_protections")}
                 label="Elastic Protect"
                 color="#06b6d4"
                 delay={250}
               />
               <StatCard
                 value={stats.by_source.lolrmm || 0}
+                caption={hygiene("lolrmm")}
                 label="LOLRMM"
                 color="#22c55e"
                 delay={300}
               />
               <StatCard
                 value={stats.by_source.elastic_hunting || 0}
+                caption={hygiene("elastic_hunting")}
                 label="Elastic Hunt"
                 color="#8b5cf6"
                 delay={350}
               />
               <StatCard
                 value={stats.by_source.sentinel || 0}
+                caption={hygiene("sentinel")}
                 label="Sentinel"
                 color="#0078d4"
                 delay={400}
               />
               <StatCard
                 value={stats.by_source.google_secops || 0}
+                caption={hygiene("google_secops")}
                 label="Google SecOps"
                 color="#84cc16"
                 delay={450}
               />
               <StatCard
                 value={stats.by_source.okta || 0}
+                caption={hygiene("okta")}
                 label="Okta"
                 color="#14b8a6"
                 delay={500}
               />
               <StatCard
                 value={stats.by_source.auth0 || 0}
+                caption={hygiene("auth0")}
                 label="Auth0"
                 color="#f59e0b"
                 delay={550}
               />
               <StatCard
                 value={stats.by_source.panther || 0}
+                caption={hygiene("panther")}
                 label="Panther"
                 color="#d946ef"
                 delay={600}
               />
               <StatCard
                 value={stats.by_source.pypanther || 0}
+                caption={hygiene("pypanther")}
                 label="PyPanther"
                 color="#c026d3"
                 delay={650}

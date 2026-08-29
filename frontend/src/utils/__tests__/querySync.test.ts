@@ -249,3 +249,28 @@ describe('scalar building_block sync (#47)', () => {
     expect(out.building_block).toBe(true);
   });
 });
+
+describe('scalar min_quality sync (#39)', () => {
+  it('quality:>=60 in the bar lights the hygiene control; other shapes stay bar-only', () => {
+    expect(mergeTokensIntoFilters(base({ q: 'quality:>=60' }), parseBar('quality:>=60')).min_quality).toBe(60);
+    expect(mergeTokensIntoFilters(base({ q: 'hygiene:>=80' }), parseBar('hygiene:>=80')).min_quality).toBe(80);
+    expect(mergeTokensIntoFilters(base({ q: 'quality:<40' }), parseBar('quality:<40')).min_quality).toBeUndefined();
+    expect(mergeTokensIntoFilters(base({ q: 'quality:>=500' }), parseBar('quality:>=500')).min_quality).toBeUndefined();
+  });
+
+  it('picking a band in the sheet writes quality:>=N and clearing removes it', () => {
+    const current = base({ q: 'source:sigma' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const out = reconcileFilterChange(current, view, { ...view, min_quality: 60 }, parsed);
+    expect(out.q).toBe('source:sigma quality:>=60');
+    expect(out.min_quality).toBeUndefined();
+
+    const next = base({ q: out.q });
+    const nextParsed = parseBar(next.q!);
+    const nextView = mergeTokensIntoFilters(next, nextParsed);
+    expect(nextView.min_quality).toBe(60);
+    const cleared = reconcileFilterChange(next, nextView, { ...nextView, min_quality: undefined }, nextParsed);
+    expect(cleared.q).toBe('source:sigma');
+  });
+});

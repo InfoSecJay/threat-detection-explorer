@@ -72,13 +72,14 @@ const FIELD_MAP: { key: keyof SearchFilters; canonical: string; aliases: string[
 // backend `kind="bool"` specs. `parse` turns the typed token value into
 // the filter value (undefined = not a recognised value, token ignored);
 // `format` is the inverse for writing a token from the sheet (#47).
-type ScalarKey = 'building_block';
+type ScalarKey = 'building_block' | 'min_quality';
+type ScalarValue = boolean | number;
 const SCALAR_MAP: {
   key: ScalarKey;
   canonical: string;
   aliases: string[];
-  parse: (raw: string) => boolean | undefined;
-  format: (value: boolean) => string;
+  parse: (raw: string) => ScalarValue | undefined;
+  format: (value: ScalarValue) => string;
 }[] = [
   {
     key: 'building_block',
@@ -86,6 +87,20 @@ const SCALAR_MAP: {
     aliases: ['building_block', 'bb', 'signal_only'],
     parse: (raw) => (raw.toLowerCase() === 'true' ? true : raw.toLowerCase() === 'false' ? false : undefined),
     format: (value) => String(value),
+  },
+  {
+    // Only the ">= N" shape round-trips (that is what the sheet
+    // control writes); other comparisons / ranges stay bar-only.
+    key: 'min_quality',
+    canonical: 'quality',
+    aliases: ['quality', 'hygiene', 'score'],
+    parse: (raw) => {
+      const m = /^>=(\d{1,3})$/.exec(raw.trim());
+      if (!m) return undefined;
+      const n = Number(m[1]);
+      return n <= 100 ? n : undefined;
+    },
+    format: (value) => `>=${value}`,
   },
 ];
 const SCALAR_KEYS = new Set<string>(SCALAR_MAP.map((s) => s.key));
