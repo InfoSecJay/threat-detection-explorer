@@ -942,6 +942,38 @@ async def get_actor(
             "rule_count": rule_count,
             "weight": round(weight, 4) if weight is not None else None,
         })
+    # Per-source breakdown (#18): which vendor covers which of this
+    # actor's techniques. One uncapped scan of (source, techniques) for
+    # rules tagging any of the actor's techniques, aggregated in Python.
+    by_source_per_technique: dict[str, dict[str, int]] = {}
+    actor_tids = {t["technique_id"] for t in techniques_used}
+    if actor_tids:
+        conds = [
+            cast(Detection.mitre_techniques, String).ilike(f'%"{tid}"%')
+            for tid in actor_tids
+        ]
+        src_rows = (
+            await db.execute(
+                select(Detection.source, Detection.mitre_techniques).where(or_(*conds))
+            )
+        ).all()
+        for src, tids in src_rows:
+            for tid in tids or []:
+                tid_u = str(tid).upper()
+                if tid_u in actor_tids:
+                    per = by_source_per_technique.setdefault(tid_u, {})
+                    per[src] = per.get(src, 0) + 1
+    for t in techniques_used:
+        t["rule_count_by_source"] = dict(
+            sorted(by_source_per_technique.get(t["technique_id"], {}).items())
+        )
+    coverage_by_source: dict[str, dict] = {}
+    for tid, per in by_source_per_technique.items():
+        for src, n in per.items():
+            entry = coverage_by_source.setdefault(src, {"techniques_covered": 0, "rule_count": 0})
+            entry["techniques_covered"] += 1
+            entry["rule_count"] += n
+
     # Sort: covered first (rule_count desc), then uncovered alphabetically.
     techniques_used.sort(key=lambda t: (-t["rule_count"], t["technique_id"]))
     covered_count = sum(1 for t in techniques_used if t["has_rules"])
@@ -1072,6 +1104,10 @@ async def get_actor(
         "gap_count": scores.gap_count,
         "weighted_gap": round(scores.weighted_gap, 4),
         "techniques": techniques_used,
+        # {source: {techniques_covered, rule_count}} -- the gap heatmap
+        # row for this actor (#18). Sources with no matching rules are
+        # absent; the UI renders those as gaps.
+        "coverage_by_source": dict(sorted(coverage_by_source.items())),
         associated_key: associated,
         "match_counts": {
             "exact": exact_count,

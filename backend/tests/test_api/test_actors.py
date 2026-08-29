@@ -478,3 +478,27 @@ async def test_allcaps_alias_does_not_match_prose(client, db_session):
     assert data["match_counts"]["exact"] == 1
     assert [r["title"] for r in data["rules"]] == ["LEAD implant staging"]
     assert data["match_counts"]["mention"] == 1
+
+
+@pytest.mark.asyncio
+async def test_actor_detail_breaks_coverage_down_by_source(client, db_session):
+    """#18: per-technique and per-source counts so the UI can show which
+    vendor covers which of the actor's techniques."""
+    db_session.add_all([
+        _rule(title="s1", source="sigma", mitre_techniques=["T1001", "T1002"]),
+        _rule(title="s2", source="sigma", mitre_techniques=["T1001"]),
+        _rule(title="e1", source="elastic", mitre_techniques=["T1002"]),
+        _rule(title="x1", source="splunk", mitre_techniques=["T9999"]),  # not one of G0001's
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/G0001")
+    assert resp.status_code == 200
+    data = resp.json()
+    techs = {t["technique_id"]: t for t in data["techniques"]}
+    assert techs["T1001"]["rule_count_by_source"] == {"sigma": 2}
+    assert techs["T1002"]["rule_count_by_source"] == {"elastic": 1, "sigma": 1}
+    assert data["coverage_by_source"] == {
+        "elastic": {"techniques_covered": 1, "rule_count": 1},
+        "sigma": {"techniques_covered": 2, "rule_count": 3},
+    }

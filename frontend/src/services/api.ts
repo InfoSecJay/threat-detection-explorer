@@ -487,6 +487,8 @@ export interface ActorTechniqueEntry {
   // Distinctiveness weight log(N/n_t); null when no actor uses the
   // technique (excluded from the weight corpus).
   weight: number | null;
+  // {source: rules tagging this technique} (#18); absent on older responses.
+  rule_count_by_source?: Record<string, number>;
 }
 
 export interface ActorAssociatedSoftware {
@@ -564,6 +566,9 @@ export interface ActorDetail {
   gap_count: number;
   weighted_gap: number;
   techniques: ActorTechniqueEntry[];
+  // Gap heatmap row (#18): per source, how many of this actor's
+  // techniques it covers and with how many rules. Absent sources = gap.
+  coverage_by_source?: Record<string, { techniques_covered: number; rule_count: number }>;
 
   // Cross-references (one or the other depending on kind).
   associated_software?: ActorAssociatedSoftware[];
