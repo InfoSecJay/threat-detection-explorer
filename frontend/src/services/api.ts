@@ -971,4 +971,41 @@ export const digestApi = {
   feedUrl: (name: 'feed' | 'newly-covered'): string => `${API_BASE_URL}/digest/${name}.xml`,
 };
 
+// Observable pages: everything the corpus knows about one extracted value.
+export interface ObservableTopValue { value: string; rules: number; sources: string[] }
+export interface ObservableTopResponse { type: string; label: string; distinct: number; values: ObservableTopValue[] }
+export interface ObservableTypesResponse {
+  types: { type: string; label: string; filter_key: string; distinct: number; top: ObservableTopValue[] }[];
+}
+export interface ObservableProfileRule {
+  id: string; title: string; source: string; severity: string; status: string;
+  mitre_techniques: string[]; quality_score: number | null; created: string | null;
+}
+export interface ObservableProfile {
+  type: string;
+  label: string;
+  value: string;
+  filter_key: string;
+  total_rules: number;
+  negated_in: number;
+  by_source: Record<string, number>;
+  by_severity: Record<string, number>;
+  by_platform: Record<string, number>;
+  by_technique: { technique_id: string; rules: number }[];
+  by_tactic: { tactic_id: string; rules: number }[];
+  fields: { field: string; rules: number }[];
+  co_occurring: Record<string, { value: string; rules: number }[]>;
+  rules: ObservableProfileRule[];
+}
+
+export const observablesApi = {
+  types: async (): Promise<ObservableTypesResponse> => (await api.get('/observables')).data,
+  top: async (kind: string, limit = 100, source?: string): Promise<ObservableTopResponse> => {
+    const src = source ? `&source=${encodeURIComponent(source)}` : '';
+    return (await api.get(`/observables/${kind}?limit=${limit}${src}`)).data;
+  },
+  profile: async (kind: string, value: string): Promise<ObservableProfile> =>
+    (await api.get(`/observables/${kind}/${encodeURIComponent(value)}`)).data,
+};
+
 export default api;

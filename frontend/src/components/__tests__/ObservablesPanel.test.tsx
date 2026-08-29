@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { ObservablesPanel } from '../ObservablesPanel';
+
+// Values now link to their observable pages, so the panel needs a router.
+const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 const obs = (over: Partial<{ field: string; values: string[]; type: string; subtype: string; negated: boolean }> = {}) => ({
   field: 'Image', values: ['powershell.exe'], type: 'process', subtype: 'process_name', negated: false, ...over,

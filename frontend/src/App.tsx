@@ -18,6 +18,8 @@ const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
 const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default: m.Digest })));
+const Observables     = lazy(() => import('./pages/Observables').then(m => ({ default: m.Observables })));
+const ObservableDetail = lazy(() => import('./pages/ObservableDetail').then(m => ({ default: m.ObservableDetail })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -227,6 +229,7 @@ function App() {
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/mitre">MITRE</NavLink>
               <NavLink to="/actors">Actors</NavLink>
+              <NavLink to="/observables">Observables</NavLink>
               <NavLink to="/intel">Intel</NavLink>
               <NavDropdown
                 label="Resources"
@@ -273,6 +276,9 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/digest" element={<Digest />} />
+            <Route path="/observables" element={<Observables />} />
+            <Route path="/observables/:kind" element={<Observables />} />
+            <Route path="/observables/:kind/*" element={<ObservableDetail />} />
           </Routes>
         </Suspense>
       </main>

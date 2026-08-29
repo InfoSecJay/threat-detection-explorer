@@ -11,7 +11,9 @@
  * taxonomy/canonical.py; the display maps below only prettify.
  */
 
+import { Link } from 'react-router-dom';
 import type { Detection } from '../types';
+import { kindFor, observableUrl, OBSERVABLE_KIND_LABEL } from '../utils/observableLinks';
 
 type Observable = Detection['extracted_observables'][number];
 
@@ -133,16 +135,34 @@ export function ObservablesPanel({
                         {values.map((v, j) => {
                           const eventLabel =
                             o.subtype === 'event_id' && eventIdLabels ? eventIdLabels[String(v)] : undefined;
-                          return (
-                            <span
-                              key={`${v}-${j}`}
-                              className={`px-1.5 py-0.5 border rounded text-xs font-mono break-all ${style.chip}`}
-                              title={eventLabel ? `${v} - ${eventLabel}` : undefined}
-                            >
+                          const kind = kindFor(o.type, o.subtype);
+                          const chip = (
+                            <>
                               {v}
                               {eventLabel && (
                                 <span className="ml-1 font-sans text-[10px] opacity-75">{eventLabel}</span>
                               )}
+                            </>
+                          );
+                          const cls = `px-1.5 py-0.5 border rounded text-xs font-mono break-all ${style.chip}`;
+                          // Values with an observable page link to it: "every
+                          // rule across vendors that keys on this value".
+                          return kind && v ? (
+                            <Link
+                              key={`${v}-${j}`}
+                              to={observableUrl(kind, String(v))}
+                              className={`${cls} hover:brightness-125 underline decoration-dotted underline-offset-2`}
+                              title={`${eventLabel ? `${v} - ${eventLabel}. ` : ''}Every rule referencing this ${OBSERVABLE_KIND_LABEL[kind].toLowerCase()}`}
+                            >
+                              {chip}
+                            </Link>
+                          ) : (
+                            <span
+                              key={`${v}-${j}`}
+                              className={cls}
+                              title={eventLabel ? `${v} - ${eventLabel}` : undefined}
+                            >
+                              {chip}
                             </span>
                           );
                         })}

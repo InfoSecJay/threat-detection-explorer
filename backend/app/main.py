@@ -26,6 +26,7 @@ from app.api.routes import (
     export,
     methodology,
     mitre,
+    observables,
     query,
     releases,
     repositories,
@@ -111,3 +112,4 @@ app.include_router(actors.software_router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(methodology.router, prefix=settings.api_prefix)
 app.include_router(digest.router, prefix=settings.api_prefix)
+app.include_router(observables.router, prefix=settings.api_prefix)
