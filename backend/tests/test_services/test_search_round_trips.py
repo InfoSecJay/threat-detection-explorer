@@ -83,7 +83,7 @@ async def test_facets_unfiltered_is_one_query(db_session, corpus):
     search = SearchService(db_session)
     with _Counter(db_session) as c:
         facets = await search.get_facets(SearchFilters())
-    assert c.n == 1, f"unfiltered facets should be a single scan, ran {c.n}"
+    assert c.n == 2, f"unfiltered facets should be fingerprint + one scan, ran {c.n}"
     assert _fm(facets["sources"]) == {"sigma": 2, "elastic": 1, "splunk": 1}
     assert _fm(facets["severities"]) == {"high": 2, "critical": 1, "low": 1}
     assert _fm(facets["platforms"]) == {"windows": 3, "linux": 2}
@@ -98,7 +98,7 @@ async def test_facets_each_selected_dimension_adds_one_query(db_session, corpus)
     search = SearchService(db_session)
     with _Counter(db_session) as c:
         facets = await search.get_facets(SearchFilters(sources=["sigma"], severities=["high"]))
-    assert c.n == 3, f"two selected dimensions -> shared scan + one each, ran {c.n}"
+    assert c.n == 4, f"two selected dimensions -> fingerprint + shared scan + one each, ran {c.n}"
     # Own-selection exclusion still holds per dimension.
     assert _fm(facets["sources"]) == {"sigma": 1, "splunk": 1}  # severity=high, any source
     assert _fm(facets["severities"]) == {"high": 1, "critical": 1}  # source=sigma, any severity
@@ -111,7 +111,7 @@ async def test_statistics_is_four_queries_and_zero_fills(db_session, corpus):
     search = SearchService(db_session)
     with _Counter(db_session) as c:
         stats = await search.get_statistics()
-    assert c.n == 4, f"statistics should be 3 GROUP BYs + hygiene, ran {c.n}"
+    assert c.n == 5, f"statistics should be fingerprint + 3 GROUP BYs + hygiene, ran {c.n}"
     assert stats["total"] == 4
     assert stats["by_source"]["sigma"] == 2 and stats["by_source"]["sentinel"] == 0
     assert stats["by_severity"] == {"low": 1, "medium": 0, "high": 2, "critical": 1, "unknown": 0}
@@ -126,7 +126,7 @@ async def test_filter_options_is_one_query_and_matches_per_column_facets(db_sess
     search = SearchService(db_session)
     with _Counter(db_session) as c:
         opts = await search.get_filter_options()
-    assert c.n == 1
+    assert c.n == 2
     assert opts["sources"] == ["elastic", "sigma", "splunk"]
     assert opts["statuses"] == ["deprecated", "experimental", "stable"]
     assert opts["severities"] == ["critical", "high", "low"]
@@ -137,3 +137,27 @@ async def test_filter_options_is_one_query_and_matches_per_column_facets(db_sess
         "sources", "statuses", "severities", "languages",
         "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
     }
+
+
+@pytest.mark.asyncio
+async def test_repeat_calls_hit_the_corpus_cache(db_session, corpus):
+    """Second call with an unchanged corpus is the fingerprint query
+    only; an ingest (new row) moves the fingerprint and recomputes."""
+    search = SearchService(db_session)
+    first = await search.get_facets(SearchFilters())
+    await search.get_statistics()
+    with _Counter(db_session) as c:
+        again = await search.get_facets(SearchFilters())
+        stats = await search.get_statistics()
+        # Pagination/sort do not change counts, so they share the entry.
+        paged = await search.get_facets(SearchFilters(offset=50, limit=10, sort_by="title"))
+    assert c.n == 3
+    assert again == first == paged
+    assert stats["total"] == 4
+
+    db_session.add(_make("e", "sentinel", "medium", "stable", 10))
+    await db_session.commit()
+    with _Counter(db_session) as c:
+        fresh = await search.get_facets(SearchFilters())
+    assert c.n == 2, "fingerprint moved -> recompute"
+    assert _fm(fresh["sources"])["sentinel"] == 1

@@ -29,6 +29,11 @@ def _deterministic_mitre_tactic_cache():
 @pytest_asyncio.fixture
 async def db_session():
     """Create an in-memory database session for testing."""
+    # Aggregates memoised on the corpus fingerprint must not leak
+    # between tests that happen to build same-sized corpora.
+    from app.services.corpus_cache import corpus_cache
+    corpus_cache.invalidate()
+
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
 
     async with engine.begin() as conn:

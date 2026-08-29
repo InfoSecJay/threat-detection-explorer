@@ -8,6 +8,7 @@ from sqlalchemy import select, or_, and_, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.corpus_cache import corpus_cache
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,12 @@ class SearchService:
     _STAT_STATUSES = ("stable", "experimental", "deprecated", "unknown")
 
     async def get_statistics(self) -> dict:
+        """Corpus statistics, memoised on the corpus fingerprint (see
+        corpus_cache): a hit is one COUNT/MAX query instead of four
+        aggregates."""
+        return await corpus_cache.get(self.db, ("statistics",), self._compute_statistics)
+
+    async def _compute_statistics(self) -> dict:
         """Get overall statistics about stored detections.
 
         Four round trips regardless of vocabulary size: one GROUP BY
@@ -337,6 +344,10 @@ class SearchService:
     )
 
     async def get_filter_options(self) -> dict:
+        """Filter-option lists, memoised on the corpus fingerprint."""
+        return await corpus_cache.get(self.db, ("filter_options",), self._compute_filter_options)
+
+    async def _compute_filter_options(self) -> dict:
         """Everything GET /detections/filters returns, from ONE corpus scan.
 
         Scalar dimensions come back as sorted distinct values; taxonomy
@@ -471,6 +482,13 @@ class SearchService:
     }
 
     async def get_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
+        """Sidebar facets for `filters`, memoised per filter set on the
+        corpus fingerprint (pagination and sort do not affect counts and
+        are excluded from the key)."""
+        key = ("facets", repr(replace(filters, offset=0, limit=0, sort_by="", sort_order="")))
+        return await corpus_cache.get(self.db, key, lambda: self._compute_facets(filters))
+
+    async def _compute_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
         """Faceted counts for the filter sidebar, computed against the
         active query so counts narrow as filters apply.
 
