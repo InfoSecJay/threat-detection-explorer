@@ -1,5 +1,7 @@
 // Extracted from pages/Actors.tsx (#23). Behaviour unchanged.
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { actorsApi } from '../../services/api';
 import { clipSm } from '../../constants/style';
 import { countryFlag, countryName, coverageBarClass, coverageTextClass, GAP_ACCENT_THRESHOLD, MOTIVATION_STYLE } from '../../utils/actorDisplay';
 import type { ActorsQueryItem } from '../../services/api';
@@ -44,6 +46,7 @@ export function ActorsTable({
   onSort: (key: string) => void;
   onSectorClick: (sector: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const columns = TABLE_COLUMNS.filter((c) =>
     isGroup ? !c.softwareOnly : !c.groupsOnly
   );
@@ -77,7 +80,17 @@ export function ActorsTable({
           {items.map((item) => (
             <tr key={item.id} className="hover:bg-void-850 transition-colors">
               <td className="px-3 py-2 whitespace-nowrap">
-                <Link to={`/actors/${item.id}`} className="text-gray-200 hover:text-matrix-400 transition-colors">
+                <Link
+                  to={`/actors/${item.id}`}
+                  className="text-gray-200 hover:text-matrix-400 transition-colors"
+                  // Hover intent: fetch the detail into the same query key
+                  // useActor reads, so the click renders from cache.
+                  onMouseEnter={() => queryClient.prefetchQuery({
+                    queryKey: ['actor', item.id, 'exact'],
+                    queryFn: () => actorsApi.get(item.id, 'exact'),
+                    staleTime: 1000 * 60 * 5,
+                  })}
+                >
                   {item.name}
                 </Link>
                 <span className="text-gray-700 ml-2 tabular-nums">{item.id}</span>
