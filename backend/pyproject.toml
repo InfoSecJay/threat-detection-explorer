@@ -32,6 +32,12 @@ dev = [
     "pytest-asyncio>=0.23.0",
 ]
 
+[tool.setuptools.packages.find]
+# `vendored/` sits next to `app/` in the flat layout; without an
+# explicit include, setuptools refuses to build ("Multiple top-level
+# packages discovered"). Only `app` is the distributable package.
+include = ["app*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
