@@ -27,7 +27,7 @@ function Tile({ title, subtitle, to, children }: { title: string; subtitle: stri
   );
 }
 
-function NetChangeList() {
+export function NetChangeList() {
   const { data, isLoading } = useSourceDeltas(7);
   if (isLoading) return <div className="space-y-1">{[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}</div>;
   if (!data || data.method !== 'sync_jobs') return <EmptyLabel label="NEEDS_7_DAYS_OF_SYNC_HISTORY" />;
@@ -63,7 +63,7 @@ function NetChangeList() {
   );
 }
 
-function JustCoveredList() {
+export function JustCoveredList() {
   const { data, isLoading } = useNewlyCovered(7, 6);
   if (isLoading) return <div className="space-y-1">{[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}</div>;
   const rows = data

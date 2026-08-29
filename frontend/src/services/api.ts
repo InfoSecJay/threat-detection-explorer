@@ -932,4 +932,43 @@ export const methodologyApi = {
   },
 };
 
+// Weekly digest (#digest): one dated document of what changed.
+export interface DigestRule {
+  id: string;
+  rule_id: string | null;
+  title: string;
+  source: string;
+  severity: string;
+  status: string;
+  platforms: string[];
+  event_types: string[];
+  mitre_techniques: string[];
+  quality_score: number | null;
+  source_rule_url: string | null;
+  created: string | null;
+  modified: string | null;
+  description: string;
+}
+
+export interface DigestResponse {
+  generated_at: string;
+  period: { days: number; start: string; end: string };
+  summary: { total_rules: number; created: number; modified: number; created_by_source: Record<string, number> };
+  source_deltas: SourceDeltasResponse;
+  newly_covered: NewlyCoveredResponse;
+  momentum: TechniqueDeltasResponse;
+  new_rules: DigestRule[];
+  emerging_data_sources: { data_source: string; count: number; sources: string[] }[];
+}
+
+export const digestApi = {
+  get: async (days: number = 7, limit: number = 15): Promise<DigestResponse> => {
+    const response = await api.get(`/digest?days=${days}&limit=${limit}`);
+    return response.data;
+  },
+  // Feed URLs go through the same API base as everything else (the
+  // Vercel /api rewrite in production, the dev proxy locally).
+  feedUrl: (name: 'feed' | 'newly-covered'): string => `${API_BASE_URL}/digest/${name}.xml`,
+};
+
 export default api;

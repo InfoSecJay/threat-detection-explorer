@@ -111,7 +111,7 @@ export function Home() {
       )}
 
       <section>
-        <SectionHeader title="This week" subtitle="what changed across the corpus in the last 7 days" right={<Link to="/intel" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider mb-2">Intel &#8594;</Link>} />
+        <SectionHeader title="This week" subtitle="what changed across the corpus in the last 7 days" right={<Link to="/digest" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider mb-2">Weekly digest &#8594;</Link>} />
         <ThisWeek />
       </section>
 

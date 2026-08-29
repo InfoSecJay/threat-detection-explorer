@@ -22,6 +22,7 @@ from app.api.routes import (
     actors,
     compare,
     detections,
+    digest,
     export,
     methodology,
     mitre,
@@ -109,3 +110,4 @@ app.include_router(actors.router, prefix=settings.api_prefix)
 app.include_router(actors.software_router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(methodology.router, prefix=settings.api_prefix)
+app.include_router(digest.router, prefix=settings.api_prefix)

@@ -55,7 +55,7 @@ export function Ticker() {
     >
       <Cell to="/detections" label="rules" value={stats ? stats.total.toLocaleString() : '—'} tone="text-matrix-400" />
       <Cell
-        to="/intel"
+        to="/digest"
         label="7d net"
         value={net === null ? '—' : `${net > 0 ? '+' : ''}${net.toLocaleString()}`}
         tone={net === null ? 'text-gray-500' : net > 0 ? 'text-pulse-400' : net < 0 ? 'text-breach-400' : 'text-gray-300'}

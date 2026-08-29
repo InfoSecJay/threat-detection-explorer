@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { trendingApi, ActivityFilters } from '../services/api';
+import { trendingApi, digestApi, ActivityFilters } from '../services/api';
 
 export function useTrendingTechniques(
   days: number = 90,
@@ -109,3 +109,12 @@ export function useSourceDeltas(days: number = 7) {
 }
 
 
+
+/** Weekly digest document (JSON twin of the RSS feeds). */
+export function useDigest(days: number = 7, limit: number = 15) {
+  return useQuery({
+    queryKey: ['digest', days, limit],
+    queryFn: () => digestApi.get(days, limit),
+    staleTime: 1000 * 60 * 10,
+  });
+}

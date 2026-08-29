@@ -17,6 +17,7 @@ const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ de
 const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({ default: m.QueryReference })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
+const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default: m.Digest })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -233,6 +234,7 @@ function App() {
                   { to: '/about', label: 'About' },
                   { to: '/query', label: 'Query Reference' },
                   { to: '/integrations', label: 'Integrations' },
+                  { to: '/digest', label: 'Weekly Digest' },
                 ]}
               />
             </div>
@@ -270,6 +272,7 @@ function App() {
             <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/integrations" element={<Integrations />} />
+            <Route path="/digest" element={<Digest />} />
           </Routes>
         </Suspense>
       </main>
