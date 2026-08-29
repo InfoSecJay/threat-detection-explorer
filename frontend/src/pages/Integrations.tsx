@@ -211,11 +211,15 @@ function IntegrationCard({ repo }: { repo: Repository }) {
 }
 
 export function Integrations() {
-  const { data: repositories, isLoading, error } = useQuery<Repository[]>({
+  const { data: repositoriesRaw, isLoading, error } = useQuery<Repository[]>({
     queryKey: ['repositories'],
     queryFn: repositoriesApi.list,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+  // Drop rows with no card config (legacy/renamed repo rows such as a
+  // pre-rename `okta_custom_detections`) BEFORE computing the header
+  // stats, so TOTAL_SOURCES never claims more cards than render (#51).
+  const repositories = repositoriesRaw?.filter((r) => r.name in sourceConfig);
 
   // Calculate totals
   const totalRules = repositories?.reduce((sum, repo) => sum + repo.rule_count, 0) || 0;

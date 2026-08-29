@@ -579,8 +579,13 @@ export function Actors() {
 
   const tab = (searchParams.get('tab') === 'software' ? 'software' : 'groups') as Tab;
   const [view, setView] = useState<View>(() => {
-    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
-    return stored === 'cards' ? 'cards' : 'table';
+    // localStorage throws when site data is blocked; a throw inside a
+    // useState initializer is a render-phase crash for the whole page.
+    try {
+      return localStorage.getItem(VIEW_STORAGE_KEY) === 'cards' ? 'cards' : 'table';
+    } catch {
+      return 'table';
+    }
   });
 
   // getAll() returns a fresh array every call; memoize on searchParams
@@ -681,7 +686,11 @@ export function Actors() {
 
   const switchView = (v: View) => {
     setView(v);
-    localStorage.setItem(VIEW_STORAGE_KEY, v);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, v);
+    } catch {
+      /* preference simply does not persist when site data is blocked */
+    }
   };
 
   const activeFilterCount =
@@ -954,11 +963,25 @@ export function Actors() {
         </>
       )}
       {data && data.items.length > 0 && view === 'cards' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {data.items.map((item) => (
-            <EntityCard key={item.id} item={item} isGroup={isGroup} onSectorClick={addSector} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            {data.items.map((item) => (
+              <EntityCard key={item.id} item={item} isGroup={isGroup} onSectorClick={addSector} />
+            ))}
+          </div>
+          {data.total > data.items.length && (
+            // Cards are capped at CARDS_PER_PAGE with no paging; say so
+            // instead of silently showing 500 of 743 (#51).
+            <div className="text-[10px] font-mono text-gray-500 text-center py-2" role="status">
+              showing the first {data.items.length.toLocaleString()} of {data.total.toLocaleString()} --
+              narrow the filters or{' '}
+              <button onClick={() => switchView('table')} className="text-matrix-400 hover:text-matrix-300 underline">
+                switch to table view
+              </button>{' '}
+              to page through the rest
+            </div>
+          )}
+        </>
       )}
     </div>
   );

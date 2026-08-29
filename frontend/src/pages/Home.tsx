@@ -314,7 +314,7 @@ function DataSourceCard({
 }
 
 export function Home() {
-  const { data: stats, isLoading } = useStatistics();
+  const { data: stats, isLoading, error, refetch } = useStatistics();
 
   return (
     <div className="space-y-16">
@@ -393,6 +393,30 @@ export function Home() {
         {/* Bottom decoration line */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-matrix-500/30 to-transparent" />
       </section>
+
+      {/* Statistics failed to load: say so instead of silently dropping
+          the whole intel feed section (#51). */}
+      {!isLoading && error && !stats && (
+        <section
+          className="bg-void-850 border border-breach-500/30 px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
+          role="alert"
+        >
+          <div>
+            <div className="text-[10px] font-mono text-breach-400 uppercase tracking-[0.2em] mb-1">
+              Detection Intel Feed
+            </div>
+            <div className="text-sm font-mono text-gray-300">
+              Corpus statistics unavailable: {error.message}
+            </div>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-breach-500/40 text-breach-400 hover:bg-breach-500/10 transition-colors"
+          >
+            [ retry ]
+          </button>
+        </section>
+      )}
 
       {/* Statistics Section */}
       {!isLoading && stats && (

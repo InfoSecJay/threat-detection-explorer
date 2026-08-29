@@ -10,10 +10,31 @@ import { sourceTheme as sourceConfig, clipMd } from '../../constants/style';
 import { SkeletonRow } from './Section';
 
 export function PulseBanner({ days }: { days: number }) {
-  const { data, isLoading } = useTrendingSummary(days);
+  const { data, isLoading, error, refetch } = useTrendingSummary(days);
 
   if (isLoading) return <SkeletonRow height="h-20" />;
-  if (!data) return null;
+  if (!data) {
+    // A failed /trending/summary used to make the banner vanish with
+    // no explanation (#51).
+    return (
+      <div
+        className="border border-breach-500/30 bg-void-850 px-5 py-3 flex items-center justify-between gap-4 flex-wrap"
+        style={clipMd}
+        role="alert"
+      >
+        <div className="text-xs font-mono text-gray-400">
+          <span className="text-breach-400 uppercase tracking-[0.2em] mr-2">Detection Pulse</span>
+          unavailable{error ? `: ${error.message}` : ''}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="text-[10px] font-mono uppercase tracking-wider text-breach-400 hover:text-breach-300"
+        >
+          [ retry ]
+        </button>
+      </div>
+    );
+  }
 
   // Sort by (created desc, modified desc) so "who is publishing the
   // most new content" wins the leftmost bar. Bars are scaled to the
