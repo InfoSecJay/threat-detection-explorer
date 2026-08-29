@@ -328,7 +328,8 @@ EVENT_TYPES: frozenset[str] = frozenset(
         # the coarser `audit_event` / `api_call` classification instead of
         # being silently split into plausible sub-categories.
         #
-        # Values are grouped by theme below. Count as of Issue 2 Phase 1b: 35.
+        # Values are grouped by theme below. Count as of Issue 2 Phase 1b: 35;
+        # issue #16 added the 10 Windows audit categories (45).
 
         # ── Process activity (Sysmon 1, 5, 7, 8, 9, 10, 25) ────────────────
         "process_creation",          # Sysmon 1, Windows 4688
@@ -365,9 +366,27 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "api_call",
         # ── Generic audit log (Windows Security/System/Application, etc.) ─
         # Coarse fallback when the logsource is a channel that contains
-        # many different event types. Future work: per-vendor event-ID
-        # dictionaries will refine these to more specific categories.
+        # many different event types. Refined per rule by the event-ID
+        # dictionary (`taxonomy/event_ids.py`, issue #16) when the rule
+        # pins specific event IDs -- see the Windows audit categories
+        # below.
         "audit_event",
+        # ── Windows audit categories (event-ID refinement, issue #16) ───
+        # Named after the Windows Security auditing categories so an
+        # analyst can map them back to `auditpol` subcategories. Only
+        # produced by `mappings/event_ids.yaml`, never by a channel
+        # mapping (that would be the inference section 1 of
+        # docs/taxonomy.md forbids).
+        "account_management",        # 4720-4767, 4780-4799 user/group/computer
+        "privilege_use",             # 4672-4674, 4703, 4964
+        "policy_change",             # 4704-4719, 4739, 4817-4912, firewall rules
+        "log_clear",                 # 1100, 1102, System 104, Defender 1013
+        "service_install",           # 4697, System 7045
+        "service_event",             # System 70xx state/crash/start-type changes
+        "scheduled_task",            # 4698-4702, TaskScheduler 106/140/141/200/201
+        "object_access",             # 4656-4663, 4690 (files, SAM, handles)
+        "share_access",              # 5140-5145
+        "directory_service_event",   # 4662, 5136-5141
         # ── Sysmon / system-specific misc ──────────────────────────────────
         "wmi_event",                 # Sysmon 19, 20, 21
         "clipboard_capture",         # Sysmon 24

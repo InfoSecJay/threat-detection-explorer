@@ -61,6 +61,10 @@ vi.mock('../../hooks/useDetections', () => ({
 // useMemo([tactics]). A fresh `tactics` reference per render breaks
 // memoization but doesn't cause an infinite loop here. Still, keep
 // the pattern consistent for safety.
+vi.mock('../../hooks/useEventIds', () => ({
+  useEventIds: () => ({ labels: {}, entries: {} }),
+}));
+
 vi.mock('../../contexts/MitreContext', () => {
   const VALUE = {
     tactics: {},

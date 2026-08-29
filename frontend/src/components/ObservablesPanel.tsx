@@ -45,10 +45,14 @@ export function ObservablesPanel({
   observables,
   sourceTables,
   complexity,
+  eventIdLabels,
 }: {
   observables: Observable[];
   sourceTables: string[];
   complexity?: string;
+  /** {event id: label} from useEventIds(); labels event-ID chips
+   * ("4688 Process created"). Optional so the panel stays pure. */
+  eventIdLabels?: Record<string, string>;
 }) {
   const groups = new Map<string, Observable[]>();
   for (const o of observables) {
@@ -126,11 +130,22 @@ export function ObservablesPanel({
                       </span>
                       <span className="text-[10px] font-mono text-gray-600">{humanize(o.subtype)}</span>
                       <div className="flex flex-wrap gap-1">
-                        {values.map((v, j) => (
-                          <span key={`${v}-${j}`} className={`px-1.5 py-0.5 border rounded text-xs font-mono break-all ${style.chip}`}>
-                            {v}
-                          </span>
-                        ))}
+                        {values.map((v, j) => {
+                          const eventLabel =
+                            o.subtype === 'event_id' && eventIdLabels ? eventIdLabels[String(v)] : undefined;
+                          return (
+                            <span
+                              key={`${v}-${j}`}
+                              className={`px-1.5 py-0.5 border rounded text-xs font-mono break-all ${style.chip}`}
+                              title={eventLabel ? `${v} - ${eventLabel}` : undefined}
+                            >
+                              {v}
+                              {eventLabel && (
+                                <span className="ml-1 font-sans text-[10px] opacity-75">{eventLabel}</span>
+                              )}
+                            </span>
+                          );
+                        })}
                         {overflow > 0 && (
                           <span className="px-1.5 py-0.5 text-[10px] font-mono text-gray-500" title={o.values.slice(MAX_VALUES).join('\n')}>
                             +{overflow} more

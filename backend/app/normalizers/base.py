@@ -112,6 +112,24 @@ class NormalizedDetection:
     # unmapped rules in drift reports.
     taxonomy_fingerprint: str = ""
 
+    def __post_init__(self) -> None:
+        # Second-pass taxonomy refinement (issue #16): a coarse
+        # `audit_event` from a channel-level logsource is replaced by
+        # what the rule's own event IDs say (4624 -> authentication,
+        # 4688 -> process_creation, ...). Lives here rather than in each
+        # normalizer so every source -- present and future -- gets it,
+        # and because this is the one place that has BOTH the resolved
+        # taxonomy and the extracted event IDs. Pure function; see
+        # `app/services/taxonomy/event_ids.py` for the rules.
+        from app.services.taxonomy.event_ids import refine_event_types
+
+        self.event_types = refine_event_types(
+            self.event_types,
+            self.platforms,
+            self.data_sources,
+            self.extracted_event_ids,
+        )
+
 
 class BaseNormalizer(ABC):
     """Abstract base class for detection rule normalizers."""

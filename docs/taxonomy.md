@@ -47,10 +47,44 @@ windows/security:
   event_types: [audit_event]                    # coarse but accurate
 ```
 
-The future work is a per-EventID dictionary that refines the
-classification by parsing the rule's `EventID` selection. That's a
-separate undertaking (see TODO items) and not something we fudge with
-heuristics in the meantime.
+The refinement that IS allowed comes from the rule itself, not the
+channel: when the rule's logic pins specific event IDs (extracted into
+`extracted_event_ids`), `mappings/event_ids.yaml` says what those IDs
+are and `taxonomy/event_ids.py::refine_event_types` replaces the
+coarse tag with the dictionary's types (issue #16). So a
+`windows/security` rule with `EventID: 4624` becomes `authentication`,
+one with `EventID: [4688, 4720]` becomes `[account_management,
+process_creation]`, and one with no EventID stays `audit_event`.
+
+Rules of the second pass (all covered by
+`tests/test_services/test_event_ids.py`):
+
+- Only Windows-scoped rules (platform `windows` or a Windows data
+  source) are refined -- IDs are matched by number alone, so a Linux
+  rule with `type=1` must never pick up the Sysmon meaning.
+- Only `audit_event` / `unknown` are replaced. A specific type the
+  vendor mapping produced (`process_creation` from Sigma's category,
+  `authentication` from Sentinel's `securityevents`) is kept and
+  unioned with the dictionary's types.
+- If any of the rule's IDs is unknown to the dictionary, `audit_event`
+  is kept alongside the refinement -- part of the rule is still
+  unclassified.
+- IDs whose meaning depends on the channel (8001-8004: NTLM audit vs
+  AppLocker) are deliberately absent from the dictionary; a duplicate
+  ID across providers fails the test suite.
+
+The pass runs in `NormalizedDetection.__post_init__` so every source
+gets it without per-normalizer wiring. The same dictionary backs
+`GET /api/query/event-ids`, which the UI uses to label raw IDs
+("4688 - Process created") in the Event ID facet, the filter pills and
+the detail page.
+
+The ten canonical values that only this pass produces
+(`account_management`, `privilege_use`, `policy_change`, `log_clear`,
+`service_install`, `service_event`, `scheduled_task`, `object_access`,
+`share_access`, `directory_service_event`) are named after the Windows
+Security auditing categories. They must never appear in a channel
+mapping -- that would be exactly the inference this section forbids.
 
 ### 2. Full granularity when the vendor IS explicit
 

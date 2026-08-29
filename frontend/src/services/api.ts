@@ -605,9 +605,26 @@ export interface QueryFieldsResponse {
   fields: QueryFieldSpec[];
 }
 
+/** One entry of the Windows event-ID dictionary (issue #16). Keyed by
+ * the raw numeric ID as a string ("4688"). */
+export interface EventIdEntry {
+  label: string;
+  provider: string;
+  channel: string;
+  event_types: string[];
+}
+
+export interface EventIdDictionaryResponse {
+  event_ids: Record<string, EventIdEntry>;
+}
+
 export const queryApi = {
   getFields: async (): Promise<QueryFieldsResponse> => {
     const response = await api.get('/query/fields');
+    return response.data;
+  },
+  getEventIds: async (): Promise<EventIdDictionaryResponse> => {
+    const response = await api.get('/query/event-ids');
     return response.data;
   },
 };

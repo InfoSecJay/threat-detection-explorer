@@ -121,6 +121,7 @@ export function Facet({
   options,
   selected,
   onChange,
+  labels,
 }: {
   title: string;
   filterKey: keyof SearchFilters;
@@ -128,6 +129,10 @@ export function Facet({
   options: FacetOption[];
   selected: string[];
   onChange: (values: string[]) => void;
+  /** Optional {value: human label} map (e.g. event-ID dictionary):
+   * the raw value stays the filter key, the label renders beside it
+   * and is searchable. */
+  labels?: Record<string, string>;
 }) {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
@@ -142,11 +147,16 @@ export function Facet({
       if (b.value === 'unknown') return -1;
       return b.count - a.count;
     });
+    const q = query.toLowerCase();
     const filtered = query
-      ? sorted.filter((o) => o.value.toLowerCase().includes(query.toLowerCase()))
+      ? sorted.filter(
+          (o) =>
+            o.value.toLowerCase().includes(q) ||
+            (labels?.[o.value] || '').toLowerCase().includes(q),
+        )
       : sorted;
     return showAll || query ? filtered : filtered.slice(0, 10);
-  }, [options, query, showAll]);
+  }, [options, query, showAll, labels]);
 
   const toggle = (value: string) => {
     const next = selected.includes(value)
@@ -209,9 +219,14 @@ export function Facet({
                     ? 'text-gray-500 italic'
                     : 'text-gray-400 group-hover:text-white'
                 }`}
-                title={opt.value}
+                title={labels?.[opt.value] ? `${opt.value} - ${labels[opt.value]}` : opt.value}
               >
                 {opt.value}
+                {labels?.[opt.value] && (
+                  <span className="ml-1.5 text-[11px] text-gray-500 group-hover:text-gray-300">
+                    {labels[opt.value]}
+                  </span>
+                )}
               </span>
             </span>
             <span className="text-[10px] font-mono text-gray-600 shrink-0">

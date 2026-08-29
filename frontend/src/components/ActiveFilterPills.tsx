@@ -1,5 +1,6 @@
 import type { SearchFilters } from '../types';
 import { resolveGroup, resolveSoftware } from '../services/mitreLookup';
+import { useEventIds } from '../hooks/useEventIds';
 
 /**
  * Horizontal pill row showing every currently-applied filter, each
@@ -58,6 +59,8 @@ const ACCENTS: Record<string, string> = {
 const DEFAULT_ACCENT = 'bg-void-800 text-gray-300 border-void-600';
 
 export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPillsProps) {
+  // Hook before any early return (rules of hooks).
+  const { labels: eventIdLabels } = useEventIds();
   const pills: Array<{ key: keyof SearchFilters; value: string }> = [];
 
   (Object.keys(LABELS) as Array<keyof SearchFilters>).forEach((key) => {
@@ -108,6 +111,7 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
         let display: string = value;
         if (key === 'mitre_groups') display = resolveGroup(value).name;
         else if (key === 'mitre_software') display = resolveSoftware(value).name;
+        else if (key === 'event_ids' && eventIdLabels[value]) display = `${value} ${eventIdLabels[value]}`;
         return (
           <button
             key={`${key}:${value}`}
