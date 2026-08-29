@@ -31,6 +31,8 @@ import asyncio
 import logging
 import os
 import signal
+import socket
+import uuid
 from datetime import datetime
 
 from app.utils.datetime_utils import utcnow
@@ -46,6 +48,7 @@ from app.database import async_session_maker, init_db
 from app.services.github_auth import check_github_token, log_token_status
 from app.services.job_queue import JobQueueService
 from app.services.scheduler import run_full_sync_job
+from app.services.worker_lease import LeaseService
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,15 @@ STUCK_JOB_TIMEOUT_MINUTES = 180
 # as `running` forever with no one to clean it up. Sweeping periodically
 # fixes this — worst case the orphan lives for `SWEEP + TIMEOUT` minutes.
 STUCK_JOB_SWEEP_INTERVAL_SECONDS = 300  # 5 min
+
+# Single-flight lease (#36). Only the holder claims jobs; a lease whose
+# heartbeat is older than the TTL belongs to a dead worker and is taken
+# over. Heartbeats run on their own task so a long ingest does not let
+# the lease lapse. 90s TTL / 20s beat tolerates a slow DB round-trip
+# or a GC pause without a false takeover.
+LEASE_TTL_SECONDS = 90
+LEASE_HEARTBEAT_INTERVAL_SECONDS = 20
+LEASE_STANDBY_LOG_INTERVAL_SECONDS = 300
 
 
 def _build_health_app() -> FastAPI:
@@ -111,6 +123,13 @@ class Worker:
         # sweep runs BEFORE any jobs are claimed, but a deploy-time
         # race means a fresh orphan can land between startup and now.
         self._last_sweep_at: Optional[datetime] = None
+        # Lease identity + state (#36). The id is informational (shows
+        # who holds the lease in the table); uniqueness comes from the
+        # nonce so two containers on one host never collide.
+        self._worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+        self._holds_lease = False
+        self._job_in_progress = False
+        self._standby_logged_at: Optional[datetime] = None
 
     async def start(self) -> None:
         """Initialize the worker and enter the main poll loop."""
@@ -126,9 +145,9 @@ class Worker:
         except Exception as e:
             logger.warning(f"GITHUB_TOKEN startup check raised: {e}")
 
-        # Sweep any stuck jobs from a previous worker that crashed mid-run
-        # (and requeue the lost work — see _sweep_and_requeue).
-        await self._sweep_and_requeue()
+        # Stuck-job sweeping now happens from the poll loop once this
+        # worker holds the sync lease (#36): sweeping before we know
+        # whether another worker is alive could reset ITS running job.
 
         # Start the nightly cron in-process. This is safe because this
         # worker has no HTTP workload to block — the whole point is that
@@ -192,6 +211,7 @@ class Worker:
         # poll loop in try/except inside _poll_forever to keep it alive.
         await asyncio.gather(
             self._poll_forever(),
+            self._heartbeat_forever(),
             self._health_server.serve(),
         )
 
@@ -199,8 +219,20 @@ class Worker:
         """Main poll loop. Runs until `self._running` is set to False."""
         while self._running:
             try:
-                await self._maybe_sweep_stuck_jobs()
-                await self._poll_once()
+                held, acquired_now = await self._acquire_lease()
+                if held:
+                    if acquired_now:
+                        # Every `running` row belongs to a holder that is
+                        # gone (we would not have the lease otherwise), so
+                        # requeue the lost work now rather than after the
+                        # 180-minute stuck timeout -- the 3h-per-deploy
+                        # cost that #36 was opened for.
+                        await self._sweep_and_requeue(timeout_minutes=0)
+                        self._last_sweep_at = utcnow()
+                    await self._maybe_sweep_stuck_jobs()
+                    await self._poll_once()
+                else:
+                    self._log_standby()
             except Exception as e:
                 # Never let an exception from one job kill the poll loop.
                 # Log loudly and keep polling.
@@ -208,6 +240,49 @@ class Worker:
 
             if self._running:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+    async def _acquire_lease(self) -> tuple[bool, bool]:
+        async with async_session_maker() as db:
+            held, acquired_now = await LeaseService(db).try_acquire(
+                self._worker_id, LEASE_TTL_SECONDS,
+            )
+        if held and not self._holds_lease:
+            logger.info(f"Holding sync lease as {self._worker_id}")
+        if not held and self._holds_lease:
+            logger.error(
+                f"Lost sync lease ({self._worker_id}); standing by. A job in "
+                f"progress will finish but no new jobs are claimed."
+            )
+        self._holds_lease = held
+        return held, acquired_now
+
+    def _log_standby(self) -> None:
+        now = utcnow()
+        if (
+            self._standby_logged_at is None
+            or (now - self._standby_logged_at).total_seconds() >= LEASE_STANDBY_LOG_INTERVAL_SECONDS
+        ):
+            logger.info(
+                f"Sync lease held by another worker; {self._worker_id} standing by "
+                f"(takeover after {LEASE_TTL_SECONDS}s without a heartbeat)"
+            )
+            self._standby_logged_at = now
+
+    async def _heartbeat_forever(self) -> None:
+        """Renew the lease on its own task so a multi-hour ingest cannot
+        let it lapse. Silent when we do not hold it."""
+        while self._running:
+            await asyncio.sleep(LEASE_HEARTBEAT_INTERVAL_SECONDS)
+            if not self._holds_lease:
+                continue
+            try:
+                async with async_session_maker() as db:
+                    still_ours = await LeaseService(db).heartbeat(self._worker_id)
+                if not still_ours:
+                    logger.error(f"Heartbeat rejected: {self._worker_id} no longer owns the sync lease")
+                    self._holds_lease = False
+            except Exception as e:
+                logger.warning(f"Lease heartbeat failed: {e}")
 
     async def _maybe_sweep_stuck_jobs(self) -> None:
         """Re-run the stuck-job sweep every SWEEP_INTERVAL seconds.
@@ -230,8 +305,13 @@ class Worker:
         await self._sweep_and_requeue()
         self._last_sweep_at = now
 
-    async def _sweep_and_requeue(self) -> None:
+    async def _sweep_and_requeue(
+        self, timeout_minutes: int = STUCK_JOB_TIMEOUT_MINUTES,
+    ) -> None:
         """Reset stuck jobs, then requeue the lost work.
+
+        `timeout_minutes=0` is the lease-takeover case: the previous
+        holder is provably gone, so every `running` row is an orphan.
 
         A stuck `running` row almost always means a Railway redeploy (or
         OOM) killed the previous worker mid-sync. Marking it failed is
@@ -248,9 +328,7 @@ class Worker:
         """
         async with async_session_maker() as db:
             queue = JobQueueService(db)
-            swept = await queue.reset_stuck_jobs(
-                timeout_minutes=STUCK_JOB_TIMEOUT_MINUTES
-            )
+            swept = await queue.reset_stuck_jobs(timeout_minutes=timeout_minutes)
             for job in swept:
                 if job["triggered_by"] == "requeue":
                     logger.error(
@@ -280,6 +358,19 @@ class Worker:
             self._scheduler.shutdown(wait=False)
         if self._health_server is not None:
             self._health_server.should_exit = True
+        # Hand the lease over immediately so the replacement container
+        # starts claiming within one poll -- UNLESS a job is mid-flight:
+        # then we keep it until the TTL lapses, so the successor cannot
+        # start a second sync on the shared volume while this one is
+        # still being torn down (the deploy-overlap race in #36).
+        if self._holds_lease and not self._job_in_progress:
+            try:
+                async with async_session_maker() as db:
+                    await LeaseService(db).release(self._worker_id)
+                logger.info("Released sync lease")
+            except Exception as e:
+                logger.warning(f"Lease release failed (TTL will expire it): {e}")
+            self._holds_lease = False
 
     async def _enqueue_scheduled_sync(self) -> None:
         """APScheduler callback: queue a nightly full sync job.
@@ -312,6 +403,7 @@ class Worker:
             f"trigger={job.triggered_by})"
         )
 
+        self._job_in_progress = True
         try:
             await run_full_sync_job(
                 triggered_by=job.triggered_by,
@@ -327,6 +419,8 @@ class Worker:
             async with async_session_maker() as db:
                 queue = JobQueueService(db)
                 await queue.mark_failed(job.id, f"{type(e).__name__}: {e}")
+        finally:
+            self._job_in_progress = False
 
 
 async def main() -> None:

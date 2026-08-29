@@ -41,6 +41,10 @@ class SchedulerStatusResponse(UtcTimestampsModel):
     next_run_time: Optional[datetime]
     last_scheduled_run: Optional[datetime]
     message: str
+    # Single-flight sync lease (#36): which worker may run jobs right
+    # now. `held` false + `owner` set means the last holder died and a
+    # successor has not taken over yet.
+    worker_lease: Optional[dict] = None
 
 
 class SyncJobResponse(UtcTimestampsModel):
@@ -138,7 +142,15 @@ async def get_scheduler_status(db: AsyncSession = Depends(get_db)):
     )
     last_scheduled = last_scheduled_result.scalar_one_or_none()
 
+    from app.services.worker_lease import get_lease_status
+    from app.utils.datetime_utils import to_utc_iso
+    from app.worker import LEASE_TTL_SECONDS
+
+    lease = await get_lease_status(db, LEASE_TTL_SECONDS)
+    lease["heartbeat_at"] = to_utc_iso(lease["heartbeat_at"])
+
     return SchedulerStatusResponse(
+        worker_lease=lease,
         enabled=settings.enable_scheduler,
         schedule_hour=settings.sync_schedule_hour,
         schedule_minute=settings.sync_schedule_minute,
