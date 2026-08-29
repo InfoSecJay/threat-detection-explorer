@@ -497,6 +497,7 @@ class IngestionService:
             author=normalized.author,
             status=normalized.status,
             severity=normalized.severity,
+            is_building_block=normalized.is_building_block,
             mitre_tactics=normalized.mitre_tactics,
             mitre_techniques=normalized.mitre_techniques,
             mitre_groups=normalized.mitre_groups,
