@@ -874,4 +874,32 @@ export interface RecentRulesResponse {
   most_recently_modified: RecentRuleItem[];
 }
 
+// Per-source counting methodology (#32), generated from the ingester's
+// own discovery config.
+export interface MethodologySource {
+  name: string;
+  url: string | null;
+  branch: string;
+  sparse_checkout: string[] | null;
+  include_patterns: string[];
+  exclude_dirs: string[];
+  scope_notes: string;
+  last_commit_hash: string | null;
+  last_sync_at: string | null;
+  rule_count: number | null;
+}
+
+export interface MethodologyResponse {
+  generated_at: string;
+  principles: string[];
+  sources: MethodologySource[];
+}
+
+export const methodologyApi = {
+  get: async (): Promise<MethodologyResponse> => {
+    const response = await api.get('/methodology');
+    return response.data;
+  },
+};
+
 export default api;

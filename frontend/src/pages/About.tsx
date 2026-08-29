@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { clipLg, clipXl } from '../constants/style';
+import { MethodologySection } from '../components/MethodologySection';
 
 export function About() {
   return (
@@ -156,6 +157,9 @@ export function About() {
           </div>
         </div>
       </section>
+
+      {/* What we count (#32) */}
+      <MethodologySection />
 
       {/* Disclaimer Section */}
       <section>
