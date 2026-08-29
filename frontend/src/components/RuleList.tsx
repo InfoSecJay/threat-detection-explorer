@@ -217,6 +217,28 @@ export function RuleList({
     );
   };
 
+  // Sortable column header: a real <button> inside the <th> so the sort
+  // is reachable by keyboard, with aria-sort announcing the state (#50).
+  const SortableTh = ({
+    field, label, title, pad = 'px-3',
+  }: {
+    field: string; label: string; title?: string; pad?: string;
+  }) => {
+    const active = filters.sort_by === field;
+    const ariaSort = active ? (filters.sort_order === 'asc' ? 'ascending' : 'descending') : 'none';
+    return (
+      <th aria-sort={ariaSort} className={`${pad} py-3 text-left`} title={title}>
+        <button
+          type="button"
+          onClick={() => handleSort(field)}
+          className="text-xs font-display font-semibold text-gray-500 uppercase tracking-wider hover:text-matrix-500 focus-visible:text-matrix-400 focus-visible:underline focus:outline-none transition-colors whitespace-nowrap"
+        >
+          {label} <SortIndicator field={field} />
+        </button>
+      </th>
+    );
+  };
+
   // Generate visible page numbers
   const getVisiblePages = () => {
     const pages: (number | string)[] = [];
@@ -355,65 +377,20 @@ export function RuleList({
                 )}
                 {/* Expand-chevron column — no header label */}
                 <th className="px-2 py-3 w-8" aria-label="Expand row" />
-                <th
-                  className="px-4 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('title')}
-                >
-                  Title <SortIndicator field="title" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('source')}
-                  title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering."
-                >
-                  Source <SortIndicator field="source" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('severity')}
-                >
-                  Severity <SortIndicator field="severity" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('platforms')}
-                  title="Sort by first platform (alphabetical)"
-                >
-                  Platform <SortIndicator field="platforms" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('data_sources')}
-                  title="Sort by first data source (alphabetical)"
-                >
-                  Data Source <SortIndicator field="data_sources" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('event_types')}
-                  title="Sort by first event type (alphabetical)"
-                >
-                  Event Type <SortIndicator field="event_types" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('rule_created_date')}
-                >
-                  Created <SortIndicator field="rule_created_date" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('rule_modified_date')}
-                >
-                  Modified <SortIndicator field="rule_modified_date" />
-                </th>
-                <th
-                  className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-matrix-500 transition-colors"
-                  onClick={() => handleSort('quality_score')}
-                  title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy."
-                >
-                  Hygiene <SortIndicator field="quality_score" />
-                </th>
+                <SortableTh field="title" label="Title" pad="px-4" />
+                <SortableTh field="source" label="Source"
+                  title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
+                <SortableTh field="severity" label="Severity" />
+                <SortableTh field="platforms" label="Platform"
+                  title="Sort by first platform (alphabetical)" />
+                <SortableTh field="data_sources" label="Data Source"
+                  title="Sort by first data source (alphabetical)" />
+                <SortableTh field="event_types" label="Event Type"
+                  title="Sort by first event type (alphabetical)" />
+                <SortableTh field="rule_created_date" label="Created" />
+                <SortableTh field="rule_modified_date" label="Modified" />
+                <SortableTh field="quality_score" label="Hygiene"
+                  title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy." />
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
