@@ -37,6 +37,7 @@ from typing import Optional
 import httpx
 
 from app.config import settings
+from app.services.github_auth import auth_failure_warning, is_auth_error
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ _SUCCESS_THRESHOLD_PCT = 99.5
 _SMALL_CORPUS_FLOOR = 50
 
 
-async def notify_parse_failures(repo_results: dict, sync_job_id: str) -> None:
+async def notify_parse_failures(repo_results: dict, sync_job_id: str) -> list[dict]:
     """Emit parse-failure signals for sources that dropped below threshold.
 
     Args:
@@ -67,26 +68,28 @@ async def notify_parse_failures(repo_results: dict, sync_job_id: str) -> None:
         sync_job_id: The sync job's UUID -- included in the issue body
             so an engineer can cross-reference against logs.
 
-    Returns None. Never raises -- failures are logged and swallowed
-    since this is informational and must not degrade sync status.
+    Returns job-level warnings (today only a GitHub credential failure,
+    #46) for the scheduler to persist on ``sync_jobs.warnings``. Never
+    raises -- failures are logged and swallowed since this is
+    informational and must not degrade sync status.
     """
     if not settings.taxonomy_notifications_enabled:
         logger.debug("Notifications disabled -- skipping parse-failure notify")
-        return
+        return []
 
     if not settings.github_token:
         logger.info(
             "Parse-failure notifier enabled but no GITHUB_TOKEN "
             "configured -- skipping"
         )
-        return
+        return []
 
     if not settings.github_repo_owner or not settings.github_repo_name:
         logger.warning(
             "Parse-failure notifier enabled but "
             "GITHUB_REPO_OWNER/NAME missing -- skipping"
         )
-        return
+        return []
 
     problem_repos = []
     for name, result in repo_results.items():
@@ -112,7 +115,9 @@ async def notify_parse_failures(repo_results: dict, sync_job_id: str) -> None:
 
     if not problem_repos:
         logger.info("No parse-failure regressions past threshold")
-        return
+        return []
+
+    warnings: list[dict] = []
 
     async with httpx.AsyncClient(
         base_url=_GITHUB_API,
@@ -123,18 +128,30 @@ async def notify_parse_failures(repo_results: dict, sync_job_id: str) -> None:
         },
         timeout=30.0,
     ) as client:
-        for name, result, failures, success_rate in problem_repos:
+        for index, (name, result, failures, success_rate) in enumerate(problem_repos):
             try:
                 await _notify_repo_parse_failures(
                     client, name, result, sync_job_id, failures, success_rate
                 )
             except Exception as e:
+                if is_auth_error(e):
+                    # Credentials are global: one ERROR, stop retrying
+                    # per repo, hand the condition back to the job (#46).
+                    warning = auth_failure_warning(
+                        "parse_failure_notifier", e,
+                        affected=len(problem_repos) - index,
+                    )
+                    logger.error(warning["message"])
+                    warnings.append(warning)
+                    break
                 # Per-repo isolation -- one broken call must not block
                 # notifications for the other affected sources.
                 logger.warning(
                     f"Failed to notify parse failures for {name}: "
                     f"{type(e).__name__}: {e}"
                 )
+
+    return warnings
 
 
 async def _notify_repo_parse_failures(

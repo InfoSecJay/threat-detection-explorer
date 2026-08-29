@@ -317,3 +317,92 @@ async def test_verify_diffs_directories_vs_previous(monkeypatch):
     assert diffs["rules-dfir"]["kind"] == "new"
     # Directory drift alone flips status to mismatch even if counts match.
     assert repo_results["sigma"]["upstream_verification_status"] == "mismatch"
+
+
+# -- Credential failure (#46) ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_verify_auth_failure_is_loud_and_short_circuits(monkeypatch, caplog):
+    """An expired GITHUB_TOKEN used to be N per-repo WARNINGs and nothing
+    else. Now: ONE ERROR, one job-level warning returned, first repo
+    marked auth_error, remaining repos marked auth_error WITHOUT another
+    GitHub round-trip."""
+    import logging as _logging
+    from app.config import settings
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", "expired-token")
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(401, json={"message": "Bad credentials"})
+
+    _install_mock_client(monkeypatch, handler)
+
+    repo_results = {
+        "sigma":   {"sync_success": True, "rules_discovered": 100},
+        "sublime": {"sync_success": True, "rules_discovered": 1},
+        "elastic": {"sync_success": False, "rules_discovered": 0},
+        "splunk":  {"sync_success": True, "rules_discovered": 5},
+    }
+    with caplog.at_level(_logging.INFO, logger="app.services.upstream_verifier"):
+        warnings = await uv.verify_upstream(repo_results, "job-abc")
+
+    # Exactly one GitHub call was made -- the rest were short-circuited.
+    assert len(calls) == 1
+    assert repo_results["sigma"]["upstream_verification_status"] == "auth_error"
+    assert repo_results["sublime"]["upstream_verification_status"] == "auth_error"
+    assert repo_results["splunk"]["upstream_verification_status"] == "auth_error"
+    assert repo_results["elastic"]["upstream_verification_status"] == "skipped"
+
+    assert len(warnings) == 1
+    assert warnings[0]["code"] == "github_auth_failed"
+    assert warnings[0]["source"] == "upstream_verifier"
+    assert "3 repositories skipped" in warnings[0]["message"]
+
+    errors = [r for r in caplog.records if r.levelno == _logging.ERROR]
+    assert len(errors) == 1, "auth failure must be reported exactly once"
+    assert "401" in errors[0].getMessage()
+
+
+@pytest.mark.asyncio
+async def test_verify_rate_limited_403_stays_per_repo(monkeypatch):
+    """A rate-limit 403 is NOT a credential problem: it stays a per-repo
+    `error` and does not short-circuit the other repos."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", "tok")
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(
+            403,
+            headers={"x-ratelimit-remaining": "0"},
+            json={"message": "API rate limit exceeded"},
+        )
+
+    _install_mock_client(monkeypatch, handler)
+
+    repo_results = {
+        "sigma":   {"sync_success": True, "rules_discovered": 100},
+        "sublime": {"sync_success": True, "rules_discovered": 1},
+    }
+    warnings = await uv.verify_upstream(repo_results, "job-abc")
+    assert warnings == []
+    assert len(calls) == 2
+    assert repo_results["sigma"]["upstream_verification_status"] == "error"
+    assert repo_results["sublime"]["upstream_verification_status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_verify_returns_empty_warnings_on_success(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", None)
+    _install_mock_client(monkeypatch, _github_ok_handler(["rules/a.yml"]))
+    repo_results = {"sigma": {"sync_success": True, "rules_discovered": 1}}
+    assert await uv.verify_upstream(repo_results, "job-abc") == []

@@ -12,7 +12,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,11 +58,25 @@ class SyncJobResponse(BaseModel):
     error_count: int
     warning_count: int
     repository_results: Optional[dict]
+    # Job-level conditions (#46), e.g. {"code": "github_auth_failed",
+    # "source": "upstream_verifier", "message": "..."}. Always a list in
+    # the response; see the validator for why.
+    warnings: list[dict] = []
     error_message: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("warnings", mode="before")
+    @classmethod
+    def _coerce_warnings(cls, value):
+        """Rows older than the column are NULL (Postgres, pre-migration
+        reads) or `[]` (startup migration default). Both must serialize
+        as an empty list, never 500 the jobs endpoint -- the 2026-08-28
+        detail-page outage was exactly this class of legacy-shape bug."""
+        if not isinstance(value, list):
+            return []
+        return [w for w in value if isinstance(w, dict)]
 
 
 class TriggerSyncRequest(BaseModel):

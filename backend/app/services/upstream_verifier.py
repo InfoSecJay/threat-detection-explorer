@@ -30,6 +30,12 @@ from urllib.parse import urlparse
 import httpx
 
 from app.config import settings
+from app.services.github_auth import (
+    GITHUB_API as _GITHUB_API_BASE,
+    auth_failure_warning,
+    github_headers,
+    is_auth_error,
+)
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.repository_sync import (
     RepositorySyncService,
@@ -39,8 +45,9 @@ from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
-_GITHUB_API = "https://api.github.com"
+_GITHUB_API = _GITHUB_API_BASE
 _ISSUE_TITLE_PREFIX = "[upstream-drift]"
+_SOURCE = "upstream_verifier"
 
 # How much of a discovery/expected mismatch is tolerable before we alert.
 # Some jitter is fine: upstream files may add/vanish between the clone
@@ -208,7 +215,7 @@ async def verify_upstream(
     repo_results: dict,
     sync_job_id: str,
     previous_repo_results: Optional[dict] = None,
-) -> None:
+) -> list[dict]:
     """Cross-check every synced repo against its upstream GitHub tree.
 
     Mutates `repo_results[<name>]` in place to add:
@@ -219,27 +226,29 @@ async def verify_upstream(
         on the upstream tree
       - `upstream_directory_diffs`: diff vs previous run
       - `upstream_verification_status`: one of {ok, mismatch, skipped,
-        error, unreachable}
+        error, auth_error}
 
     Alerts (GitHub issue open/comment) fired for `mismatch` and for
     any non-empty `upstream_directory_diffs`.
+
+    Returns job-level warnings (see ``github_auth.auth_failure_warning``)
+    for conditions that are not per-repo -- today only a credential
+    failure (#46). A 401/403 on the first repo is the same 401/403 on
+    every repo, so it is reported ONCE at ERROR, the remaining repos are
+    marked ``auth_error`` without another round-trip, and the warning
+    is handed back for the scheduler to persist on the sync job.
     """
     if not settings.taxonomy_notifications_enabled:
         logger.debug("Upstream verification disabled — skipping")
-        return
+        return []
 
     prev = previous_repo_results or {}
+    warnings: list[dict] = []
+    auth_failed = False
 
     async with httpx.AsyncClient(
         base_url=_GITHUB_API,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            **(
-                {"Authorization": f"Bearer {settings.github_token}"}
-                if settings.github_token else {}
-            ),
-        },
+        headers=github_headers(),
         timeout=30.0,
     ) as client:
         for repo_name, result in list(repo_results.items()):
@@ -248,6 +257,11 @@ async def verify_upstream(
             if not result.get("sync_success"):
                 # Nothing to verify if the clone itself failed.
                 result["upstream_verification_status"] = "skipped"
+                continue
+            if auth_failed:
+                # Credentials are global; do not burn a round-trip per
+                # repo confirming what we already know.
+                result["upstream_verification_status"] = "auth_error"
                 continue
 
             prev_dirs = None
@@ -259,12 +273,29 @@ async def verify_upstream(
                     client, repo_name, result, sync_job_id, prev_dirs,
                 )
             except Exception as e:
+                if is_auth_error(e):
+                    auth_failed = True
+                    result["upstream_verification_status"] = "auth_error"
+                    remaining = sum(
+                        1 for r in repo_results.values()
+                        if isinstance(r, dict)
+                        and r.get("sync_success")
+                        and "upstream_verification_status" not in r
+                    )
+                    warning = auth_failure_warning(
+                        _SOURCE, e, affected=remaining + 1,
+                    )
+                    logger.error(warning["message"])
+                    warnings.append(warning)
+                    continue
                 logger.warning(
                     f"Upstream verification failed for {repo_name}: "
                     f"{type(e).__name__}: {e}"
                 )
                 result["upstream_verification_status"] = "error"
                 result["upstream_verification_error"] = f"{type(e).__name__}: {e}"
+
+    return warnings
 
 
 async def _verify_one_repo(

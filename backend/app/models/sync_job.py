@@ -62,6 +62,12 @@ class SyncJob(Base):
     # Detailed results per repository (for "all" jobs)
     repository_results: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
+    # Job-level (not per-repository) conditions worth surfacing, e.g. a
+    # GitHub credential failure that silently disabled every notifier
+    # (#46). List of {code, source, message} dicts. Rows created before
+    # this column existed carry the migration default `[]`.
+    warnings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
+
     # Error information
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

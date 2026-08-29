@@ -103,6 +103,10 @@ async def run_full_sync_job(
             total_errors = 0
             total_warnings = 0
             repo_results: dict[str, dict] = {}
+            # Job-level conditions from the post-sync notifiers (#46).
+            # Persisted on `sync_jobs.warnings` so the API/UI can show
+            # e.g. "GitHub token expired" without reading worker logs.
+            job_warnings: list[dict] = []
 
             sync_service = RepositorySyncService(db)
             ingestion_service = IngestionService(db)
@@ -232,7 +236,7 @@ async def run_full_sync_job(
             # notifier isn't configured. Wrapped in a try so a notifier
             # bug never degrades the sync's completed status.
             try:
-                await notify_drift(repo_results, str(job_id))
+                job_warnings.extend(await notify_drift(repo_results, str(job_id)) or [])
             except Exception as e:
                 logger.warning(f"Taxonomy drift notifier raised: {e}", exc_info=True)
 
@@ -242,7 +246,9 @@ async def run_full_sync_job(
             # into IngestionStats.errors. Same feature flag + isolation
             # semantics as notify_drift.
             try:
-                await notify_parse_failures(repo_results, str(job_id))
+                job_warnings.extend(
+                    await notify_parse_failures(repo_results, str(job_id)) or []
+                )
             except Exception as e:
                 logger.warning(
                     f"Parse-failure notifier raised: {e}", exc_info=True
@@ -256,14 +262,32 @@ async def run_full_sync_job(
             # `repo_results` in place to add verification metadata.
             try:
                 previous_results = await _load_previous_repo_results(db, job_id)
-                await verify_upstream(repo_results, str(job_id), previous_results)
-                # Re-persist so the verification metadata + directory
-                # counts land on the job row for the next diff.
-                job = await db.get(SyncJob, job_id)
-                job.repository_results = repo_results
-                await db.commit()
+                job_warnings.extend(
+                    await verify_upstream(repo_results, str(job_id), previous_results)
+                    or []
+                )
             except Exception as e:
                 logger.warning(f"Upstream verifier raised: {e}", exc_info=True)
+
+            # Re-persist so the verification metadata + directory counts
+            # land on the job row for the next diff, and the job-level
+            # warnings collected above become visible via the API.
+            try:
+                job = await db.get(SyncJob, job_id)
+                job.repository_results = repo_results
+                job.warnings = job_warnings
+                await db.commit()
+            except Exception as e:
+                logger.warning(
+                    f"Persisting post-sync metadata failed: {e}", exc_info=True
+                )
+
+            if job_warnings:
+                logger.error(
+                    f"Sync job {job_id} completed with {len(job_warnings)} "
+                    f"job-level warning(s): "
+                    + "; ".join(w.get("message", "") for w in job_warnings)
+                )
 
             return job
 

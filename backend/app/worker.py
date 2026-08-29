@@ -43,6 +43,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.database import async_session_maker, init_db
+from app.services.github_auth import check_github_token, log_token_status
 from app.services.job_queue import JobQueueService
 from app.services.scheduler import run_full_sync_job
 
@@ -115,6 +116,15 @@ class Worker:
         """Initialize the worker and enter the main poll loop."""
         await init_db()
         settings.repos_dir.mkdir(parents=True, exist_ok=True)
+
+        # Probe GITHUB_TOKEN once per boot (#46). An expired PAT becomes
+        # an ERROR with its expiry date at startup, instead of N per-repo
+        # warnings buried at the end of each nightly sync. Never blocks
+        # startup -- the worker's job is ingestion, which is anonymous.
+        try:
+            log_token_status(await check_github_token())
+        except Exception as e:
+            logger.warning(f"GITHUB_TOKEN startup check raised: {e}")
 
         # Sweep any stuck jobs from a previous worker that crashed mid-run
         # (and requeue the lost work — see _sweep_and_requeue).

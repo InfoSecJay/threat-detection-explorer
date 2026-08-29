@@ -92,3 +92,92 @@ async def test_notify_drift_noops_when_no_drift():
         with patch("app.services.taxonomy_notifier.httpx.AsyncClient") as mock_client:
             await notify_drift(repo_results, "sync-1")
             assert not mock_client.called
+
+
+# --- Credential failure (#46) -----------------------------------------
+
+
+def _install_mock_client(monkeypatch, handler, module):
+    """Route the given module httpx.AsyncClient through a MockTransport."""
+    import httpx
+    real_async_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+
+    def factory(**kw):
+        return real_async_client(transport=transport, **kw)
+
+    monkeypatch.setattr(module.httpx, "AsyncClient", factory)
+
+
+def _drift_results() -> dict:
+    return {
+        "sigma": {
+            "taxonomy_matched": 1, "taxonomy_unmatched": 5,
+            "taxonomy_coverage_percent": 16.7,
+            "taxonomy_unmatched_by_fingerprint": {},
+        },
+        "splunk": {
+            "taxonomy_matched": 1, "taxonomy_unmatched": 2,
+            "taxonomy_coverage_percent": 33.3,
+            "taxonomy_unmatched_by_fingerprint": {},
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_notify_drift_auth_failure_is_single_loud_warning(monkeypatch, caplog):
+    """Expired PAT: one ERROR, one returned warning, no further per-repo
+    attempts after the first 401."""
+    import logging as _logging
+    import httpx
+    from app.config import settings
+    from app.services import taxonomy_notifier as tn
+
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", "expired")
+    monkeypatch.setattr(settings, "github_repo_owner", "owner")
+    monkeypatch.setattr(settings, "github_repo_name", "repo")
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(401, json={"message": "Bad credentials"})
+
+    _install_mock_client(monkeypatch, handler, tn)
+
+    with caplog.at_level(_logging.INFO, logger="app.services.taxonomy_notifier"):
+        warnings = await notify_drift(_drift_results(), "sync-1")
+
+    assert len(calls) == 1, "second repo must not be attempted after a 401"
+    assert len(warnings) == 1
+    assert warnings[0]["code"] == "github_auth_failed"
+    assert warnings[0]["source"] == "taxonomy_notifier"
+    assert "2 repositories skipped" in warnings[0]["message"]
+    assert sum(1 for r in caplog.records if r.levelno == _logging.ERROR) == 1
+
+
+@pytest.mark.asyncio
+async def test_notify_drift_non_auth_error_stays_per_repo(monkeypatch):
+    """A 500 from GitHub is isolated per repo (existing behaviour) and
+    yields no job-level warning."""
+    import httpx
+    from app.config import settings
+    from app.services import taxonomy_notifier as tn
+
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", "tok")
+    monkeypatch.setattr(settings, "github_repo_owner", "owner")
+    monkeypatch.setattr(settings, "github_repo_name", "repo")
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(500, json={"message": "boom"})
+
+    _install_mock_client(monkeypatch, handler, tn)
+
+    warnings = await notify_drift(_drift_results(), "sync-1")
+    assert warnings == []
+    assert len(calls) == 2

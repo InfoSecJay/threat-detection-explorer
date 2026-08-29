@@ -37,6 +37,7 @@ from typing import Optional
 import httpx
 
 from app.config import settings
+from app.services.github_auth import auth_failure_warning, is_auth_error
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ _GITHUB_API = "https://api.github.com"
 _ISSUE_TITLE_PREFIX = "[taxonomy-drift]"
 
 
-async def notify_drift(repo_results: dict, sync_job_id: str) -> None:
+async def notify_drift(repo_results: dict, sync_job_id: str) -> list[dict]:
     """Emit drift signals for each repo with unmapped rules.
 
     Args:
@@ -56,24 +57,26 @@ async def notify_drift(repo_results: dict, sync_job_id: str) -> None:
         sync_job_id: The sync job's UUID — included in the issue body
             so an engineer can cross-reference against logs.
 
-    The function always returns None. Failures (missing config, HTTP
+    Returns job-level warnings (one record per non-per-repo condition;
+    today only a GitHub credential failure, #46) for the scheduler to
+    persist on ``sync_jobs.warnings``. Failures (missing config, HTTP
     errors, etc.) are logged but never raised.
     """
     if not settings.taxonomy_notifications_enabled:
         logger.debug("Taxonomy notifications disabled — skipping drift notify")
-        return
+        return []
 
     if not settings.github_token:
         logger.info(
             "Taxonomy notifications enabled but no GITHUB_TOKEN configured — skipping"
         )
-        return
+        return []
 
     if not settings.github_repo_owner or not settings.github_repo_name:
         logger.warning(
             "Taxonomy notifications enabled but GITHUB_REPO_OWNER/NAME missing — skipping"
         )
-        return
+        return []
 
     drift_repos = [
         (name, result)
@@ -83,7 +86,9 @@ async def notify_drift(repo_results: dict, sync_job_id: str) -> None:
 
     if not drift_repos:
         logger.info("No taxonomy drift detected — no issues to open")
-        return
+        return []
+
+    warnings: list[dict] = []
 
     async with httpx.AsyncClient(
         base_url=_GITHUB_API,
@@ -94,16 +99,27 @@ async def notify_drift(repo_results: dict, sync_job_id: str) -> None:
         },
         timeout=30.0,
     ) as client:
-        for repo_name, result in drift_repos:
+        for index, (repo_name, result) in enumerate(drift_repos):
             try:
                 await _notify_repo_drift(client, repo_name, result, sync_job_id)
             except Exception as e:
+                if is_auth_error(e):
+                    # Credentials are global: one ERROR, stop retrying
+                    # per repo, hand the condition back to the job (#46).
+                    warning = auth_failure_warning(
+                        "taxonomy_notifier", e, affected=len(drift_repos) - index,
+                    )
+                    logger.error(warning["message"])
+                    warnings.append(warning)
+                    break
                 # Isolate failures per repo so one broken call doesn't
                 # block the others. Never raise — this is informational.
                 logger.warning(
                     f"Failed to notify taxonomy drift for {repo_name}: "
                     f"{type(e).__name__}: {e}"
                 )
+
+    return warnings
 
 
 async def _notify_repo_drift(

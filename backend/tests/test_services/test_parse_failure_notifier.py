@@ -256,3 +256,53 @@ def test_threshold_constants_are_sensible():
     """Guardrail: someone bumping the threshold to a silly value trips this."""
     assert 90.0 <= _SUCCESS_THRESHOLD_PCT <= 100.0
     assert _SMALL_CORPUS_FLOOR > 0
+
+
+# --- Credential failure (#46) -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_auth_failure_is_single_loud_warning(monkeypatch, caplog):
+    """Expired PAT: one ERROR, one returned warning, stop after first 401."""
+    import logging as _logging
+    import httpx
+    from app.config import settings
+    from app.services import parse_failure_notifier as pfn
+
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", "expired")
+    monkeypatch.setattr(settings, "github_repo_owner", "owner")
+    monkeypatch.setattr(settings, "github_repo_name", "repo")
+
+    calls: list[str] = []
+    real_async_client = httpx.AsyncClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(401, json={"message": "Bad credentials"})
+
+    transport = httpx.MockTransport(handler)
+
+    def factory(**kw):
+        return real_async_client(transport=transport, **kw)
+
+    monkeypatch.setattr(pfn.httpx, "AsyncClient", factory)
+
+    repo_results = {
+        "sigma": {
+            "sync_success": True, "rules_discovered": 1000,
+            "parse_failure_count": 50, "parse_failure_samples": [],
+        },
+        "splunk": {
+            "sync_success": True, "rules_discovered": 1000,
+            "parse_failure_count": 40, "parse_failure_samples": [],
+        },
+    }
+    with caplog.at_level(_logging.INFO, logger="app.services.parse_failure_notifier"):
+        warnings = await notify_parse_failures(repo_results, "sync-1")
+
+    assert len(calls) == 1
+    assert len(warnings) == 1
+    assert warnings[0]["code"] == "github_auth_failed"
+    assert warnings[0]["source"] == "parse_failure_notifier"
+    assert sum(1 for r in caplog.records if r.levelno == _logging.ERROR) == 1
