@@ -203,6 +203,9 @@ extracted from the detection logic itself.
 table, per-source vendor → canonical mapping, and a worked round-trip
 example.
 
+How the read path stays fast (round-trip budgets, the corpus-fingerprint
+cache, startup warm-up): [`docs/performance.md`](./docs/performance.md).
+
 For depth on how the canonical taxonomy resolver works per vendor, see
 [`docs/taxonomy.md`](./docs/taxonomy.md).
 

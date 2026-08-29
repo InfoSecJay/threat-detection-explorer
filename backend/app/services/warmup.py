@@ -61,8 +61,16 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
         logger.exception("cache warm-up step actor_scores failed")
 
     if bundle is not None and top_actors > 0:
-        ranked = sorted(bundle.groups.items(), key=lambda kv: -kv[1].weighted_gap)[:top_actors]
-        for actor_id, _ in ranked:
+        # Two audiences: the gap-ranked actors the site leads with, and
+        # the best-covered ones (APT29, APT28, ...) that people search
+        # for by name. Union, gap list first.
+        by_gap = sorted(bundle.groups.items(), key=lambda kv: -kv[1].weighted_gap)[:top_actors]
+        by_rules = sorted(bundle.groups.items(), key=lambda kv: -kv[1].exact_rule_count)[:top_actors]
+        seen: set[str] = set()
+        for actor_id, _ in [*by_gap, *by_rules]:
+            if actor_id in seen:
+                continue
+            seen.add(actor_id)
             await step(f"actor:{actor_id}", get_actor(actor_id, match_mode="exact", db=db))
 
     total = round(sum(timings.values()), 3)
