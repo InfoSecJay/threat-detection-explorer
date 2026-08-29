@@ -804,3 +804,21 @@ async def get_trending_data_sources(
             for e in ranked
         ],
     }
+
+
+@router.get("/technique-deltas")
+async def get_technique_deltas(
+    days: int = Query(7, ge=1, le=90, description="Delta window in days"),
+    limit: int = Query(10, ge=1, le=50, description="Cap per list"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Technique momentum (issue #19): catalog-wide rule-count change per
+    ATT&CK technique between the latest coverage snapshot and the newest
+    snapshot at least `days` old. Top gainers and losers, each with the
+    sources that newly cover / dropped the technique. `method` is
+    `snapshot`, `insufficient_history` (no baseline old enough yet) or
+    `no_data`.
+    """
+    from app.services.technique_deltas import compute_technique_deltas
+
+    return await compute_technique_deltas(db, days=days, limit=limit)

@@ -59,6 +59,15 @@ vi.mock('../../hooks/useTrending', () => ({
     isLoading: false,
   }),
   useRecentRules:        () => ({ data: { most_recently_created: [], most_recently_modified: [] }, isLoading: false, error: null }),
+  useTechniqueDeltas:    () => ({
+    data: {
+      days: 7, method: 'snapshot', current_date: '2026-08-29', baseline_date: '2026-08-22',
+      gainers: [{ technique_id: 'T1059', current: 19, baseline: 15, delta: 4, sources_added: ['elastic'], sources_removed: [] }],
+      losers: [{ technique_id: 'T1003', current: 6, baseline: 8, delta: -2, sources_added: [], sources_removed: [] }],
+    },
+    isLoading: false,
+    error: null,
+  }),
   useSourceDeltas:       () => ({
     data: {
       days: 7, method: 'sync_jobs',

@@ -9,6 +9,7 @@ import {
   useTrendingTechniques,
   useTrendingPlatforms,
   useTrendingDataSources,
+  useTechniqueDeltas,
 } from '../../hooks/useTrending';
 import { useMitre } from '../../contexts/MitreContext';
 import { sourceTheme as sourceConfig } from '../../constants/style';
@@ -141,6 +142,60 @@ export function TrendingDataSourcesList({
           accent="cyan"
         />
       ))}
+    </div>
+  );
+}
+
+/** Technique momentum (#19): which ATT&CK techniques gained or lost
+ * rules catalog-wide between coverage snapshots. Not windowed by the
+ * page toggle -- snapshots are daily, so this is always "vs 7 days ago". */
+export function TechniqueMomentumList() {
+  const { data, isLoading, error } = useTechniqueDeltas(7, 6);
+  const { getTechniqueName } = useMitre();
+
+  if (isLoading) return <div className="space-y-1">{[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}</div>;
+  if (error || !data) return <EmptyLabel label="NO_MOMENTUM_DATA" />;
+  if (data.method !== 'snapshot') {
+    return <EmptyLabel label={data.method === 'no_data' ? 'NO_SNAPSHOTS_YET' : 'NEEDS_7_DAYS_OF_SNAPSHOTS'} />;
+  }
+  const rows = [...data.gainers, ...data.losers];
+  if (!rows.length) return <EmptyLabel label="NO_CHANGE_THIS_WEEK" />;
+  const max = Math.max(...rows.map((r) => Math.abs(r.delta)));
+
+  return (
+    <div className="space-y-1">
+      {rows.map((r) => {
+        const up = r.delta > 0;
+        const changed = up ? r.sources_added : r.sources_removed;
+        return (
+          <Link key={r.technique_id} to={`/mitre/${r.technique_id}`} className="block group">
+            <div className="relative bg-void-800/60 border border-void-700 hover:border-void-600 px-2.5 py-1.5 transition-colors">
+              <div
+                className={`absolute inset-y-0 left-0 ${up ? 'bg-pulse-500/10' : 'bg-breach-500/10'}`}
+                style={{ width: `${(Math.abs(r.delta) / max) * 100}%` }}
+              />
+              <div className="relative flex items-center gap-2">
+                <span className={`font-mono text-xs shrink-0 ${up ? 'text-pulse-400' : 'text-breach-400'}`}>{r.technique_id}</span>
+                <span className="text-xs text-gray-400 truncate min-w-0 flex-1">{getTechniqueName(r.technique_id) || 'Unknown Technique'}</span>
+                {changed.length > 0 && (
+                  <span
+                    className="text-[9px] font-mono text-gray-600 uppercase shrink-0"
+                    title={`${up ? 'newly covered by' : 'dropped by'}: ${changed.join(', ')}`}
+                  >
+                    {up ? '+' : '-'}{changed.length} src
+                  </span>
+                )}
+                <span className={`text-xs font-mono tabular-nums w-10 text-right shrink-0 ${up ? 'text-pulse-400' : 'text-breach-400'}`}>
+                  {up ? '+' : ''}{r.delta}
+                </span>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
+      <div className="text-[9px] font-mono text-gray-600 text-right pt-1" title="technique x source rule counts from the nightly coverage snapshot">
+        vs {data.baseline_date}
+      </div>
     </div>
   );
 }

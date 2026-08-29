@@ -90,6 +90,15 @@ export function useTrendingDataSources(
   });
 }
 
+/** Technique momentum: top gainers / losers between coverage snapshots (#19). */
+export function useTechniqueDeltas(days: number = 7, limit: number = 6) {
+  return useQuery({
+    queryKey: ['technique-deltas', days, limit],
+    queryFn: () => trendingApi.getTechniqueDeltas(days, limit),
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
 /** Net per-source rule-count change over `days` (#19). */
 export function useSourceDeltas(days: number = 7) {
   return useQuery({

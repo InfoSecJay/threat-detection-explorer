@@ -840,6 +840,11 @@ export const trendingApi = {
     return response.data;
   },
 
+  getTechniqueDeltas: async (days: number = 7, limit: number = 6): Promise<TechniqueDeltasResponse> => {
+    const response = await api.get(`/trending/technique-deltas?days=${days}&limit=${limit}`);
+    return response.data;
+  },
+
   getSourceDeltas: async (days: number = 7): Promise<SourceDeltasResponse> => {
     const response = await api.get(`/trending/source-deltas?days=${days}`);
     return response.data;
@@ -872,6 +877,26 @@ export interface RecentRuleItem {
 export interface RecentRulesResponse {
   most_recently_created: RecentRuleItem[];
   most_recently_modified: RecentRuleItem[];
+}
+
+// Technique momentum (#19): catalog-wide rule-count change per technique
+// between coverage snapshots. `method` is snapshot | insufficient_history | no_data.
+export interface TechniqueDelta {
+  technique_id: string;
+  current: number;
+  baseline: number;
+  delta: number;
+  sources_added: string[];
+  sources_removed: string[];
+}
+
+export interface TechniqueDeltasResponse {
+  days: number;
+  method: 'snapshot' | 'insufficient_history' | 'no_data';
+  current_date: string | null;
+  baseline_date: string | null;
+  gainers: TechniqueDelta[];
+  losers: TechniqueDelta[];
 }
 
 // Per-source counting methodology (#32), generated from the ingester's

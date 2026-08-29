@@ -41,6 +41,7 @@ import {
   TrendingTechniquesList,
   TrendingPlatformsList,
   TrendingDataSourcesList,
+  TechniqueMomentumList,
 } from './intel/Trending';
 import { JustCoveredSection } from './intel/JustCovered';
 import { periodOptions } from './intel/lib';
@@ -239,6 +240,9 @@ export function IndustryIntel() {
               </TrendingTile>
               <TrendingTile title="Emerging Data Sources" accent="cyan">
                 <TrendingDataSourcesList days={period} filters={filters} />
+              </TrendingTile>
+              <TrendingTile title="Technique Momentum" accent="matrix">
+                <TechniqueMomentumList />
               </TrendingTile>
               <TrendingTile title="Just Covered" accent="amber">
                 <JustCoveredSection days={period} sources={sourceFilter} />
