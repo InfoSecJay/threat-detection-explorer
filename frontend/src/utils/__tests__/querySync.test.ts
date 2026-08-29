@@ -193,3 +193,59 @@ describe('same-dimension multi-value (OR group)', () => {
     expect(parsed.tokens).toEqual([]);
   });
 });
+
+describe('scalar building_block sync (#47)', () => {
+  it('a bar token lights the sidebar tri-state', () => {
+    const filters = base({ q: 'building_block:true source:sigma' });
+    const parsed = parseBar(filters.q!);
+    expect(parsed.opaque).toBe(false);
+    const view = mergeTokensIntoFilters(filters, parsed);
+    expect(view.building_block).toBe(true);
+    expect(view.sources).toEqual(['sigma']);
+  });
+
+  it('accepts the bb / signal_only aliases and ignores junk values', () => {
+    expect(mergeTokensIntoFilters(base({ q: 'bb:false' }), parseBar('bb:false')).building_block).toBe(false);
+    expect(mergeTokensIntoFilters(base({ q: 'signal_only:TRUE' }), parseBar('signal_only:TRUE')).building_block).toBe(true);
+    expect(mergeTokensIntoFilters(base({ q: 'bb:maybe' }), parseBar('bb:maybe')).building_block).toBeUndefined();
+  });
+
+  it('setting the tri-state in the sheet writes a bar token', () => {
+    const current = base({ q: 'source:sigma' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const out = reconcileFilterChange(current, view, { ...view, building_block: true }, parsed);
+    expect(out.q).toBe('source:sigma building_block:true');
+    expect(out.building_block).toBeUndefined(); // owned by the bar
+  });
+
+  it('flipping the tri-state replaces the token; clearing removes it', () => {
+    const current = base({ q: 'building_block:true source:sigma' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const flipped = reconcileFilterChange(current, view, { ...view, building_block: false }, parsed);
+    expect(flipped.q).toBe('source:sigma building_block:false');
+
+    const cleared = reconcileFilterChange(current, view, { ...view, building_block: undefined }, parsed);
+    expect(cleared.q).toBe('source:sigma');
+    expect(cleared.building_block).toBeUndefined();
+  });
+
+  it('an untouched tri-state keeps the real (array-side) value', () => {
+    const current = base({ q: 'source:sigma', building_block: false });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const out = reconcileFilterChange(current, view, { ...view, severities: ['high'] }, parsed);
+    expect(out.building_block).toBe(false);
+    expect(out.q).toBe('source:sigma severity:high');
+  });
+
+  it('falls back to the scalar filter when the bar is opaque', () => {
+    const current = base({ q: 'source:sigma OR source:splunk' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const out = reconcileFilterChange(current, view, { ...view, building_block: true }, parsed);
+    expect(out.q).toBe('source:sigma OR source:splunk');
+    expect(out.building_block).toBe(true);
+  });
+});

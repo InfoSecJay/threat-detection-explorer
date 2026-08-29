@@ -68,12 +68,36 @@ const FIELD_MAP: { key: keyof SearchFilters; canonical: string; aliases: string[
   { key: 'target_resources', canonical: 'resource', aliases: ['resource', 'target'] },
 ];
 
-const ALIAS_TO_KEY = new Map<string, keyof SearchFilters>(
-  FIELD_MAP.flatMap((f) => f.aliases.map((a) => [a, f.key] as [string, keyof SearchFilters])),
-);
-const KEY_TO_CANONICAL = new Map<keyof SearchFilters, string>(
-  FIELD_MAP.map((f) => [f.key, f.canonical]),
-);
+// Scalar (single-value) filters that also have a bar field. Mirrors the
+// backend `kind="bool"` specs. `parse` turns the typed token value into
+// the filter value (undefined = not a recognised value, token ignored);
+// `format` is the inverse for writing a token from the sheet (#47).
+type ScalarKey = 'building_block';
+const SCALAR_MAP: {
+  key: ScalarKey;
+  canonical: string;
+  aliases: string[];
+  parse: (raw: string) => boolean | undefined;
+  format: (value: boolean) => string;
+}[] = [
+  {
+    key: 'building_block',
+    canonical: 'building_block',
+    aliases: ['building_block', 'bb', 'signal_only'],
+    parse: (raw) => (raw.toLowerCase() === 'true' ? true : raw.toLowerCase() === 'false' ? false : undefined),
+    format: (value) => String(value),
+  },
+];
+const SCALAR_KEYS = new Set<string>(SCALAR_MAP.map((s) => s.key));
+
+const ALIAS_TO_KEY = new Map<string, keyof SearchFilters>([
+  ...FIELD_MAP.flatMap((f) => f.aliases.map((a) => [a, f.key] as [string, keyof SearchFilters])),
+  ...SCALAR_MAP.flatMap((s) => s.aliases.map((a) => [a, s.key] as [string, keyof SearchFilters])),
+]);
+const KEY_TO_CANONICAL = new Map<keyof SearchFilters, string>([
+  ...FIELD_MAP.map((f) => [f.key, f.canonical] as [keyof SearchFilters, string]),
+  ...SCALAR_MAP.map((s) => [s.key, s.canonical] as [keyof SearchFilters, string]),
+]);
 
 export const MAPPED_SHEET_KEYS = FIELD_MAP.map((f) => f.key);
 
@@ -199,6 +223,17 @@ export function mergeTokensIntoFilters(
   const view: SearchFilters = { ...filters };
   for (const token of parsed.tokens) {
     if (!token.key) continue;
+    if (SCALAR_KEYS.has(token.key)) {
+      // `building_block:true` in the bar lights the sidebar tri-state.
+      // An explicit sidebar value wins over the bar (they compose via
+      // AND at the API either way).
+      const spec = SCALAR_MAP.find((s) => s.key === token.key)!;
+      const parsedValue = spec.parse(token.value);
+      if (parsedValue !== undefined && view[spec.key] === undefined) {
+        (view as Record<string, unknown>)[spec.key] = parsedValue;
+      }
+      continue;
+    }
     const existing = (view[token.key] as string[] | undefined) || [];
     if (!existing.some((v) => v.toLowerCase() === token.value.toLowerCase())) {
       (view as Record<string, unknown>)[token.key] = [...existing, token.value];
@@ -268,6 +303,36 @@ export function reconcileFilterChange(
       arrayVals = arrayVals.filter((x) => x.toLowerCase() !== v.toLowerCase());
     }
     (result as Record<string, unknown>)[key] = arrayVals;
+  }
+
+  // Scalar dimensions: the sheet's tri-state vs the bar token (#47).
+  for (const spec of SCALAR_MAP) {
+    const viewVal = view[spec.key];
+    const nextVal = next[spec.key];
+    if (viewVal === nextVal) {
+      // Untouched: keep the REAL state (undefined when the bar owns it).
+      (result as Record<string, unknown>)[spec.key] = current[spec.key];
+      continue;
+    }
+    const owned = tokens.filter((t) => t.key === spec.key);
+    if (owned.length) {
+      tokens = tokens.filter((t) => t.key !== spec.key);
+      tokensChanged = true;
+    }
+    if (nextVal === undefined) {
+      (result as Record<string, unknown>)[spec.key] = undefined;
+    } else if (!parsed.opaque) {
+      tokens.push({
+        key: spec.key,
+        field: spec.canonical,
+        value: spec.format(nextVal),
+        raw: `${spec.canonical}:${spec.format(nextVal)}`,
+      });
+      tokensChanged = true;
+      (result as Record<string, unknown>)[spec.key] = undefined;
+    } else {
+      (result as Record<string, unknown>)[spec.key] = nextVal;
+    }
   }
 
   if (tokensChanged) {
