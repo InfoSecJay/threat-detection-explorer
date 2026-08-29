@@ -4,10 +4,14 @@
  * in the observables panel. The raw value stays the filter key.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { Facet } from '../TelemetryFilter';
 import { ObservablesPanel } from '../ObservablesPanel';
 import type { Detection } from '../../types';
+
+// Observable chips link to their pages, so rendering needs a router.
+const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 const LABELS = { '4688': 'Process created', '4624': 'Logon success' };
 

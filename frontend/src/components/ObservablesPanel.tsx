@@ -152,7 +152,7 @@ export function ObservablesPanel({
                               key={`${v}-${j}`}
                               to={observableUrl(kind, String(v))}
                               className={`${cls} hover:brightness-125 underline decoration-dotted underline-offset-2`}
-                              title={`${eventLabel ? `${v} - ${eventLabel}. ` : ''}Every rule referencing this ${OBSERVABLE_KIND_LABEL[kind].toLowerCase()}`}
+                              title={eventLabel ? `${v} - ${eventLabel}` : `Every rule referencing this ${OBSERVABLE_KIND_LABEL[kind].toLowerCase()}`}
                             >
                               {chip}
                             </Link>
