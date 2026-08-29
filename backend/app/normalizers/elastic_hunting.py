@@ -8,6 +8,20 @@ from app.services.field_extractor import extract_elastic_fields
 from app.services.mitre import mitre_service
 
 
+# Folder-derived product (parsers/elastic_hunting._determine_log_source)
+# -> event.action domain fallback.
+_HUNT_PRODUCT_DOMAIN = {
+    "endpoint": "endpoint",
+    "windows": "endpoint",
+    "linux": "endpoint",
+    "macos": "endpoint",
+    "aws": "cloud",
+    "azure": "cloud",
+    "llm": "cloud",
+    "okta": "identity",
+}
+
+
 class ElasticHuntingNormalizer(BaseNormalizer):
     """Normalizer for Elastic Hunting Queries detection rules."""
 
@@ -41,7 +55,16 @@ class ElasticHuntingNormalizer(BaseNormalizer):
 
         # Extract observable fields from query
         query_str = self._format_detection_logic(parsed.detection_logic_raw)
-        extracted = extract_elastic_fields(query_str, language)
+        # Hunting TOML has no `index`; ES|QL FROM targets and the
+        # integration list carry the event.action context, with the
+        # folder-derived product as a last resort.
+        extracted = extract_elastic_fields(
+            query_str, language,
+            integrations=(parsed.extra or {}).get("integration") or [],
+            default_domain=_HUNT_PRODUCT_DOMAIN.get(
+                (parsed.log_source or {}).get("product") or ""
+            ),
+        )
 
         # Elastic Hunting TOML doesn't embed date fields — fall back to git log
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)

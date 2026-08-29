@@ -16,7 +16,9 @@ class ElasticProtectionsNormalizer(BaseNormalizer):
 
         # Extract observable fields from EQL query
         query_str = self._format_detection_logic(parsed.detection_logic_raw)
-        extracted = extract_elastic_fields(query_str, "eql")
+        # Protection artifacts are endpoint behaviour rules by definition:
+        # their `event.action` is always the telemetry verb.
+        extracted = extract_elastic_fields(query_str, "eql", default_domain="endpoint")
 
         # Elastic Protections TOML doesn't embed date fields — fall back to git log
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)

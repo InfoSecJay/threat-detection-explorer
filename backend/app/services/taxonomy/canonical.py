@@ -817,6 +817,14 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             "event_source",    # event.dataset/module, CEF vendor/product
             "event_outcome",   # event.outcome, status fields
             "severity",        # severity/priority columns
+            # ECS event.action on endpoint / generic streams: the
+            # telemetry verb ("start", "exec", "creation"). The Elastic
+            # extractor promotes it to cloud/api_action or
+            # identity/action only when the rule's context (index
+            # pattern, dataset, EQL category...) says the stream is a
+            # cloud or identity audit log -- see
+            # field_extractor.resolve_event_action_domain.
+            "event_action",
         }
     ),
     "other": frozenset({UNKNOWN}),

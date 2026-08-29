@@ -24,11 +24,14 @@ This version:
 from __future__ import annotations
 
 import re
+from typing import Iterable, Optional
 
 from app.services.field_extractor import (
     ExtractedFields,
     _add_elastic_observable,
+    _apply_event_action_domain,
     _deduplicate_all,
+    resolve_event_action_domain,
 )
 
 _IDENT_RE = re.compile(r"^[A-Za-z_@][\w.@]*$")
@@ -97,7 +100,13 @@ def _esql_segments(query: str) -> list[str]:
     return out
 
 
-def extract_esql_fields_v2(query: str) -> ExtractedFields:
+def extract_esql_fields_v2(
+    query: str,
+    indices: Iterable[str] = (),
+    integrations: Iterable[str] = (),
+    default_domain: Optional[str] = None,
+) -> ExtractedFields:
+    """See field_extractor.extract_elastic_fields for the context args."""
     result = ExtractedFields()
     if not query or not isinstance(query, str):
         return result
@@ -204,6 +213,10 @@ def extract_esql_fields_v2(query: str) -> ExtractedFields:
                 if m:
                     add_field(m.group(1))
 
+    _apply_event_action_domain(
+        result,
+        resolve_event_action_domain(result, indices, integrations, default_domain),
+    )
     _deduplicate_all(result)
     return result
 

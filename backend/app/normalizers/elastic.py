@@ -55,7 +55,13 @@ class ElasticNormalizer(BaseNormalizer):
         # Extract observable fields from detection query
         query_str = self._format_detection_logic(parsed.detection_logic_raw)
         lang = self._determine_language(parsed.detection_logic_raw, extra)
-        extracted = extract_elastic_fields(query_str, lang)
+        # Rule index patterns + integrations tell the extractor which
+        # stream `event.action` belongs to (endpoint verb vs API action).
+        extracted = extract_elastic_fields(
+            query_str, lang,
+            indices=extra.get("index") or [],
+            integrations=extra.get("integration") or [],
+        )
 
         # Prefer embedded Elastic dates; fall back to git log when a rule omits them
         rule_created, rule_modified = self._resolve_rule_dates(

@@ -17,7 +17,7 @@ Domain-aware extraction maps fields by security domain:
 import ast
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 
 @dataclass
@@ -226,7 +226,11 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "targetdomainname": ("authentication", "domain"),
 
     # ---- CLOUD FIELDS - AWS ----
-    "event.action": ("cloud", "api_action"),
+    # ECS-generic: an endpoint verb ("start", "exec") on host streams,
+    # an API operation ("CreateUser") on cloud/identity audit streams.
+    # Neutral here; the Elastic post-pass (resolve_event_action_domain)
+    # promotes it to cloud/api_action or identity/action from context.
+    "event.action": ("event", "event_action"),
     "event.provider": ("cloud", "event_source"),
     "cloud.provider": ("cloud", "cloud_provider"),
     "cloud.region": ("cloud", "region"),
@@ -621,7 +625,7 @@ def _classify_field(field_name: str) -> tuple[str, str]:
         return ("registry", "registry_field")
     if any(p in key for p in ["file", "path", "filename"]):
         return ("file", "file_field")
-    if any(p in key for p in ["operationname", "eventname", "methodname", "event.action"]):
+    if any(p in key for p in ["operationname", "eventname", "methodname"]):
         return ("cloud", "api_action")
     if any(p in key for p in ["sender", "recipient", "subject", "attachment"]):
         return ("email", "email_field")
@@ -851,15 +855,214 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
 
 
 # ===========================================================================
+# ECS `event.action` DOMAIN RESOLUTION (Elastic family)
+# ===========================================================================
+#
+# `event.action` is ECS-generic. On endpoint streams it is the telemetry
+# verb ("start", "exec", "creation", "connection_attempted"); on cloud
+# and identity audit streams it is the API / audit operation
+# ("CreateUser", "user.session.start",
+# "Microsoft.Authorization/roleAssignments/write"). Only the latter is an
+# api_action. The 2026-08-28 corpus census found 2,214 event.action
+# observables, ~85% of them endpoint verbs, every one labelled
+# cloud/api_action -- so a Linux file-access rule rendered a CLOUD group
+# and "exec" / "start" led the api_actions facet.
+#
+# FIELD_TYPE_MAP therefore classifies event.action neutrally as
+# (event, event_action), and the Elastic extractors run this post-pass
+# once the whole query has been read. Signals, in descending precision;
+# the first decisive one wins:
+#
+#   1. index patterns -- the rule `index` list (passed by the
+#      normalizer) and ES|QL FROM targets -- then `metadata.integration`
+#   2. the EQL category head (`process where`, `file where`)
+#   3. companion terms in the same query: event.dataset / event.module /
+#      data_stream.dataset values, event.provider, the field namespaces
+#      in use (okta.*, aws.*, process.*, host.os.*), event.category
+#   4. the caller default (elastic_protections is endpoint by definition)
+#
+# Undecided stays (event, event_action) and off the api_actions surface:
+# a missing api_action on a context-free cloud rule is a smaller error
+# than "exec" showing up as a cloud API call.
+
+# Integration names as they appear in `logs-<integration>.<dataset>-*`
+# index patterns, `event.dataset` / `event.module` values and
+# `metadata.integration`. Vocabulary mirrors taxonomy/mappings/elastic.yaml.
+_ENDPOINT_INTEGRATIONS = frozenset({
+    "endpoint", "endgame", "winlogbeat", "windows", "system", "security",
+    "sysmon", "sysmon_linux", "auditd", "auditd_manager", "auditbeat",
+    "crowdstrike", "sentinel_one", "sentinel_one_cloud_funnel",
+    "microsoft_defender_endpoint", "m365_defender", "jamf_protect",
+    "cloud_defend", "fim", "pad", "ded", "lmd", "dga", "beaconing",
+    "ml_beaconing", "problemchild",
+})
+_CLOUD_INTEGRATIONS = frozenset({
+    "aws", "aws_bedrock", "azure", "azure_openai", "gcp",
+    "google_workspace", "o365", "github", "kubernetes", "cyberarkpas",
+    "zoom",  # SaaS webhook audit: meeting.created is an API-side action
+})
+_IDENTITY_INTEGRATIONS = frozenset({"okta", "auth0", "duo"})
+# Streams whose event.action is neither an endpoint verb nor an API
+# operation (firewall verdicts, web-server methods, SIEM alert wrappers):
+# decisive, but generic -- stays (event, event_action).
+_GENERIC_INTEGRATIONS = frozenset({
+    "network_traffic", "packetbeat", "panw", "fortinet_fortigate",
+    "cisco_ftd", "sonicwall_firewall", "suricata", "zeek", "nginx",
+    "apache", "apache_tomcat", "iis", "apm", "elastic_security",
+    "google_secops", "microsoft_sentinel", "splunk", "ibm_qradar", "wiz",
+    "checkpoint_email",
+})
+# Azure datasets that are Entra ID (identity) rather than the control plane.
+_AZURE_IDENTITY_DATASETS = frozenset({"signinlogs", "auditlogs", "identity_protection"})
+# `logs-aws.cloudtrail-*`, `.ds-logs-okta.system-*`, `endgame-*`,
+# `winlogbeat-*`, and bare dataset values like `aws.cloudtrail`.
+_INDEX_RE = re.compile(r"^(?:\.ds-)?(?:logs-)?([a-z0-9_]+)(?:\.([a-z0-9_]+))?")
+_ENDPOINT_EVENT_CATEGORIES = frozenset({
+    "process", "file", "network", "registry", "dns", "library", "driver",
+    "api", "session",
+})
+_DATASET_FIELDS = frozenset({"event.dataset", "event.module", "data_stream.dataset"})
+_IDENTITY_NAMESPACES = (
+    "okta.", "auth0.", "duo.",
+    "azure.signinlogs.", "azure.auditlogs.", "azure.identity_protection.",
+)
+_CLOUD_NAMESPACES = (
+    "aws.", "azure.", "gcp.", "google_workspace.", "o365.", "github.",
+    "kubernetes.", "cloud.",
+)
+_ENDPOINT_NAMESPACES = (
+    "process.", "file.", "registry.", "dll.", "library.", "driver.",
+    "host.os.", "winlog.", "powershell.", "auditd.", "endgame.",
+    "crowdstrike.", "sentinel_one.",
+)
+
+
+def _integration_domain(integration: str, dataset: str = "") -> Optional[str]:
+    """Domain of an integration name; None when unknown."""
+    if integration == "azure":
+        return "identity" if dataset in _AZURE_IDENTITY_DATASETS else "cloud"
+    if integration in _IDENTITY_INTEGRATIONS:
+        return "identity"
+    if integration in _CLOUD_INTEGRATIONS:
+        return "cloud"
+    if integration in _ENDPOINT_INTEGRATIONS:
+        return "endpoint"
+    if integration in _GENERIC_INTEGRATIONS:
+        return "event"
+    return None
+
+
+def _index_domain(pattern: str) -> Optional[str]:
+    """Domain of an index pattern or dataset value; None when it carries
+    no integration (`logs-*`, `filebeat-*`, `.alerts-security.alerts-*`)."""
+    m = _INDEX_RE.match(str(pattern).strip().lower())
+    if not m:
+        return None
+    return _integration_domain(m.group(1), m.group(2) or "")
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return [v for v in value if isinstance(v, str)]
+
+
+def resolve_event_action_domain(
+    result: ExtractedFields,
+    indices: Iterable[str] = (),
+    integrations: Iterable[str] = (),
+    default_domain: Optional[str] = None,
+) -> Optional[str]:
+    """Decide which stream a query's `event.action` belongs to:
+    "endpoint", "cloud", "identity", "event" (generic), or the caller
+    default when nothing in the query or its rule context is decisive.
+    """
+    # 1. Index patterns (rule-level, then ES|QL FROM) and integrations.
+    for pattern in _as_str_list(indices) + list(result.source_tables):
+        domain = _index_domain(pattern)
+        if domain:
+            return domain
+    for name in _as_str_list(integrations):
+        domain = _integration_domain(name.strip().lower())
+        if domain:
+            return domain
+
+    # 2. EQL category head (`process where ...`).
+    for table in result.source_tables:
+        if table.lower() in _ENDPOINT_EVENT_CATEGORIES:
+            return "endpoint"
+
+    # 3. Companion terms.
+    for obs in result.observables:
+        name = obs.field.lower()
+        if name in _DATASET_FIELDS:
+            for value in obs.values:
+                domain = _index_domain(value)
+                if domain:
+                    return domain
+        elif name == "event.provider":
+            for value in obs.values:
+                v = value.lower()
+                if v.startswith("microsoft-windows") or v in ("sysmon", "auditd"):
+                    return "endpoint"
+    fields = [f.lower() for f in result.fields_used]
+    if any(f.startswith(_IDENTITY_NAMESPACES) for f in fields):
+        return "identity"
+    if any(f.startswith(_CLOUD_NAMESPACES) for f in fields):
+        return "cloud"
+    for obs in result.observables:
+        if obs.field.lower() == "event.category" and any(
+            v.lower() in _ENDPOINT_EVENT_CATEGORIES for v in obs.values
+        ):
+            return "endpoint"
+    if any(f.startswith(_ENDPOINT_NAMESPACES) for f in fields):
+        return "endpoint"
+
+    # 4. Caller default.
+    return default_domain
+
+
+def _apply_event_action_domain(result: ExtractedFields, domain: Optional[str]) -> None:
+    """Promote (event, event_action) observables to cloud/api_action or
+    identity/action and route their values to api_actions. Endpoint,
+    generic and undecided domains leave them as they are."""
+    if domain == "cloud":
+        obs_type, obs_subtype = "cloud", "api_action"
+    elif domain == "identity":
+        obs_type, obs_subtype = "identity", "action"
+    else:
+        return
+    for obs in result.observables:
+        if obs.field.lower() != "event.action":
+            continue
+        obs.type, obs.subtype = obs_type, obs_subtype
+        if not obs.negated:
+            result.api_actions.extend(v for v in obs.values if v)
+
+
+# ===========================================================================
 # ELASTIC EXTRACTOR (EQL / KQL / Lucene / ES|QL)
 # ===========================================================================
 
-def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields:
+def extract_elastic_fields(
+    query: str,
+    language: str = "eql",
+    indices: Iterable[str] = (),
+    integrations: Iterable[str] = (),
+    default_domain: Optional[str] = None,
+) -> ExtractedFields:
     """Extract fields from Elastic detection queries (EQL, KQL, Lucene, or ES|QL).
 
     Args:
         query: The query string
         language: One of "eql", "kql", "kuery", "lucene", "esql"
+        indices: The rule `index` patterns (context for event.action
+            domain resolution -- see resolve_event_action_domain)
+        integrations: The rule `metadata.integration` names (same use)
+        default_domain: Domain to assume when the query carries no
+            decisive context ("endpoint" for protection artifacts)
 
     Returns:
         ExtractedFields with extracted observables
@@ -872,7 +1075,10 @@ def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields
     lang = language.lower()
 
     if lang == "esql":
-        return extract_esql_fields(query)
+        return extract_esql_fields(
+            query, indices=indices, integrations=integrations,
+            default_domain=default_domain,
+        )
     elif lang == "eql":
         _extract_eql_fields(query, result)
     elif lang in ("kql", "kuery"):
@@ -886,6 +1092,10 @@ def extract_elastic_fields(query: str, language: str = "eql") -> ExtractedFields
         else:
             _extract_elastic_kql_fields(query, result)
 
+    _apply_event_action_domain(
+        result,
+        resolve_event_action_domain(result, indices, integrations, default_domain),
+    )
     _deduplicate_all(result)
     return result
 
@@ -1840,17 +2050,26 @@ def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, 
 # ES|QL EXTRACTOR
 # ===========================================================================
 
-def extract_esql_fields(query: str) -> ExtractedFields:
+def extract_esql_fields(
+    query: str,
+    indices: Iterable[str] = (),
+    integrations: Iterable[str] = (),
+    default_domain: Optional[str] = None,
+) -> ExtractedFields:
     """Extract fields from Elastic ES|QL queries.
 
     Delegates to services.esql_extractor (issue #6 rebuild): stage-
     aware, derived-name tracking, validated identifiers, SQL segments
     in hunting files skipped. Kept here so existing callers and the
-    Elastic dispatcher keep one import point.
+    Elastic dispatcher keep one import point. The context arguments
+    feed event.action domain resolution (see extract_elastic_fields).
     """
     from app.services.esql_extractor import extract_esql_fields_v2
 
-    return extract_esql_fields_v2(query)
+    return extract_esql_fields_v2(
+        query, indices=indices, integrations=integrations,
+        default_domain=default_domain,
+    )
 
 
 # ===========================================================================
