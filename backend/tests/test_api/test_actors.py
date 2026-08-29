@@ -535,3 +535,34 @@ async def test_actor_coverage_matrix(client, db_session):
     by_name = await client.get("/api/actors/coverage-matrix", params={"min_techniques": 1, "sort": "name"})
     assert [r["name"] for r in by_name.json()["rows"]] == ["Alpha Group", "Beta Group"]
     assert (await client.get("/api/actors/coverage-matrix", params={"sort": "bogus"})).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_actor_detail_is_memoised_on_the_corpus(client, db_session):
+    """The detail payload is corpus-derived, so a repeat request with an
+    unchanged corpus costs only the fingerprint query."""
+    db_session.add_all([
+        _rule(title="s1", source="sigma", mitre_techniques=["T1001", "T1002"]),
+        _rule(title="e1", source="elastic", mitre_techniques=["T1002"]),
+    ])
+    await db_session.commit()
+    first = await client.get("/api/actors/G0001")
+    assert first.status_code == 200
+    assert first.json()["coverage_by_source"]  # per-source map still populated
+
+    calls = 0
+    orig = db_session.execute
+
+    async def counting(*a, **kw):
+        nonlocal calls
+        calls += 1
+        return await orig(*a, **kw)
+
+    db_session.execute = counting
+    try:
+        again = await client.get("/api/actors/G0001")
+    finally:
+        db_session.execute = orig
+    assert again.status_code == 200
+    assert again.json() == first.json()
+    assert calls == 1, f"warm actor detail should be the fingerprint query only, ran {calls}"

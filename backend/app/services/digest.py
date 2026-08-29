@@ -18,6 +18,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.corpus_cache import corpus_cache
 from app.services.coverage_snapshot import compute_newly_covered
 from app.services.source_deltas import compute_source_deltas
 from app.services.technique_deltas import compute_technique_deltas
@@ -63,6 +64,14 @@ async def new_rules(db: AsyncSession, *, since, limit: int) -> list[dict]:
 
 
 async def compute_digest(db: AsyncSession, days: int = 7, limit: int = 15) -> dict:
+    """Weekly digest payload, memoised on the corpus fingerprint plus
+    the UTC date (the window is anchored to "now", so the answer can
+    change at midnight even when the corpus does not)."""
+    key = ("digest", days, limit, utcnow().date().isoformat())
+    return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit))
+
+
+async def _compute_digest(db: AsyncSession, days: int, limit: int) -> dict:
     end = utcnow()
     start = end - timedelta(days=days)
 

@@ -51,6 +51,8 @@ from app.services.actor_matching import (
     sql_like_patterns,
 )
 from app.services.actor_scores import actor_score_service
+from app.services.corpus_cache import corpus_cache
+from app.services.coverage_heatmap import technique_source_counts
 from app.services.mitre import mitre_service
 from app.services.navigator import build_layer, layer_response
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -890,6 +892,24 @@ async def get_actor(
             detail=f"Unknown actor id: {actor_id}",
         )
 
+    # Everything below is derived from the corpus + the loaded ATT&CK /
+    # galaxy catalogs, so it is memoised on the corpus fingerprint (a
+    # cold build runs ~6 scans with wide ILIKE pre-filters; a warm hit
+    # is one COUNT/MAX query). The catalog versions are part of the key
+    # so a MITRE refresh without a corpus change still recomputes.
+    key = (
+        "actor", actor_id, match_mode,
+        mitre_service.get_stats()["last_fetch"],
+        actor_context_service.get_stats().get("version"),
+    )
+    return await corpus_cache.get(
+        db, key, lambda: _compute_actor(db, actor_id, match_mode, kind, mitre_url, entity),
+    )
+
+
+async def _compute_actor(
+    db: AsyncSession, actor_id: str, match_mode: str, kind: str, mitre_url: str, entity: dict,
+) -> dict:
     bundle = await actor_score_service.get(db)
     scores = (bundle.groups if kind == "group" else bundle.software)[actor_id]
 
@@ -909,26 +929,13 @@ async def get_actor(
             "weight": round(weight, 4) if weight is not None else None,
         })
     # Per-source breakdown (#18): which vendor covers which of this
-    # actor's techniques. One uncapped scan of (source, techniques) for
-    # rules tagging any of the actor's techniques, aggregated in Python.
-    by_source_per_technique: dict[str, dict[str, int]] = {}
+    # actor's techniques, from the corpus-wide technique -> source map
+    # (one cached scan shared with the coverage heatmap).
+    ts_counts = await technique_source_counts(db)
     actor_tids = {t["technique_id"] for t in techniques_used}
-    if actor_tids:
-        conds = [
-            cast(Detection.mitre_techniques, String).ilike(f'%"{tid}"%')
-            for tid in actor_tids
-        ]
-        src_rows = (
-            await db.execute(
-                select(Detection.source, Detection.mitre_techniques).where(or_(*conds))
-            )
-        ).all()
-        for src, tids in src_rows:
-            for tid in tids or []:
-                tid_u = str(tid).upper()
-                if tid_u in actor_tids:
-                    per = by_source_per_technique.setdefault(tid_u, {})
-                    per[src] = per.get(src, 0) + 1
+    by_source_per_technique: dict[str, dict[str, int]] = {
+        tid: dict(ts_counts[tid]) for tid in actor_tids if ts_counts.get(tid)
+    }
     for t in techniques_used:
         t["rule_count_by_source"] = dict(
             sorted(by_source_per_technique.get(t["technique_id"], {}).items())

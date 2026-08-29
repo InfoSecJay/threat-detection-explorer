@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
 from app.services.actor_scores import actor_score_service
+from app.services.corpus_cache import corpus_cache
 from app.services.mitre import mitre_service
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
@@ -22,6 +23,13 @@ Kind = Literal["groups", "software"]
 
 
 async def technique_source_counts(db: AsyncSession) -> dict[str, dict[str, int]]:
+    """{technique_id: {source: rule_count}} over the whole corpus,
+    memoised on the corpus fingerprint (shared by the heatmap and the
+    per-source breakdown on every actor page)."""
+    return await corpus_cache.get(db, ("technique_source_counts",), lambda: _scan_technique_sources(db))
+
+
+async def _scan_technique_sources(db: AsyncSession) -> dict[str, dict[str, int]]:
     rows = (await db.execute(select(Detection.source, Detection.mitre_techniques))).all()
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for source, techniques in rows:
