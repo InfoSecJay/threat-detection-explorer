@@ -1,9 +1,13 @@
-import { parseApiDate, daysSince } from '../utils/dates';
-import { Fragment, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { sourceColors, sourceLabelsShort as sourceLabels } from '../constants/sources';
+/** Catalog result table: selection, inline previews, sortable columns
+ * and paging. Cells and helpers live in components/rulelist/. */
+
+import { useEffect, useState } from 'react';
 import type { Detection, SearchFilters } from '../types';
 import { clipMd, clipLg } from '../constants/style';
+import { sortOptions } from './rulelist/format';
+import { SortableTh } from './rulelist/SortableTh';
+import { RuleRow } from './rulelist/RuleRow';
+import { Pagination } from './rulelist/Pagination';
 
 interface RuleListProps {
   detections: Detection[];
@@ -15,109 +19,6 @@ interface RuleListProps {
   onExportSelected?: (ids: string[]) => void;
 }
 
-// Color mappings
-const severityColors: Record<string, { bg: string; text: string; border: string }> = {
-  critical: { bg: 'bg-breach-500/10', text: 'text-breach-400', border: 'border-breach-500/30' },
-  high: { bg: 'bg-threat-500/10', text: 'text-threat-400', border: 'border-threat-500/30' },
-  medium: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/30' },
-  low: { bg: 'bg-pulse-500/10', text: 'text-pulse-400', border: 'border-pulse-500/30' },
-  unknown: { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/30' },
-};
-
-// Sort options -- mirrors the clickable column headers below. Any
-// field listed here must also appear in the backend
-// _apply_sorting sort_columns map or the sort silently falls back
-// to Title.
-const sortOptions = [
-  { value: 'title:asc', label: 'Title (A-Z)' },
-  { value: 'title:desc', label: 'Title (Z-A)' },
-  { value: 'severity:desc', label: 'Severity (High to Low)' },
-  { value: 'severity:asc', label: 'Severity (Low to High)' },
-  { value: 'rule_created_date:desc', label: 'Created (Newest)' },
-  { value: 'rule_created_date:asc', label: 'Created (Oldest)' },
-  { value: 'rule_modified_date:desc', label: 'Modified (Newest)' },
-  { value: 'rule_modified_date:asc', label: 'Modified (Oldest)' },
-  { value: 'source:asc', label: 'Source (A-Z)' },
-  { value: 'source:desc', label: 'Source (Z-A)' },
-  { value: 'language:asc', label: 'Language (A-Z)' },
-  { value: 'language:desc', label: 'Language (Z-A)' },
-  { value: 'platforms:asc', label: 'Platform (A-Z)' },
-  { value: 'platforms:desc', label: 'Platform (Z-A)' },
-  { value: 'data_sources:asc', label: 'Data Source (A-Z)' },
-  { value: 'data_sources:desc', label: 'Data Source (Z-A)' },
-  { value: 'event_types:asc', label: 'Event Type (A-Z)' },
-  { value: 'event_types:desc', label: 'Event Type (Z-A)' },
-  { value: 'quality_score:desc', label: 'Hygiene (Best first)' },
-  { value: 'quality_score:asc', label: 'Hygiene (Worst first)' },
-];
-
-// Hygiene-score band colors. The score measures rule hygiene
-// (metadata, mapping, docs, testability), NOT detection efficacy.
-function qualityBand(score: number): string {
-  if (score >= 80) return 'text-matrix-400 border-matrix-500/40 bg-matrix-500/10';
-  if (score >= 60) return 'text-lime-400 border-lime-500/40 bg-lime-500/10';
-  if (score >= 40) return 'text-amber-400 border-amber-500/40 bg-amber-500/10';
-  return 'text-breach-400 border-breach-500/40 bg-breach-500/10';
-}
-
-function formatRelativeDate(dateStr: string | null): string {
-  // daysSince clamps at 0: a timestamp a few minutes ahead of the
-  // viewer's clock used to fall through every branch and render "-1d".
-  const diffDays = daysSince(dateStr);
-  if (diffDays === null) return '-';
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-  return `${Math.floor(diffDays / 365)}y`;
-}
-
-// Cap visible tags per cell; overflow collapses into a "+N" tag
-const MAX_VISIBLE_TAGS = 3;
-
-function TagList({ items, colorClass }: { items: string[] | null | undefined; colorClass: string }) {
-  if (!items || items.length === 0) {
-    return <span className="text-xs text-gray-600">-</span>;
-  }
-
-  const visible = items.slice(0, MAX_VISIBLE_TAGS);
-  const hidden = items.slice(MAX_VISIBLE_TAGS);
-
-  return (
-    <div className="flex flex-wrap gap-1">
-      {visible.map((item) => (
-        <span
-          key={item}
-          className={`px-1.5 py-0.5 text-xs font-mono border ${
-            item === 'unknown'
-              ? 'bg-gray-500/15 text-gray-500 border-gray-500/30 italic'
-              : colorClass
-          }`}
-        >
-          {item}
-        </span>
-      ))}
-      {hidden.length > 0 && (
-        <span
-          className="px-1.5 py-0.5 text-xs font-mono border bg-gray-500/10 text-gray-400 border-gray-500/30"
-          title={hidden.join(', ')}
-        >
-          +{hidden.length}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '-';
-  const date = parseApiDate(dateStr);
-  if (isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
 export function RuleList({
   detections,
   total,
@@ -127,7 +28,6 @@ export function RuleList({
   enableSelection = true,
   onExportSelected,
 }: RuleListProps) {
-  const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Rows expanded inline to show query logic / references / FP notes.
   // Keeps the result list and scroll position intact — previously
@@ -188,9 +88,6 @@ export function RuleList({
     });
   };
 
-  const isSelected = (id: string) => selectedIds.has(id);
-  const canSelect = true; // No limit on selection
-
   const handlePageChange = (page: number) => {
     onFiltersChange({ ...filters, offset: (page - 1) * limit });
   };
@@ -207,56 +104,7 @@ export function RuleList({
   };
 
   const currentSortValue = `${filters.sort_by || 'title'}:${filters.sort_order || 'asc'}`;
-
-  const SortIndicator = ({ field }: { field: string }) => {
-    if (filters.sort_by !== field) return null;
-    return (
-      <span className="ml-1 text-matrix-500">
-        {filters.sort_order === 'asc' ? '↑' : '↓'}
-      </span>
-    );
-  };
-
-  // Sortable column header: a real <button> inside the <th> so the sort
-  // is reachable by keyboard, with aria-sort announcing the state (#50).
-  const SortableTh = ({
-    field, label, title, pad = 'px-3',
-  }: {
-    field: string; label: string; title?: string; pad?: string;
-  }) => {
-    const active = filters.sort_by === field;
-    const ariaSort = active ? (filters.sort_order === 'asc' ? 'ascending' : 'descending') : 'none';
-    return (
-      <th aria-sort={ariaSort} className={`${pad} py-3 text-left`} title={title}>
-        <button
-          type="button"
-          onClick={() => handleSort(field)}
-          className="text-xs font-display font-semibold text-gray-500 uppercase tracking-wider hover:text-matrix-500 focus-visible:text-matrix-400 focus-visible:underline focus:outline-none transition-colors whitespace-nowrap"
-        >
-          {label} <SortIndicator field={field} />
-        </button>
-      </th>
-    );
-  };
-
-  // Generate visible page numbers
-  const getVisiblePages = () => {
-    const pages: (number | string)[] = [];
-    const maxVisible = 5;
-
-    if (totalPages <= maxVisible + 2) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (currentPage > 3) pages.push('...');
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (currentPage < totalPages - 2) pages.push('...');
-      pages.push(totalPages);
-    }
-    return pages;
-  };
+  const sortProps = { sortBy: filters.sort_by, sortOrder: filters.sort_order, onSort: handleSort };
 
   if (isLoading) {
     return (
@@ -377,280 +225,43 @@ export function RuleList({
                 )}
                 {/* Expand-chevron column — no header label */}
                 <th className="px-2 py-3 w-8" aria-label="Expand row" />
-                <SortableTh field="title" label="Title" pad="px-4" />
-                <SortableTh field="source" label="Source"
+                <SortableTh {...sortProps} field="title" label="Title" pad="px-4" />
+                <SortableTh {...sortProps} field="source" label="Source"
                   title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
-                <SortableTh field="severity" label="Severity" />
-                <SortableTh field="platforms" label="Platform"
+                <SortableTh {...sortProps} field="severity" label="Severity" />
+                <SortableTh {...sortProps} field="platforms" label="Platform"
                   title="Sort by first platform (alphabetical)" />
-                <SortableTh field="data_sources" label="Data Source"
+                <SortableTh {...sortProps} field="data_sources" label="Data Source"
                   title="Sort by first data source (alphabetical)" />
-                <SortableTh field="event_types" label="Event Type"
+                <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
-                <SortableTh field="rule_created_date" label="Created" />
-                <SortableTh field="rule_modified_date" label="Modified" />
-                <SortableTh field="quality_score" label="Hygiene"
+                <SortableTh {...sortProps} field="rule_created_date" label="Created" />
+                <SortableTh {...sortProps} field="rule_modified_date" label="Modified" />
+                <SortableTh {...sortProps} field="quality_score" label="Hygiene"
                   title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy." />
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
-              {detections.map((detection) => {
-                const sevColors = severityColors[detection.severity] || severityColors.unknown;
-                const sourceColor = sourceColors[detection.source] || '#6b7280';
-                const expanded = expandedIds.has(detection.id);
-                // SOURCE · LANG merged chip. The language suffix only
-                // carries information when it's a real value — lolrmm
-                // and freshly-ingested rules have language "unknown".
-                const lang =
-                  detection.language && detection.language !== 'unknown'
-                    ? detection.language.toUpperCase()
-                    : null;
-
-                return (
-                  <Fragment key={detection.id}>
-                  <tr
-                    className={`hover:bg-void-800/50 cursor-pointer transition-colors ${
-                      isSelected(detection.id) ? 'bg-matrix-500/5' : ''
-                    }`}
-                    onClick={() => navigate(`/detections/${detection.id}`)}
-                  >
-                    {enableSelection && (
-                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected(detection.id)}
-                          onChange={() => {}}
-                          onClick={(e) => toggleSelection(detection.id, e)}
-                          disabled={!isSelected(detection.id) && !canSelect}
-                          className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 disabled:opacity-50"
-                        />
-                      </td>
-                    )}
-                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => toggleExpanded(detection.id, e)}
-                        className="p-1 text-gray-500 hover:text-matrix-500 transition-colors"
-                        aria-expanded={expanded}
-                        aria-label={expanded ? 'Collapse rule preview' : 'Expand rule preview'}
-                        title={expanded ? 'Collapse preview' : 'Preview query logic, references, FP notes'}
-                      >
-                        <svg
-                          className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 max-w-md">
-                      <Link
-                        to={`/detections/${detection.id}`}
-                        className="text-sm font-medium text-matrix-500 hover:text-matrix-400 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        title={detection.description || undefined}
-                      >
-                        {detection.title}
-                      </Link>
-                      {detection.is_building_block && (
-                        <span
-                          className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30 align-middle"
-                          title="Building block: feeds other rules, does not alert on its own"
-                        >
-                          BB
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className="px-2 py-1 text-xs font-mono font-medium border"
-                        style={{
-                          backgroundColor: `${sourceColor}15`,
-                          color: sourceColor,
-                          borderColor: `${sourceColor}40`,
-                        }}
-                      >
-                        {sourceLabels[detection.source] || detection.source.toUpperCase()}
-                        {lang && <span className="opacity-60"> · {lang}</span>}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-mono font-medium border ${sevColors.bg} ${sevColors.text} ${sevColors.border}`}
-                      >
-                        {detection.severity.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <TagList
-                        items={detection.platforms}
-                        colorClass="bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
-                      />
-                    </td>
-                    <td className="px-3 py-3">
-                      <TagList
-                        items={detection.data_sources}
-                        colorClass="bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
-                      />
-                    </td>
-                    <td className="px-3 py-3">
-                      <TagList
-                        items={detection.event_types}
-                        colorClass="bg-orange-500/10 text-orange-300 border-orange-500/30"
-                      />
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className="text-xs font-mono text-gray-400"
-                        title={formatDate(detection.rule_created_date)}
-                      >
-                        {formatRelativeDate(detection.rule_created_date)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <span
-                        className="text-xs font-mono text-gray-400"
-                        title={formatDate(detection.rule_modified_date)}
-                      >
-                        {formatRelativeDate(detection.rule_modified_date)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {typeof detection.quality_score === 'number' ? (
-                        <span
-                          className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
-                          title="Hygiene score (0-100): rule hygiene, not detection accuracy"
-                        >
-                          {detection.quality_score}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-600">-</span>
-                      )}
-                    </td>
-                  </tr>
-                  {expanded && (
-                    <tr className="bg-void-900/60">
-                      <td colSpan={enableSelection ? 11 : 10} className="px-6 py-4">
-                        <div className="space-y-4">
-                          {/* Query logic */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
-                                Detection Logic
-                              </span>
-                              {lang && (
-                                <span className="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 text-[10px] font-mono">
-                                  {lang}
-                                </span>
-                              )}
-                            </div>
-                            <pre className="p-3 bg-void-950 border border-void-700 text-xs font-mono text-gray-300 whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
-                              {detection.detection_logic || 'No query logic available'}
-                            </pre>
-                          </div>
-
-                          {/* References */}
-                          {detection.references && detection.references.length > 0 && (
-                            <div>
-                              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                References
-                              </div>
-                              <ul className="space-y-1">
-                                {detection.references.map((ref) => (
-                                  <li key={ref} className="text-xs font-mono truncate">
-                                    <a
-                                      href={ref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {ref}
-                                    </a>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* False positives */}
-                          {detection.false_positives && detection.false_positives.length > 0 && (
-                            <div>
-                              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                False Positives
-                              </div>
-                              <ul className="space-y-1">
-                                {detection.false_positives.map((fp, i) => (
-                                  <li key={i} className="text-xs text-gray-400 flex gap-2">
-                                    <span className="text-yellow-500/70 shrink-0">!</span>
-                                    <span>{fp}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          <Link
-                            to={`/detections/${detection.id}`}
-                            className="inline-block text-xs font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
-                          >
-                            VIEW FULL RULE -&gt;
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                );
-              })}
+              {detections.map((detection) => (
+                <RuleRow
+                  key={detection.id}
+                  detection={detection}
+                  enableSelection={enableSelection}
+                  selected={selectedIds.has(detection.id)}
+                  expanded={expandedIds.has(detection.id)}
+                  onToggleSelect={(e) => toggleSelection(detection.id, e)}
+                  onToggleExpand={(e) => toggleExpanded(detection.id, e)}
+                />
+              ))}
             </tbody>
           </table>
         </div>
       </div>
 
+
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm font-mono text-gray-500">
-            PAGE <span className="text-matrix-500">{currentPage}</span> / {totalPages}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 border border-void-700 text-xs font-display text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-void-800 hover:border-matrix-500/30 transition-all"
-            >
-              PREV
-            </button>
-            {getVisiblePages().map((page, idx) => (
-              typeof page === 'number' ? (
-                <button
-                  key={idx}
-                  onClick={() => handlePageChange(page)}
-                  className={`px-3 py-1.5 border text-xs font-mono transition-all ${
-                    page === currentPage
-                      ? 'bg-matrix-500/10 text-matrix-500 border-matrix-500/30'
-                      : 'border-void-700 text-gray-300 hover:bg-void-800 hover:border-matrix-500/30'
-                  }`}
-                >
-                  {page}
-                </button>
-              ) : (
-                <span key={idx} className="px-2 text-gray-600">
-                  {page}
-                </span>
-              )
-            ))}
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 border border-void-700 text-xs font-display text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-void-800 hover:border-matrix-500/30 transition-all"
-            >
-              NEXT
-            </button>
-          </div>
-        </div>
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
       )}
     </div>
   );
