@@ -61,6 +61,10 @@ class Settings(BaseSettings):
 
     # Scheduler settings
     enable_scheduler: bool = True  # Enable/disable automatic sync
+    # Rebuild the corpus-derived caches in the background right after
+    # the API starts, so the first visitor after a deploy is not the one
+    # paying for the sidebar facets and popular actor pages.
+    warm_caches_on_start: bool = True
     # The nightly sync is scheduled in sync_schedule_timezone, not UTC.
     # 03:00 America/Toronto lands the ~2h full sync well before the
     # morning (done by ~5AM local, DST-proof) and keeps it clear of

@@ -6,6 +6,7 @@ can never block API requests. The API communicates with the worker
 exclusively through the shared `sync_jobs` table in Postgres.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -15,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
+from app.services.warmup import warm_caches_background
 
 # Import models to register them with SQLAlchemy Base before init_db
 from app.models import Detection, Repository, SyncJob  # noqa: F401
@@ -49,7 +51,13 @@ async def lifespan(app: FastAPI):
         "API process started. Sync scheduling and processing live in the "
         "worker service."
     )
+    warm_task = None
+    if settings.warm_caches_on_start:
+        # Fire-and-forget; the task owns its session and error boundary.
+        warm_task = asyncio.create_task(warm_caches_background(), name="cache-warmup")
     yield
+    if warm_task is not None and not warm_task.done():
+        warm_task.cancel()
 
 
 app = FastAPI(
