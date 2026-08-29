@@ -388,6 +388,72 @@ space — diminishing returns beyond this point. `auth0` is now flagged
 surfaces as an anomaly instead of hiding behind the no-extractor
 exemption.
 
+### Production audit + precision pass (2026-08-29)
+
+`scripts/audit_extraction.py` against production (all 13 sources,
+15,682 rules). Every source has an extractor; per-surface FP-class
+tripwires are at or near zero everywhere (worst: Elastic event_ids
+5.4% non-numeric, auth0 network_indicators 19.4% free text -- both
+fixed below). Note the audit's "fallback share" counts `other/unknown`
+as well as the `*_field` subtypes, which is why Sentinel / Panther /
+pypanther read ~50%: those were vocabulary gaps, not parsing gaps.
+
+To find semantic errors the shape tripwires cannot see, 80 live rules
+per source were pulled from production Postgres
+(`scripts/extraction_pull_samples.py`) and re-run through the exact
+parser -> normalizer -> extractor path on master
+(`scripts/extraction_eval_samples.py`), dumping every observable for
+review. That surfaced four real extractor bugs and the residual
+vocabulary tail:
+
+- **Elastic KQL / Lucene**: the `field : value` regex ran over the raw
+  text and matched INSIDE quoted strings, so `process.executable :
+  ("C:\Program Files\...")` produced a bogus `C` field with value
+  `\Program`, and `not` was never recorded. Replaced by a quote-aware
+  scanner with group negation.
+- **Elastic ML rules**: the synthesized "Machine Learning Job: [...]"
+  text yielded a `Job` field. ML rules now extract nothing.
+- **Sublime MQL**: the `//` comment stripper was not quote-aware
+  (`html.xpath(body.html, '//title')` lost its literal and every
+  relative field after it went unresolved); `field = "value"` matched
+  inside regex literals (`class`, `style` observables with value
+  `.*?`); `.field` after an index (`hops[0].received`) lost its dot;
+  list-literal containers resolved to a helper name instead of the
+  wrapped field (`any([strings.replace_confusables(sender.display_name),
+  ...], ...)`). String literals are now masked before term extraction.
+- **Empty values** (`field == ""`) no longer produce observables.
+- **Vocabulary**: ~230 field mappings (Auth0, Sentinel generic columns,
+  Splunk CIM/Windows, Sigma RPC/Windows, Elastic integrations, Panther
+  log types, Sublime resolved paths) and two new subtypes:
+  `event/message` (free-text description columns) and
+  `network/http_body`.
+
+Live-sample before -> after (master, 80 rules/source; `*_field` share
+and `other/unknown` count over the sample's observables):
+
+| Source              | `*_field` before | after | unknown before | after |
+| ---                 | ---:             | ---:  | ---:           | ---:  |
+| auth0               | 23.6%            | 0.0%  | 84             | 0     |
+| elastic             | 6.1%             | 1.0%  | 63             | 0     |
+| elastic_hunting     | 3.6%             | 1.8%  | 13             | 0     |
+| elastic_protections | 4.2%             | 2.2%  | 6              | 0     |
+| google_secops       | 2.0%             | 1.6%  | 22             | 15    |
+| lolrmm              | 0.0%             | 0.0%  | 0              | 0     |
+| okta                | 2.1%             | 2.1%  | 2              | 2     |
+| panther             | 8.8%             | 2.2%  | 55             | 7     |
+| pypanther           | 8.9%             | 0.0%  | 44             | 16    |
+| sentinel            | 4.3%             | 0.9%  | 58             | 17    |
+| sigma               | 3.4%             | 0.4%  | 39             | 0     |
+| splunk              | 7.1%             | 1.6%  | 24             | 6     |
+| sublime             | 11.3%            | 5.0%  | 131            | 0     |
+
+What remains is single-occurrence custom columns (Sentinel `*_s`
+custom-log fields, Chronicle `graph.*` / `security_result.about.labels.*`,
+Panther rules reading bare `name` / `event` keys) -- accepted as the
+floor; each is one mapping away when a rule that matters surfaces.
+Production rows refresh on the nightly sync (every rule re-normalizes
+on upsert); rerun the production audit the day after to confirm.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract

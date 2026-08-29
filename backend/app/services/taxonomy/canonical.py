@@ -749,6 +749,7 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             # `network_type` during the network extractor rebuild.
             "type",
             "user_agent",
+            "http_body",      # request/response bodies, redis/http payload text
             "network_field",  # heuristic fallback
         }
     ),
@@ -859,6 +860,7 @@ OBSERVABLE_SUBTYPES: dict[str, frozenset[str]] = {
             # cloud or identity audit log -- see
             # field_extractor.resolve_event_action_domain.
             "event_action",
+            "message",  # free-text message / description columns
         }
     ),
     "other": frozenset({UNKNOWN}),

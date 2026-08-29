@@ -591,6 +591,297 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "authenticationcontext.authenticatorcontext.validationstatus": ("identity", "auth_factor"),
     "authenticationcontext.credentialtype": ("identity", "auth_factor"),
     "authenticationcontext.externalsessionid": ("identity", "context"),
+
+    # ---- 2026-08-29 precision pass (issue #6 production audit) ----
+    # Driven by the per-source `other/unknown` + `*_field` tallies of a
+    # 13-source live sample re-run through master. Free-text
+    # description / message fields get the `event/message` subtype so
+    # they stop reading as extraction gaps.
+    # Free-text messages / descriptions
+    "message": ("event", "message"),
+    "description": ("event", "message"),
+    "resultdescription": ("event", "message"),
+    "data.description": ("event", "message"),
+    "data.details.request.body.description": ("event", "message"),
+    "additional.fields.msg_1": ("event", "message"),
+    "security_result.summary": ("event", "message"),
+    "security_result.description": ("event", "message"),
+    "security_result.action_details": ("event", "message"),
+    "metadata.description": ("event", "message"),
+    "possiblecause": ("event", "message"),
+    "gen_ai.completion": ("event", "message"),
+    # Auth0 (Sigma-format rules over Auth0 tenant logs)
+    "data.type": ("identity", "action"),
+    "data.tenant_name": ("identity", "context"),
+    "data.client_id": ("identity", "target"),
+    "data.client_name": ("identity", "target"),
+    "data.user_name": ("identity", "actor"),
+    "data.user_id": ("identity", "actor"),
+    "data.hostname": ("network", "domain"),
+    "data.ip": ("identity", "source_ip"),
+    "data.user_agent": ("identity", "user_agent"),
+    "data.details.response.statuscode": ("identity", "outcome"),
+    "data.details.request.channel": ("identity", "context"),
+    "data.details.requiresverification": ("identity", "context"),
+    "data.details.request.path": ("network", "url"),
+    "data.details.response.body.client_id": ("identity", "target"),
+    "data.details.response.body.audience": ("identity", "target"),
+    "data.details.request.body.scope{}": ("identity", "context"),
+    "data.details.request.auth.credentials.scopes{}": ("identity", "context"),
+    "data.details.accessedsecrets{}": ("identity", "target"),
+    "data.details.response.body.afterauthentication": ("identity", "context"),
+    "data.details.response.body.cross_origin_authentication": ("identity", "context"),
+    "allowed_grants": ("identity", "context"),
+    # Sigma: Windows / RPC firewall / misc
+    "endpoint": ("network", "protocol"),           # rpc_firewall RPC interface (svcctl, atsvc)
+    "clientaddress": ("network", "ip_address"),
+    "cs-host": ("network", "domain"),
+    "cs-uri": ("network", "url"),
+    "cs-uri-stem": ("network", "url"),
+    "cs-uri-query": ("network", "url"),
+    "logtype": ("event", "event_source"),
+    "provider": ("event", "event_source"),
+    "product": ("event", "event_source"),
+    "type": ("event", "event_category"),
+    "status": ("event", "event_outcome"),
+    "grantedaccess": ("process", "api_call"),      # Sysmon 10 access mask
+    "calltrace": ("process", "call_stack"),
+    "device": ("endpoint", "device_id"),
+    "sharename": ("file", "file_path"),
+    "relativetargetname": ("file", "file_path"),
+    "binary": ("file", "file_path"),
+    "query": ("dns", "query_name"),
+    "unit": ("process", "service_name"),           # systemd unit
+    "signingused": ("process", "code_signature"),
+    "logonprocessname": ("authentication", "logon_type"),
+    "encyptionused": ("authentication", "auth_field"),
+    # Sentinel (KQL) generic columns
+    "datasource": ("event", "event_source"),
+    "sourcesystem": ("event", "event_source"),
+    "loggedbyservice": ("event", "event_source"),
+    "tablename": ("event", "event_source"),
+    "service": ("event", "event_source"),
+    "sourceseverity": ("event", "severity"),
+    "finding": ("event", "event_category"),
+    "policyviolatedcontrolfeature": ("event", "event_category"),
+    "compliancestandard": ("event", "event_category"),
+    "eventresult": ("cloud", "result"),
+    "action_s": ("cloud", "api_action"),
+    "activitydisplayname": ("cloud", "api_action"),
+    "roles": ("identity", "target"),
+    "ioctype": ("network", "type"),
+    "identity": ("identity", "actor"),
+    "process": ("process", "process_name"),
+    "ipaddress": ("network", "ip_address"),
+    "url": ("network", "url"),
+    # Splunk CIM / Windows / Linux
+    "attributeldapdisplayname": ("identity", "target"),
+    "objectcategory": ("identity", "target_type"),
+    "admoneventtype": ("event", "event_category"),
+    "operationtype": ("cloud", "api_action"),
+    "syscall": ("process", "api_call"),
+    "comm": ("process", "process_name"),
+    "exe": ("process", "process_path"),
+    "uid": ("authentication", "user_id"),
+    "result.status": ("cloud", "result"),
+    "success": ("cloud", "result"),
+    "web.dest": ("network", "domain"),
+    "web.url": ("network", "url"),
+    "logon_type": ("authentication", "logon_type"),
+    "user_type": ("authentication", "user"),
+    "serviceprincipalnames": ("identity", "target"),
+    "processes.os": ("endpoint", "os"),
+    "dns.query": ("dns", "query_name"),
+    "processes.parent_process_path": ("process", "parent_process_path"),
+    "columns.cmdline": ("process", "command_line_pattern"),
+    "all_traffic.src_ip": ("network", "ip_address"),
+    "all_traffic.dest_ip": ("network", "ip_address"),
+    "properties.status.errorcode": ("cloud", "error_code"),
+    "properties.authenticationdetails{}.succeeded": ("identity", "outcome"),
+    # Elastic ECS + integrations
+    "http.request.body.content": ("network", "http_body"),
+    "http.request.method": ("network", "http_method"),
+    "service.name": ("event", "event_source"),
+    "source.as.number": ("network", "type"),
+    "source.as.organization.name": ("network", "type"),
+    "endgame.metadata.type": ("event", "event_category"),
+    "volume.removable": ("file", "file_field"),
+    "network_traffic.redis.query": ("network", "http_body"),
+    "kubernetes.audit.objectref.namespace": ("cloud", "resource"),
+    "kubernetes.audit.objectref.name": ("cloud", "resource"),
+    "kubernetes.audit.objectref.resource": ("cloud", "resource_type"),
+    "kubernetes.audit.stage": ("cloud", "context"),
+    "kubernetes.audit.requesturi": ("cloud", "request_params"),
+    "kubernetes.audit.user.username": ("cloud", "principal"),
+    "kubernetes.audit.requestobject.spec.serviceaccountname": ("cloud", "principal"),
+    "kubernetes.audit.requestobject.spec.containers.image": ("cloud", "resource"),
+    "azure.auditlogs.properties.category": ("cloud", "event_source"),
+    "azure.platformlogs.category": ("cloud", "event_source"),
+    "azure.platformlogs.properties.log.stage": ("cloud", "context"),
+    "azure.platformlogs.properties.log.user.username": ("cloud", "principal"),
+    "azure.signinlogs.properties.app_id": ("identity", "target"),
+    "azure.signinlogs.properties.app_display_name": ("identity", "target"),
+    "azure.signinlogs.properties.risk_level_aggregated": ("identity", "risk"),
+    "azure.signinlogs.properties.risk_level_during_signin": ("identity", "risk"),
+    "azure.signinlogs.properties.risk_state": ("identity", "risk"),
+    "azure.signinlogs.properties.authentication_requirement": ("identity", "auth_factor"),
+    "google_workspace.token.client.id": ("identity", "target"),
+    "google_workspace.device.account_state": ("identity", "context"),
+    "google_workspace.drive.copy_type": ("cloud", "api_action"),
+    "aws.cloudtrail.event_type": ("cloud", "event_source"),
+    "okta.actor.type": ("identity", "actor"),
+    "okta.authentication_context.authentication_step": ("identity", "auth_factor"),
+    "okta.client.user_agent.raw_user_agent": ("identity", "user_agent"),
+    "winlog.event_data.targetimage": ("process", "process_path"),
+    "winlog.event_data.servicetype": ("process", "service_name"),
+    "target.process.name": ("process", "process_name"),
+    "target.process.ext.token.integrity_level_name": ("process", "integrity_level"),
+    "effective_process.executable": ("process", "process_path"),
+    "process.ext.session_info.logon_type": ("authentication", "logon_type"),
+    "process.ext.api.parameters.protection": ("process", "api_call"),
+    "process.ext.api.parameters.buffer": ("process", "api_call"),
+    "process.ext.api.parameters.size": ("process", "api_call"),
+    "process.ext.api.parameters.hook_type": ("process", "api_call"),
+    "process.code_signature.signing_id": ("process", "code_signature"),
+    "process.parent.code_signature.team_id": ("process", "code_signature"),
+    "process.parent.user.name": ("authentication", "user"),
+    "process.parent.group.name": ("authentication", "user"),
+    "process.user.id": ("authentication", "user_id"),
+    "process.group.id": ("authentication", "user_id"),
+    "user.effective.id": ("authentication", "user_id"),
+    "client.user.email": ("authentication", "user_email"),
+    "process.entry_leader.executable": ("process", "process_path"),
+    "process.session_leader.name": ("process", "process_name"),
+    "process.group_leader.name": ("process", "process_name"),
+    "process.name.caseless": ("process", "process_name"),
+    "dll.pe.original_file_name": ("file", "file_name"),
+    "dll.pe.imphash": ("file", "file_hash"),
+    "dll.hash.sha256": ("file", "file_hash"),
+    "dll.code_signature.status": ("file", "code_signature"),
+    "dll.ext.defense_evasions": ("process", "call_stack"),
+    "file.ext.windows.zone_identifier": ("file", "file_field"),
+    "auditd.data.syscall": ("process", "api_call"),
+    "tls.server.x509.serial_number": ("network", "type"),
+    "entry.status": ("event", "event_outcome"),
+    # Panther / pypanther (AWS, GCP, Okta, GitHub, CrowdStrike, Slack...)
+    "verb": ("cloud", "api_action"),
+    "p_log_type": ("cloud", "event_source"),
+    "actionname": ("cloud", "api_action"),
+    "audit_log_event": ("cloud", "api_action"),
+    "eventtypename": ("identity", "action"),
+    "event_simplename": ("event", "event_category"),
+    "fdr_event_type": ("event", "event_category"),
+    "event_platform": ("endpoint", "os"),
+    "alerttype": ("event", "event_category"),
+    "auditlevel": ("cloud", "context"),
+    "response.statuscode": ("cloud", "result"),
+    "state.status": ("cloud", "result"),
+    "jsonpayload.statusdetails": ("cloud", "result"),
+    "execution_status": ("cloud", "result"),
+    "query_type": ("cloud", "request_params"),
+    "parameters.setting_name": ("cloud", "request_params"),
+    "details.new_value": ("cloud", "request_params"),
+    "responseelements.snapshottype": ("cloud", "response_elements"),
+    "responseelements.consolelogin": ("cloud", "response_elements"),
+    "additionaleventdata.mfaused": ("identity", "auth_factor"),
+    "userIdentity.invokedby".lower(): ("cloud", "principal"),
+    "userIdentity.sessioncontext.attributes.mfaauthenticated".lower(): ("identity", "auth_factor"),
+    "user.groups": ("identity", "target"),
+    "requestparameters.cidrip": ("network", "ip_address"),
+    "protopayload.requestmetadata.callersupplieduseragent": ("cloud", "user_agent"),
+    "protopayload.metadata.jobchange.job.jobconfig.type": ("cloud", "request_params"),
+    "protopayload.metadata.jobchange.job.jobconfig.queryconfig.statementtype": ("cloud", "request_params"),
+    "id.applicationname": ("cloud", "event_source"),
+    "event.imagefilename": ("process", "process_path"),
+    "event.commandline": ("process", "command_line_pattern"),
+    "event.postaction.authfrequency": ("identity", "auth_factor"),
+    "destination_port": ("network", "port"),
+    "quarantinerule": ("email", "email_field"),
+    "quarantinefolder": ("email", "email_field"),
+    "program": ("process", "process_name"),
+    "login": ("identity", "actor"),
+    # Sublime resolved paths
+    "beta.scan_qr.items.url.path": ("email", "url"),
+    "scan.qr.url.domain.root_domain": ("email", "url"),
+    "scan.qr.data": ("email", "attachment_content"),
+    "file.explode.scan.qr.data": ("email", "attachment_content"),
+    "file.explode.scan.javascript.strings": ("email", "attachment_content"),
+    "file.explode.scan.yara.matches.name": ("email", "attachment_content"),
+    "file.explode.scan.pdf.urls.query_params": ("email", "url"),
+    "file.explode.scan.strings.raw": ("email", "attachment_content"),
+    "file.explode.scan.ocr.raw": ("email", "attachment_content"),
+    "file.explode.file_extension": ("email", "attachment_type"),
+    "file.explode.file_name": ("email", "attachment"),
+    "file_type": ("email", "attachment_type"),
+    "file.parse_eml.attachments.content_type": ("email", "attachment_type"),
+    "body.current_thread.links.href_url.scheme": ("email", "url"),
+    "body.current_thread.links.href_url.path": ("email", "url"),
+    "body.current_thread.links.href_url.domain.root_domain": ("email", "url"),
+    "body.links.href_url.domain.subdomain": ("email", "url"),
+    "body.links.href_url.fragment": ("email", "url"),
+    "body.previous_threads.recipients.to.email.email": ("email", "recipient"),
+    "body.previous_threads.preamble": ("email", "body_content"),
+    "recipients.to.email.domain.root_domain": ("email", "recipient"),
+    "headers.return_path.domain.domain": ("email", "return_path"),
+    "headers.domains.tld": ("email", "header"),
+    "headers.hops.received.server.raw": ("email", "header"),
+    "headers.hops.received.source.raw": ("email", "header"),
+    "headers.hops.authentication_results.dmarc": ("email", "auth_result"),
+    "beta.ml_topic.topics.confidence": ("email", "ml_classifier"),
+    "ml.nlu_classifier.tags.name": ("email", "ml_classifier"),
+    "html.xpath.nodes.inner_text": ("email", "body_content"),
+    "html.xpath.nodes.attributes.style": ("email", "body_content"),
+    "html.xpath.nodes.attributes.bgcolor": ("email", "body_content"),
+    "html.xpath.nodes.attributes.height": ("email", "body_content"),
+    "html.xpath.nodes.attributes.class": ("email", "body_content"),
+    "html.xpath.nodes.attributes.alt": ("email", "body_content"),
+    "html.xpath.nodes.attributes.href": ("email", "url"),
+    "html.xpath.nodes.attributes.src": ("email", "url"),
+    "display_url.domain.root_domain": ("email", "url"),
+    "href_url.url": ("email", "url"),
+    "href_url.path": ("email", "url"),
+    "root_domain": ("email", "sender_domain"),
+    "ec_url": ("email", "url"),
+    "body.current_thread.links.display_text": ("email", "url"),
+    "final_dom.display_text": ("email", "url"),
+    "beta.scan_qr.items.data": ("email", "attachment_content"),
+    "beta.scan_base64": ("email", "attachment_content"),
+    "format": ("email", "attachment_type"),
+    "language": ("email", "body_content"),
+    # Residual long tail from the 2026-08-29 live-sample re-run
+    "integritylevel": ("process", "integrity_level"),
+    "activitytype": ("event", "event_category"),
+    "auditpolicychanges": ("event", "event_category"),
+    "subcategoryguid": ("event", "event_category"),
+    "data": ("event", "message"),
+    "param1": ("event", "message"),
+    "eventdata_xml": ("event", "message"),
+    "syslogmessage": ("event", "message"),
+    "alertmessage": ("event", "message"),
+    "reason": ("event", "message"),
+    "objecttype": ("identity", "target_type"),
+    "email": ("authentication", "user_email"),
+    "emaildirection": ("email", "email_field"),
+    "entityname": ("identity", "target"),
+    "vulnerabilitytype": ("event", "event_category"),
+    "permission": ("identity", "context"),
+    "deviceproduct_s": ("event", "event_source"),
+    "davisrisklevel": ("identity", "risk"),
+    "decision": ("cloud", "result"),
+    "source_type": ("cloud", "event_source"),
+    "entity.app.scopes": ("identity", "context"),
+    "details.new_scopes": ("identity", "context"),
+    "details.bot_scopes": ("identity", "context"),
+    "workflow.changed_by": ("identity", "actor"),
+    "created_by.id": ("identity", "actor"),
+    "data.details.request.body": ("cloud", "request_params"),
+    "data.details.request.body.name": ("cloud", "request_params"),
+    "parameters.message_info.message_set.type": ("cloud", "request_params"),
+    "event_type._tag": ("event", "event_category"),
+    "azure.platformlogs.properties.log.objectref.namespace": ("cloud", "resource"),
+    "azure.platformlogs.properties.log.objectref.name": ("cloud", "resource"),
+    "azure.platformlogs.properties.log.verb": ("cloud", "api_action"),
+    "aws.cloudtrail.flattened.request_parameters.x-amz-acl": ("cloud", "request_params"),
 }
 
 # Known Microsoft Sentinel/MDE table names
@@ -714,7 +1005,20 @@ def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
 
 
 def _deduplicate_all(result: ExtractedFields):
-    """Deduplicate all extraction lists."""
+    """Deduplicate all extraction lists and drop empty values.
+
+    An observable whose only value is "" (e.g. `sender.email.domain.domain
+    == ""`) is a field reference, not an observable: keep the field in
+    fields_used, drop the observable.
+    """
+    kept: list[ExtractedObservable] = []
+    for obs in result.observables:
+        values = [v for v in (obs.values or []) if isinstance(v, str) and v.strip()]
+        if not values:
+            continue
+        obs.values = list(dict.fromkeys(values))
+        kept.append(obs)
+    result.observables = kept
     result.fields_used = list(dict.fromkeys(result.fields_used))
     result.event_ids = list(dict.fromkeys(result.event_ids))
     result.process_names = list(dict.fromkeys(result.process_names))
@@ -1074,6 +1378,12 @@ def extract_elastic_fields(
     query = query.strip()
     lang = language.lower()
 
+    if lang in ("ml", "machine_learning"):
+        # ML rules carry no query -- the parser synthesizes
+        # "Machine Learning Job: [...]" text, which used to yield a
+        # bogus `Job` field. Nothing to extract.
+        return result
+
     if lang == "esql":
         return extract_esql_fields(
             query, indices=indices, integrations=integrations,
@@ -1152,39 +1462,149 @@ def _extract_eql_fields(query: str, result: ExtractedFields):
         _add_elastic_observable(field_name, [value], False, result)
 
 
+_KQL_BARE_STOP = frozenset({"and", "or", "not", "true", "false", "null", "*"})
+
+
+def _kql_field_terms(query: str) -> list[tuple[str, list[str], bool]]:
+    """Quote-aware `field : value` scan shared by KQL and Lucene.
+
+    The previous regex ran over the raw text and matched INSIDE string
+    literals, so `process.executable : ("C:\\\\Program Files\\\\x.exe")`
+    produced a bogus `C` field with value `\\\\Program` (issue #6 audit,
+    2026-08-29). This walks the query once, skipping quoted strings,
+    and for each `name :` outside quotes reads exactly one value:
+
+      - `"quoted"`                -> [quoted]
+      - `(a or "b" or c*)`        -> every quoted string inside the
+                                     balanced group, else bare tokens
+                                     split on and/or
+      - `bare-token`              -> [token]
+
+    A `not` immediately before the field (or before an opening group
+    that contains it) marks the term negated. Comparison operators
+    (`>=`, `<`) are not KQL colon terms and are skipped by design.
+    """
+    terms: list[tuple[str, list[str], bool]] = []
+    n = len(query)
+    i = 0
+    # Stack of negation flags per open paren so `not (a:x or b:y)`
+    # negates both terms.
+    neg_stack: list[bool] = []
+    pending_not = False
+
+    def skip_string(pos: int) -> int:
+        q = query[pos]
+        j = pos + 1
+        while j < n:
+            if query[j] == "\\":
+                j += 2
+                continue
+            if query[j] == q:
+                return j + 1
+            j += 1
+        return n
+
+    while i < n:
+        ch = query[i]
+        if ch in "\"'":
+            i = skip_string(i)
+            pending_not = False
+            continue
+        if ch == "(":
+            neg_stack.append(pending_not)
+            pending_not = False
+            i += 1
+            continue
+        if ch == ")":
+            if neg_stack:
+                neg_stack.pop()
+            i += 1
+            continue
+        if ch.isspace():
+            i += 1
+            continue
+        m = re.match(r"[A-Za-z_@][\w.@\-]*", query[i:])
+        if not m:
+            i += 1
+            continue
+        token = m.group(0)
+        j = i + len(token)
+        low = token.lower()
+        if low == "not":
+            pending_not = True
+            i = j
+            continue
+        if low in ("and", "or"):
+            pending_not = False
+            i = j
+            continue
+        # field : value ?
+        k = j
+        while k < n and query[k] in " \t":
+            k += 1
+        if k >= n or query[k] != ":":
+            pending_not = False
+            i = j
+            continue
+        k += 1
+        while k < n and query[k] in " \t\r\n":
+            k += 1
+        negated = pending_not or any(neg_stack)
+        pending_not = False
+        if k >= n:
+            break
+        if query[k] in "\"'":
+            end = skip_string(k)
+            terms.append((token, [query[k + 1:end - 1]], negated))
+            i = end
+            continue
+        if query[k] == "(":
+            depth = 1
+            p = k + 1
+            while p < n and depth:
+                if query[p] in "\"'":
+                    p = skip_string(p)
+                    continue
+                if query[p] == "(":
+                    depth += 1
+                elif query[p] == ")":
+                    depth -= 1
+                p += 1
+            group = query[k + 1:p - 1] if depth == 0 else query[k + 1:p]
+            values = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', group)
+            if not values:
+                values = [
+                    v.strip() for v in re.split(r"\s+(?:or|and)\s+", group, flags=re.IGNORECASE)
+                    if v.strip() and v.strip().lower() not in _KQL_BARE_STOP
+                ]
+            terms.append((token, values, negated))
+            i = p
+            continue
+        bare = re.match(r"[^\s()]+", query[k:])
+        if bare:
+            value = bare.group(0)
+            if value.lower() not in _KQL_BARE_STOP or value == "*":
+                terms.append((token, [value], negated))
+            i = k + len(value)
+            continue
+        i = k
+    return terms
+
+
 def _extract_elastic_kql_fields(query: str, result: ExtractedFields):
     """Extract fields from Elastic KQL (Kuery) queries."""
     conditions = len(re.findall(r'\b(and|or)\b', query, re.IGNORECASE))
     result.query_complexity = "moderate" if conditions > 2 else "simple"
-
-    # Extract field:value patterns (KQL style)
-    # Handles: field:"value", field:value, field:(val1 or val2)
-    kql_patterns = re.findall(r'([\w.]+)\s*:\s*(?:"([^"]*)"|\(([^)]+)\)|(\S+))', query)
-    for field_name, quoted, parens, bare in kql_patterns:
-        if quoted:
-            _add_elastic_observable(field_name, [quoted], False, result)
-        elif parens:
-            values = re.findall(r'"([^"]*)"', parens)
-            if not values:
-                values = [v.strip() for v in re.split(r'\s+or\s+', parens, flags=re.IGNORECASE) if v.strip()]
-            _add_elastic_observable(field_name, values, False, result)
-        elif bare:
-            _add_elastic_observable(field_name, [bare], False, result)
+    for field_name, values, negated in _kql_field_terms(query):
+        _add_elastic_observable(field_name, values, negated, result)
 
 
 def _extract_lucene_fields(query: str, result: ExtractedFields):
     """Extract fields from Lucene queries."""
     conditions = len(re.findall(r'\b(AND|OR)\b', query))
     result.query_complexity = "moderate" if conditions > 2 else "simple"
-
-    # field:"value" or field:(val1 OR val2)
-    lucene_patterns = re.findall(r'([\w.]+)\s*:\s*(?:"([^"]*)"|\(([^)]+)\))', query)
-    for field_name, quoted, parens in lucene_patterns:
-        if quoted:
-            _add_elastic_observable(field_name, [quoted], False, result)
-        elif parens:
-            values = re.findall(r'"([^"]*)"', parens)
-            _add_elastic_observable(field_name, values, False, result)
+    for field_name, values, negated in _kql_field_terms(query):
+        _add_elastic_observable(field_name, values, negated, result)
 
 
 def _add_elastic_observable(field_name: str, values: list[str], negated: bool, result: ExtractedFields):
@@ -2090,6 +2510,73 @@ _MQL_FIELD_STOPWORDS = frozenset({
 _MQL_MAX_DEPTH = 12
 
 
+def _mql_strip_comments(text: str) -> str:
+    """Remove `//` line comments outside string literals."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    quote: Optional[str] = None
+    while i < n:
+        ch = text[i]
+        if quote:
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i:i + 2])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            out.append(ch)
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n and text[i + 1] == "/":
+            while i < n and text[i] != "\n":
+                i += 1
+            out.append(" ")
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+_LITERAL_MARK = "\x01"
+
+
+def _mask_literals(text: str) -> tuple[str, list[str]]:
+    """Replace the BODY of every string literal with an index marker,
+    keeping the quotes, so field/value regexes still see a quoted value
+    but can never match text that lives inside a literal."""
+    out: list[str] = []
+    literals: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "\"'":
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == ch:
+                    break
+                j += 1
+            literals.append(text[i + 1:j])
+            out.append(f"{ch}{_LITERAL_MARK}{len(literals) - 1}{_LITERAL_MARK}{ch}")
+            i = min(j + 1, n)
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out), literals
+
+
+def _unmask_literal(value: str, literals: list[str]) -> str:
+    m = re.fullmatch(rf"{_LITERAL_MARK}(\d+){_LITERAL_MARK}", value or "")
+    return literals[int(m.group(1))] if m else value
+
+
 def _mql_split_args(text: str) -> list[str]:
     """Split a call body on top-level commas (quote- and paren-aware)."""
     args: list[str] = []
@@ -2131,12 +2618,48 @@ def _mql_container_of(expr: str, scope: str) -> str:
     ml.nlu_classifier.intents (call parens collapsed).
     """
     expr = expr.strip()
+    # List literal: the element is whichever member resolves to a field
+    # first. `[strings.replace_confusables(sender.display_name), ...]`
+    # used to resolve to the helper name (2026-08-29 audit).
+    if expr.startswith("[") and expr.endswith("]"):
+        for element in _mql_split_args(expr[1:-1]):
+            if element.strip():
+                found = _mql_container_of(element, "")
+                if found:
+                    return found
+        return scope
     m = re.match(r"([A-Za-z_][\w.]*)\s*\(", expr)
-    if m and m.group(1).split(".")[-1] in _MQL_ITERATORS:
-        body = expr[m.end():]
-        if body.endswith(")"):
-            body = body[:-1]
-        return _mql_container_of(_mql_split_args(body)[0], scope)
+    if m:
+        name = m.group(1)
+        # Find the call's closing paren (quote-aware) to see whether a
+        # postfix attribute follows (`ml.nlu_classifier(x).entities`).
+        depth, j, quote = 0, m.end() - 1, None
+        while j < len(expr):
+            cj = expr[j]
+            if quote:
+                if cj == "\\":
+                    j += 2
+                    continue
+                if cj == quote:
+                    quote = None
+            elif cj in "\"'":
+                quote = cj
+            elif cj == "(":
+                depth += 1
+            elif cj == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        body = expr[m.end():j]
+        postfix = expr[j + 1:].strip()
+        if name.split(".")[-1] in _MQL_ITERATORS:
+            return _mql_container_of(_mql_split_args(body)[0], scope)
+        if not postfix and name.startswith(("strings.", "regex.")):
+            # A transform over a field IS that field for scoping purposes.
+            args = _mql_split_args(body)
+            if args and args[0].strip():
+                return _mql_container_of(args[0], scope)
     prev = None
     while prev != expr:
         prev = expr
@@ -2188,14 +2711,15 @@ def _mql_resolve(text: str, scope: str, depth: int = 0) -> str:
         token = m.group(0)
         end = m.end()
         rel = token.startswith(".")
-        # `.field` directly after `)` is postfix attribute access on a
-        # call result (`ml.link_analysis(...).credphish`), NOT a
-        # container-relative field — keep it verbatim.
+        # `.field` directly after `)` or `]` is postfix attribute access
+        # on a call result (`ml.link_analysis(...).credphish`) or an
+        # index (`headers.hops[0].received`), NOT a container-relative
+        # field — keep it verbatim (including its dot).
         prev_char = next(
             (c for chunk in reversed(out) for c in reversed(chunk) if not c.isspace()),
             "",
         )
-        if rel and prev_char == ")":
+        if rel and prev_char and prev_char in ")]":
             out.append(token)
             i = end
             continue
@@ -2273,8 +2797,11 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
     query = query.strip()
 
     # Strip `//` line comments before anything else — otherwise
-    # commented-out clauses leak into observables.
-    query = re.sub(r'//[^\n]*', ' ', query)
+    # commented-out clauses leak into observables. Quote-aware: a
+    # `//` inside a string literal (`html.xpath(body.html, '//title')`)
+    # is content, and eating it unbalanced the quotes and silently
+    # broke scope resolution for the rest of the rule (2026-08-29).
+    query = _mql_strip_comments(query)
 
     # Determine complexity
     and_count = len(re.findall(r'\band\b', query, re.IGNORECASE))
@@ -2294,11 +2821,22 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
     # Resolve iterator scopes so relative fields carry container paths.
     resolved = _mql_resolve(query, "")
 
+    # Numeric subscripts are positional, not part of the field path:
+    # `headers.hops[0].received.server.raw` is the hops.received path.
+    resolved = re.sub(r"\[\d+\]", "", resolved)
+
+    # Mask string-literal bodies so the term patterns below can never
+    # match INSIDE a literal: a regex like
+    # `'<p class=".*?"><span style=".*?">'` used to yield `class` and
+    # `style` observables with value `.*?`. Values are restored on add.
+    resolved, literals = _mask_literals(resolved)
+
     def add(field_name: str, values: list[str], negated: bool) -> None:
         # Postfix attribute chains on call results keep a leading dot
         # in the resolved text (`...).credphish.disposition`) — the
         # trailing path is the usable field name.
         field_name = field_name.lstrip(".")
+        values = [_unmask_literal(v, literals) for v in values]
         if _mql_valid_field(field_name):
             _add_sublime_observable(field_name, values, negated, result)
 
@@ -2343,9 +2881,12 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
             result.fields_used.append(field_name)
 
     # Pattern: strings./regex. predicate functions — first arg is the
-    # field, second the value/pattern.
-    for field_name, dq, sq in re.findall(
-        r'(?:strings|regex)\.\w+\s*\(\s*([\w.]+(?:\([^)]*\))?)\s*,\s*'
+    # field, second the value/pattern. A transform wrapped around the
+    # field (`strings.replace_confusables(sender.display_name)`,
+    # `strings.to_lower(x)`) is unwrapped: the FIELD is the observable,
+    # not the helper name.
+    for wrapper, field_name, dq, sq in re.findall(
+        r'(?:strings|regex)\.\w+\s*\(\s*(?:((?:strings|regex)\.\w+)\s*\(\s*)?([\w.]+)\s*\)?\s*,\s*'
         r'(?:"([^"]*)"|\'([^\']*)\')',
         resolved, re.IGNORECASE
     ):
