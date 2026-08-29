@@ -1,8 +1,11 @@
 """MITRE ATT&CK API routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.services.mitre import mitre_service
+from app.services.technique_profile import technique_profile
 
 router = APIRouter(prefix="/mitre", tags=["mitre"])
 
@@ -68,3 +71,14 @@ async def get_mitre_stats():
     """Get statistics about loaded MITRE ATT&CK data."""
     await mitre_service.ensure_loaded()
     return mitre_service.get_stats()
+
+
+@router.get("/techniques/{technique_id}/profile")
+async def get_technique_profile(technique_id: str, db: AsyncSession = Depends(get_db)):
+    """Beyond the rule list: per-source coverage + hygiene, how each
+    vendor detects the technique (top observables per source), the
+    groups and software that use it, and week-over-week momentum."""
+    profile = await technique_profile(db, technique_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Technique {technique_id} not found")
+    return profile

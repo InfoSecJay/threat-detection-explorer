@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTechniqueProfile } from '../hooks/useTechniqueProfile';
+import { observableUrl, OBSERVABLE_KIND_LABEL, type ObservableKind } from '../utils/observableLinks';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useCoverageMatrix } from '../hooks/useCompare';
 import { useDetections } from '../hooks/useDetections';
@@ -322,6 +324,9 @@ function TechniqueDetailPane({
     limit: 200,
   });
 
+  // Profile: per-vendor observables, actors, momentum (technique page enrichment).
+  const { data: profile } = useTechniqueProfile(techniqueId);
+
   // Hooks must run unconditionally -- these sat below the `!tech`
   // early return before (#45 rules-of-hooks finding), which would have
   // corrupted hook order the first time a technique id 404'd and then
@@ -406,7 +411,7 @@ function TechniqueDetailPane({
         </div>
 
         {/* Stat pills */}
-        <div className="grid grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm}>
             <div className="text-[10px] font-mono text-gray-500 uppercase">Rules</div>
             <div className="text-lg font-display text-matrix-500">{totalDetections}</div>
@@ -418,6 +423,14 @@ function TechniqueDetailPane({
           <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm}>
             <div className="text-[10px] font-mono text-gray-500 uppercase">Version</div>
             <div className="text-lg font-display text-gray-300">{tech.version || '—'}</div>
+          </div>
+          <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm} title="Catalog-wide rule count change vs the coverage snapshot 7 days ago">
+            <div className="text-[10px] font-mono text-gray-500 uppercase">7d momentum</div>
+            <div className={`text-lg font-display ${profile?.momentum.delta ? (profile.momentum.delta > 0 ? 'text-pulse-400' : 'text-breach-400') : 'text-gray-500'}`} data-testid="technique-momentum">
+              {profile?.momentum.method === 'snapshot' && profile.momentum.delta !== null
+                ? `${profile.momentum.delta > 0 ? '+' : ''}${profile.momentum.delta}`
+                : '—'}
+            </div>
           </div>
         </div>
       </div>
@@ -468,6 +481,63 @@ function TechniqueDetailPane({
         <div className="bg-void-850 border border-amber-500/20 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-amber-400 uppercase tracking-wider mb-2">MITRE Detection Guidance</h3>
           <MitreText text={tech.detection} resolveRoute={resolveRoute} />
+        </div>
+      )}
+
+      {/* How each vendor detects it + who uses it (technique profile) */}
+      {profile && Object.keys(profile.sources).length > 0 && (
+        <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="font-display text-sm text-white uppercase tracking-wider">How each vendor detects it</h3>
+            <span className="text-[10px] font-mono text-gray-500">what the rules key on, per source; click a value for every rule that uses it</span>
+          </div>
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {Object.entries(profile.sources).map(([src, info]) => (
+              <div key={src} className="bg-void-900 border border-void-700 p-3" style={clipCornerSm} data-testid={`vendor-${src}`}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-mono text-matrix-400 uppercase">{src.replace(/_/g, ' ')}</span>
+                  <span className="text-[10px] font-mono text-gray-500 tabular-nums">
+                    {info.rules} {info.rules === 1 ? 'rule' : 'rules'}{info.hygiene_avg !== null ? ` / hygiene ${info.hygiene_avg}` : ''}
+                  </span>
+                </div>
+                {Object.keys(info.observables).length === 0 ? (
+                  <p className="text-[10px] font-mono text-gray-600">no extracted observables</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {Object.entries(info.observables).map(([kind, values]) => (
+                      <div key={kind} className="flex flex-wrap items-baseline gap-1">
+                        <span className="text-[9px] font-mono text-gray-600 uppercase w-14 shrink-0">{OBSERVABLE_KIND_LABEL[kind as ObservableKind] || kind}</span>
+                        {values.map((v) => (
+                          <Link key={v.value} to={observableUrl(kind as ObservableKind, v.value)} className="px-1 py-0.5 text-[10px] font-mono bg-void-800 border border-void-700 text-gray-300 hover:text-matrix-400 hover:border-matrix-500/40 break-all" title={`${v.rules} rule(s) here reference this`}>
+                            {v.value}
+                          </Link>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {profile && (profile.groups.length > 0 || profile.software.length > 0) && (
+        <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
+          <h3 className="font-display text-sm text-white uppercase tracking-wider mb-2">Used by</h3>
+          <p className="text-[10px] font-mono text-gray-500 mb-3">ATT&CK groups and software known to use this technique</p>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.groups.map((g) => (
+              <Link key={g.id} to={`/actors/${g.id}`} className="px-2 py-0.5 text-xs font-mono border border-breach-500/30 text-breach-300 hover:bg-breach-500/10" title={`${g.technique_count} techniques`}>
+                {g.name}
+              </Link>
+            ))}
+            {profile.software.map((sw) => (
+              <Link key={sw.id} to={`/actors/${sw.id}`} className="px-2 py-0.5 text-xs font-mono border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10" title={sw.type}>
+                {sw.name}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

@@ -10,7 +10,7 @@ interface ExportModalProps {
 }
 
 export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportModalProps) {
-  const [format, setFormat] = useState<'json' | 'csv'>('json');
+  const [format, setFormat] = useState<'json' | 'csv' | 'navigator'>('json');
   const [includeRaw, setIncludeRaw] = useState(false);
   const exportMutation = useExport();
 
@@ -85,24 +85,43 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
                 />
                 CSV
               </label>
+              <label className="flex items-center text-gray-300 cursor-pointer" title="ATT&CK Navigator layer: techniques scored by how many of these rules tag them">
+                <input
+                  type="radio"
+                  name="format"
+                  value="navigator"
+                  checked={format === 'navigator'}
+                  onChange={() => setFormat('navigator')}
+                  className="mr-2 text-cyan-500 bg-void-900 border-void-600 focus:ring-cyan-500"
+                />
+                Navigator layer
+              </label>
             </div>
           </div>
 
-          {/* Include raw content */}
-          <div>
-            <label className="flex items-center text-gray-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeRaw}
-                onChange={(e) => setIncludeRaw(e.target.checked)}
-                className="mr-2 rounded bg-void-900 border-void-600 text-cyan-500 focus:ring-cyan-500"
-              />
-              <span className="text-sm">Include raw rule content</span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1 ml-6">
-              This will significantly increase file size
+          {/* Include raw content (not applicable to a Navigator layer) */}
+          {format === 'navigator' ? (
+            <p className="text-xs text-gray-500">
+              A layer file for the ATT&amp;CK Navigator: each technique scored by how many of these rules tag it,
+              with the rule titles as comments. Open it at mitre-attack.github.io/attack-navigator via
+              &quot;Open Existing Layer&quot;.
             </p>
-          </div>
+          ) : (
+            <div>
+              <label className="flex items-center text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeRaw}
+                  onChange={(e) => setIncludeRaw(e.target.checked)}
+                  className="mr-2 rounded bg-void-900 border-void-600 text-cyan-500 focus:ring-cyan-500"
+                />
+                <span className="text-sm">Include raw rule content</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                This will significantly increase file size
+              </p>
+            </div>
+          )}
 
           {/* Export scope info */}
           <div className="bg-void-900 border border-void-700 p-3 rounded-lg">

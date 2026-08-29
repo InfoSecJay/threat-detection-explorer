@@ -1008,4 +1008,26 @@ export const observablesApi = {
     (await api.get(`/observables/${kind}/${encodeURIComponent(value)}`)).data,
 };
 
+// Technique profile: per-source coverage, observables per vendor,
+// actors / software using it, momentum.
+export interface TechniqueProfile {
+  technique_id: string;
+  name: string;
+  total_rules: number;
+  by_severity: Record<string, number>;
+  sources: Record<string, {
+    rules: number;
+    hygiene_avg: number | null;
+    observables: Record<string, { value: string; rules: number }[]>;
+  }>;
+  groups: { id: string; name: string; technique_count: number }[];
+  software: { id: string; name: string; type: string }[];
+  momentum: { method: 'snapshot' | 'insufficient_history' | 'no_data'; current: number | null; baseline: number | null; delta: number | null; baseline_date?: string };
+}
+
+export const techniqueProfileApi = {
+  get: async (techniqueId: string): Promise<TechniqueProfile> =>
+    (await api.get(`/mitre/techniques/${encodeURIComponent(techniqueId)}/profile`)).data,
+};
+
 export default api;

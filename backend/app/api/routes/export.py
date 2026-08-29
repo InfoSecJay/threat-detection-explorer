@@ -13,6 +13,8 @@ from app.database import get_db
 from app.api.schemas import ExportRequest, SearchParams
 from app.services.search import SearchService, SearchFilters
 from app.models.detection import Detection
+from app.services.navigator import layer_from_rules, layer_response
+from app.utils.datetime_utils import utcnow
 from app.utils.datetime_utils import to_utc_iso
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -119,8 +121,38 @@ async def export_detections(
     # Generate export
     if request.format == "json":
         return _export_json(detections, request.include_raw)
+    if request.format == "navigator":
+        return _export_navigator(detections, request)
+    return _export_csv(detections, request.include_raw)
+
+
+def _export_navigator(detections: list[Detection], request: ExportRequest):
+    """The current selection as an ATT&CK Navigator layer: technique
+    scored by how many of these rules tag it, comments listing them."""
+    if request.ids:
+        scope = f"{len(detections)} selected rule(s)"
+    elif request.filters:
+        active = {
+            k: v for k, v in request.filters.model_dump().items()
+            if v not in (None, [], "", False)
+        }
+        scope = ", ".join(f"{k}={v}" for k, v in active.items()) or "whole catalog"
     else:
-        return _export_csv(detections, request.include_raw)
+        scope = "whole catalog"
+    layer = layer_from_rules(
+        ((d.id, d.title, d.mitre_techniques, d.source) for d in detections),
+        name=f"Detection Explorer - {scope}"[:120],
+        description=(
+            f"Techniques tagged by {len(detections)} detection rule(s) matching [{scope}] "
+            f"on detectionexplorer.io, scored by rule count. Generated {utcnow().isoformat()}Z."
+        ),
+        metadata=[
+            {"name": "generated", "value": utcnow().isoformat() + "Z"},
+            {"name": "rules", "value": str(len(detections))},
+            {"name": "scope", "value": scope[:200]},
+        ],
+    )
+    return layer_response(layer, "detection-explorer-layer.json")
 
 
 def _export_json(detections: list[Detection], include_raw: bool) -> StreamingResponse:

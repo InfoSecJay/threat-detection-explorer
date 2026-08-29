@@ -481,7 +481,7 @@ class SideBySideResponse(BaseModel):
 class ExportRequest(BaseModel):
     """Export request with filters and format."""
 
-    format: str = Field(default="json", pattern="^(json|csv)$")
+    format: str = Field(default="json", pattern="^(json|csv|navigator)$")
     filters: Optional[SearchParams] = None
     ids: list[str] = Field(default_factory=list)
     include_raw: bool = False

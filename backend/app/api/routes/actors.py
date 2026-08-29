@@ -52,6 +52,7 @@ from app.services.actor_matching import (
 )
 from app.services.actor_scores import actor_score_service
 from app.services.mitre import mitre_service
+from app.services.navigator import build_layer, layer_response
 from app.utils.datetime_utils import to_utc_iso, utcnow
 
 router = APIRouter(prefix="/actors", tags=["actors"])
@@ -593,8 +594,6 @@ async def list_actors(
 
 # ── ATT&CK Navigator layer export (Phase 6) ───────────────────────
 
-NAVIGATOR_VERSION = "5.1.0"
-LAYER_FORMAT = "4.5"
 COMMENT_TITLE_CAP = 10
 # Rules scanned for per-technique comments; far above the corpus size,
 # just a runaway guard.
@@ -602,7 +601,6 @@ LAYER_RULES_CAP = 50000
 
 # Red -> amber -> green. Score 0 (gap) renders red — the zeros are
 # the point of the export.
-LAYER_GRADIENT = ["#b71c1c", "#f9a825", "#2e7d32"]
 
 
 async def _technique_rule_titles(
@@ -647,57 +645,9 @@ def _technique_comment(titles: list[str]) -> str:
     return comment
 
 
-def _build_layer(
-    *,
-    name: str,
-    description: str,
-    technique_scores: dict[str, int],
-    technique_comments: dict[str, str],
-    metadata: list[dict],
-) -> dict:
-    max_score = max(technique_scores.values(), default=0)
-    techniques = [
-        {
-            "techniqueID": tid,
-            "score": score,
-            "comment": technique_comments.get(tid, ""),
-            "enabled": True,  # zeros stay enabled — they ARE the point
-            "showSubtechniques": False,
-        }
-        for tid, score in sorted(technique_scores.items())
-    ]
-    return {
-        "name": name,
-        "versions": {
-            "attack": mitre_service.get_attack_version() or "unknown",
-            "navigator": NAVIGATOR_VERSION,
-            "layer": LAYER_FORMAT,
-        },
-        "domain": "enterprise-attack",
-        "description": description,
-        "techniques": techniques,
-        "gradient": {
-            "colors": LAYER_GRADIENT,
-            "minValue": 0,
-            "maxValue": max(max_score, 1),
-        },
-        "legendItems": [
-            {"color": LAYER_GRADIENT[0], "label": "0 rules — detection gap"},
-            {"color": LAYER_GRADIENT[1], "label": "partial rule coverage"},
-            {"color": LAYER_GRADIENT[2], "label": f"{max(max_score, 1)} rules (max observed)"},
-        ],
-        "metadata": metadata,
-        "sorting": 0,
-    }
+_build_layer = build_layer
+_layer_response = layer_response
 
-
-def _layer_response(layer: dict, filename: str):
-    from fastapi.responses import JSONResponse
-
-    return JSONResponse(
-        content=layer,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 @router.get("/navigator-layer")

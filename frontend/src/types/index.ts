@@ -194,7 +194,7 @@ export interface Statistics {
 
 // Export types
 export interface ExportRequest {
-  format: 'json' | 'csv';
+  format: 'json' | 'csv' | 'navigator';
   filters?: SearchFilters;
   ids?: string[];
   include_raw?: boolean;
