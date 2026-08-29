@@ -6,12 +6,13 @@
  * Field aliases come from `/query/fields` (kept in sync with the
  * backend parser); value suggestions come from the existing
  * `/detections/filters` facets so users see real known values,
- * not a hardcoded list.
+ * not a hardcoded list. The pure typeahead logic lives in
+ * searchbar/suggestions.ts; the panels in searchbar/.
  *
  * Errors surfaced from the API (HTTP 400 with our custom parse-
- * error detail) render below the bar with a position underline
- * and — if the backend offered a Levenshtein match — a "did you
- * mean" chip that swaps the offending field on click.
+ * error detail) render below the bar and — if the backend offered a
+ * Levenshtein match — a "did you mean" chip that swaps the offending
+ * field on click.
  *
  * Bar syntax is optional. Bare text with no colon falls through to
  * a multi-field substring match on the backend, so casual users can
@@ -26,67 +27,11 @@ import { useSavedQueries } from '../hooks/useSavedQueries';
 import { useMitre } from '../contexts/MitreContext';
 import { clipSm } from '../constants/style';
 import type { QueryFieldSpec, QueryParseErrorDetail } from '../services/api';
-
-const PLACEHOLDERS = [
-  'source:sigma AND severity:high',
-  'actor:APT29',
-  'tech:T1059.001 platform:windows',
-  'title:"cobalt strike"',
-  'software:Mimikatz OR software:"Cobalt Strike"',
-  'usecase:Ransomware source:splunk',
-];
-
-interface Suggestion {
-  value: string;      // What gets inserted at the cursor position
-  label: string;      // Display text
-  hint?: string;      // Right-side hint (description or count)
-  kind: 'field' | 'value';
-}
-
-/** Parse `field:` prefix and remainder from the current token under the cursor. */
-function currentToken(text: string, caret: number): {
-  before: string;             // text before the current token
-  token: string;              // the current token being typed
-  after: string;              // text after the current token
-  field: string | null;       // field alias if the token has `field:` prefix
-  value: string;              // portion after the colon (or whole token if no colon)
-} {
-  const upto = text.slice(0, caret);
-  // A "token" ends at whitespace or a paren, and is bounded on the
-  // right by more of the same or end of text. Balanced parens /
-  // quoted strings would be nicer; this is deliberately simple.
-  const tokenStart = Math.max(
-    upto.lastIndexOf(' ') + 1,
-    upto.lastIndexOf('(') + 1,
-  );
-  const rest = text.slice(caret);
-  const nextBreak = rest.search(/[\s)]/);
-  const tokenEnd = nextBreak === -1 ? text.length : caret + nextBreak;
-  const token = text.slice(tokenStart, tokenEnd);
-  const colonIdx = token.indexOf(':');
-  return {
-    before: text.slice(0, tokenStart),
-    token,
-    after: text.slice(tokenEnd),
-    field: colonIdx === -1 ? null : token.slice(0, colonIdx),
-    value: colonIdx === -1 ? token : token.slice(colonIdx + 1),
-  };
-}
-
-/** Rank suggestion candidates by prefix > infix > alpha. */
-function rank<T extends { label: string }>(items: T[], query: string): T[] {
-  const q = query.toLowerCase();
-  if (!q) return items.slice(0, 20);
-  const scored = items.map((it) => {
-    const l = it.label.toLowerCase();
-    let score = 999;
-    if (l.startsWith(q)) score = 0;
-    else if (l.includes(q)) score = 1;
-    return { it, score };
-  }).filter((x) => x.score < 999);
-  scored.sort((a, b) => a.score - b.score || a.it.label.localeCompare(b.it.label));
-  return scored.slice(0, 20).map((x) => x.it);
-}
+import {
+  PLACEHOLDERS, buildValueIndex, suggestFor, applyTo, fixUnknownField, type Suggestion,
+} from './searchbar/suggestions';
+import { SavedQueriesPanel } from './searchbar/SavedQueriesPanel';
+import { SuggestionList } from './searchbar/SuggestionList';
 
 interface SearchBarProps {
   value: string;
@@ -108,7 +53,6 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   const { recent, saved, recordRecent, star, unstar, rename, clearRecent } =
     useSavedQueries();
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close the queries panel on outside click.
@@ -147,73 +91,11 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   // Memoized so the suggestion index below is not rebuilt every render
   // while the fields query is still loading (fresh [] each time).
   const fields: QueryFieldSpec[] = useMemo(() => fieldsResp?.fields ?? [], [fieldsResp]);
-
-  // Build the value-suggestion index once from filter facets + MITRE.
-  const valueIndex = useMemo(() => {
-    const idx: Record<string, Suggestion[]> = {};
-    const add = (aliases: string[], list: { value: string; count?: number; label?: string }[]) => {
-      const items = list.map((v) => ({
-        value: v.value,
-        label: v.label || v.value,
-        hint: v.count !== undefined ? String(v.count) : undefined,
-        kind: 'value' as const,
-      }));
-      for (const a of aliases) idx[a] = items;
-    };
-    if (filterOpts) {
-      add(['source'], (filterOpts.sources || []).map((v) => ({ value: v })));
-      add(['sev', 'severity'], (filterOpts.severities || []).map((v) => ({ value: v })));
-      add(['status'], (filterOpts.statuses || []).map((v) => ({ value: v })));
-      add(['lang', 'language'], (filterOpts.languages || []).map((v) => ({ value: v })));
-      add(['platform'], filterOpts.platforms || []);
-      add(['data', 'datasource'], filterOpts.data_sources || []);
-      add(['event', 'eventtype'], filterOpts.event_types || []);
-      add(['usecase', 'story', 'use_case'], filterOpts.use_cases || []);
-      // For actor / software: the facet gives us IDs (G0016 etc). Users
-      // can also type names — the backend resolves either way.
-      add(['actor', 'group'], filterOpts.mitre_groups || []);
-      add(['software', 'tool', 'malware'], filterOpts.mitre_software || []);
-    }
-    if (techniques && Object.keys(techniques).length) {
-      const techItems = Object.values(techniques)
-        .filter((t) => !t.deprecated)
-        .map((t) => ({ value: t.id, label: `${t.id} · ${t.name}` }));
-      for (const a of ['tech', 'technique']) idx[a] = techItems.map((t) => ({
-        value: t.value, label: t.label, kind: 'value' as const,
-      }));
-    }
-    return idx;
-  }, [filterOpts, techniques]);
-
-  // Compute the current suggestion list.
-  const { suggestions, tokenInfo } = useMemo(() => {
-    const info = currentToken(draft, caret);
-    if (info.field === null) {
-      // No colon yet — suggesting field names. Offer each field's
-      // canonical (first) alias only; secondary aliases (`malware:`,
-      // `sev:`, …) still parse and still surface once the user starts
-      // typing one, but don't clutter the default list.
-      const typed = info.value.toLowerCase();
-      const fieldSug: Suggestion[] = fields.flatMap((f) =>
-        f.aliases
-          .filter((a, i) => i === 0 || (typed.length > 0 && a.startsWith(typed)))
-          .map((a) => ({
-            value: `${a}:`,
-            label: `${a}:`,
-            hint: f.description,
-            kind: 'field' as const,
-          })),
-      );
-      return { suggestions: rank(fieldSug, info.value), tokenInfo: info };
-    }
-    // Have `field:` — suggest values for it (if we know any). A
-    // suggestion identical to what's already typed is noise (and used
-    // to trap Enter in apply-loops), so drop it.
-    const values = valueIndex[info.field.toLowerCase()] || [];
-    const typedValue = info.value.replace(/^"|"$/g, '').toLowerCase();
-    const remaining = values.filter((v) => v.value.toLowerCase() !== typedValue);
-    return { suggestions: rank(remaining, info.value), tokenInfo: info };
-  }, [draft, caret, fields, valueIndex]);
+  const valueIndex = useMemo(() => buildValueIndex(filterOpts, techniques), [filterOpts, techniques]);
+  const { suggestions, tokenInfo } = useMemo(
+    () => suggestFor(draft, caret, fields, valueIndex),
+    [draft, caret, fields, valueIndex],
+  );
 
   const showDropdown = focused && suggestions.length > 0;
 
@@ -224,23 +106,9 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   }, [draft, caret]);
 
   const applySuggestion = (sug: Suggestion) => {
-    let insertion = sug.value;
-    // If we're completing a value and it contains a space, quote it.
-    if (sug.kind === 'value' && /\s/.test(insertion) && !insertion.startsWith('"')) {
-      insertion = `"${insertion}"`;
-    }
-    // Replace the current token's value slot (or the whole token for
-    // field completions).
-    let next: string;
-    if (sug.kind === 'field') {
-      next = `${tokenInfo.before}${insertion}${tokenInfo.after}`;
-    } else {
-      const fieldPrefix = tokenInfo.field ? `${tokenInfo.field}:` : '';
-      next = `${tokenInfo.before}${fieldPrefix}${insertion}${tokenInfo.after}`;
-    }
+    const { next, caret: newCaret } = applyTo(tokenInfo, sug);
     setDraft(next);
     // Reposition caret after the insertion, then refocus.
-    const newCaret = (tokenInfo.before + (sug.kind === 'field' ? insertion : `${tokenInfo.field}:${insertion}`)).length;
     requestAnimationFrame(() => {
       if (inputRef.current) {
         inputRef.current.focus();
@@ -370,107 +238,17 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
         </Link>
       </div>
 
-      {/* Saved + recent queries panel (#14) */}
       {queriesOpen && (
-        <div
-          ref={panelRef}
-          className="absolute z-40 top-full right-0 mt-1 w-full sm:w-96 bg-void-900 border border-void-700 p-2 space-y-2"
-          style={clipSm}
-        >
-          <div>
-            <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
-              Saved
-            </div>
-            {saved.length === 0 && (
-              <div className="text-[11px] font-mono text-gray-600 px-1 py-0.5">
-                star a recent query to keep it
-              </div>
-            )}
-            {saved.map((s) => (
-              <div
-                key={s.query}
-                className="flex items-center gap-1.5 group px-1 py-0.5 hover:bg-void-800"
-              >
-                <button
-                  onClick={() => runQuery(s.query)}
-                  className="flex-1 text-left min-w-0"
-                  title={s.query}
-                >
-                  <span className="block text-xs font-mono text-matrix-400 truncate">
-                    {s.name}
-                  </span>
-                  {s.name !== s.query && (
-                    <span className="block text-[10px] font-mono text-gray-600 truncate">
-                      {s.query}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    const next = window.prompt('Rename saved query', s.name);
-                    if (next) rename(s.query, next);
-                  }}
-                  className="text-[10px] font-mono text-gray-600 hover:text-white shrink-0 opacity-0 group-hover:opacity-100"
-                  aria-label={`Rename ${s.name}`}
-                  title="Rename"
-                >
-                  edit
-                </button>
-                <button
-                  onClick={() => unstar(s.query)}
-                  className="text-xs text-amber-400 hover:text-gray-500 shrink-0"
-                  aria-label={`Remove ${s.name} from saved`}
-                  title="Unstar"
-                >
-                  ★
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
-                Recent
-              </span>
-              {recent.length > 0 && (
-                <button
-                  onClick={clearRecent}
-                  className="text-[10px] font-mono text-gray-600 hover:text-breach-400 uppercase"
-                >
-                  clear
-                </button>
-              )}
-            </div>
-            {recent.length === 0 && (
-              <div className="text-[11px] font-mono text-gray-600 px-1 py-0.5">
-                submitted queries show up here
-              </div>
-            )}
-            {recent.map((r) => (
-              <div
-                key={r.query}
-                className="flex items-center gap-1.5 group px-1 py-0.5 hover:bg-void-800"
-              >
-                <button
-                  onClick={() => runQuery(r.query)}
-                  className="flex-1 text-left text-xs font-mono text-gray-300 truncate min-w-0"
-                  title={r.query}
-                >
-                  {r.query}
-                </button>
-                <button
-                  onClick={() => star(r.query)}
-                  className="text-xs text-gray-600 hover:text-amber-400 shrink-0 opacity-0 group-hover:opacity-100"
-                  aria-label={`Save ${r.query}`}
-                  title="Star to save"
-                >
-                  ☆
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <SavedQueriesPanel
+          panelRef={panelRef}
+          saved={saved}
+          recent={recent}
+          onRun={runQuery}
+          onStar={star}
+          onUnstar={unstar}
+          onRename={rename}
+          onClearRecent={clearRecent}
+        />
       )}
 
       {/* Inline error */}
@@ -481,20 +259,7 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
           {error.suggestion && (
             <button
               onClick={() => {
-                // Best-effort auto-fix: replace the first UNKNOWN field
-                // name with the suggestion. Must scan every `field:` token
-                // (global flag) -- with a valid field first, e.g.
-                // `source:sigma sevrity:high`, a non-global replace only
-                // ever looked at `source:` and left the typo untouched.
-                let fixed = false;
-                const suggested = draft.replace(
-                  /\b(\w+):/gi,
-                  (m, name) => {
-                    if (fixed || fields.some((f) => f.aliases.includes(name.toLowerCase()))) return m;
-                    fixed = true;
-                    return `${error.suggestion}:`;
-                  },
-                );
+                const suggested = fixUnknownField(draft, fields, error.suggestion as string);
                 setDraft(suggested);
                 onSubmit(suggested);
               }}
@@ -506,42 +271,8 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
         </div>
       )}
 
-      {/* Typeahead dropdown */}
       {showDropdown && (
-        <ul
-          ref={listRef}
-          id="searchbar-suggestions"
-          role="listbox"
-          className="absolute z-40 top-full left-0 right-0 mt-1 bg-void-900 border border-void-700 max-h-80 overflow-y-auto"
-          style={clipSm}
-        >
-          {suggestions.map((sug, i) => {
-            const active = i === activeIdx;
-            return (
-              <li
-                key={`${sug.kind}-${sug.value}-${i}`}
-                role="option"
-                aria-selected={active}
-                onMouseDown={(e) => {
-                  // mousedown fires before blur so we don't lose the click.
-                  e.preventDefault();
-                  applySuggestion(sug);
-                }}
-                className={`px-3 py-1.5 cursor-pointer flex items-center gap-3 text-xs font-mono ${active ? 'bg-matrix-500/10 text-white' : 'text-gray-300 hover:bg-void-800'}`}
-              >
-                <span className={`shrink-0 uppercase text-[9px] tracking-wider ${sug.kind === 'field' ? 'text-cyan-400' : 'text-matrix-500'}`}>
-                  {sug.kind === 'field' ? 'FIELD' : 'VAL'}
-                </span>
-                <span className="truncate">{sug.label}</span>
-                {sug.hint && (
-                  <span className="ml-auto text-gray-500 text-[10px] truncate max-w-[50%]">
-                    {sug.hint}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <SuggestionList suggestions={suggestions} activeIdx={activeIdx} onPick={applySuggestion} />
       )}
     </div>
   );
