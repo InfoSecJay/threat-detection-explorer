@@ -1,9 +1,29 @@
 """Pytest configuration and fixtures."""
 
+from pathlib import Path
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.database import Base
+from app.services import mitre_tactic_inference as _mti
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _deterministic_mitre_tactic_cache():
+    """Point technique->tactic inference at a committed fixture.
+
+    The real cache (data/mitre_attack.json) is gitignored and only
+    exists after a sync, so on a clean checkout (CI) the parser tests
+    that assert T1059 -> TA0002 saw an empty map -- and locally they
+    only passed by accident of which test populated the cache first.
+    Same fixture everywhere means the same answer everywhere.
+    """
+    _mti._CACHE_PATH = FIXTURES_DIR / "mitre_attack_min.json"
+    _mti.reset_cache_for_tests()
+    yield
 
 
 @pytest_asyncio.fixture

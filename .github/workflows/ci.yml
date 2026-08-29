@@ -50,8 +50,13 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # `npm install`, not `npm ci`: the lockfile is written on Windows,
+      # where npm never records the @emnapi/* peer deps of the
+      # wasm32-only rolldown binding, and Linux npm then rejects the
+      # lock as out of sync ("Missing: @emnapi/core from lock file").
+      # The lock still pins every resolvable version.
       - name: Install
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Lint
