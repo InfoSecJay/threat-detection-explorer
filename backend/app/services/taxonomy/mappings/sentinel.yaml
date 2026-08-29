@@ -298,6 +298,63 @@ kql_tables:
     event_types: [audit_event]
 
 connectors:
+  # ── Long-tail vendor connectors (#4 mop-up, 2026-08-29) ──────────────
+  # Each was an unmapped `sentinel:<connector>|dt:<type>` fingerprint on
+  # the nightly drift report. Platforms stay cross_platform unless the
+  # product is tied to one; event_types are the alert/audit shape the
+  # rules actually query.
+  ciscosecureendpoint:            # Cisco Secure Endpoint (AMP) EDR events
+    platforms: [cross_platform]
+    data_sources: [endpoint_behavior]
+    event_types: [platform_alert]
+  semperisdsp:                    # Semperis Directory Services Protector (AD)
+    platforms: [windows]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  googlesccdefinition:            # GCP Security Command Center findings
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [platform_alert]
+  sentinelone:                    # SentinelOne agent / threat events
+    platforms: [cross_platform]
+    data_sources: [sentinelone]
+    event_types: [platform_alert]
+  infobloxsocinsightsdataconnector_api:
+    platforms: [cross_platform]
+    data_sources: [dns_query_logs]
+    event_types: [platform_alert]
+  infobloxsocinsightsdataconnector_ama:
+    platforms: [cross_platform]
+    data_sources: [dns_query_logs]
+    event_types: [platform_alert]
+  bitsight:                       # BitSight external ratings / findings
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [platform_alert]
+  vectraruxconnector:             # Vectra XDR detections
+    platforms: [cross_platform]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  lumenthreatfeedconnector:       # Lumen Defender threat feed indicators
+    platforms: [cross_platform]
+    data_sources: [dns_query_logs]
+    event_types: [platform_alert]
+  dns:                            # Windows DNS Server analytic logs
+    platforms: [windows]
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  versaseccms:                    # Versasec credential management system
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [authentication]
+  ciscosdwan:                     # Cisco SD-WAN syslog / UTD
+    platforms: [cross_platform]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  qualysvmlogsccpdefinition:      # Qualys VM host detections
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [platform_alert]
   # ── AWS ───────────────────────────────────────────────────────────────
   awss3:
     platforms: [aws]
@@ -561,6 +618,12 @@ data_types:
 # folders) fall through to the `*_cl` table bucket.
 # ─────────────────────────────────────────────────────────────────────────
 solution_folders:
+  # ── Maturity Model for Event Log Management (M-21-31) ──────────────
+  # Rules carry no connector at all; they audit the SIEM's own coverage.
+  "maturitymodelforeventlogmanagementm2131":
+    platforms: [cross_platform]
+    data_sources: [siem_alert]
+    event_types: [audit_event]
   # ── Acronis ─────────────────────────────────────────────────────────
   "acronis cyber protect cloud":
     platforms: [cross_platform]
