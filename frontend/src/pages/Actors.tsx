@@ -629,12 +629,33 @@ export function Actors() {
 
   const { data, isLoading, error } = useActorsQuery(params);
 
-  const update = (mutate: (next: URLSearchParams) => void, resetPage = true) => {
+  const update = (mutate: (next: URLSearchParams) => void, resetPage = true, replace = false) => {
     const next = new URLSearchParams(searchParams);
     mutate(next);
     if (resetPage) next.delete('page');
-    setSearchParams(next, { replace: false });
+    setSearchParams(next, { replace });
   };
+
+  // Free-text filter: type into local state, commit to the URL after a
+  // short pause and as a history REPLACE. Committing per keystroke
+  // pushed one history entry and one /actors request per character.
+  const [qDraft, setQDraft] = useState(q);
+  useEffect(() => {
+    setQDraft(q);
+  }, [q]);
+  useEffect(() => {
+    if (qDraft === q) return;
+    const t = setTimeout(
+      () =>
+        update((next) => {
+          if (qDraft) next.set('q', qDraft);
+          else next.delete('q');
+        }, true, true),
+      250,
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `update` is rebuilt every render; only the draft should schedule a commit
+  }, [qDraft]);
 
   const setDim = (dim: string, values: string[]) =>
     update((next) => {
@@ -726,13 +747,8 @@ export function Actors() {
             </div>
             <input
               type="search"
-              value={q}
-              onChange={(e) =>
-                update((next) => {
-                  if (e.target.value) next.set('q', e.target.value);
-                  else next.delete('q');
-                })
-              }
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
               placeholder="filter: apt29, cobalt strike, g0016…"
               className="bg-void-900 border border-void-700 text-sm text-white font-mono px-3 py-2 min-w-[260px] focus:outline-none focus:border-matrix-500/50 placeholder:text-gray-600"
               style={clipSm}

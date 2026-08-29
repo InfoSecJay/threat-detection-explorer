@@ -1,4 +1,5 @@
-import { Fragment, useState } from 'react';
+import { parseApiDate, daysSince } from '../utils/dates';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sourceColors, sourceLabelsShort as sourceLabels } from '../constants/sources';
 import type { Detection, SearchFilters } from '../types';
@@ -60,13 +61,10 @@ function qualityBand(score: number): string {
 }
 
 function formatRelativeDate(dateStr: string | null): string {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '-';
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  // daysSince clamps at 0: a timestamp a few minutes ahead of the
+  // viewer's clock used to fall through every branch and render "-1d".
+  const diffDays = daysSince(dateStr);
+  if (diffDays === null) return '-';
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
@@ -115,7 +113,7 @@ function TagList({ items, colorClass }: { items: string[] | null | undefined; co
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
-  const date = new Date(dateStr);
+  const date = parseApiDate(dateStr);
   if (isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
@@ -135,6 +133,19 @@ export function RuleList({
   // Keeps the result list and scroll position intact — previously
   // scanning 25 rules meant 25 detail-page round trips.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Keep the selection scoped to rows the user can see. Without this,
+  // paging or re-filtering left "25 SELECTED" (and a checked header
+  // box) over a page with nothing ticked, and Export shipped rules
+  // that were no longer on screen.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(detections.map((d) => d.id));
+      const kept = new Set([...prev].filter((id) => visible.has(id)));
+      return kept.size === prev.size ? prev : kept;
+    });
+  }, [detections]);
 
   const limit = filters.limit || 25;
   const offset = filters.offset || 0;
@@ -336,7 +347,7 @@ export function RuleList({
                     <input
                       type="checkbox"
                       checked={selectedIds.size === detections.length && selectedIds.size > 0}
-                      onChange={() => selectedIds.size > 0 ? clearSelection() : selectAll()}
+                      onChange={(e) => (e.target.checked ? selectAll() : clearSelection())}
                       className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50"
                       title="Select all on page"
                     />

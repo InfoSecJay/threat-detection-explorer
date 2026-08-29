@@ -481,11 +481,19 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
           {error.suggestion && (
             <button
               onClick={() => {
-                // Best-effort auto-fix: replace the first occurrence of the
-                // typo'd field name with the suggestion.
+                // Best-effort auto-fix: replace the first UNKNOWN field
+                // name with the suggestion. Must scan every `field:` token
+                // (global flag) -- with a valid field first, e.g.
+                // `source:sigma sevrity:high`, a non-global replace only
+                // ever looked at `source:` and left the typo untouched.
+                let fixed = false;
                 const suggested = draft.replace(
-                  new RegExp(`\\b(\\w+):`, 'i'),
-                  (m, name) => (fields.some((f) => f.aliases.includes(name.toLowerCase())) ? m : `${error.suggestion}:`),
+                  /\b(\w+):/gi,
+                  (m, name) => {
+                    if (fixed || fields.some((f) => f.aliases.includes(name.toLowerCase()))) return m;
+                    fixed = true;
+                    return `${error.suggestion}:`;
+                  },
                 );
                 setDraft(suggested);
                 onSubmit(suggested);

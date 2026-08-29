@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ActiveFilterPills } from '../components/ActiveFilterPills';
 import { RuleList } from '../components/RuleList';
@@ -50,16 +50,25 @@ export function DetectionList() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   // Pinned means the filter panel docks as a persistent side panel on
   // md+. Preference persists so users don't have to re-pin each visit.
+  // localStorage access throws (SecurityError) when site data is
+  // blocked; a throw inside a useState initializer is a render-phase
+  // crash, so both sides are guarded.
   const [filterSheetPinned, setFilterSheetPinned] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem('detection-list.filters.pinned') === '1';
+    try {
+      return window.localStorage.getItem('detection-list.filters.pinned') === '1';
+    } catch {
+      return false;
+    }
   });
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      'detection-list.filters.pinned',
-      filterSheetPinned ? '1' : '0',
-    );
+    try {
+      window.localStorage.setItem(
+        'detection-list.filters.pinned',
+        filterSheetPinned ? '1' : '0',
+      );
+    } catch {
+      /* preference simply does not persist */
+    }
   }, [filterSheetPinned]);
 
   // Global keyboard shortcuts — `/` focuses the search bar (unless
@@ -132,9 +141,10 @@ export function DetectionList() {
 
   const [filters, setFilters] = useState<SearchFilters>(parseFilters);
 
-  // Sync URL with filters
-  useEffect(() => {
+  // Serialize filters to the canonical URL form (defaults omitted).
+  const buildParams = (f: SearchFilters): URLSearchParams => {
     const params = new URLSearchParams();
+    const filters = f;
     if (filters.search) params.set('search', filters.search);
     if (filters.q) params.set('q', filters.q);
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
@@ -166,9 +176,34 @@ export function DetectionList() {
     if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit));
     if (filters.sort_by && filters.sort_by !== 'rule_created_date') params.set('sort_by', filters.sort_by);
     if (filters.sort_order && filters.sort_order !== 'desc') params.set('sort_order', filters.sort_order);
+    return params;
+  };
 
-    setSearchParams(params);
+  // Two-way URL sync. Filters -> URL pushes a history entry (so Back
+  // steps through filter states); URL -> filters re-derives state when
+  // the URL changes underneath us (Back/Forward, a link into the page
+  // with different params). Each direction is guarded by string
+  // equality, which is what breaks the loop -- and what previously
+  // made Back "snap forward": the one-way effect re-pushed the stale
+  // in-memory filters on every popstate.
+  const initialSyncDone = useRef(false);
+  useEffect(() => {
+    const params = buildParams(filters);
+    if (params.toString() === searchParams.toString()) return;
+    // The first run only normalizes whatever the URL had (ordering,
+    // defaults); replace so it does not become a history entry.
+    setSearchParams(params, { replace: !initialSyncDone.current });
+    initialSyncDone.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams is read, not a trigger
   }, [filters, setSearchParams]);
+
+  useEffect(() => {
+    const fromUrl = parseFilters();
+    if (buildParams(fromUrl).toString() !== buildParams(filters).toString()) {
+      setFilters(fromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the URL should trigger this direction
+  }, [searchParams]);
 
   const { data, isLoading, error } = useDetections(filters);
 

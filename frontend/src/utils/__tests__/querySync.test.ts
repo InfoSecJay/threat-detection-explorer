@@ -146,3 +146,50 @@ describe('observable surfaces (observables v2)', () => {
     expect(out.q).toBe('severity:high action:CreateUser');
   });
 });
+
+describe('same-dimension multi-value (OR group)', () => {
+  it('a second tick in a bar-owned dimension writes an OR group, not AND', () => {
+    // `source:sigma source:elastic` is AND at the API and matches nothing.
+    const current = base({ q: 'source:sigma' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const next = { ...view, sources: ['sigma', 'elastic'] };
+    const out = reconcileFilterChange(current, view, next, parsed);
+    expect(out.q).toBe('(source:sigma OR source:elastic)');
+    expect(out.sources).toEqual([]);
+  });
+
+  it('parses an OR group back into per-value tokens (round-trip)', () => {
+    const parsed = parseBar('(source:sigma OR source:elastic) severity:high');
+    expect(parsed.opaque).toBe(false);
+    expect(parsed.tokens.map((t) => [t.key, t.value])).toEqual([
+      ['sources', 'sigma'],
+      ['sources', 'elastic'],
+      ['severities', 'high'],
+    ]);
+    const view = mergeTokensIntoFilters(base({}), parsed);
+    expect(view.sources).toEqual(['sigma', 'elastic']);
+    expect(view.severities).toEqual(['high']);
+  });
+
+  it('unticking one value of a group collapses it to a plain token', () => {
+    const current = base({ q: '(source:sigma OR source:elastic) severity:high' });
+    const parsed = parseBar(current.q!);
+    const view = mergeTokensIntoFilters(current, parsed);
+    const next = { ...view, sources: ['elastic'] };
+    const out = reconcileFilterChange(current, view, next, parsed);
+    expect(out.q).toBe('source:elastic severity:high');
+  });
+
+  it('handles quoted values inside a group', () => {
+    const parsed = parseBar('(data:"Windows Security" OR data:Sysmon)');
+    expect(parsed.opaque).toBe(false);
+    expect(parsed.tokens.map((t) => t.value)).toEqual(['Windows Security', 'Sysmon']);
+  });
+
+  it('a group mixing fields stays opaque', () => {
+    const parsed = parseBar('(source:sigma OR severity:high)');
+    expect(parsed.opaque).toBe(true);
+    expect(parsed.tokens).toEqual([]);
+  });
+});

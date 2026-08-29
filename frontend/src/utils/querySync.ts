@@ -110,18 +110,42 @@ function quoteIfNeeded(v: string): string {
   return /\s/.test(v) ? `"${v}"` : v;
 }
 
+// A same-field OR group as written by `rebuild`:
+// `(source:sigma OR source:elastic OR source:"x y")`. The ONLY grouping
+// syntax the sheet round-trips; anything else in parens stays opaque.
+const OR_GROUP_RE = /\(\s*(\w+:(?:"[^"]*"|[^\s()"]+)(?:\s+OR\s+\w+:(?:"[^"]*"|[^\s()"]+))+)\s*\)/gi;
+
 export function parseBar(q: string): ParsedBar {
   const trimmed = (q || '').trim();
   if (!trimmed) return { tokens: [], opaque: false };
 
+  // Lift same-field OR groups out first. Two sheet ticks in one
+  // dimension MUST be OR (`source:sigma source:elastic` is AND at the
+  // API and matches nothing), so `rebuild` writes them grouped and
+  // this is the reverse. Groups mixing fields fall through to the
+  // opaque check below.
+  const groupTokens: BarToken[] = [];
+  const remainder = trimmed.replace(OR_GROUP_RE, (whole, inner: string) => {
+    const parts = inner.split(/\s+OR\s+/i);
+    const parsed = parts.map((p) => {
+      const colon = p.indexOf(':');
+      return { field: p.slice(0, colon).toLowerCase(), value: unquote(p.slice(colon + 1)), raw: p };
+    });
+    if (new Set(parsed.map((p) => p.field)).size !== 1) return whole;
+    for (const p of parsed) {
+      groupTokens.push({ key: ALIAS_TO_KEY.get(p.field) ?? null, field: p.field, value: p.value, raw: p.raw });
+    }
+    return ' ';
+  }).trim();
+
   // Anything beyond a flat AND of terms is opaque. `-term`, `field:>x`
   // ranges, and grouping all change semantics under partial edits.
-  if (/[()[\]{]/.test(trimmed) || /(^|\s)(OR|NOT)(\s|$)/i.test(trimmed) || /(^|\s)-\w/.test(trimmed)) {
+  if (/[()[\]{]/.test(remainder) || /(^|\s)(OR|NOT)(\s|$)/i.test(remainder) || /(^|\s)-\w/.test(remainder)) {
     return { tokens: [], opaque: true };
   }
 
-  const tokens: BarToken[] = [];
-  for (const raw of splitTokens(trimmed)) {
+  const tokens: BarToken[] = [...groupTokens];
+  for (const raw of splitTokens(remainder)) {
     if (/^AND$/i.test(raw)) continue; // implicit AND == explicit AND
     const colon = raw.indexOf(':');
     if (colon > 0) {
@@ -140,9 +164,29 @@ export function parseBar(q: string): ParsedBar {
   return { tokens, opaque: false };
 }
 
-/** Rebuild q from remaining tokens (implicit AND join). */
+/** Rebuild q from remaining tokens: implicit AND between dimensions,
+ * an explicit parenthesized OR within one (see OR_GROUP_RE). */
 function rebuild(tokens: BarToken[]): string {
-  return tokens.map((t) => t.raw).join(' ');
+  const byField = new Map<string, BarToken[]>();
+  for (const t of tokens) {
+    if (!t.key || !t.field) continue;
+    const list = byField.get(t.field) ?? [];
+    list.push(t);
+    byField.set(t.field, list);
+  }
+  const emitted = new Set<string>();
+  const parts: string[] = [];
+  for (const t of tokens) {
+    if (!t.key || !t.field) {
+      parts.push(t.raw);
+      continue;
+    }
+    if (emitted.has(t.field)) continue;
+    emitted.add(t.field);
+    const group = byField.get(t.field)!;
+    parts.push(group.length === 1 ? group[0].raw : `(${group.map((g) => g.raw).join(' OR ')})`);
+  }
+  return parts.join(' ');
 }
 
 /** View model: array filters with bar tokens merged in, so the sheet
