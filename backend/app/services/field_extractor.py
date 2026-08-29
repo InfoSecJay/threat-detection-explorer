@@ -1843,104 +1843,14 @@ def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, 
 def extract_esql_fields(query: str) -> ExtractedFields:
     """Extract fields from Elastic ES|QL queries.
 
-    Args:
-        query: The ES|QL query string
-
-    Returns:
-        ExtractedFields with extracted observables
+    Delegates to services.esql_extractor (issue #6 rebuild): stage-
+    aware, derived-name tracking, validated identifiers, SQL segments
+    in hunting files skipped. Kept here so existing callers and the
+    Elastic dispatcher keep one import point.
     """
-    result = ExtractedFields()
-    if not query or not isinstance(query, str):
-        return result
+    from app.services.esql_extractor import extract_esql_fields_v2
 
-    query = query.strip()
-
-    # Strip comments FIRST so a `// WHERE field == "x"` line doesn't
-    # leak into observable extraction below. Order matters: block
-    # comments first (they can span lines), then line comments.
-    query = re.sub(r'/\*.*?\*/', ' ', query, flags=re.DOTALL)
-    query = re.sub(r'//[^\n]*', ' ', query)
-
-    # Determine complexity (after comment strip — commented-out pipes
-    # shouldn't count toward complexity).
-    pipe_count = query.count('|')
-    if pipe_count > 5 or re.search(r'\bENRICH\b', query, re.IGNORECASE):
-        result.query_complexity = "complex"
-    elif pipe_count > 2:
-        result.query_complexity = "moderate"
-    else:
-        result.query_complexity = "simple"
-
-    # Extract FROM tables. ES|QL supports comma-separated multi-table
-    # FROM (`FROM logs-a-*, logs-b-*`); capture the whole clause up
-    # to the next pipe / newline, then split.
-    from_clauses = re.findall(
-        r'\bFROM\s+([^|\n]+)', query, re.IGNORECASE,
-    )
-    for clause in from_clauses:
-        for table in clause.split(','):
-            table = table.strip().rstrip(',')
-            # Accept only patterns that look like real ES|QL index
-            # names — reject anything with a space (would be a
-            # keyword continuation, not a table).
-            if table and re.fullmatch(r'[\w.*\-]+', table):
-                result.source_tables.append(table)
-
-    # KEEP + DROP list the fields the rule projects / suppresses;
-    # both signal "this rule cares about these fields". Same
-    # comma-separated shape as FROM.
-    for kw in ("KEEP", "DROP"):
-        for clause in re.findall(rf'\b{kw}\s+([^|\n]+)', query, re.IGNORECASE):
-            for f in clause.split(','):
-                clean = f.strip().rstrip(',')
-                if clean and re.fullmatch(r'[\w.@]+', clean):
-                    if clean not in result.fields_used:
-                        result.fields_used.append(clean)
-
-    # Extract WHERE field == "value"
-    eq_patterns = re.findall(r'([\w.@]+)\s*==\s*"([^"]*)"', query)
-    for field_name, value in eq_patterns:
-        _add_elastic_observable(field_name, [value], False, result)
-
-    # Extract WHERE field == number
-    eq_num_patterns = re.findall(r'([\w.@]+)\s*==\s*(\d+)(?!\w)', query)
-    for field_name, value in eq_num_patterns:
-        _add_elastic_observable(field_name, [value], False, result)
-
-    # Extract WHERE field != "value"
-    neq_patterns = re.findall(r'([\w.@]+)\s*!=\s*"([^"]*)"', query)
-    for field_name, value in neq_patterns:
-        _add_elastic_observable(field_name, [value], True, result)
-
-    # Extract field LIKE "pattern" or field RLIKE "pattern"
-    like_patterns = re.findall(r'([\w.@]+)\s+(?:LIKE|RLIKE)\s+"([^"]*)"', query, re.IGNORECASE)
-    for field_name, value in like_patterns:
-        _add_elastic_observable(field_name, [value], False, result)
-
-    # Extract field IN ("v1", "v2")
-    in_patterns = re.findall(r'([\w.@]+)\s+IN\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in in_patterns:
-        values = re.findall(r'"([^"]*)"', values_str)
-        if values:
-            _add_elastic_observable(field_name, values, False, result)
-
-    # Extract STATS ... BY field patterns
-    stats_by = re.findall(r'\bBY\s+([^|]+)', query, re.IGNORECASE)
-    for by_clause in stats_by:
-        by_fields = [f.strip().strip(',') for f in by_clause.split(',')]
-        for f in by_fields:
-            clean = f.strip()
-            if clean and clean not in result.fields_used:
-                result.fields_used.append(clean)
-
-    # Extract DISSECT field "%{pattern}" patterns for field tracking
-    dissect_matches = re.findall(r'\bDISSECT\s+([\w.@]+)', query, re.IGNORECASE)
-    for f in dissect_matches:
-        if f not in result.fields_used:
-            result.fields_used.append(f)
-
-    _deduplicate_all(result)
-    return result
+    return extract_esql_fields_v2(query)
 
 
 # ===========================================================================
