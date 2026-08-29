@@ -650,6 +650,22 @@ _layer_response = layer_response
 
 
 
+@router.get("/coverage-matrix")
+async def actor_coverage_matrix(
+    kind: Literal["groups", "software"] = Query("groups"),
+    limit: int = Query(40, ge=5, le=200, description="Actors shown (top N by sort)"),
+    sort: Literal["weighted_gap", "gap_count", "technique_count", "name"] = Query("weighted_gap"),
+    min_techniques: int = Query(5, ge=1, le=100, description="Skip entities with fewer known techniques"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actors x sources gap heatmap: for the top N actors, how many of
+    each one's techniques every source covers (and with how many
+    rules). One corpus scan regardless of N."""
+    from app.services.coverage_heatmap import coverage_matrix
+
+    return await coverage_matrix(db, kind=kind, limit=limit, sort=sort, min_techniques=min_techniques)
+
+
 @router.get("/navigator-layer")
 async def bulk_navigator_layer(
     sector: Optional[list[str]] = Query(None),

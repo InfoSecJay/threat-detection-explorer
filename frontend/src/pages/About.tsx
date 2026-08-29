@@ -132,13 +132,15 @@ export function About() {
               community-driven security repositories.
             </p>
             <p>
-              The tool aggregates detection content from sources including SigmaHQ, Elastic Detection Rules,
-              Splunk Security Content, Sublime Security, Elastic Protections, and LOLRMM - providing a unified
-              interface to explore thousands of detection rules mapped to the MITRE ATT&CK framework.
+              It aggregates detection content from thirteen repositories - SigmaHQ, Elastic (detection rules,
+              hunting queries, endpoint protections), Splunk Security Content, Microsoft Sentinel, Google SecOps,
+              Sublime Security, LOLRMM, Okta, Auth0, Panther and pypanther - into one schema mapped to MITRE ATT&CK.
             </p>
             <p>
-              Key capabilities include full-text search, MITRE ATT&CK technique filtering, cross-vendor comparison,
-              and direct links to original source files for easy reference and implementation.
+              Beyond search and technique filtering, every rule&apos;s logic is parsed for the observables it keys on
+              (process names, event IDs, paths, registry keys, indicators, API actions), so you can see which vendors
+              detect a technique and how, which threat actors are covered and where the gaps are, and what changed
+              this week - with direct links back to the upstream file.
             </p>
           </div>
 

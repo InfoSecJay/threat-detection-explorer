@@ -502,3 +502,36 @@ async def test_actor_detail_breaks_coverage_down_by_source(client, db_session):
         "elastic": {"techniques_covered": 1, "rule_count": 1},
         "sigma": {"techniques_covered": 2, "rule_count": 3},
     }
+
+
+@pytest.mark.asyncio
+async def test_actor_coverage_matrix(client, db_session):
+    """Gap heatmap: per actor, per source technique coverage from one scan."""
+    db_session.add_all([
+        _rule(title="s1", source="sigma", mitre_techniques=["T1001", "T1002"]),
+        _rule(title="s2", source="sigma", mitre_techniques=["T1001"]),
+        _rule(title="e1", source="elastic", mitre_techniques=["T1002"]),
+    ])
+    await db_session.commit()
+
+    resp = await client.get("/api/actors/coverage-matrix", params={"min_techniques": 1, "limit": 10})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sources"][0] == "sigma"
+    rows = {r["id"]: r for r in data["rows"]}
+    assert set(rows) == {"G0001", "G0002"}  # G0003 has no techniques
+    g1 = rows["G0001"]
+    assert g1["technique_count"] == 2 and g1["covered_technique_count"] == 2
+    assert g1["by_source"] == {
+        "sigma": {"techniques_covered": 2, "rule_count": 3},
+        "elastic": {"techniques_covered": 1, "rule_count": 1},
+    }
+    assert rows["G0002"]["by_source"] == {
+        "sigma": {"techniques_covered": 1, "rule_count": 1},
+        "elastic": {"techniques_covered": 1, "rule_count": 1},
+    }
+    assert data["source_totals"]["sigma"] == 2 and data["source_totals"]["splunk"] == 0
+
+    by_name = await client.get("/api/actors/coverage-matrix", params={"min_techniques": 1, "sort": "name"})
+    assert [r["name"] for r in by_name.json()["rows"]] == ["Alpha Group", "Beta Group"]
+    assert (await client.get("/api/actors/coverage-matrix", params={"sort": "bogus"})).status_code == 422

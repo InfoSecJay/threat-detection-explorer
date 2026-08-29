@@ -20,6 +20,7 @@ const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ d
 const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default: m.Digest })));
 const Observables     = lazy(() => import('./pages/Observables').then(m => ({ default: m.Observables })));
 const ObservableDetail = lazy(() => import('./pages/ObservableDetail').then(m => ({ default: m.ObservableDetail })));
+const CoverageHeatmap = lazy(() => import('./pages/actors/CoverageHeatmap').then(m => ({ default: m.CoverageHeatmap })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -263,6 +264,7 @@ function App() {
             <Route path="/mitre" element={<MitreCoverage />} />
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
             <Route path="/actors" element={<Actors />} />
+            <Route path="/actors/heatmap" element={<CoverageHeatmap />} />
             <Route path="/actors/:id" element={<ActorDetail />} />
             <Route path="/query" element={<QueryReference />} />
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}

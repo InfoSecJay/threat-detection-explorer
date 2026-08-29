@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useActorsQuery } from '../hooks/useActors';
 import { clipSm, clipMd } from '../constants/style';
 import { countryFlag, countryName } from '../utils/actorDisplay';
@@ -164,6 +164,7 @@ export function Actors() {
         </h1>
         <p className="text-xs text-gray-500 mt-1 font-mono">
           the full MITRE ATT&amp;CK catalog ranked by outstanding detection work — click any entry to see what we cover and what we don&apos;t
+          <Link to="/actors/heatmap" className="ml-3 text-matrix-500 hover:text-matrix-400 uppercase tracking-wider">[ coverage heatmap ]</Link>
         </p>
       </div>
 

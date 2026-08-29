@@ -652,6 +652,15 @@ function triggerDownload(blob: Blob, contentDisposition: string | undefined, fal
 }
 
 export const actorsApi = {
+  coverageMatrix: async (params: { kind?: 'groups' | 'software'; sort?: string; limit?: number; min_techniques?: number } = {}): Promise<ActorCoverageMatrixResponse> => {
+    const q = new URLSearchParams();
+    if (params.kind) q.set('kind', params.kind);
+    if (params.sort) q.set('sort', params.sort);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.min_techniques) q.set('min_techniques', String(params.min_techniques));
+    return (await api.get(`/actors/coverage-matrix?${q.toString()}`)).data;
+  },
+
   list: async (): Promise<ActorsListResponse> => {
     const response = await api.get('/actors');
     return response.data;
@@ -1007,6 +1016,28 @@ export const observablesApi = {
   profile: async (kind: string, value: string): Promise<ObservableProfile> =>
     (await api.get(`/observables/${kind}/${encodeURIComponent(value)}`)).data,
 };
+
+// Actors x sources coverage matrix (gap heatmap).
+export interface CoverageMatrixRow {
+  id: string;
+  name: string;
+  kind: 'groups' | 'software';
+  technique_count: number;
+  covered_technique_count: number;
+  gap_count: number;
+  weighted_gap: number;
+  weighted_coverage: number | null;
+  by_source: Record<string, { techniques_covered: number; rule_count: number }>;
+}
+export interface ActorCoverageMatrixResponse {
+  kind: 'groups' | 'software';
+  sort: string;
+  limit: number;
+  total_entities: number;
+  sources: string[];
+  source_totals: Record<string, number>;
+  rows: CoverageMatrixRow[];
+}
 
 // Technique profile: per-source coverage, observables per vendor,
 // actors / software using it, momentum.

@@ -116,7 +116,7 @@ export function Home() {
       </section>
 
       <section>
-        <SectionHeader title="Where the gaps are" subtitle="actors with the most uncovered, distinctive techniques" right={<Link to="/actors" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider mb-2">All actors &#8594;</Link>} />
+        <SectionHeader title="Where the gaps are" subtitle="actors with the most uncovered, distinctive techniques" right={<span className="flex gap-3 mb-2"><Link to="/actors/heatmap" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider">Heatmap &#8594;</Link><Link to="/actors" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider">All actors &#8594;</Link></span>} />
         <GapSpotlight />
       </section>
 
