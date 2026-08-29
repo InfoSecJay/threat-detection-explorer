@@ -73,7 +73,8 @@ These are canonical enums. Vendor-specific values get mapped here.
 
 | Field | Type | Allowed values | Vendor → canonical mappings |
 | --- | --- | --- | --- |
-| `status` | enum | `stable`, `experimental`, `deprecated`, `unknown` | Elastic `production` → `stable`. Elastic `development`, Sigma `test` → `experimental`. Anything unrecognised → `unknown`. |
+| `status` | enum | `stable`, `test`, `experimental`, `deprecated`, `unsupported`, `unknown` | Sigma's vocabulary, preserved 1:1 (issue #26): `test` = works but not field-proven, `unsupported` = cannot run on current tooling. Elastic `production` → `stable`, `development` → `experimental`. Panther/pypanther `Enabled: false` → `experimental` (disabled upstream). Sources with no maturity concept (Sentinel) → `unknown`; `deprecated` never appears because every parser skips deprecated directories. Anything unrecognised → `unknown`. |
+| `is_building_block` | bool | `true` / `false` | Building-block / signal-only rule: emits signal for other rules to correlate on rather than alerting by itself. Elastic `building_block_type` or the `rules_building_block/` tree; Panther `CreateAlert: false` or the `panther-signal` tag. Orthogonal to `status` (a building block can be `stable`). API: `building_block=true|false`; query bar: `building_block:true`. |
 | `severity` | enum | `low`, `medium`, `high`, `critical`, `unknown` | Sigma `level` (`informational` → `low`). Splunk RBA risk score → bucketed. Sentinel `severity` → direct. |
 
 ## 4. Canonical taxonomy *(the moat)*
@@ -215,7 +216,7 @@ For taxonomy-resolution depth (the tier system), see
 | `id` | `rule_id` | UUID |
 | `description` | `description` | direct |
 | `author` | `author` | direct |
-| `status` | `status` | `test` → `experimental` |
+| `status` | `status` | direct (`stable` / `test` / `experimental` / `deprecated` / `unsupported`) |
 | `level` | `severity` | `informational` → `low` |
 | `logsource.product` / `category` / `service` | `taxonomy_*` | Tiered resolver via `taxonomy/mappings/sigma.yaml` |
 | `tags` (with `attack.` prefix) | `mitre_tactics` / `mitre_techniques` | Routed by ID prefix (`attack.t...`, `attack.tactic...`) |

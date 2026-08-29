@@ -87,6 +87,9 @@ class DetectionBase(BaseModel):
     author: Optional[str] = None
     status: str
     severity: str
+    # Building-block / signal-only rule (issue #26). Legacy rows may be
+    # NULL until the next sync; builders coerce to False.
+    is_building_block: bool = False
     # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
     platforms: list[str] = []
     data_sources: list[str] = []
@@ -150,6 +153,7 @@ class DetectionResponse(DetectionBase):
             "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
+            "is_building_block": bool(getattr(detection, "is_building_block", False) or False),
             # Canonical taxonomy (Phase 3 final names)
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
@@ -203,6 +207,9 @@ class DetectionListItem(BaseModel):
     author: Optional[str] = None
     status: str
     severity: str
+    # Building-block / signal-only rule (issue #26). Legacy rows may be
+    # NULL until the next sync; builders coerce to False.
+    is_building_block: bool = False
     # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
     platforms: list[str] = []
     data_sources: list[str] = []
@@ -258,6 +265,7 @@ class DetectionListItem(BaseModel):
             "author": sanitize_string(detection.author),
             "status": detection.status,
             "severity": detection.severity,
+            "is_building_block": bool(getattr(detection, "is_building_block", False) or False),
             # Canonical taxonomy (Phase 3 final names)
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
@@ -383,6 +391,8 @@ class SearchParams(BaseModel):
     search: Optional[str] = None
     sources: list[str] = Field(default_factory=list)
     statuses: list[str] = Field(default_factory=list)
+    # True = building blocks only, False = hide them, None = both.
+    building_block: Optional[bool] = None
     severities: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
     mitre_tactics: list[str] = Field(default_factory=list)

@@ -64,6 +64,7 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.q) params.set('q', filters.q);
   if (filters.sources?.length) params.set('sources', filters.sources.join(','));
   if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
+  if (filters.building_block !== undefined) params.set('building_block', String(filters.building_block));
   if (filters.severities?.length) params.set('severities', filters.severities.join(','));
   if (filters.languages?.length) params.set('languages', filters.languages.join(','));
   if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
@@ -103,7 +104,10 @@ export type FacetOption = { value: string; count: number };
  * active query (each dimension excludes its own selection). */
 export interface DetectionFacets {
   sources: FacetOption[];
+  statuses: FacetOption[];
   severities: FacetOption[];
+  // Scalar boolean dimension: only the `true` bucket is reported.
+  building_block: FacetOption[];
   languages: FacetOption[];
   mitre_tactics: FacetOption[];
   mitre_techniques: FacetOption[];

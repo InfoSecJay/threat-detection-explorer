@@ -21,6 +21,7 @@ interface ActiveFilterPillsProps {
 const LABELS: Record<string, string> = {
   sources: 'Source',
   statuses: 'Status',
+  building_block: 'Building blocks',
   severities: 'Severity',
   languages: 'Language',
   platforms: 'Platform',
@@ -74,11 +75,20 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
     }
   });
 
+  // Scalar tri-state: one pill, value is the human reading.
+  if (filters.building_block !== undefined) {
+    pills.push({ key: 'building_block', value: filters.building_block ? 'only' : 'hidden' });
+  }
+
   if (pills.length === 0 && !filters.search) {
     return null;
   }
 
   const removePill = (key: keyof SearchFilters, value: string) => {
+    if (key === 'building_block') {
+      onFiltersChange({ ...filters, building_block: undefined, offset: 0 });
+      return;
+    }
     const current = (filters[key] as string[]) || [];
     onFiltersChange({
       ...filters,

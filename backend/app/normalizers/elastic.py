@@ -95,6 +95,7 @@ class ElasticNormalizer(BaseNormalizer):
             detection_logic=query_str,
             language=lang,
             tags=self._build_tags(parsed.tags, is_building_block, extra.get("building_block_type")),
+            is_building_block=is_building_block,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             raw_content=parsed.raw_content,

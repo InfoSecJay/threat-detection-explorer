@@ -27,6 +27,9 @@ class SearchFilters:
     # Exact filters
     sources: list[str] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
+    # Building-block tri-state (issue #26): True = only, False = hide,
+    # None = no filter. NULL rows (pre-column) count as False.
+    building_block: Optional[bool] = None
     severities: list[str] = field(default_factory=list)
     languages: list[str] = field(default_factory=list)
 
@@ -370,6 +373,7 @@ class SearchService:
     # whether the column stores a JSON list).
     _FACET_DIMENSIONS: dict[str, tuple[str, str, bool]] = {
         "sources": ("sources", "source", False),
+        "statuses": ("statuses", "status", False),
         "severities": ("severities", "severity", False),
         "languages": ("languages", "language", False),
         "mitre_tactics": ("mitre_tactics", "mitre_tactics", True),
@@ -384,6 +388,9 @@ class SearchService:
         "api_actions": ("api_actions", "extracted_api_actions", True),
         "source_tables": ("source_tables", "extracted_source_tables", True),
         "event_ids": ("event_ids", "extracted_event_ids", True),
+        # Scalar boolean dimension: reports only the `true` bucket
+        # (count of building blocks under the current query).
+        "building_block": ("building_block", "is_building_block", False),
     }
 
     async def get_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
@@ -406,7 +413,10 @@ class SearchService:
         """
         out: dict[str, list[dict]] = {}
         for key, (own_field, column_name, is_json) in self._FACET_DIMENSIONS.items():
-            sub_filters = replace(filters, **{own_field: []})
+            # Own-selection reset: list dimensions clear to [], the
+            # boolean tri-state clears to None.
+            reset = None if own_field == "building_block" else []
+            sub_filters = replace(filters, **{own_field: reset})
             conditions = self._build_conditions(sub_filters)
             column = getattr(Detection, column_name)
 
@@ -427,7 +437,13 @@ class SearchService:
                 if conditions:
                     query = query.where(and_(*conditions))
                 result = await self.db.execute(query)
-                counts = {str(v): c for v, c in result.all() if v}
+                # Booleans stringify as "True"; the API contract is
+                # lowercase ("true") so the FE can compare literally.
+                counts = {
+                    (str(v).lower() if isinstance(v, bool) else str(v)): c
+                    for v, c in result.all()
+                    if v
+                }
 
             out[key] = [
                 {"value": v, "count": c}
@@ -469,6 +485,14 @@ class SearchService:
         # Status filter
         if filters.statuses:
             conditions.append(Detection.status.in_(filters.statuses))
+
+        # Building-block filter. `isnot(True)` (not `== False`) so rows
+        # that still hold NULL from before the column existed are
+        # treated as regular rules.
+        if filters.building_block is True:
+            conditions.append(Detection.is_building_block.is_(True))
+        elif filters.building_block is False:
+            conditions.append(Detection.is_building_block.isnot(True))
 
         # Severity filter
         if filters.severities:

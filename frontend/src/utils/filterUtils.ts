@@ -46,5 +46,7 @@ export function countActiveFilters(filters: SearchFilters): number {
     const v = filters[key];
     if (Array.isArray(v) && v.length > 0) n += v.length;
   }
+  // Scalar tri-state (building blocks only / hidden) counts as one.
+  if (filters.building_block !== undefined) n += 1;
   return n;
 }

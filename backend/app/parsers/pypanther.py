@@ -254,5 +254,12 @@ class PyPantherParser(BaseParser):
                 "class_name": rule_class.name,
                 "threshold": attrs.get("threshold"),
                 "dedup_period_minutes": attrs.get("dedup_period_minutes"),
+                # Signal-only == building block (issue #26): pypanther's
+                # `create_alert = False` class attribute, or the
+                # `panther-signal` tag carried over from the YAML era.
+                "is_signal_only": (
+                    attrs.get("create_alert") is False
+                    or "panther-signal" in [t.lower() for t in tags]
+                ),
             },
         )
