@@ -160,19 +160,19 @@ by_key:
   windows/ps_script:
     platforms: [windows]
     data_sources: [windows_powershell]
-    event_types: [process_creation]
+    event_types: [ps_script]
   windows/ps_module:
     platforms: [windows]
     data_sources: [windows_powershell]
-    event_types: [process_creation]
+    event_types: [ps_module]
   windows/ps_classic_start:
     platforms: [windows]
     data_sources: [windows_powershell]
-    event_types: [process_creation]
+    event_types: [ps_classic]
   windows/ps_classic_provider_start:
     platforms: [windows]
     data_sources: [windows_powershell]
-    event_types: [process_creation]
+    event_types: [ps_classic]
 
   # ── Channel-level services (no Sigma category). Blanket audit_event
   # until we build per-EventID dictionaries — see the TODO in TODO.md.

@@ -210,15 +210,16 @@ providers:
       "255": {label: "Sysmon error", event_types: [sysmon_error]}
   powershell:
     channel: Microsoft-Windows-PowerShell/Operational
-    # PowerShell logging is classified process_creation by convention
-    # (see sigma.yaml `windows/ps_*`): the events record command
-    # execution. Kept consistent here rather than inventing a split.
+    # PowerShell logging gets its own canonical event types (#47),
+    # mirroring Sigma's ps_script / ps_module / ps_classic_* categories
+    # so Sigma and Splunk rules on the same channel land in the same
+    # bucket -- and NOT in process_creation with Sysmon 1 / 4688.
     events:
-      "400": {label: "PowerShell engine started", event_types: [process_creation]}
-      "600": {label: "PowerShell provider started", event_types: [process_creation]}
-      "800": {label: "PowerShell pipeline execution", event_types: [process_creation]}
-      "4103": {label: "PowerShell module logging", event_types: [process_creation]}
-      "4104": {label: "PowerShell script block", event_types: [process_creation]}
+      "400": {label: "PowerShell engine started", event_types: [ps_classic]}
+      "600": {label: "PowerShell provider started", event_types: [ps_classic]}
+      "800": {label: "PowerShell pipeline execution", event_types: [ps_classic]}
+      "4103": {label: "PowerShell module logging", event_types: [ps_module]}
+      "4104": {label: "PowerShell script block", event_types: [ps_script]}
   windows_defender:
     channel: Microsoft-Windows-Windows Defender/Operational
     events:

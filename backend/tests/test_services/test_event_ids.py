@@ -71,7 +71,9 @@ def test_known_collisions_are_excluded():
         ("1102", ("log_clear",)),
         ("5145", ("share_access",)),
         ("5136", ("directory_service_event",)),
-        ("4104", ("process_creation",)),  # PowerShell convention, matches sigma.yaml
+        ("4104", ("ps_script",)),   # PowerShell script block -- own type since #47, matches sigma.yaml
+        ("4103", ("ps_module",)),
+        ("400", ("ps_classic",)),
         ("1", ("process_creation",)),
         ("22", ("dns_query",)),
     ],

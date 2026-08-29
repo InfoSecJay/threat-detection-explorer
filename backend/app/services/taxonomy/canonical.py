@@ -340,6 +340,14 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "raw_access_thread",         # Sysmon 9 — direct disk thread manip
         "process_access",            # Sysmon 10 — LSASS read / cred dumping
         "process_tampering",         # Sysmon 25 — PPID spoofing / image swap
+        # ── PowerShell logging (#47) ────────────────────────────────────────
+        # Mirrors Sigma's ps_* categories 1:1 (principle 2: full
+        # granularity when the vendor is explicit). Previously folded
+        # into process_creation, which put every Sigma ps_script rule and
+        # ~130 Splunk 4104 rules in the same bucket as Sysmon 1 / 4688.
+        "ps_script",                 # 4104 script block logging
+        "ps_module",                 # 4103 module logging
+        "ps_classic",                # 400 / 600 / 800 classic engine events
         # ── File activity (Sysmon 2, 11, 15, 23, 26-29) ────────────────────
         "file_event",                # Sigma generic category
         "file_change",               # Sysmon 2 — file creation time changed

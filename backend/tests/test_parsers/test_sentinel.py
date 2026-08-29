@@ -87,3 +87,39 @@ query: |
         assert result is not None
         # Only TA0002 -- explicit tactic + inference agree, no dupes.
         assert result.mitre_attack.get("tactics") == ["TA0002"]
+
+
+class TestSentinelStatusDefault:
+    """Azure-Sentinel templates carry no maturity field. They are
+    published as production content, so the default is `stable` like
+    every other no-maturity-concept source (#47), not `unknown`."""
+
+    def setup_method(self):
+        self.parser = SentinelParser()
+
+    def test_missing_status_defaults_to_stable(self):
+        rule = """
+id: 11111111-0000-0000-0000-000000000000
+name: No Status
+description: test
+severity: Medium
+query: |
+  SigninLogs | where ResultType != 0
+"""
+        result = self.parser.parse(Path("Solutions/Test/Analytic Rules/x.yaml"), rule)
+        assert result is not None
+        assert result.status == "stable"
+
+    def test_explicit_status_is_preserved(self):
+        rule = """
+id: 22222222-0000-0000-0000-000000000000
+name: Has Status
+description: test
+severity: Medium
+status: experimental
+query: |
+  SigninLogs | where ResultType != 0
+"""
+        result = self.parser.parse(Path("Solutions/Test/Analytic Rules/x.yaml"), rule)
+        assert result is not None
+        assert result.status == "experimental"

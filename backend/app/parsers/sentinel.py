@@ -217,8 +217,12 @@ class SentinelParser(BaseParser):
             # Extract severity
             severity = data.get("severity", "unknown")
 
-            # Extract status
-            status = data.get("status", "unknown")
+            # Extract status. Azure-Sentinel analytic-rule templates carry
+            # no maturity field; they are published as production
+            # templates, so default to `stable` like the other sources
+            # with no maturity concept (Okta, Sublime, Elastic hunting /
+            # protections) rather than `unknown` (#47).
+            status = data.get("status", "stable")
 
             # Description handling
             description = data.get("description", "")

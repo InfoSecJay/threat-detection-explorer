@@ -524,3 +524,23 @@ adding a 4th one is a significant change.
 
 The phasing is to allow incremental rollout and testing without ever
 breaking the live site.
+
+## PowerShell logging event types (#47)
+
+PowerShell script-block / module / classic-engine logging used to be
+folded into `process_creation` "because the events record command
+execution". That put every Sigma `windows/ps_script` rule and ~130
+Splunk EventID 4104 rules in the same bucket as Sysmon 1 / 4688, and
+contradicted principle 2 (full granularity when the vendor is explicit).
+Since 2026-08-29 they are their own canonical values, mirroring Sigma:
+
+| Canonical value | Sigma category | Windows event IDs (Microsoft-Windows-PowerShell/Operational) |
+| :--- | :--- | :--- |
+| `ps_script` | `ps_script` | 4104 |
+| `ps_module` | `ps_module` | 4103 |
+| `ps_classic` | `ps_classic_start`, `ps_classic_provider_start` | 400, 600, 800 |
+
+The event-ID refinement pass applies the same values to Splunk / Sentinel
+/ Elastic rules that pin those IDs, so a filter on `ps_script` is
+cross-vendor. `process_creation` is now strictly process starts
+(Sysmon 1, 4688, `process where ...`).
