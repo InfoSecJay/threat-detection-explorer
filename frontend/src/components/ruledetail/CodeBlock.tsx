@@ -1,7 +1,21 @@
 /** Syntax-highlighted rule text with the site's dark code styling. */
 
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+// Light build + explicit language registration: the default Prism
+// entry bundles every refractor grammar (~500 KB) for the five we
+// actually map to below.
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+
+SyntaxHighlighter.registerLanguage('yaml', yaml);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('c', c);
+SyntaxHighlighter.registerLanguage('json', json);
 
 const languageMap: Record<string, string> = {
   sigma: 'yaml',
