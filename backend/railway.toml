@@ -1,3 +1,10 @@
+# Both Railway services (API + worker) have rootDirectory=/backend and
+# read this file. Only redeploy when backend code changes: a README or
+# frontend commit used to redeploy the worker and kill an in-flight
+# nightly sync (#36, 2026-08-12). Patterns are repo-root relative.
+[build]
+watchPatterns = ["/backend/**"]
+
 [deploy]
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
