@@ -16,7 +16,10 @@ class RuleDiscoveryService:
     DISCOVERY_PATTERNS = {
         "sigma": {
             "include_patterns": ["rules/**/*.yml", "rules/**/*.yaml", "rules-*/**/*.yml", "rules-*/**/*.yaml"],
-            "exclude_dirs": ["tests", "deprecated", "test", ".git"],
+            # rules-placeholder/ holds ~23 stub rules with no detection
+            # logic (upstream keeps them so IDs stay reserved); they are
+            # not detections and are excluded from the count (#32).
+            "exclude_dirs": ["tests", "deprecated", "test", ".git", "rules-placeholder"],
         },
         "elastic": {
             # Two trees:

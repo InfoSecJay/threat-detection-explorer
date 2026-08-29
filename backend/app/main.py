@@ -23,6 +23,7 @@ from app.api.routes import (
     compare,
     detections,
     export,
+    methodology,
     mitre,
     query,
     releases,
@@ -107,3 +108,4 @@ app.include_router(trending.router, prefix=settings.api_prefix)
 app.include_router(actors.router, prefix=settings.api_prefix)
 app.include_router(actors.software_router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
+app.include_router(methodology.router, prefix=settings.api_prefix)
