@@ -186,3 +186,19 @@ class TestMqlListContainers:
         q = 'type.inbound and any(ml.nlu_classifier(body.current_thread.text).intents, .name == "bec")'
         r = extract_sublime_fields(q)
         assert "ml.nlu_classifier.intents.name" in r.fields_used
+
+
+class TestNetworkIndicatorContract:
+    def test_only_ips_domains_and_urls_reach_the_indicator_surface(self):
+        from app.services.field_extractor import _is_network_indicator as ok
+        keep = ["10.0.0.1", "192.168.0.0/16", "2001:db8::1", "evil.example.com", "*.anonfiles.com",
+                ".anonfiles.com", "/forms/doLogin", "https://x.example/a?b=1", "login.microsoftonline.com/*"]
+        drop = ["GET", "POST", "403", "svcctl", "ITaskSchedulerService", ".{150}", "$(", "password",
+                "399629", "dns", "true", "some value with spaces"]
+        assert [v for v in keep if not ok(v)] == []
+        assert [v for v in drop if ok(v)] == []
+
+    def test_http_method_value_stays_on_observable_not_indicators(self):
+        r = extract_elastic_fields('http.request.method : "POST" and url.domain : "evil.example.com"', "kql")
+        assert _obs(r, "http.request.method")[0].values == ["POST"]
+        assert r.network_indicators == ["evil.example.com"]

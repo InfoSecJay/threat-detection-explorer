@@ -1004,12 +1004,39 @@ def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
         )
 
 
+_IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}(?:/\d{1,2})?$")
+_IPV6_RE = re.compile(r"^[0-9A-Fa-f:]+:[0-9A-Fa-f:]*(?:/\d{1,3})?$")
+_INDICATOR_CHARS_RE = re.compile(r"^[A-Za-z0-9*?._:\-\[\]@%/=&+~#]+$")
+_DOMAIN_LIKE_RE = re.compile(r"(?:^|[*.])[A-Za-z0-9\-*?]+\.[A-Za-z0-9\-*?]*[A-Za-z][A-Za-z0-9\-*?]*")
+
+
+def _is_network_indicator(value: str) -> bool:
+    """Surface contract for `network_indicators`: an IP / CIDR, a
+    domain (incl. `*.suffix` / `.suffix` patterns), or a URL / URL
+    path. Everything else the `network/*` subtypes carry -- HTTP
+    methods (`GET`), status codes (`403`), protocol / RPC interface
+    names (`svcctl`), AS numbers, regex fragments (`.{150}`) -- stays
+    on the typed observable but off the indicator surface.
+    """
+    v = value.strip()
+    if not v or len(v) > 512 or re.search(r"\s", v) or not _INDICATOR_CHARS_RE.match(v):
+        return False
+    if _IPV4_RE.match(v) or (":" in v and _IPV6_RE.match(v)):
+        return True
+    if "/" in v:
+        return True  # URL or path
+    if ".{" in v or v.startswith("."):
+        return _DOMAIN_LIKE_RE.search(v) is not None and ".{" not in v
+    return _DOMAIN_LIKE_RE.search(v) is not None
+
+
 def _deduplicate_all(result: ExtractedFields):
     """Deduplicate all extraction lists and drop empty values.
 
     An observable whose only value is "" (e.g. `sender.email.domain.domain
     == ""`) is a field reference, not an observable: keep the field in
-    fields_used, drop the observable.
+    fields_used, drop the observable. Also applies the
+    `network_indicators` surface contract (see _is_network_indicator).
     """
     kept: list[ExtractedObservable] = []
     for obs in result.observables:
@@ -1019,6 +1046,31 @@ def _deduplicate_all(result: ExtractedFields):
         obs.values = list(dict.fromkeys(values))
         kept.append(obs)
     result.observables = kept
+    # Ports are indicators too, but only when a port observable says so
+    # (AS numbers / status codes are numeric and must not pass).
+    port_values = {
+        v for obs in kept if obs.type == "network" and obs.subtype == "port"
+        for v in obs.values
+    }
+    # Values that only ever appeared under a non-indicator network
+    # subtype (payload bodies, user agents, protocol names...) are
+    # patterns, not indicators, even when they look domain-like
+    # (`*process.mainModule*` from an HTTP body match).
+    indicator_subtypes = {"ip_address", "domain", "url", "port"}
+    non_indicator_values = {
+        v for obs in kept
+        if obs.type == "network" and obs.subtype not in indicator_subtypes and obs.subtype != "network_field"
+        for v in obs.values
+    } - {
+        v for obs in kept
+        if obs.type in ("network", "email", "dns") and (obs.type != "network" or obs.subtype in indicator_subtypes)
+        for v in obs.values
+    }
+    result.network_indicators = [
+        v for v in result.network_indicators
+        if isinstance(v, str) and v not in non_indicator_values
+        and (v in port_values or _is_network_indicator(v))
+    ]
     result.fields_used = list(dict.fromkeys(result.fields_used))
     result.event_ids = list(dict.fromkeys(result.event_ids))
     result.process_names = list(dict.fromkeys(result.process_names))
