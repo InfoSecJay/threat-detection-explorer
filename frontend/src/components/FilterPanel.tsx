@@ -1,79 +1,34 @@
+/** Catalog filter sidebar. Every section renders live "what would
+ * this click yield" counts from the query-scoped facets. Section
+ * bodies and vocabularies live in components/filterpanel/. */
+
 import { useState, useMemo } from 'react';
 import { useFacets } from '../hooks/useDetections';
 import { useEventIds } from '../hooks/useEventIds';
 import { useMitre } from '../contexts/MitreContext';
 import { ALL_SOURCES, sourceColors, sourceLabels } from '../constants/sources';
-import { TelemetryFilter, Facet } from './TelemetryFilter';
+import { TelemetryFilter } from './TelemetryFilter';
 import { TagInputFilter } from './TagInputFilter';
 import type { SearchFilters } from '../types';
 import { clipMd } from '../constants/style';
 import { countActiveFilters } from '../utils/filterUtils';
-
-// Rule maturity vocabulary (Sigma's, preserved 1:1 -- issue #26).
-// Options with no corpus count are hidden unless already selected, so
-// `deprecated` (never ingested) does not clutter the list.
-const STATUS_OPTIONS: Array<{ value: string; label: string; color: string; hint: string }> = [
-  { value: 'stable', label: 'Stable', color: '#00ff41', hint: 'Field-proven; vendor considers it production-ready' },
-  { value: 'test', label: 'Test', color: '#38bdf8', hint: 'Works, not yet field-proven (Sigma "test")' },
-  { value: 'experimental', label: 'Experimental', color: '#fbbf24', hint: 'Early-stage or disabled by default upstream' },
-  { value: 'deprecated', label: 'Deprecated', color: '#ff0040', hint: 'Retired upstream' },
-  { value: 'unsupported', label: 'Unsupported', color: '#ff9500', hint: 'Cannot run on current tooling (Sigma "unsupported")' },
-  { value: 'unknown', label: 'Unknown', color: '#6b7280', hint: 'Source carries no maturity concept' },
-];
+import { SectionHeader } from './filterpanel/SectionHeader';
+import { CheckboxOption } from './filterpanel/CheckboxOption';
+import { StatusSection } from './filterpanel/StatusSection';
+import { HygieneSection } from './filterpanel/HygieneSection';
+import { TacticsSection } from './filterpanel/TacticsSection';
+import { ObservablesSection } from './filterpanel/ObservablesSection';
+import { SEVERITY_OPTIONS, LANGUAGE_LABELS, countMap } from './filterpanel/options';
 
 interface FilterPanelProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
 }
 
-/** [{value, count}] -> {value: count} lookup. */
-function countMap(facet?: Array<{ value: string; count: number }>): Record<string, number> {
-  const map: Record<string, number> = {};
-  for (const f of facet || []) map[f.value] = f.count;
-  return map;
-}
-
-/** Display labels for query languages. Unlisted values render raw —
- * the facet decides what exists, this only prettifies. */
-const LANGUAGE_LABELS: Record<string, string> = {
-  sigma: 'Sigma',
-  spl: 'SPL (Splunk)',
-  eql: 'EQL (Elastic)',
-  esql: 'ES|QL (Elastic)',
-  // Both Sentinel analytic rules and Kibana KQL rules carry `kql`;
-  // the old "KQL (Kibana)" label misdescribed 3,000+ Sentinel rules.
-  kql: 'KQL (Sentinel / Kibana)',
-  mql: 'MQL (Sublime)',
-  yaral: 'YARA-L (Chronicle)',
-  oie: 'OIE (Okta)',
-  python: 'Python (Panther)',
-  panther_correlation: 'Panther Correlation',
-  panther: 'Panther Declarative',
-  osquery: 'osquery',
-  ml: 'ML',
-  threat_match: 'Threat Match',
-};
-
-/** Count badge rendered on every facet option — shows how many rules
- * the option matches under the current query, dimmed when zero so
- * users stop clicking into empty result sets. */
-function FacetCount({ count }: { count: number | undefined }) {
-  return (
-    <span
-      className={`ml-auto text-[10px] font-mono shrink-0 ${
-        count ? 'text-gray-600' : 'text-gray-700'
-      }`}
-    >
-      {(count || 0).toLocaleString()}
-    </span>
-  );
-}
-
 export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const { tactics, techniques } = useMitre();
 
-  // Facet counts scoped to the active query — every section below
-  // renders live "what would this click yield" numbers from these.
+  // Facet counts scoped to the active query.
   const { data: facets } = useFacets(filters);
   const { labels: eventIdLabels } = useEventIds();
   const sourceCounts = useMemo(() => countMap(facets?.sources), [facets]);
@@ -82,6 +37,22 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const buildingBlockCount = facets?.building_block?.find((o) => o.value === 'true')?.count;
   const qualityBandCounts = useMemo(() => countMap(facets?.quality_band), [facets]);
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
+  const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
+
+  // Sources come from the live facet (scoped to the active query) so
+  // new upstream repos appear automatically without a code change.
+  // Preserves the intentional ALL_SOURCES ordering so long-standing
+  // sources stay in their familiar position; values unknown to
+  // ALL_SOURCES (right after ingest of a new source that predates the
+  // FE deploy) append at the bottom. Sources with zero matches stay
+  // listed (their own selection is excluded from the count, and the
+  // query may change) but render dimmed.
+  const sourceOptions = useMemo(() => {
+    const facetValues = (facets?.sources || []).map((f) => f.value);
+    const ordered: string[] = (ALL_SOURCES as readonly string[]).filter((s) => facetValues.includes(s));
+    for (const s of facetValues) if (!ordered.includes(s)) ordered.push(s);
+    return ordered;
+  }, [facets]);
 
   // Language options come from the live facet (like Source) so the list
   // can't drift from the corpus: no dead options (`lucene` shipped for
@@ -94,19 +65,17 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
       })),
     [facets],
   );
-  const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
 
-  // Convert tactics from context into sorted options array
-  const tacticOptions = useMemo(() => {
-    const options = Object.values(tactics).map((tactic) => ({
-      value: tactic.id,
-      label: tactic.name,
-    }));
-    // Sort by tactic ID to maintain consistent order
-    return options.sort((a, b) => a.value.localeCompare(b.value));
-  }, [tactics]);
+  // Tactics from context, sorted by ID for a stable order.
+  const tacticOptions = useMemo(
+    () =>
+      Object.values(tactics)
+        .map((tactic) => ({ value: tactic.id, label: tactic.name }))
+        .sort((a, b) => a.value.localeCompare(b.value)),
+    [tactics],
+  );
 
-  // MITRE technique suggestions for the autocomplete filter — built
+  // MITRE technique suggestions for the autocomplete filter -- built
   // from the live facet so users only see techniques that actually
   // have rules under the current query, with match counts inline.
   const techniqueSuggestions = useMemo(
@@ -120,30 +89,20 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
       }),
     [facets, techniques],
   );
-  const [showAllTactics, setShowAllTactics] = useState(false);
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['source', 'status', 'severity', 'telemetry'])
   );
-
   const toggleSection = (section: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
-    } else {
-      newExpanded.add(section);
-    }
-    setExpandedSections(newExpanded);
+    const next = new Set(expandedSections);
+    if (next.has(section)) next.delete(section);
+    else next.add(section);
+    setExpandedSections(next);
   };
 
-  const handleMultiSelect = (
-    field: keyof SearchFilters,
-    value: string,
-    checked: boolean
-  ) => {
+  const toggle = (field: keyof SearchFilters, value: string, checked: boolean) => {
     const current = (filters[field] as string[]) || [];
-    const updated = checked
-      ? [...current, value]
-      : current.filter((v) => v !== value);
+    const updated = checked ? [...current, value] : current.filter((v) => v !== value);
     onFiltersChange({ ...filters, [field]: updated, offset: 0 });
   };
 
@@ -158,30 +117,13 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   };
 
   const hasActiveFilters = countActiveFilters(filters) > 0;
+  const ctx = { filters, onFiltersChange, toggle };
 
-  const visibleTactics = showAllTactics ? tacticOptions : tacticOptions.slice(0, 5);
-
-  // Section header component
-  const SectionHeader = ({ title, section, count }: { title: string; section: string; count?: number }) => (
-    <button
-      onClick={() => toggleSection(section)}
-      className="w-full flex items-center justify-between py-2 text-left group"
-    >
-      <span className="text-xs font-display font-semibold text-gray-400 uppercase tracking-wider group-hover:text-matrix-500 transition-colors">
-        {title}
-        {count !== undefined && count > 0 && (
-          <span className="ml-2 text-matrix-500">({count})</span>
-        )}
-      </span>
-      <svg
-        className={`w-4 h-4 text-gray-500 transition-transform ${expandedSections.has(section) ? 'rotate-180' : ''}`}
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </svg>
-    </button>
+  const section = (id: string, title: string, count: number | undefined, body: React.ReactNode) => (
+    <div className="mb-3">
+      <SectionHeader title={title} count={count} expanded={expandedSections.has(id)} onToggle={() => toggleSection(id)} />
+      {expandedSections.has(id) && body}
+    </div>
   );
 
   return (
@@ -207,307 +149,98 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         )}
       </div>
 
-      {/* Source filter */}
-      <div className="mb-3">
-        <SectionHeader title="Source" section="source" count={filters.sources?.length} />
-        {expandedSections.has('source') && (
-          <div className="space-y-1 mt-2">
-            {/* Sources come from the live facet (scoped to the active
-                query) so new upstream repos appear automatically
-                without a code change. Preserves the intentional
-                ALL_SOURCES ordering as the render order so
-                long-standing sources stay in their familiar visual
-                position. Unknown-to-ALL_SOURCES values (e.g. right
-                after ingest of a new source that predates the FE
-                deploy) append at the bottom. Sources with zero
-                matches under the current query stay listed (their
-                own selection is excluded from the count, and the
-                query may change) but render dimmed. */}
-            {(() => {
-              const facetValues = (facets?.sources || []).map((f) => f.value);
-              const ordered: string[] = [];
-              for (const s of ALL_SOURCES) {
-                if (facetValues.includes(s)) ordered.push(s);
-              }
-              for (const s of facetValues) {
-                if (!ordered.includes(s)) ordered.push(s);
-              }
-              return ordered.map((value) => (
-                <label
-                  key={value}
-                  className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.sources?.includes(value) || false}
-                    onChange={(e) =>
-                      handleMultiSelect('sources', value, e.target.checked)
-                    }
-                    className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: sourceColors[value] }}
-                  />
-                  <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
-                    {sourceLabels[value] || value}
-                  </span>
-                  <FacetCount count={sourceCounts[value]} />
-                </label>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
-
-      {/* Severity filter */}
-      <div className="mb-3">
-        <SectionHeader title="Severity" section="severity" count={filters.severities?.length} />
-        {expandedSections.has('severity') && (
-          <div className="space-y-1 mt-2">
-            {[
-              { value: 'critical', label: 'Critical', color: '#ff0040' },
-              { value: 'high', label: 'High', color: '#ff9500' },
-              { value: 'medium', label: 'Medium', color: '#fbbf24' },
-              { value: 'low', label: 'Low', color: '#00ff41' },
-              { value: 'unknown', label: 'Unknown', color: '#6b7280' },
-            ].map((severity) => (
-              <label
-                key={severity.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.severities?.includes(severity.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('severities', severity.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: severity.color }}
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors capitalize">
-                  {severity.label}
-                </span>
-                <FacetCount count={severityCounts[severity.value]} />
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Status + building-block filter (issue #26) */}
-      <div className="mb-3">
-        <SectionHeader
-          title="Status"
-          section="status"
-          count={(filters.statuses?.length || 0) + (filters.building_block !== undefined ? 1 : 0)}
-        />
-        {expandedSections.has('status') && (
-          <div className="space-y-1 mt-2">
-            {STATUS_OPTIONS.filter((s) => statusCounts[s.value] !== undefined || filters.statuses?.includes(s.value)).map((s) => (
-              <label
-                key={s.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.statuses?.includes(s.value) || false}
-                  onChange={(e) => handleMultiSelect('statuses', s.value, e.target.checked)}
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors" title={s.hint}>
-                  {s.label}
-                </span>
-                <FacetCount count={statusCounts[s.value]} />
-              </label>
-            ))}
-            <div className="pt-2 mt-1 border-t border-void-800">
-              <div className="flex items-center justify-between px-2 mb-1">
-                <span className="text-[11px] font-mono text-gray-500 uppercase" title="Building blocks feed other rules instead of alerting on their own">
-                  Building blocks
-                </span>
-                <FacetCount count={buildingBlockCount} />
-              </div>
-              <div className="flex gap-1 px-2" role="radiogroup" aria-label="Building blocks">
-                {([
-                  { value: undefined, label: 'Any' },
-                  { value: true, label: 'Only' },
-                  { value: false, label: 'Hide' },
-                ] as Array<{ value: boolean | undefined; label: string }>).map((opt) => {
-                  const active = filters.building_block === opt.value;
-                  return (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => onFiltersChange({ ...filters, building_block: opt.value, offset: 0 })}
-                      className={`flex-1 px-2 py-1 text-xs border rounded transition-colors ${
-                        active
-                          ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40'
-                          : 'bg-void-900 text-gray-500 border-void-700 hover:text-gray-300'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Hygiene threshold (#39). Cumulative bands: "at least N". The
-          score measures rule hygiene (metadata, mapping, docs,
-          testability), not detection accuracy. */}
-      <div className="mb-3">
-        <SectionHeader
-          title="Hygiene"
-          section="hygiene"
-          count={filters.min_quality !== undefined ? 1 : 0}
-        />
-        {expandedSections.has('hygiene') && (
-          <div className="mt-2 px-2">
-            <div className="flex gap-1" role="radiogroup" aria-label="Minimum hygiene score">
-              {([
-                { value: undefined, label: 'Any' },
-                { value: 80, label: '80+' },
-                { value: 60, label: '60+' },
-                { value: 40, label: '40+' },
-              ] as Array<{ value: number | undefined; label: string }>).map((opt) => {
-                const active = filters.min_quality === opt.value;
-                const count = opt.value === undefined ? undefined : qualityBandCounts[String(opt.value)];
-                return (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => onFiltersChange({ ...filters, min_quality: opt.value, offset: 0 })}
-                    title={opt.value === undefined ? 'No hygiene threshold' : `Rules scoring at least ${opt.value}`}
-                    className={`flex-1 px-2 py-1 text-xs border rounded transition-colors ${
-                      active
-                        ? 'bg-matrix-500/20 text-matrix-300 border-matrix-500/40'
-                        : 'bg-void-900 text-gray-500 border-void-700 hover:text-gray-300'
-                    }`}
-                  >
-                    {opt.label}
-                    {count !== undefined && (
-                      <span className="ml-1 text-[10px] font-mono text-gray-600 tabular-nums">{count.toLocaleString()}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Language filter */}
-      <div className="mb-3">
-        <SectionHeader title="Language" section="language" count={filters.languages?.length} />
-        {expandedSections.has('language') && (
-          <div className="space-y-1 mt-2">
-            {languageOptions.map((lang) => (
-              <label
-                key={lang.value}
-                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.languages?.includes(lang.value) || false}
-                  onChange={(e) =>
-                    handleMultiSelect('languages', lang.value, e.target.checked)
-                  }
-                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">
-                  {lang.label}
-                </span>
-                <FacetCount count={languageCounts[lang.value]} />
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* MITRE Tactic filter */}
-      <div className="mb-3">
-        <SectionHeader title="MITRE Tactics" section="tactics" count={filters.mitre_tactics?.length} />
-        {expandedSections.has('tactics') && (
-          <div className="mt-2">
-            <div className="space-y-1">
-              {visibleTactics.map((tactic) => (
-                <label
-                  key={tactic.value}
-                  className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.mitre_tactics?.includes(tactic.value) || false}
-                    onChange={(e) =>
-                      handleMultiSelect('mitre_tactics', tactic.value, e.target.checked)
-                    }
-                    className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
-                  />
-                  <span className="text-sm text-gray-400 group-hover:text-white transition-colors truncate" title={tactic.value}>
-                    {tactic.label}
-                  </span>
-                  <FacetCount count={tacticCounts[tactic.value]} />
-                </label>
-              ))}
-            </div>
-            {tacticOptions.length > 5 && (
-              <button
-                onClick={() => setShowAllTactics(!showAllTactics)}
-                className="mt-2 text-xs font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
-              >
-                {showAllTactics ? '- SHOW LESS' : `+ ${tacticOptions.length - 5} MORE`}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* MITRE Technique filter — autocomplete from MitreContext */}
-      <div className="mb-3">
-        <SectionHeader title="MITRE Technique" section="techniques" count={filters.mitre_techniques?.length} />
-        {expandedSections.has('techniques') && (
-          <div className="mt-2">
-            <TagInputFilter
-              values={filters.mitre_techniques || []}
-              onChange={(values) =>
-                onFiltersChange({ ...filters, mitre_techniques: values, offset: 0 })
-              }
-              placeholder="Search technique ID or name…"
-              suggestions={techniqueSuggestions}
-              normalize={(raw) => raw.trim().toUpperCase()}
-              accent="purple"
+      {section('source', 'Source', filters.sources?.length, (
+        <div className="space-y-1 mt-2">
+          {sourceOptions.map((value) => (
+            <CheckboxOption
+              key={value}
+              checked={filters.sources?.includes(value) || false}
+              onChange={(checked) => toggle('sources', value, checked)}
+              label={sourceLabels[value] || value}
+              color={sourceColors[value] || '#6b7280'}
+              count={sourceCounts[value]}
             />
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ))}
 
-      {/* Telemetry — canonical taxonomy facets (Platform / Data Source /
+      {section('severity', 'Severity', filters.severities?.length, (
+        <div className="space-y-1 mt-2">
+          {SEVERITY_OPTIONS.map((severity) => (
+            <CheckboxOption
+              key={severity.value}
+              checked={filters.severities?.includes(severity.value) || false}
+              onChange={(checked) => toggle('severities', severity.value, checked)}
+              label={severity.label}
+              color={severity.color}
+              labelClass="capitalize"
+              count={severityCounts[severity.value]}
+            />
+          ))}
+        </div>
+      ))}
+
+      {section(
+        'status',
+        'Status',
+        (filters.statuses?.length || 0) + (filters.building_block !== undefined ? 1 : 0),
+        <StatusSection {...ctx} statusCounts={statusCounts} buildingBlockCount={buildingBlockCount} />,
+      )}
+
+      {section(
+        'hygiene',
+        'Hygiene',
+        filters.min_quality !== undefined ? 1 : 0,
+        <HygieneSection filters={filters} onFiltersChange={onFiltersChange} bandCounts={qualityBandCounts} />,
+      )}
+
+      {section('language', 'Language', filters.languages?.length, (
+        <div className="space-y-1 mt-2">
+          {languageOptions.map((lang) => (
+            <CheckboxOption
+              key={lang.value}
+              checked={filters.languages?.includes(lang.value) || false}
+              onChange={(checked) => toggle('languages', lang.value, checked)}
+              label={lang.label}
+              count={languageCounts[lang.value]}
+            />
+          ))}
+        </div>
+      ))}
+
+      {section(
+        'tactics',
+        'MITRE Tactics',
+        filters.mitre_tactics?.length,
+        <TacticsSection filters={filters} toggle={toggle} options={tacticOptions} counts={tacticCounts} />,
+      )}
+
+      {section('techniques', 'MITRE Technique', filters.mitre_techniques?.length, (
+        <div className="mt-2">
+          <TagInputFilter
+            values={filters.mitre_techniques || []}
+            onChange={(values) =>
+              onFiltersChange({ ...filters, mitre_techniques: values, offset: 0 })
+            }
+            placeholder="Search technique ID or name…"
+            suggestions={techniqueSuggestions}
+            normalize={(raw) => raw.trim().toUpperCase()}
+            accent="purple"
+          />
+        </div>
+      ))}
+
+      {/* Telemetry -- canonical taxonomy facets (Platform / Data Source /
           Event Type). Options + counts come from the live query-scoped
           facets; no hardcoded lists, and counts narrow as other
           filters apply. */}
-      <div className="mb-3">
-        <SectionHeader
-          title="Telemetry"
-          section="telemetry"
-          count={
-            (filters.platforms?.length || 0) +
-            (filters.data_sources_normalized?.length || 0) +
-            (filters.event_categories?.length || 0)
-          }
-        />
-        {expandedSections.has('telemetry') && (
+      {section(
+        'telemetry',
+        'Telemetry',
+        (filters.platforms?.length || 0) +
+          (filters.data_sources_normalized?.length || 0) +
+          (filters.event_categories?.length || 0),
+        (
           <div className="mt-2">
             <TelemetryFilter
               filters={filters}
@@ -519,64 +252,18 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               }}
             />
           </div>
-        )}
-      </div>
+        ),
+      )}
 
-
-      {/* Observables — what the rule logic actually keys on, from the
-          per-source extractors (observables v2). Facet-backed like
-          Telemetry so every option shows what a click yields; the same
-          dimensions are queryable from the bar (process: / action: /
-          table: / eventid:) and round-trip through the sheet. */}
-      <div className="mb-3">
-        <SectionHeader
-          title="Observables"
-          section="observables"
-          count={
-            (filters.process_names?.length || 0) +
-            (filters.api_actions?.length || 0) +
-            (filters.source_tables?.length || 0) +
-            (filters.event_ids?.length || 0)
-          }
-        />
-        {expandedSections.has('observables') && (
-          <div className="mt-2 space-y-4">
-            <Facet
-              title="Process"
-              filterKey="process_names"
-              accent="red"
-              options={facets?.process_names || []}
-              selected={filters.process_names || []}
-              onChange={(values) => onFiltersChange({ ...filters, process_names: values, offset: 0 })}
-            />
-            <Facet
-              title="API Action"
-              filterKey="api_actions"
-              accent="cyan"
-              options={facets?.api_actions || []}
-              selected={filters.api_actions || []}
-              onChange={(values) => onFiltersChange({ ...filters, api_actions: values, offset: 0 })}
-            />
-            <Facet
-              title="Source Table"
-              filterKey="source_tables"
-              accent="emerald"
-              options={facets?.source_tables || []}
-              selected={filters.source_tables || []}
-              onChange={(values) => onFiltersChange({ ...filters, source_tables: values, offset: 0 })}
-            />
-            <Facet
-              title="Event ID"
-              filterKey="event_ids"
-              accent="amber"
-              options={facets?.event_ids || []}
-              selected={filters.event_ids || []}
-              onChange={(values) => onFiltersChange({ ...filters, event_ids: values, offset: 0 })}
-              labels={eventIdLabels}
-            />
-          </div>
-        )}
-      </div>
+      {section(
+        'observables',
+        'Observables',
+        (filters.process_names?.length || 0) +
+          (filters.api_actions?.length || 0) +
+          (filters.source_tables?.length || 0) +
+          (filters.event_ids?.length || 0),
+        <ObservablesSection filters={filters} onFiltersChange={onFiltersChange} facets={facets} eventIdLabels={eventIdLabels} />,
+      )}
     </div>
   );
 }
