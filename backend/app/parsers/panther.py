@@ -157,16 +157,14 @@ class PantherParser(BaseParser):
             )
 
             # ── Status resolution ─────────────────────────────────
-            # Priority: explicit deprecated.txt > signal-only stamp >
-            # rule's own status hints (Panther rules don't carry a
-            # `status` field — they carry `Enabled: bool` which we
-            # respect only for defaults).
+            # Priority: explicit deprecated.txt > rule's own status
+            # hints (Panther rules don't carry a `status` field — they
+            # carry `Enabled: bool` which we respect only for
+            # defaults). Signal-only is NOT a status: it rides along in
+            # `extra["is_signal_only"]` and becomes
+            # `is_building_block` (issue #26).
             if rule_id and self._is_deprecated(rule_id):
                 status = "deprecated"
-            elif is_signal_only:
-                # Building-block conceptually; cross-source status
-                # vocab in flight (issue #26). For now: `experimental`.
-                status = "experimental"
             elif rule.get("Enabled") is False:
                 # Disabled-in-repo != deprecated, but not production
                 # either — treat as experimental.

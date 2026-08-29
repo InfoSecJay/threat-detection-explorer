@@ -51,6 +51,7 @@ class PyPantherNormalizer(BaseNormalizer):
             description=parsed.description,
             author=None,
             status=self.normalize_status(parsed.status),
+            is_building_block=bool(extra.get("is_signal_only")),
             severity=self.normalize_severity(parsed.severity),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),

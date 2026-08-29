@@ -181,10 +181,18 @@ export function RulePreviewModal({
                     className={
                       detection.status === 'stable'
                         ? 'bg-green-500/15 text-green-400 border-green-500/30'
-                        : detection.status === 'experimental'
-                          ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
-                          : 'bg-gray-500/15 text-gray-400 border-gray-500/30'
+                        : detection.status === 'test'
+                          ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                          : detection.status === 'experimental'
+                            ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
+                            : 'bg-gray-500/15 text-gray-400 border-gray-500/30'
                     }
+                  />
+                )}
+                {detection.is_building_block && (
+                  <BadgePill
+                    text="BUILDING BLOCK"
+                    className="bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30"
                   />
                 )}
                 {detection.query_complexity &&

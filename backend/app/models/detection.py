@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
-from sqlalchemy import String, Text, DateTime, JSON, Integer, Index
+from sqlalchemy import String, Text, DateTime, JSON, Integer, Index, Boolean, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -46,6 +46,19 @@ class Detection(Base):
         String(20),
         nullable=False,
         default="unknown",
+        index=True,
+    )
+    # Building-block / signal-only rule (issue #26): emits signal for
+    # other rules to correlate on instead of alerting by itself
+    # (Elastic `building_block_type` / `rules_building_block/`, Panther
+    # `CreateAlert: false` / `panther-signal`). Orthogonal to `status`.
+    # Rows that pre-date the column may hold NULL until the next sync
+    # rewrites them -- every reader treats NULL as False.
+    is_building_block: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
         index=True,
     )
     severity: Mapped[str] = mapped_column(

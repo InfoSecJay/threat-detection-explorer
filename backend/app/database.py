@@ -46,7 +46,16 @@ def _migrate_missing_columns(connection):
         for column in table.columns:
             if column.name not in existing_cols:
                 col_type = column.type.compile(connection.engine.dialect)
-                default = "'[]'" if "json" in str(col_type).lower() or "text" in str(col_type).lower() else "NULL"
+                type_name = str(col_type).lower()
+                if "json" in type_name or "text" in type_name:
+                    default = "'[]'"
+                elif "bool" in type_name:
+                    # A NULL boolean is a third state every reader would
+                    # have to special-case; backfill existing rows with
+                    # FALSE (Postgres) / 0 (SQLite) instead.
+                    default = "FALSE" if connection.engine.dialect.name == "postgresql" else "0"
+                else:
+                    default = "NULL"
                 connection.execute(text(
                     f'ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type} DEFAULT {default}'
                 ))

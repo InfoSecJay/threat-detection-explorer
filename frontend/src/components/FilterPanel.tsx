@@ -9,6 +9,18 @@ import type { SearchFilters } from '../types';
 import { clipMd } from '../constants/style';
 import { countActiveFilters } from '../utils/filterUtils';
 
+// Rule maturity vocabulary (Sigma's, preserved 1:1 -- issue #26).
+// Options with no corpus count are hidden unless already selected, so
+// `deprecated` (never ingested) does not clutter the list.
+const STATUS_OPTIONS: Array<{ value: string; label: string; color: string; hint: string }> = [
+  { value: 'stable', label: 'Stable', color: '#00ff41', hint: 'Field-proven; vendor considers it production-ready' },
+  { value: 'test', label: 'Test', color: '#38bdf8', hint: 'Works, not yet field-proven (Sigma "test")' },
+  { value: 'experimental', label: 'Experimental', color: '#fbbf24', hint: 'Early-stage or disabled by default upstream' },
+  { value: 'deprecated', label: 'Deprecated', color: '#ff0040', hint: 'Retired upstream' },
+  { value: 'unsupported', label: 'Unsupported', color: '#ff9500', hint: 'Cannot run on current tooling (Sigma "unsupported")' },
+  { value: 'unknown', label: 'Unknown', color: '#6b7280', hint: 'Source carries no maturity concept' },
+];
+
 interface FilterPanelProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
@@ -66,6 +78,8 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const { labels: eventIdLabels } = useEventIds();
   const sourceCounts = useMemo(() => countMap(facets?.sources), [facets]);
   const severityCounts = useMemo(() => countMap(facets?.severities), [facets]);
+  const statusCounts = useMemo(() => countMap(facets?.statuses), [facets]);
+  const buildingBlockCount = facets?.building_block?.find((o) => o.value === 'true')?.count;
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
 
   // Language options come from the live facet (like Source) so the list
@@ -107,7 +121,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   );
   const [showAllTactics, setShowAllTactics] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['source', 'severity', 'telemetry'])
+    new Set(['source', 'status', 'severity', 'telemetry'])
   );
 
   const toggleSection = (section: string) => {
@@ -279,6 +293,70 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 <FacetCount count={severityCounts[severity.value]} />
               </label>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Status + building-block filter (issue #26) */}
+      <div className="mb-3">
+        <SectionHeader
+          title="Status"
+          section="status"
+          count={(filters.statuses?.length || 0) + (filters.building_block !== undefined ? 1 : 0)}
+        />
+        {expandedSections.has('status') && (
+          <div className="space-y-1 mt-2">
+            {STATUS_OPTIONS.filter((s) => statusCounts[s.value] !== undefined || filters.statuses?.includes(s.value)).map((s) => (
+              <label
+                key={s.value}
+                className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer hover:bg-void-800 transition-colors group"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.statuses?.includes(s.value) || false}
+                  onChange={(e) => handleMultiSelect('statuses', s.value, e.target.checked)}
+                  className="w-3.5 h-3.5 rounded-sm bg-void-900 border-void-600 text-matrix-500 focus:ring-matrix-500/50 focus:ring-offset-void-900"
+                />
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="text-sm text-gray-400 group-hover:text-white transition-colors" title={s.hint}>
+                  {s.label}
+                </span>
+                <FacetCount count={statusCounts[s.value]} />
+              </label>
+            ))}
+            <div className="pt-2 mt-1 border-t border-void-800">
+              <div className="flex items-center justify-between px-2 mb-1">
+                <span className="text-[11px] font-mono text-gray-500 uppercase" title="Building blocks feed other rules instead of alerting on their own">
+                  Building blocks
+                </span>
+                <FacetCount count={buildingBlockCount} />
+              </div>
+              <div className="flex gap-1 px-2" role="radiogroup" aria-label="Building blocks">
+                {([
+                  { value: undefined, label: 'Any' },
+                  { value: true, label: 'Only' },
+                  { value: false, label: 'Hide' },
+                ] as Array<{ value: boolean | undefined; label: string }>).map((opt) => {
+                  const active = filters.building_block === opt.value;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => onFiltersChange({ ...filters, building_block: opt.value, offset: 0 })}
+                      className={`flex-1 px-2 py-1 text-xs border rounded transition-colors ${
+                        active
+                          ? 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40'
+                          : 'bg-void-900 text-gray-500 border-void-700 hover:text-gray-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>

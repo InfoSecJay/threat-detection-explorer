@@ -38,8 +38,10 @@ const severityColors: Record<string, string> = {
 
 const statusColors: Record<string, string> = {
   stable: 'bg-green-500/20 text-green-400 border-green-500/30',
+  test: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
   experimental: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   deprecated: 'bg-red-500/20 text-red-400 border-red-500/30',
+  unsupported: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   unknown: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
@@ -127,9 +129,17 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity]}`}>
                 {detection.severity}
               </span>
-              <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status]}`}>
+              <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>
                 {detection.status}
               </span>
+              {detection.is_building_block && (
+                <span
+                  className="px-2 py-0.5 rounded text-xs font-semibold border bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30"
+                  title="Building block: emits signal for other rules to correlate on; does not alert on its own"
+                >
+                  Building block
+                </span>
+              )}
             </div>
             <h1 className="text-xl font-bold text-white">{detection.title}</h1>
           </div>

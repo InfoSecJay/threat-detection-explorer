@@ -11,7 +11,12 @@ export interface Detection {
   title: string;
   description: string | null;
   author: string | null;
-  status: 'stable' | 'experimental' | 'deprecated' | 'unknown';
+  // Sigma's maturity vocabulary, preserved 1:1 (issue #26).
+  status: 'stable' | 'test' | 'experimental' | 'deprecated' | 'unsupported' | 'unknown';
+  // Building-block / signal-only rule: feeds other rules instead of
+  // alerting on its own (Elastic building_block_type, Panther
+  // CreateAlert: false). Orthogonal to status.
+  is_building_block: boolean;
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   // Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
   // The legacy single-value siblings (platform / event_category /
@@ -140,6 +145,9 @@ export interface SearchFilters {
   q?: string;
   sources?: string[];
   statuses?: string[];
+  // Tri-state: true = building blocks only, false = hide them,
+  // undefined = both (issue #26).
+  building_block?: boolean;
   severities?: string[];
   languages?: string[];
   mitre_tactics?: string[];

@@ -135,8 +135,22 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["status"],
         kind="text",
         columns=["status"],
-        description="stable, experimental, deprecated, unknown.",
-        examples=["status:experimental"],
+        description=(
+            "Rule maturity, Sigma vocabulary: stable, test, experimental, "
+            "deprecated, unsupported, unknown."
+        ),
+        examples=["status:stable", "status:test"],
+    ),
+    FieldSpec(
+        aliases=["building_block", "bb", "signal_only"],
+        kind="bool",
+        columns=["is_building_block"],
+        description=(
+            "Building-block / signal-only rules (Elastic building_block_type, "
+            "Panther CreateAlert: false): they feed other rules instead of "
+            "alerting on their own. true / false."
+        ),
+        examples=["building_block:true", "NOT building_block:true"],
     ),
     FieldSpec(
         aliases=["lang", "language"],
@@ -388,8 +402,29 @@ def _list_substring_clause(column_name: str, raw_value: str) -> ColumnElement:
     return cast(col, String).ilike(f"{prefix}{core}{suffix}")
 
 
+_BOOL_TRUE = frozenset({"true", "yes", "1"})
+_BOOL_FALSE = frozenset({"false", "no", "0"})
+
+
+def _bool_clause(column_name: str, raw_value: str) -> ColumnElement:
+    """`field:true` / `field:false` on a boolean column. NULL (rows
+    that pre-date the column) counts as false on both sides."""
+    col = getattr(Detection, column_name)
+    v = raw_value.strip().strip('"').lower()
+    if v in _BOOL_TRUE:
+        return col.is_(True)
+    if v in _BOOL_FALSE:
+        return col.isnot(True)
+    raise QueryParseError(
+        f"'{column_name}' expects true or false, got {raw_value!r}",
+        suggestion="Use building_block:true or building_block:false.",
+    )
+
+
 def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
     """Build a WHERE clause for `field:value` given a FieldSpec."""
+    if spec.kind == "bool":
+        return _bool_clause(spec.columns[0], value)
     if spec.kind == "list_substring":
         return _list_substring_clause(spec.columns[0], value)
     if spec.kind == "list_mitre_group":

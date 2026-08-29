@@ -103,8 +103,11 @@ def test_normalize_status_stable(normalizer):
     assert normalizer.normalize(_parsed(status="stable")).status == "stable"
 
 
-def test_normalize_status_test_maps_to_experimental(normalizer):
-    assert normalizer.normalize(_parsed(status="test")).status == "experimental"
+def test_normalize_status_test_is_preserved(normalizer):
+    # Sigma vocabulary 1:1 (issue #26): `test` is its own maturity level,
+    # no longer flattened into `experimental`.
+    assert normalizer.normalize(_parsed(status="test")).status == "test"
+    assert normalizer.normalize(_parsed(status="unsupported")).status == "unsupported"
 
 
 def test_normalize_status_deprecated(normalizer):

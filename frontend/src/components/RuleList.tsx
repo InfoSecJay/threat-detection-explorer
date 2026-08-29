@@ -465,6 +465,14 @@ export function RuleList({
                       >
                         {detection.title}
                       </Link>
+                      {detection.is_building_block && (
+                        <span
+                          className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30 align-middle"
+                          title="Building block: feeds other rules, does not alert on its own"
+                        >
+                          BB
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span

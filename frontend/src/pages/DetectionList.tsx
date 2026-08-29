@@ -96,6 +96,12 @@ export function DetectionList() {
     q: searchParams.get('q') || undefined,
     sources: searchParams.get('sources')?.split(',').filter(Boolean) || [],
     statuses: searchParams.get('statuses')?.split(',').filter(Boolean) || [],
+    building_block:
+      searchParams.get('building_block') === 'true'
+        ? true
+        : searchParams.get('building_block') === 'false'
+          ? false
+          : undefined,
     severities: searchParams.get('severities')?.split(',').filter(Boolean) || [],
     mitre_tactics: searchParams.get('mitre_tactics')?.split(',').filter(Boolean) || [],
     mitre_techniques: searchParams.get('mitre_techniques')?.split(',').filter(Boolean) || [],
@@ -133,6 +139,7 @@ export function DetectionList() {
     if (filters.q) params.set('q', filters.q);
     if (filters.sources?.length) params.set('sources', filters.sources.join(','));
     if (filters.statuses?.length) params.set('statuses', filters.statuses.join(','));
+    if (filters.building_block !== undefined) params.set('building_block', String(filters.building_block));
     if (filters.severities?.length) params.set('severities', filters.severities.join(','));
     if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
     if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));

@@ -64,6 +64,9 @@ class PantherNormalizer(BaseNormalizer):
             description=parsed.description,
             author=parsed.author,  # None — Panther rules don't carry an Author field
             status=self.normalize_status(parsed.status),
+            # Signal-only (`CreateAlert: false` / `panther-signal`) is a
+            # building block, not a maturity level (issue #26).
+            is_building_block=bool(extra.get("is_signal_only")),
             severity=self.normalize_severity(parsed.severity),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),

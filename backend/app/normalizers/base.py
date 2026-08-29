@@ -32,7 +32,8 @@ class NormalizedDetection:
     description: Optional[str]
     author: Optional[str]
 
-    # Status: stable, experimental, deprecated, unknown
+    # Status: stable, test, experimental, deprecated, unsupported, unknown
+    # (Sigma vocabulary 1:1 -- see normalize_status, issue #26)
     status: str
 
     # Severity: low, medium, high, critical, unknown
@@ -40,6 +41,11 @@ class NormalizedDetection:
 
     # Fields with defaults must come after required fields
     source_rule_url: Optional[str] = None  # Direct link to rule in source repo
+    # Building-block / signal-only rule (issue #26): emits signal for
+    # other rules to correlate on instead of alerting by itself.
+    # Orthogonal to status (a building block can be stable). Set by
+    # the Elastic and Panther/pypanther normalizers; False elsewhere.
+    is_building_block: bool = False
     rule_id: Optional[str] = None  # Original rule ID from source
 
     # MITRE ATT&CK
@@ -249,7 +255,13 @@ class BaseNormalizer(ABC):
             status: Raw status value
 
         Returns:
-            One of: stable, experimental, deprecated, unknown
+            One of: stable, test, experimental, deprecated, unsupported,
+            unknown. The vocabulary follows Sigma's `status` field 1:1
+            (issue #26) -- `test` ("works, not yet field-proven") is a
+            distinct maturity from `experimental` and was previously
+            flattened into it, which made 97% of Sigma look
+            experimental. `unsupported` is Sigma's "cannot be run on
+            current tooling" and is preserved rather than dropped.
         """
         if not status:
             return "unknown"
@@ -257,10 +269,14 @@ class BaseNormalizer(ABC):
         status_lower = status.lower()
         if status_lower in ["stable", "production", "released"]:
             return "stable"
-        elif status_lower in ["experimental", "test", "testing", "development", "dev"]:
+        elif status_lower in ["test", "testing"]:
+            return "test"
+        elif status_lower in ["experimental", "development", "dev"]:
             return "experimental"
         elif status_lower in ["deprecated", "obsolete", "retired"]:
             return "deprecated"
+        elif status_lower in ["unsupported"]:
+            return "unsupported"
         return "unknown"
 
     def normalize_severity(self, severity: Optional[str]) -> str:

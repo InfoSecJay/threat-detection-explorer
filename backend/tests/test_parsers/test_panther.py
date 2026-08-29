@@ -137,7 +137,7 @@ def test_parse_non_mitre_reports_become_report_prefixed_tags():
 
 
 def test_parse_signal_only_via_create_alert_false():
-    """CreateAlert: false -> status: experimental + signal flag."""
+    """CreateAlert: false -> signal flag; status unaffected."""
     yaml_source = _SAMPLE_YAML.replace("CreateAlert: true", "CreateAlert: false")
     disco = StubDiscovery(siblings={
         "rules/aws_cloudtrail_rules/aws_cloudtrail_stopped.py": _SAMPLE_PY,
@@ -145,7 +145,9 @@ def test_parse_signal_only_via_create_alert_false():
     parser = PantherParser(disco)
     parsed = parser.parse(_rel("aws_cloudtrail_stopped.yml"), yaml_source)
 
-    assert parsed.status == "experimental"
+    # Signal-only is a building block, not a maturity level (issue #26):
+    # status comes from Enabled alone, the flag rides in extra.
+    assert parsed.status == "stable"
     assert parsed.extra["is_signal_only"] is True
 
 
@@ -161,7 +163,9 @@ def test_parse_signal_only_via_panther_signal_tag():
     parser = PantherParser(disco)
     parsed = parser.parse(_rel("aws_cloudtrail_stopped.yml"), yaml_source)
 
-    assert parsed.status == "experimental"
+    # Signal-only is a building block, not a maturity level (issue #26):
+    # status comes from Enabled alone, the flag rides in extra.
+    assert parsed.status == "stable"
     assert parsed.extra["is_signal_only"] is True
 
 
