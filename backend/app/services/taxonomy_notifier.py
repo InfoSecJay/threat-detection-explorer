@@ -81,7 +81,8 @@ async def notify_drift(repo_results: dict, sync_job_id: str) -> list[dict]:
     drift_repos = [
         (name, result)
         for name, result in repo_results.items()
-        if isinstance(result, dict) and result.get("taxonomy_unmatched", 0) > 0
+        if isinstance(result, dict)
+        and (result.get("taxonomy_unmatched", 0) > 0 or result.get("taxonomy_no_datasource", 0) > 0)
     ]
 
     if not drift_repos:
@@ -194,9 +195,11 @@ def _format_drift_body(repo_name: str, result: dict, sync_job_id: str) -> str:
     """Build the markdown body for a drift issue or comment."""
     unmapped = result.get("taxonomy_unmatched", 0)
     matched = result.get("taxonomy_matched", 0)
+    no_ds = result.get("taxonomy_no_datasource", 0)
     coverage = result.get("taxonomy_coverage_percent", 0.0)
     total = unmapped + matched
     fingerprints = result.get("taxonomy_unmatched_by_fingerprint", {}) or {}
+    nods_fingerprints = result.get("taxonomy_no_datasource_by_fingerprint", {}) or {}
 
     # Sort fingerprints by count descending — most common misses first
     sorted_fps = sorted(
@@ -213,6 +216,7 @@ def _format_drift_body(repo_name: str, result: dict, sync_job_id: str) -> str:
         f"- Rules normalized: **{total}**",
         f"- Rules mapped: **{matched}**",
         f"- Rules unmapped: **{unmapped}**",
+        f"- Mapped but no data source (shown as unknown): **{no_ds}**",
         f"- Coverage: **{coverage:.1f}%**",
         "",
         "## Unmapped logsource fingerprints",
@@ -238,5 +242,39 @@ def _format_drift_body(repo_name: str, result: dict, sync_job_id: str) -> str:
     if len(sorted_fps) > 30:
         lines.append("")
         lines.append(f"_…and {len(sorted_fps) - 30} more fingerprints._")
+
+    if nods_fingerprints:
+        sorted_nods = sorted(
+            nods_fingerprints.items(),
+            key=lambda kv: kv[1].get("count", 0),
+            reverse=True,
+        )
+        lines += [
+            "",
+            "## Mapped, but no data source",
+            "",
+            "The resolver matched a platform or event type but produced no",
+            "data source -- these rules show **unknown** on the site. Add a",
+            "data_sources value to the matching mapping tier (deliberate",
+            "omissions, e.g. Sigma category-only logsources, will keep",
+            "reappearing here and can be ignored).",
+            "",
+            "| Count | Fingerprint | Sample rule |",
+            "| ---: | :--- | :--- |",
+        ]
+        for fp, bucket in sorted_nods[:30]:
+            count = bucket.get("count", 0)
+            samples = bucket.get("samples") or []
+            sample_str = "—"
+            if samples:
+                s = samples[0]
+                title = (s.get("title") or "").replace("|", "\\|")
+                rule_id = s.get("rule_id") or s.get("source_file") or "?"
+                sample_str = f"`{rule_id}` — {title[:80]}"
+            fp_display = fp.replace("|", "\\|") if fp else "-"
+            lines.append(f"| {count} | `{fp_display}` | {sample_str} |")
+        if len(sorted_nods) > 30:
+            lines.append("")
+            lines.append(f"_…and {len(sorted_nods) - 30} more fingerprints._")
 
     return "\n".join(lines)

@@ -51,6 +51,60 @@ by_platform:
 
 # Tier 2: explicit `data_source` meta value -> canonical data_source.
 by_data_source:
+  # ── Drift 2026-08-30: community threat_intel/network rules ─────────
+  "microsoft sysmon":
+    platforms: [windows]
+    data_sources: [sysmon]
+  "microsoft defender atp":
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+  "microsoft windows events":
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+  "microsoft windows":
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+  "microsoft login events":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+    event_types: [authentication]
+  "microsoft ad":
+    platforms: [windows]
+    data_sources: [windows_security_event_log]
+  "crowdstrike":
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_fdr]
+  "zscalar":  # recurring upstream typo for Zscaler
+    platforms: [zscaler]
+    data_sources: [proxy_logs]
+  "zscaler nss":
+    platforms: [zscaler]
+    data_sources: [proxy_logs]
+  "sentinelone":
+    platforms: [sentinelone]
+    data_sources: [sentinelone]
+  "corelight zeek":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+  "zeek":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+  "extrahop":
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+  "gcp dns":
+    platforms: [gcp]
+    data_sources: [gcp_dns]
+    event_types: [dns_query]
+  "gcp firewall":
+    platforms: [gcp]
+    data_sources: [gcp_vpc_flow]
+  "gcp scc":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+  "google scc":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
   "aws cloudtrail":
     data_sources: [aws_cloudtrail]
     event_types: [api_call]

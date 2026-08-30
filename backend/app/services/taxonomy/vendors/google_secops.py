@@ -55,10 +55,12 @@ def resolve(parsed: "ParsedRule") -> dict:
             data_sources.update(entry.get("data_sources") or [])
             event_types.update(entry.get("event_types") or [])
 
-    # Tier 2: explicit `data_source` meta.
+    # Tier 2: explicit `data_source` meta. Community rules routinely
+    # list several products in one string ("microsoft sysmon,
+    # crowdstrike, zscalar") -- split on commas and union every match.
     data_source_raw = (extra.get("data_source") or "").lower().strip()
-    if data_source_raw:
-        entry = (_MAPPING.get("by_data_source") or {}).get(data_source_raw)
+    for data_source_part in filter(None, (p.strip() for p in data_source_raw.split(","))):
+        entry = (_MAPPING.get("by_data_source") or {}).get(data_source_part)
         if entry:
             platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])

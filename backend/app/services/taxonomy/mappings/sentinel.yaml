@@ -290,6 +290,137 @@ kql_tables:
   # Platform deliberately empty -- let connectors / solution_folders
   # tiers determine platform. Tagging every unknown _CL table as
   # `cross_platform` was poisoning ~50% of Sentinel's distribution.
+  # ── Drift 2026-08-30 (#64 + prod unknown-data-source audit) ─────────
+  gcpclouddns:
+    platforms: [gcp]
+    data_sources: [gcp_dns]
+    event_types: [dns_query]
+  gcp_iam:
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [audit_event]
+  paloaltoprismacloud:
+    platforms: []
+    data_sources: [prisma_cloud_audit]
+    event_types: [platform_alert]
+  cyberarkepm:
+    platforms: [windows]
+    data_sources: [cyberark_epm]
+    event_types: [audit_event]
+  jiraaudit:
+    platforms: [atlassian]
+    data_sources: [atlassian_audit]
+    event_types: [audit_event]
+  gworkspaceactivityreports:
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  trendmicrocas:
+    platforms: [email]
+    data_sources: [trend_micro_cas]
+    event_types: [platform_alert]
+  bitglass:
+    platforms: []
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  ocilogs:
+    platforms: [oci]
+    data_sources: [oci_audit]
+    event_types: [audit_event]
+  snowflake:
+    platforms: [snowflake]
+    data_sources: [snowflake_query_history, snowflake_login_history]
+    event_types: [audit_event]
+  impervawafcloud:
+    platforms: [network_appliance]
+    data_sources: [imperva_waf]
+    event_types: [http_request]
+  radiflowevent:
+    platforms: [network_appliance]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  w3ciislog:
+    platforms: [windows]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  azfwidpssignature:
+    platforms: [azure]
+    data_sources: [azure_firewall]
+    event_types: [network_connection]
+  sailpointidn_events:
+    platforms: []
+    data_sources: [sailpoint_idn_audit]
+    event_types: [audit_event]
+  copilotactivity:
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  lookoutevents:
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  zoomlogs:
+    platforms: [zoom]
+    data_sources: [zoom_operation, zoom_activity]
+    event_types: [audit_event]
+  # Log Analytics agent generic Windows event channel table.
+  event:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  salesforceservicecloud:
+    platforms: [salesforce]
+    data_sources: [salesforce_realtime]
+    event_types: [audit_event]
+  securityrecommendation:
+    platforms: [azure]
+    data_sources: [defender_cloud]
+    event_types: [platform_alert]
+  securityregulatorycompliance:
+    platforms: [azure]
+    data_sources: [defender_cloud]
+    event_types: [platform_alert]
+  defendauditdata:  # KnowBe4 Defend
+    platforms: [email]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  exchangeadminauditlogs:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
+    event_types: [audit_event]
+  purviewdatasensitivitylogs:
+    platforms: [microsoft_365]
+    data_sources: [m365_purview_audit]
+    event_types: [audit_event]
+  heartbeat:
+    platforms: [azure]
+    data_sources: [azure_monitor_activity]
+    event_types: [audit_event]
+  laquerylogs:
+    platforms: [azure]
+    data_sources: [azure_monitor_activity]
+    event_types: [audit_event]
+  appserviceantivirusscanauditlogs:
+    platforms: [azure]
+    data_sources: [azure_app_service]
+    event_types: [platform_alert]
+  asimalerteventlogs:
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [platform_alert]
+  asimalerteventbitdefendergravityzone:
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  extrahopdetections:
+    platforms: [network_appliance]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  dataminrpulsealerts:
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+
   # If no tier resolves a platform, the rule lands on `[unknown]`
   # which is more honest and easier to triage.
   "*_cl":
@@ -618,6 +749,187 @@ data_types:
 # folders) fall through to the `*_cl` table bucket.
 # ─────────────────────────────────────────────────────────────────────────
 solution_folders:
+  # ── Drift 2026-08-30 (#64 + prod unknown-data-source audit).
+  # Folders whose rules query ASIM functions or vendor _CL tables the
+  # table tier cannot see. ──────────────────────────────────────────────
+  "web session essentials":
+    platforms: []
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  "dns essentials":
+    platforms: []
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  "network session essentials":
+    platforms: []
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+  "corelight":
+    platforms: [network_appliance]
+    data_sources: [zeek]
+    event_types: [network_connection]
+  "iboss":
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  "microsoft copilot":
+    platforms: [microsoft_365]
+    data_sources: [m365_audit]
+    event_types: [audit_event]
+  "azure firewall":
+    platforms: [azure]
+    data_sources: [azure_firewall]
+    event_types: [network_connection]
+  "googlecloudplatformdns":
+    platforms: [gcp]
+    data_sources: [gcp_dns]
+    event_types: [dns_query]
+  "googlecloudplatformiam":
+    platforms: [gcp]
+    data_sources: [gcp_audit]
+    event_types: [audit_event]
+  "googleworkspacereports":
+    platforms: [google_workspace]
+    data_sources: [google_workspace_audit]
+    event_types: [audit_event]
+  "paloaltoprismacloud":
+    platforms: []
+    data_sources: [prisma_cloud_audit]
+    event_types: [platform_alert]
+  "cyberarkepm":
+    platforms: [windows]
+    data_sources: [cyberark_epm]
+    event_types: [audit_event]
+  "atlassianjiraaudit":
+    platforms: [atlassian]
+    data_sources: [atlassian_audit]
+    event_types: [audit_event]
+  "trend micro cloud app security":
+    platforms: [email]
+    data_sources: [trend_micro_cas]
+    event_types: [platform_alert]
+  "bitglass":
+    platforms: []
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  "oracle cloud infrastructure":
+    platforms: [oci]
+    data_sources: [oci_audit]
+    event_types: [audit_event]
+  "snowflake":
+    platforms: [snowflake]
+    data_sources: [snowflake_query_history, snowflake_login_history]
+    event_types: [audit_event]
+  "impervacloudwaf":
+    platforms: [network_appliance]
+    data_sources: [imperva_waf]
+    event_types: [http_request]
+  "radiflow":
+    platforms: [network_appliance]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "sailpointidentitynow":
+    platforms: []
+    data_sources: [sailpoint_idn_audit]
+    event_types: [audit_event]
+  "microsoft purview":
+    platforms: [microsoft_365]
+    data_sources: [m365_purview_audit]
+    event_types: [audit_event]
+  "salesforce service cloud":
+    platforms: [salesforce]
+    data_sources: [salesforce_realtime]
+    event_types: [audit_event]
+  "lookout":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "knowbe4 defend":
+    platforms: [email]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "gravityzone":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "extrahop":
+    platforms: [network_appliance]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "dataminr pulse":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "threatconnect":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "honeylabs":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "datazag":
+    platforms: []
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  "synqlyintegrationconnector":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [platform_alert]
+  "windows forwarded events":
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  "microsoft exchange security - exchange on-premises":
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  "fortinet fortiweb cloud waf-as-a-service connector for microsoft sentinel":
+    platforms: [network_appliance]
+    data_sources: [fortinet_firewall]
+    event_types: [http_request]
+  # Compliance packs: rules re-query other rules' output / built-in
+  # SIEM tables; the honest source is the SIEM itself.
+  "cybersecuritymaturitymodelcertification(cmmc)2.0":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "continuousdiagnostics&mitigation":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "zerotrust(tic3.0)":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "nistsp80053":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "business email compromise - financial fraud":
+    platforms: []
+    data_sources: [siem_alert]
+    event_types: [audit_event]
+  "ciscoduosecurity":
+    platforms: [duo]
+    data_sources: [duo_activity]
+    event_types: [authentication]
+  "mimecast":
+    platforms: [email]
+    data_sources: [email_message_metadata]
+    event_types: [platform_alert]
+  "dynatrace":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "commvault security iq":
+    platforms: []
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "microsoft defender xdr":
+    platforms: [microsoft_365]
+    data_sources: [microsoft_defender_xdr]
+    event_types: [platform_alert]
   # ── SOCRadar (alarms / incidents feed; #56) ──────────────────────────
   "socradar":
     platforms: [socradar]

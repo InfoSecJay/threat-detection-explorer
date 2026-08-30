@@ -46,10 +46,25 @@ def _extract_kql_tables(query: str) -> list[str]:
     # Strip comments + let bindings so we don't pick up `let` target names.
     cleaned = _KQL_BLOCK_COMMENT.sub("", query)
     cleaned = _KQL_LINE_COMMENT.sub("", cleaned)
+    # A rule structured entirely as let-bindings (`let x = Table | ...;`)
+    # hides its tables inside the stripped bindings -- ThreatIntel and
+    # ASIM rules lost their table signal this way. Recover the RHS head
+    # identifier of each binding (skipping calls like dynamic(...) and
+    # datatable(...): the identifier is a table only when not followed
+    # by an open paren).
+    let_heads = re.findall(
+        r"\blet\s+\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b(?!\s*\()", cleaned
+    )
     cleaned = _KQL_LET_BINDING.sub("", cleaned)
 
     seen: set[str] = set()
     tables: list[str] = []
+    for ident in let_heads:
+        if ident.lower() in _KQL_LEADING_KEYWORDS:
+            continue
+        if ident not in seen:
+            seen.add(ident)
+            tables.append(ident)
     for match in _KQL_TABLE_IDENT.finditer(cleaned):
         ident = match.group(1)
         if ident.lower() in _KQL_LEADING_KEYWORDS:

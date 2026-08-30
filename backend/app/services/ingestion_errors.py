@@ -72,6 +72,12 @@ class IngestionStats:
     # where each sample is {"rule_id", "source_file", "title"}. Sample
     # list is capped at 5 per fingerprint to keep the payload small.
     taxonomy_unmatched_by_fingerprint: dict[str, dict] = field(default_factory=dict)
+    # Rules the resolver DID match (platform and/or event_type) but for
+    # which no data_source was produced -- they surface as data source
+    # "unknown" in the product. The old drift report missed these
+    # entirely (2026-08-30: 230 sentinel rules unknown vs 5 reported).
+    taxonomy_no_datasource_count: int = 0
+    taxonomy_no_datasource_by_fingerprint: dict[str, dict] = field(default_factory=dict)
 
     # Timing
     start_time: Optional[datetime] = None
@@ -101,6 +107,7 @@ class IngestionStats:
         rule_id: Optional[str],
         source_file: str,
         title: str,
+        has_data_source: bool = True,
     ) -> None:
         """Track taxonomy resolver outcome for one rule.
 
@@ -108,9 +115,26 @@ class IngestionStats:
         canonical value. `matched=False` means the logsource signature
         fell through to UNKNOWN — we group these by fingerprint so
         identical misses coalesce into one drift-report row.
+        `has_data_source=False` on a matched rule means the resolution
+        was partial (platform / event_type only): the rule shows data
+        source "unknown" in the product, so it is drift too, tracked in
+        its own bucket.
         """
         if matched:
             self.taxonomy_matched_count += 1
+            if not has_data_source:
+                self.taxonomy_no_datasource_count += 1
+                bucket = self.taxonomy_no_datasource_by_fingerprint.setdefault(
+                    fingerprint or "-",
+                    {"count": 0, "samples": []},
+                )
+                bucket["count"] += 1
+                if len(bucket["samples"]) < 5:
+                    bucket["samples"].append({
+                        "rule_id": rule_id,
+                        "source_file": source_file,
+                        "title": title,
+                    })
             return
 
         self.taxonomy_unmatched_count += 1
@@ -189,6 +213,8 @@ class IngestionStats:
             "taxonomy_unmatched": self.taxonomy_unmatched_count,
             "taxonomy_coverage_percent": round(self.taxonomy_coverage_percent, 2),
             "taxonomy_unmatched_by_fingerprint": self.taxonomy_unmatched_by_fingerprint,
+            "taxonomy_no_datasource": self.taxonomy_no_datasource_count,
+            "taxonomy_no_datasource_by_fingerprint": self.taxonomy_no_datasource_by_fingerprint,
         }
 
     def to_summary_dict(self) -> dict:
@@ -206,4 +232,5 @@ class IngestionStats:
             "taxonomy_matched": self.taxonomy_matched_count,
             "taxonomy_unmatched": self.taxonomy_unmatched_count,
             "taxonomy_coverage_percent": round(self.taxonomy_coverage_percent, 2),
+            "taxonomy_no_datasource": self.taxonomy_no_datasource_count,
         }

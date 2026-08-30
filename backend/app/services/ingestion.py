@@ -244,6 +244,9 @@ class IngestionService:
                     rule_id=normalized.rule_id,
                     source_file=normalized.source_file,
                     title=normalized.title,
+                    has_data_source=any(
+                        ds and ds != "unknown" for ds in (normalized.data_sources or [])
+                    ),
                 )
 
                 # Convert to database model

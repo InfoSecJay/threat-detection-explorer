@@ -22,6 +22,10 @@
 # to the top-level root (e.g. `web.web` → `web`).
 # ─────────────────────────────────────────────────────────────────────────
 datamodels:
+  certificates:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
   endpoint.processes:
     platforms: [windows, linux, macos]
     data_sources: [sysmon, windows_security_event_log, crowdstrike_fdr, carbon_black, elastic_defend]
@@ -109,6 +113,118 @@ datamodels:
 # keyword.
 # ─────────────────────────────────────────────────────────────────────────
 macros:
+  # ── Drift 2026-08-30 (#63 + prod unknown-data-source audit) ─────────
+  aws_s3_accesslogs:
+    platforms: [aws]
+    data_sources: [aws_s3_server_access]
+    event_types: [api_call]
+  cloudwatchlogs_vpcflow:
+    platforms: [aws]
+    data_sources: [aws_vpc_flow]
+    event_types: [network_connection]
+  kubernetes_metrics:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [network_connection]
+  kube_objects_events:
+    platforms: [kubernetes]
+    data_sources: [kubernetes_audit]
+    event_types: [audit_event]
+  windows_exchange_iis:
+    platforms: [windows]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  iis_operational_logs:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  msexchange_management:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  papercutng:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  f5_bigip_rogue:
+    platforms: [network_appliance]
+    data_sources: [application_logs]
+    event_types: [http_request]
+  wmi:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  # PowerShell scripted-input inventory sourcetypes (bootloader,
+  # driver, SIP provider inventories).
+  bootloader_inventory:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [audit_event]
+  driverinventory:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [audit_event]
+  subjectinterfacepackage:
+    platforms: [windows]
+    data_sources: [windows_powershell]
+    event_types: [audit_event]
+  aws_bedrock_claude:
+    platforms: [aws, llm]
+    data_sources: [aws_bedrock_invocation]
+    event_types: [api_call]
+  windchill_log4j:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  secureapp_attack:  # Splunk Secure Application (AppDynamics) alerts
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [platform_alert]
+  splunkda:  # Splunk platform REST / web audit ("Splunk Vulnerabilities")
+    platforms: [cross_platform]
+    data_sources: [splunk_internal_logs]
+    event_types: [audit_event]
+  audit_searches:
+    platforms: [cross_platform]
+    data_sources: [splunk_internal_logs]
+    event_types: [audit_event]
+  zoom_index:
+    platforms: [zoom]
+    data_sources: [zoom_operation]
+    event_types: [audit_event]
+  applocker:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  ntlm_audit:
+    authoritative: true
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [authentication]
+  crowdstrike_stream:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_event_streams]
+    event_types: [platform_alert]
+  crowdstrike_identities:
+    platforms: [crowdstrike]
+    data_sources: [crowdstrike_identity_protection]
+    event_types: [platform_alert]
+  moveit_sftp_logs:
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  ms_defender_atp_alerts:
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [platform_alert]
+  ms365_defender_incident_alerts:
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+    event_types: [platform_alert]
+  ivanti_vtm_audit:
+    platforms: [network_appliance]
+    data_sources: [application_logs]
+    event_types: [audit_event]
   # ── Endpoint (Windows) ────────────────────────────────────────────────
   sysmon:
     platforms: [windows]
@@ -422,6 +538,44 @@ macros:
 # "Windows Security Event Log" can produce dozens of event IDs).
 # ─────────────────────────────────────────────────────────────────────────
 data_source_labels:
+  # ── Drift 2026-08-30 (#63 + prod unknown-data-source audit) ─────────
+  # NOTE keys match by prefix/substring too (tier 3); keep them long
+  # enough not to over-match.
+  "windows iis":
+    platforms: [windows]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  "aws bedrock claude":
+    platforms: [aws, llm]
+    data_sources: [aws_bedrock_invocation]
+    event_types: [api_call]
+  "windchill log4j":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  "ivanti vtm audit":
+    platforms: [network_appliance]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  "ms defender atp alerts":
+    platforms: [windows]
+    data_sources: [defender_endpoint]
+    event_types: [platform_alert]
+  "ms365 defender incident alerts":
+    platforms: [microsoft_365]
+    data_sources: [m365_defender]
+    event_types: [platform_alert]
+  "ntlm operational":
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [authentication]
+  # Splunk platform self-monitoring ("Splunk Vulnerabilities" story:
+  # _internal, splunkd, REST audit). The bare key deliberately catches
+  # every "Splunk ..." platform label.
+  "splunk":
+    platforms: [cross_platform]
+    data_sources: [splunk_internal_logs]
+    event_types: [audit_event]
   # ── Drift 2026-08-30 (#55) ───────────────────────────────────────────
   "cisco secure access proxy":
     platforms: [network_appliance]

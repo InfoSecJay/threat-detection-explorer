@@ -93,6 +93,7 @@ PLATFORMS: frozenset[str] = frozenset(
         # ── Network security SaaS (Panther onboarding) ──────────────────────
         "cloudflare",
         "zscaler",
+        "oci",  # Oracle Cloud Infrastructure
         "netskope",
         "cisco_umbrella",
         "tailscale",
@@ -307,6 +308,25 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "ocsf_dns_activity",
         # ── Windows event logs (Panther explicit LogType) ───────────────────
         "windows_event_logs",
+        # ── Drift 2026-08-30 (#62 #63 #64): unknown-data-source cleanup ─────
+        "gcp_dns",                     # GCP Cloud DNS query logs
+        "oci_audit",                   # Oracle Cloud Infrastructure audit
+        "prisma_cloud_audit",          # Palo Alto Prisma Cloud (CSPM) alerts/audit
+        "cyberark_epm",                # CyberArk Endpoint Privilege Manager
+        "trend_micro_cas",             # Trend Micro Cloud App Security
+        "imperva_waf",                 # Imperva Cloud WAF
+        "azure_firewall",              # Azure Firewall logs (incl. IDPS)
+        "azure_app_service",           # Azure App Service logs (HTTP, AV scan)
+        "sailpoint_idn_audit",         # SailPoint IdentityNow events
+        "m365_purview_audit",          # Microsoft Purview (DLP / sensitivity)
+        "vpn_logs",                    # VPN appliance logs (Pulse, GlobalProtect...)
+        "splunk_internal_logs",        # Splunk platform internal logs (_internal, splunkd)
+        "crowdstrike_identity_protection",  # Falcon Identity Protection
+        # Generic bucket for third-party security products whose feed is
+        # their own alert stream (ExtraHop, Dataminr, Radiflow, KnowBe4,
+        # GravityZone, ...). Prefer a specific data source when the
+        # product exposes real telemetry rather than verdicts.
+        "third_party_security_alerts",
         UNKNOWN,
     }
 )

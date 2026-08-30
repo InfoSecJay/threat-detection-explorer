@@ -28,6 +28,94 @@
 #    because the feed is exclusively sign-in activity.
 
 by_key:
+  # ── Drift 2026-08-30: Windows operational channels (one service
+  # each). All ship via Windows Event Log channels the generic
+  # windows_event_logs source covers; the channel itself is the
+  # `service`. ──────────────────────────────────────────────────────────
+  windows/applocker:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/appmodel-runtime:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/appxpackaging-om:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/capi2:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/certificateservicesclient-lifecycle-system:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/diagnosis-scripted:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/driver-framework:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/ldap:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/lsa-server:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/openssh:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [authentication]
+  windows/microsoft-servicebus-client:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/shell-core:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/smbclient-security:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/smbclient-connectivity:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/smbserver-connectivity:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/terminalservices-localsessionmanager:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/wmi:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/dns-server-analytic:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [dns_query]
+  windows/printservice-admin:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  windows/printservice-operational:
+    platforms: [windows]
+    data_sources: [windows_event_logs]
+    event_types: [audit_event]
+  linux/auth:
+    platforms: [linux]
+    data_sources: [linux_syslog]
+    event_types: [authentication]
   # ═══════════════════════════════════════════════════════════════════════
   # WINDOWS
   # ═══════════════════════════════════════════════════════════════════════
