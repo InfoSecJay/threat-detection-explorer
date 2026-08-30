@@ -312,35 +312,27 @@ async def get_trending_summary(
     """
     cutoff_date = utcnow() - timedelta(days=days)
 
-    async def _count(col) -> int:
-        result = await db.execute(
-            select(func.count(Detection.id)).where(
-                and_(col.isnot(None), col >= cutoff_date)
+    # Two GROUP BYs instead of one COUNT per source per column (28 round
+    # trips); totals are the column sums so they cannot disagree.
+    async def _by_source(col) -> dict[str, int]:
+        rows = (
+            await db.execute(
+                select(Detection.source, func.count(Detection.id))
+                .where(and_(col.isnot(None), col >= cutoff_date))
+                .group_by(Detection.source)
             )
-        )
-        return result.scalar() or 0
+        ).all()
+        return {src: int(n) for src, n in rows}
 
-    total_created = await _count(Detection.rule_created_date)
-    total_modified = await _count(Detection.rule_modified_date)
+    created_by = await _by_source(Detection.rule_created_date)
+    modified_by = await _by_source(Detection.rule_modified_date)
+    total_created = sum(created_by.values())
+    total_modified = sum(modified_by.values())
 
     by_source: dict[str, dict[str, int]] = {}
     for source in ALL_REPOSITORY_NAMES:
-        created_q = select(func.count(Detection.id)).where(
-            and_(
-                Detection.source == source,
-                Detection.rule_created_date.isnot(None),
-                Detection.rule_created_date >= cutoff_date,
-            )
-        )
-        modified_q = select(func.count(Detection.id)).where(
-            and_(
-                Detection.source == source,
-                Detection.rule_modified_date.isnot(None),
-                Detection.rule_modified_date >= cutoff_date,
-            )
-        )
-        created = (await db.execute(created_q)).scalar() or 0
-        modified = (await db.execute(modified_q)).scalar() or 0
+        created = created_by.get(source, 0)
+        modified = modified_by.get(source, 0)
         if created or modified:
             by_source[source] = {"created": created, "modified": modified}
 
