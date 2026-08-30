@@ -70,9 +70,11 @@ by_key:
   # or network flows). Platform + event_type only; no data_source.
   any/dns:
     platforms: [cross_platform]
+    data_sources: [dns_query_logs]
     event_types: [dns_query]
   any/dns_query:
     platforms: [cross_platform]
+    data_sources: [dns_query_logs]
     event_types: [dns_query]
   any/network_connection:
     platforms: [cross_platform]

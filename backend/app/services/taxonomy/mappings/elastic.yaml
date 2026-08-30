@@ -696,6 +696,10 @@ tags:
     platforms: []
   "domain: identity and access":
     event_types: [authentication]
+  "data source: zoom":
+    platforms: [zoom]
+    data_sources: [zoom_operation]
+    event_types: [audit_event]
   "domain: siem":
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
