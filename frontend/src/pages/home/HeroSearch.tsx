@@ -14,7 +14,7 @@ const EXAMPLES: { q: string; label: string; hint: string }[] = [
   { q: 'actor:"Salt Typhoon"', label: 'actor:"Salt Typhoon"', hint: 'every rule written for Salt Typhoon (G1045): ID tag, analytic story, or title' },
   { q: 'tech:T1219', label: 'tech:T1219', hint: 'remote access software -- AnyDesk, ScreenConnect, TeamViewer and 300+ RMM tools' },
   { q: 'tech:T1003.001 platform:windows', label: 'tech:T1003.001 platform:windows', hint: 'LSASS memory dumping on Windows, every vendor' },
-  { q: 'usecase:Ransomware severity:high', label: 'usecase:Ransomware severity:high', hint: 'high-severity rules in a Ransomware analytic story' },
+  { q: 'software:"Cobalt Strike"', label: 'software:"Cobalt Strike"', hint: 'rules built for Cobalt Strike (S0154): ID tag, analytic story, or title' },
   { q: 'eventid:4104 source:splunk', label: 'eventid:4104 source:splunk', hint: 'Splunk rules keyed on PowerShell script-block logging' },
   { q: 'process:certutil.exe', label: 'process:certutil.exe', hint: 'rules that name certutil.exe in their logic' },
 ];

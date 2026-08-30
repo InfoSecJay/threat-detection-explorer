@@ -8,7 +8,7 @@ export const PLACEHOLDERS = [
   'actor:"Salt Typhoon"',
   'tech:T1219 platform:windows',
   'eventid:4104 source:splunk',
-  'usecase:Ransomware severity:high',
+  'tech:T1486 severity:high',
   'process:certutil.exe NOT source:sigma',
   'software:Mimikatz OR title:lsass',
 ];
