@@ -26,6 +26,21 @@ const CoverageHeatmap = lazy(() => import('./pages/actors/CoverageHeatmap').then
 // redirect so old links do not 404.
 const IndustryIntel     = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 
+// Hover intent on the nav fetches the route's chunk before the click
+// (dynamic imports are memoised by the bundler, so this is idempotent).
+const ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
+  '/detections': () => import('./pages/DetectionList'),
+  '/mitre': () => import('./pages/MitreCoverage'),
+  '/actors': () => import('./pages/Actors'),
+  '/observables': () => import('./pages/Observables'),
+  '/intel': () => import('./pages/IndustryIntel'),
+  '/digest': () => import('./pages/Digest'),
+  '/query': () => import('./pages/QueryReference'),
+  '/about': () => import('./pages/About'),
+  '/integrations': () => import('./pages/Integrations'),
+};
+const prefetchRoute = (to: string) => { void ROUTE_LOADERS[to]?.(); };
+
 // Lightweight loading state shown while a lazy route's chunk fetches.
 // Plain pulse — kept minimal so the layout doesn't shift.
 function RouteFallback() {
@@ -56,6 +71,8 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <Link
       to={to}
+      onMouseEnter={() => prefetchRoute(to)}
+      onFocus={() => prefetchRoute(to)}
       className={`relative px-4 py-2 font-display text-sm uppercase tracking-wider transition-all duration-300 ${
         isActive
           ? 'text-matrix-500 bg-matrix-500/10 border border-matrix-500/30'
