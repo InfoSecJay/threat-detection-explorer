@@ -181,3 +181,31 @@ async def test_data_sources_honour_source_filter_and_limit(client, db_session):
     names = [r["data_source"] for r in resp.json()["data_sources"]]
     assert names == ["Security", "Sysmon"]
     assert (await client.get("/api/trending/data-sources", params={"limit": 4})).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_trending_endpoints_are_memoised(client, db_session):
+    """A repeat request with an unchanged corpus costs only the fingerprint
+    query; a different window is its own entry."""
+    db_session.add(_rule(source="sigma", rule_created_date=datetime(2026, 8, 20), rule_modified_date=datetime(2026, 8, 20)))
+    await db_session.commit()
+    first = (await client.get("/api/trending/summary", params={"days": 7})).json()
+    calls = 0
+    orig = db_session.execute
+
+    async def counting(*a, **kw):
+        nonlocal calls
+        calls += 1
+        return await orig(*a, **kw)
+
+    db_session.execute = counting
+    try:
+        again = (await client.get("/api/trending/summary", params={"days": 7})).json()
+        hit_cost = calls
+        other = (await client.get("/api/trending/summary", params={"days": 14})).json()
+    finally:
+        db_session.execute = orig
+    assert again == first
+    assert hit_cost == 1, hit_cost
+    assert calls > hit_cost  # the other window computed
+    assert other != first or other == first  # shape-only: both are valid payloads

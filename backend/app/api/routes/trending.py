@@ -9,6 +9,7 @@ from sqlalchemy import select, func, cast, String, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.corpus_cache import memoised
 from app.models.detection import Detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -53,6 +54,7 @@ def _apply_trending_filters(
 
 
 @router.get("/techniques")
+@memoised("trending.get_trending_techniques")
 async def get_trending_techniques(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of techniques to return"),
@@ -127,6 +129,7 @@ async def get_trending_techniques(
 
 
 @router.get("/platforms")
+@memoised("trending.get_trending_platforms")
 async def get_trending_platforms(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of platforms to return"),
@@ -200,6 +203,7 @@ async def get_trending_platforms(
 
 
 @router.get("/recent-rules")
+@memoised("trending.get_recent_rules")
 async def get_recent_rules(
     limit: int = Query(20, ge=5, le=50, description="Number of rules per list"),
     days: Optional[int] = Query(
@@ -294,6 +298,7 @@ async def get_recent_rules(
 
 
 @router.get("/summary")
+@memoised("trending.get_trending_summary")
 async def get_trending_summary(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     db: AsyncSession = Depends(get_db),
@@ -349,6 +354,7 @@ async def get_trending_summary(
 
 
 @router.get("/use-cases")
+@memoised("trending.get_trending_use_cases")
 async def get_trending_use_cases(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of use cases to return"),
@@ -415,6 +421,7 @@ async def get_trending_use_cases(
 
 
 @router.get("/weekly-activity")
+@memoised("trending.get_weekly_activity")
 async def get_weekly_activity(
     weeks: int = Query(12, ge=4, le=52, description="Number of weeks of history"),
     db: AsyncSession = Depends(get_db),
@@ -584,6 +591,7 @@ def _extract_named_threat(tag: str, source: str) -> Optional[tuple[str, str]]:
 
 
 @router.get("/newly-covered")
+@memoised("trending.get_newly_covered")
 async def get_newly_covered(
     days: int = Query(30, ge=7, le=365, description="Diff window in days"),
     limit: int = Query(50, ge=5, le=200, description="Cap per list"),
@@ -617,6 +625,7 @@ async def get_newly_covered(
 
 
 @router.get("/threats")
+@memoised("trending.get_threat_pulse")
 async def get_threat_pulse(
     limit: int = Query(8, ge=3, le=30, description="Items per list"),
     days: Optional[int] = Query(
@@ -725,6 +734,7 @@ async def get_threat_pulse(
 
 
 @router.get("/source-deltas")
+@memoised("trending.get_source_deltas")
 async def get_source_deltas(
     days: int = Query(7, ge=1, le=90, description="Delta window in days"),
     db: AsyncSession = Depends(get_db),
@@ -744,6 +754,7 @@ async def get_source_deltas(
 
 
 @router.get("/data-sources")
+@memoised("trending.get_trending_data_sources")
 async def get_trending_data_sources(
     days: int = Query(90, ge=7, le=365, description="Number of days to look back"),
     limit: int = Query(15, ge=5, le=50, description="Number of data sources to return"),
@@ -807,6 +818,7 @@ async def get_trending_data_sources(
 
 
 @router.get("/technique-deltas")
+@memoised("trending.get_technique_deltas")
 async def get_technique_deltas(
     days: int = Query(7, ge=1, le=90, description="Delta window in days"),
     limit: int = Query(10, ge=1, le=50, description="Cap per list"),

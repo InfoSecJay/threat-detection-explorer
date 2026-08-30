@@ -51,7 +51,7 @@ from app.services.actor_matching import (
     sql_like_patterns,
 )
 from app.services.actor_scores import actor_score_service
-from app.services.corpus_cache import corpus_cache
+from app.services.corpus_cache import corpus_cache, memoised
 from app.services.coverage_heatmap import technique_source_counts
 from app.services.mitre import mitre_service
 from app.services.navigator import build_layer, layer_response
@@ -469,6 +469,7 @@ def _facets(
 # ── Endpoints ─────────────────────────────────────────────────────
 
 @router.get("")
+@memoised("actors.list", daily=False)
 async def list_actors(
     kind: Optional[Literal["groups", "software"]] = Query(
         None, description="Object class to query (filtered mode)."

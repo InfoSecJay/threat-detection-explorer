@@ -15,6 +15,7 @@ has to be signalled between them.
 
 from __future__ import annotations
 
+import functools
 from collections import OrderedDict
 from typing import Any, Awaitable, Callable, Hashable
 
@@ -22,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.utils.datetime_utils import utcnow
 
 Fingerprint = tuple[int, str]
 
@@ -79,3 +81,30 @@ class CorpusCache:
 
 
 corpus_cache = CorpusCache()
+
+
+def memoised(name: str, daily: bool = True):
+    """Route decorator: memoise an async FastAPI handler's result on the
+    corpus fingerprint, keyed by its query parameters (and the UTC date
+    when `daily`, for windows anchored to "now"). The handler must take
+    the session as a `db` keyword (the `Depends(get_db)` convention);
+    without one the call passes straight through.
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            # The session may arrive as the `db` keyword or positionally,
+            # depending on how the framework resolved the dependency.
+            db = kwargs.get("db")
+            if db is None:
+                db = next((a for a in list(args) + list(kwargs.values()) if isinstance(a, AsyncSession)), None)
+            if db is None:
+                return await fn(*args, **kwargs)
+            params = (
+                tuple(repr(a) for a in args if not isinstance(a, AsyncSession)),
+                tuple(sorted((k, repr(v)) for k, v in kwargs.items() if not isinstance(v, AsyncSession))),
+            )
+            key = (name, params, utcnow().date().isoformat() if daily else None)
+            return await corpus_cache.get(db, key, lambda: fn(*args, **kwargs))
+        return wrapper
+    return deco
