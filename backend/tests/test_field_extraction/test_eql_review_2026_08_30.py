@@ -81,3 +81,8 @@ def test_exe_basenames_keep_dots_and_wildcard_stems():
 def test_kql_negated_values_stay_off_surfaces():
     r = extract_elastic_fields('process.name : "a.exe" and not process.name : "b.exe"', language="kuery")
     assert r.process_names == ["a.exe"]
+
+
+def test_wildcard_only_resources_stay_off_target_resources():
+    r = extract_elastic_fields('azure.resource.name:* and azure.resource.group:"?*" and azure.resource.provider:"Microsoft.Compute"', language="kuery")
+    assert r.target_resources == ["Microsoft.Compute"]

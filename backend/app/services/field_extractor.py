@@ -1125,6 +1125,12 @@ def _flatten_values(val: Any) -> list[str]:
     return [str(val)]
 
 
+def _is_surface_value(v) -> bool:
+    """A value worth indexing has at least one alphanumeric character:
+    `*`, `?*`, `-` and `""` are match-anything noise."""
+    return bool(v) and bool(re.search(r"[A-Za-z0-9]", str(v)))
+
+
 def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
                          negated: bool, result: ExtractedFields):
     """Route extracted values to domain-specific fields based on type classification."""
@@ -1138,10 +1144,11 @@ def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
 
     # Cloud resources and identity targets (`instanceId == 24050` is an
     # id, not a resource anyone searches for)
+    # `azure.resource.name:*` is an existence check, not a resource.
     if obs_type == "cloud" and obs_subtype in ("resource", "resource_type") and not negated:
-        result.target_resources.extend(v for v in values if v and not str(v).isdigit())
+        result.target_resources.extend(v for v in values if _is_surface_value(v) and not str(v).isdigit())
     if obs_type == "identity" and obs_subtype == "target" and not negated:
-        result.target_resources.extend(v for v in values if v)
+        result.target_resources.extend(v for v in values if _is_surface_value(v))
 
     # Email and DNS indicators also go to network_indicators for backward
     # compat. Whitespace-bearing values are match PATTERNS (regex bodies,
