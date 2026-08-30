@@ -47,17 +47,36 @@ function sourceOrder(d: DigestResponse): string[] {
     .map(([s]) => s);
 }
 
+/** Markdown escaping for link text: brackets and pipes would break the
+ * link or a table in the target renderer. */
+function mdText(t: string): string {
+  return t.replace(/[[\]]/g, '\\$&').replace(/\|/g, '\\|');
+}
+
+function ruleLink(r: DigestRule, origin: string): string {
+  return `[${mdText(r.title)}](${origin}/detections/${encodeURIComponent(r.id)})`;
+}
+
+function techLinks(ids: string[], origin: string): string {
+  return ids.slice(0, 3).map((t) => `[${t}](${origin}/mitre/${t})`).join(', ') + (ids.length > 3 ? ` +${ids.length - 3}` : '');
+}
+
+const SEVERITY_MARK: Record<string, string> = { critical: '\u{1F534}', high: '\u{1F7E0}', medium: '\u{1F7E1}', low: '\u{1F7E2}' };
+
 function toMarkdown(d: DigestResponse, origin: string): string {
   const L: string[] = [];
   const sources = sourceOrder(d);
-  L.push(`# Detection Explorer digest - ${fmtDate(d.period.start)} to ${fmtDate(d.period.end)}`);
+  const catalog = (src: string) => `${origin}/detections?sources=${src}&sort_by=rule_created_date&sort_order=desc`;
+  L.push(`# \u{1F4F0} Detection Explorer digest \u00B7 ${fmtDate(d.period.start)} \u2192 ${fmtDate(d.period.end)}`);
   L.push('');
-  L.push(`${d.summary.created} new and ${d.summary.modified} updated rules across ${sources.length} sources (${d.summary.total_rules.toLocaleString()} tracked).`);
+  L.push(`**${d.summary.created} new** and **${d.summary.modified} updated** rules across ${sources.length} source${sources.length === 1 ? '' : 's'} \u00B7 ${d.summary.total_rules.toLocaleString()} rules tracked \u00B7 [open the digest](${origin}/digest)`);
   if (d.themes.length) {
     L.push('');
-    L.push('## Themes');
+    L.push('## \u{1F3AF} Themes');
+    L.push('');
     for (const t of d.themes) {
-      L.push(`- ${t.technique_id} ${t.technique_name}${t.tactic ? ` (${t.tactic})` : ''}: ${t.rules} new rule${t.rules === 1 ? '' : 's'} from ${Object.keys(t.sources).join(', ')}`);
+      const srcs = Object.entries(t.sources).map(([s, n]) => `${srcName(s)} ${n}`).join(', ');
+      L.push(`- **[${t.technique_id}](${origin}/mitre/${t.technique_id}) ${mdText(t.technique_name || '')}**${t.tactic ? ` \u00B7 ${t.tactic}` : ''} \u2014 ${t.rules} new rule${t.rules === 1 ? '' : 's'} (${srcs})`);
     }
   }
   for (const src of sources) {
@@ -65,41 +84,51 @@ function toMarkdown(d: DigestResponse, origin: string): string {
     const fresh = d.new_rules.filter((r) => r.source === src);
     const changed = d.modified_rules.filter((r) => r.source === src);
     L.push('');
-    L.push(`## ${srcName(src)} (+${c.created}, ~${c.modified})`);
+    L.push(`## \u{1F9E9} ${srcName(src)} \u00B7 +${c.created} new \u00B7 ~${c.modified} updated`);
     if (fresh.length) {
       L.push('');
-      L.push('### New rules');
-      for (const r of fresh) L.push(`- ${r.title} (${r.severity}${r.mitre_techniques.length ? ', ' + r.mitre_techniques.join(' ') : ''}) ${origin}/detections/${r.id}`);
-      if (c.created > fresh.length) L.push(`- ... and ${c.created - fresh.length} more`);
+      L.push('### \u2728 New rules');
+      L.push('');
+      for (const r of fresh) {
+        const bits = [`${SEVERITY_MARK[r.severity] || '\u26AA'} ${r.severity}`];
+        if (r.mitre_techniques.length) bits.push(techLinks(r.mitre_techniques, origin));
+        if (r.platforms.length) bits.push(r.platforms.slice(0, 3).join(' / '));
+        L.push(`- ${ruleLink(r, origin)} \u2014 ${bits.join(' \u00B7 ')}`);
+      }
+      if (c.created > fresh.length) L.push(`- [\u2026 and ${c.created - fresh.length} more in the catalog](${catalog(src)})`);
     }
     if (changed.length) {
       L.push('');
-      L.push('### Updated rules');
-      for (const r of changed) L.push(`- ${r.title} (${fmtDate(r.modified)}) ${origin}/detections/${r.id}`);
-      if (c.modified > changed.length) L.push(`- ... and ${c.modified - changed.length} more`);
+      L.push('### \u{1F527} Updated rules');
+      L.push('');
+      for (const r of changed) L.push(`- ${ruleLink(r, origin)} \u2014 ${fmtDate(r.modified)}${r.mitre_techniques.length ? ` \u00B7 ${techLinks(r.mitre_techniques, origin)}` : ''}`);
+      if (c.modified > changed.length) L.push(`- [\u2026 and ${c.modified - changed.length} more in the catalog](${catalog(src)})`);
     }
   }
   const covered = [
-    ...d.newly_covered.catalog_newly_covered.map((e) => `- ${e.technique_id} ${e.technique_name} - first rule anywhere (${Object.keys(e.sources).join(', ')})`),
-    ...d.newly_covered.source_newly_covered.map((e) => `- ${e.technique_id} ${e.technique_name} - new for ${e.source}`),
+    ...d.newly_covered.catalog_newly_covered.map((e) => `- [${e.technique_id} ${mdText(e.technique_name)}](${origin}/mitre/${e.technique_id}) \u2014 first rule anywhere (${Object.keys(e.sources).map(srcName).join(', ')})`),
+    ...d.newly_covered.source_newly_covered.map((e) => `- [${e.technique_id} ${mdText(e.technique_name)}](${origin}/mitre/${e.technique_id}) \u2014 new for ${srcName(e.source)}`),
   ];
   if (covered.length) {
     L.push('');
-    L.push('## Techniques newly covered');
+    L.push('## \u{1F195} Techniques newly covered');
+    L.push('');
     L.push(...covered);
   }
   const deltas = Object.entries(d.source_deltas.by_source).filter(([, v]) => v.delta);
   if (deltas.length) {
     L.push('');
-    L.push('## Net change by source');
+    L.push('## \u{1F4C8} Net change by source');
+    L.push('');
     for (const [src, v] of deltas.sort(([, a], [, b]) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0))) {
-      L.push(`- ${srcName(src)}: ${(v.delta ?? 0) > 0 ? '+' : ''}${v.delta} (now ${v.current})`);
+      L.push(`- [${srcName(src)}](${catalog(src)}): ${(v.delta ?? 0) > 0 ? '+' : ''}${v.delta} (now ${v.current})`);
     }
   }
   L.push('');
-  L.push(`Generated ${fmtDate(d.generated_at)} - ${origin}/digest`);
+  L.push(`_Generated ${fmtDate(d.generated_at)} \u00B7 [${origin.replace(/^https?:\/\//, '')}/digest](${origin}/digest)_`);
   return L.join('\n');
 }
+
 
 function Panel({ title, subtitle, children, right }: { title: string; subtitle?: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (

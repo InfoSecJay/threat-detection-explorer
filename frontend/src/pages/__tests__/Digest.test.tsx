@@ -68,18 +68,25 @@ describe('Digest', () => {
     expect(getByTestId('digest-source-splunk')).toHaveTextContent('AWS Root Console Login');
   });
 
-  it('renders the same structure as markdown', async () => {
+  it('renders the same structure as markdown with real links', async () => {
     const { getByLabelText, getByText } = renderPage();
     await waitFor(() => expect(getByLabelText('Digest as Markdown')).toBeInTheDocument());
     const md = (getByLabelText('Digest as Markdown') as HTMLTextAreaElement).value;
-    expect(md).toContain('# Detection Explorer digest - 2026-08-22 to 2026-08-29');
-    expect(md).toContain('41 new and 120 updated rules across 2 sources');
-    expect(md).toContain('## Themes');
-    expect(md).toContain('## SigmaHQ (+30, ~100)');
-    expect(md).toContain('### New rules');
-    expect(md).toContain('### Updated rules');
-    expect(md).toContain('- Mofcomp Execution (2026-08-26)');
-    expect(md).toContain('T1651 Cloud Administration Command - first rule anywhere (splunk)');
+    expect(md).toMatch(/^# .*Detection Explorer digest .* 2026-08-22 .* 2026-08-29/);
+    expect(md).toContain('**41 new** and **120 updated** rules across 2 sources');
+    expect(md).toMatch(/## .*Themes/);
+    expect(md).toContain('[T1003.001](http://localhost:3000/mitre/T1003.001) LSASS Memory');
+    expect(md).toMatch(/## .*SigmaHQ .* \+30 new .* ~100 updated/);
+    expect(md).toMatch(/### .*New rules/);
+    expect(md).toContain('[Suspicious LSASS Access](http://localhost:3000/detections/r1)');
+    expect(md).toContain('[T1003.001](http://localhost:3000/mitre/T1003.001)');
+    expect(md).toContain('windows');
+    expect(md).toMatch(/### .*Updated rules/);
+    expect(md).toContain('[Mofcomp Execution](http://localhost:3000/detections/r3)');
+    expect(md).toContain('2026-08-26');
+    expect(md).toContain('more in the catalog](http://localhost:3000/detections?sources=sigma');
+    expect(md).toContain('[T1651 Cloud Administration Command](http://localhost:3000/mitre/T1651)');
+    expect(md).not.toMatch(/\bhttp:\/\/localhost:3000\/detections\/r1\b(?!\))/); // no bare URLs
     expect(getByText('Updated rules', { selector: 'span' })).toBeInTheDocument();
   });
 });
