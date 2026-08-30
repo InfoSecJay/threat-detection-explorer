@@ -566,3 +566,28 @@ async def test_actor_detail_is_memoised_on_the_corpus(client, db_session):
     assert again.status_code == 200
     assert again.json() == first.json()
     assert calls == 1, f"warm actor detail should be the fingerprint query only, ran {calls}"
+
+
+@pytest.mark.asyncio
+async def test_mitre_coverage_matrix_is_memoised_on_the_corpus(client, db_session):
+    """/compare/coverage-matrix feeds the Home hero on every visit; a repeat
+    request with an unchanged corpus costs only the fingerprint query."""
+    first = await client.get("/api/compare/coverage-matrix", params={"include_subtechniques": "false"})
+    assert first.status_code == 200
+    calls = 0
+    orig = db_session.execute
+
+    async def counting(*a, **kw):
+        nonlocal calls
+        calls += 1
+        return await orig(*a, **kw)
+
+    db_session.execute = counting
+    try:
+        again = await client.get("/api/compare/coverage-matrix", params={"include_subtechniques": "false"})
+        other = await client.get("/api/compare/coverage-matrix", params={"include_subtechniques": "true"})
+    finally:
+        db_session.execute = orig
+    assert again.status_code == 200 and again.json() == first.json()
+    assert other.status_code == 200
+    assert calls == 3, f"warm hit = 1 fingerprint query; a different param set recomputes (1 + 1 scan), ran {calls}"

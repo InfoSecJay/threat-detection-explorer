@@ -16,6 +16,7 @@ from app.models.detection import Detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.search import SearchService
 from app.services.mitre import mitre_service
+from app.services.corpus_cache import corpus_cache
 
 router = APIRouter(prefix="/compare", tags=["compare"])
 
@@ -226,10 +227,18 @@ async def get_coverage_matrix(
     """Get MITRE technique coverage matrix across all sources.
 
     Returns coverage data showing which sources have detections for each technique,
-    organized by tactic for matrix visualization.
+    organized by tactic for matrix visualization. Corpus + catalog derived, so
+    memoised on the corpus fingerprint (the Home hero and the ATT&CK browser
+    both read it on every visit).
     """
     await mitre_service.ensure_loaded()
+    key = ("mitre_coverage_matrix", tactic, include_subtechniques, mitre_service.get_stats()["last_fetch"])
+    return await corpus_cache.get(
+        db, key, lambda: _compute_coverage_matrix(db, tactic, include_subtechniques),
+    )
 
+
+async def _compute_coverage_matrix(db: AsyncSession, tactic: Optional[str], include_subtechniques: bool) -> dict:
     # Get all detections with their techniques
     query = select(Detection.source, Detection.mitre_techniques)
     result = await db.execute(query)

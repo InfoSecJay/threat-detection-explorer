@@ -28,6 +28,7 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
     # Imported here so the module is cheap to import from main.py and
     # the route module's heavy imports stay lazy.
     from app.api.routes.actors import get_actor
+    from app.api.routes.compare import get_coverage_matrix
     from app.services.actor_scores import actor_score_service
     from app.services.coverage_heatmap import technique_source_counts
     from app.services.digest import compute_digest
@@ -52,6 +53,9 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
     await step("digest", compute_digest(db))
 
     await step("mitre", mitre_service.ensure_loaded())
+    # Home hero reads the parent-technique matrix; the ATT&CK browser the full one.
+    await step("coverage_matrix", get_coverage_matrix(tactic=None, include_subtechniques=False, db=db))
+    await step("coverage_matrix_sub", get_coverage_matrix(tactic=None, include_subtechniques=True, db=db))
     bundle = None
     try:
         t0 = time.perf_counter()
