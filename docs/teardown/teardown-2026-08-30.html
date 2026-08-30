@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detection Explorer Teardown</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+  :root{
+    --paper:#EDEFF1;
+    --card:#F7F8F9;
+    --ink:#141A20;
+    --ink-2:#4C5964;
+    --ink-3:#77848F;
+    --rule:#CDD4DA;
+    --rule-soft:#DDE2E6;
+    --accent:#1B3A5C;
+    --accent-soft:#E2E9F1;
+    --crit:#9E2B25;
+    --warn:#9A6410;
+    --ok:#3F6234;
+    --crit-bg:#F6E4E2;
+    --warn-bg:#F7EBD8;
+    --ok-bg:#E6EDE2;
+    --code-bg:#E4E8EB;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0E1418;
+      --card:#151D23;
+      --ink:#E2E8ED;
+      --ink-2:#A2B0BB;
+      --ink-3:#75838E;
+      --rule:#28333B;
+      --rule-soft:#1E272E;
+      --accent:#7FB2D8;
+      --accent-soft:#17252F;
+      --crit:#E38A83;
+      --warn:#D8AC63;
+      --ok:#8FB784;
+      --crit-bg:#2A1917;
+      --warn-bg:#2A2014;
+      --ok-bg:#182116;
+      --code-bg:#1B242B;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0E1418;
+    --card:#151D23;
+    --ink:#E2E8ED;
+    --ink-2:#A2B0BB;
+    --ink-3:#75838E;
+    --rule:#28333B;
+    --rule-soft:#1E272E;
+    --accent:#7FB2D8;
+    --accent-soft:#17252F;
+    --crit:#E38A83;
+    --warn:#D8AC63;
+    --ok:#8FB784;
+    --crit-bg:#2A1917;
+    --warn-bg:#2A2014;
+    --ok-bg:#182116;
+    --code-bg:#1B242B;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:16px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:56px 28px 120px;}
+  @media (max-width:640px){.wrap{padding:36px 18px 80px;}}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);
+  }
+
+  h1{
+    font-family:"IBM Plex Serif",Georgia,serif;
+    font-weight:600;font-size:clamp(2.1rem,5vw,3rem);
+    line-height:1.08;letter-spacing:-.015em;margin:.35em 0 .5em;
+    text-wrap:balance;
+  }
+  h2{
+    font-family:"IBM Plex Serif",Georgia,serif;
+    font-weight:600;font-size:1.5rem;line-height:1.25;
+    margin:0;text-wrap:balance;
+  }
+  h3{
+    font-family:"IBM Plex Sans",sans-serif;
+    font-weight:600;font-size:1.02rem;line-height:1.4;margin:0;
+    text-wrap:balance;
+  }
+  p{margin:0;max-width:68ch;}
+  a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px;}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px;}
+  code{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.86em;background:var(--code-bg);
+    padding:.12em .38em;border-radius:3px;
+    word-break:break-word;
+  }
+  strong{font-weight:600;}
+
+  /* ---- masthead ---- */
+  header.masthead{
+    border-bottom:2px solid var(--ink);
+    padding-bottom:26px;margin-bottom:44px;
+  }
+  .lede{font-size:1.12rem;color:var(--ink-2);max-width:64ch;}
+  .meta{
+    display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:26px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+  }
+  .meta span b{font-weight:500;color:var(--ink-2);}
+
+  /* ---- verdict ---- */
+  .verdict{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-left:4px solid var(--accent);
+    padding:24px 26px;
+    display:flex;flex-direction:column;gap:14px;
+    margin-bottom:52px;
+  }
+  .verdict p{max-width:70ch;}
+
+  /* ---- sections ---- */
+  section{margin-bottom:56px;}
+  .sec-head{
+    display:flex;align-items:baseline;gap:14px;
+    border-bottom:1px solid var(--rule);
+    padding-bottom:10px;margin-bottom:8px;
+  }
+  .sec-head .n{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12px;color:var(--ink-3);letter-spacing:.1em;
+    flex:0 0 auto;
+  }
+  .sec-sub{color:var(--ink-2);font-size:.95rem;margin:14px 0 26px;}
+
+  /* ---- findings ---- */
+  .findings{display:flex;flex-direction:column;gap:2px;}
+  .f{
+    background:var(--card);
+    border:1px solid var(--rule-soft);
+    border-left:3px solid var(--rule);
+    padding:18px 22px 20px;
+    display:grid;
+    grid-template-columns:74px 1fr;
+    gap:4px 18px;
+  }
+  .f.crit{border-left-color:var(--crit);}
+  .f.warn{border-left-color:var(--warn);}
+  .f.note{border-left-color:var(--accent);}
+  .f .id{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:12px;color:var(--ink-3);letter-spacing:.06em;
+    padding-top:3px;
+  }
+  .f .body{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .f .body p{font-size:.95rem;color:var(--ink-2);}
+  .f .body p.fix{color:var(--ink);}
+  .f .body p.fix::before{
+    content:"Fix ";
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);margin-right:6px;
+  }
+  @media (max-width:640px){
+    .f{grid-template-columns:1fr;gap:8px;}
+    .f .id{padding-top:0;}
+  }
+
+  .pill{
+    display:inline-block;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    padding:2px 7px;border-radius:2px;margin-left:8px;
+    vertical-align:2px;font-weight:500;
+  }
+  .pill.crit{background:var(--crit-bg);color:var(--crit);}
+  .pill.warn{background:var(--warn-bg);color:var(--warn);}
+  .pill.note{background:var(--accent-soft);color:var(--accent);}
+
+  /* ---- good list ---- */
+  .good{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft);}
+  .good > div{background:var(--card);padding:16px 18px;display:flex;flex-direction:column;gap:6px;}
+  .good h3{font-size:.92rem;}
+  .good p{font-size:.88rem;color:var(--ink-2);}
+
+  /* ---- data table ---- */
+  .tablewrap{overflow-x:auto;border:1px solid var(--rule-soft);background:var(--card);}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:420px;}
+  th,td{padding:9px 16px;text-align:left;border-bottom:1px solid var(--rule-soft);}
+  th{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-3);font-weight:500;
+  }
+  td.num{font-variant-numeric:tabular-nums;text-align:right;width:1%;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  .bar{
+    display:inline-block;height:7px;background:var(--accent);
+    vertical-align:middle;margin-right:9px;opacity:.75;
+  }
+  .bar.low{background:var(--crit);opacity:.85;}
+
+  /* ---- bet ---- */
+  .bet{display:flex;flex-direction:column;gap:22px;}
+  .bet .layer{
+    display:grid;grid-template-columns:120px 1fr;gap:18px;
+    padding-bottom:20px;border-bottom:1px solid var(--rule-soft);
+  }
+  .bet .layer:last-child{border-bottom:none;padding-bottom:0;}
+  .bet .layer .tag{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+    padding-top:4px;
+  }
+  .bet .layer p{font-size:.95rem;color:var(--ink-2);}
+  .bet .layer p em{color:var(--ink);font-style:normal;font-weight:600;}
+  @media (max-width:640px){.bet .layer{grid-template-columns:1fr;gap:6px;}}
+
+  details{border-top:1px solid var(--rule);padding-top:18px;margin-top:8px;}
+  summary{cursor:pointer;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);}
+  details ul{margin:16px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:8px;}
+  details li{font-size:.9rem;color:var(--ink-2);max-width:68ch;}
+
+  footer{
+    margin-top:70px;padding-top:20px;border-top:1px solid var(--rule);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .f{transition:border-left-color .15s ease;}
+  }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Outside review · detectionexplorer.io</div>
+    <h1>Detection Explorer Teardown</h1>
+    <p class="lede">Seventeen findings from walking the live site as a first-time visitor, a search engine, a link unfurler, and an API client. Ordered by what blocks you from sharing it, then by what stops it lasting.</p>
+    <div class="meta">
+      <span><b>Reviewed</b> 30 Aug 2026</span>
+      <span><b>Build</b> v1.4.0 · commit beaec550</span>
+      <span><b>Corpus</b> 15,579 rules · 13 repos</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <h2>The verdict in one paragraph</h2>
+    <p>The hard part is done and done well. The corpus is real, the normalization is honest, the observable extraction is something nobody else has, and the "What we count" table is the most credible methodology statement I've seen on a site like this. What's missing is everything between <em>a good tool exists</em> and <em>other people find it, trust it, and keep coming back</em>. Right now the site is technically unshareable — a link posted anywhere renders as a naked URL, and Google cannot see a single one of your 15,579 rule pages. Fix that layer first; it is the difference between a portfolio piece and a reference.</p>
+    <p>The second thing to fix is a trust problem you may not have noticed: the hygiene score, as currently normalized, publishes a vendor leaderboard that reads as an insult to two of your sources. See <strong>F09</strong>.</p>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">A</span>
+      <h2>What you already have that's hard to copy</h2>
+    </div>
+    <p class="sec-sub">Short, because you said you know. But it's worth naming precisely, because the positioning advice later depends on which of these is actually the moat.</p>
+    <div class="good">
+      <div>
+        <h3>Reproducible counts</h3>
+        <p>Pinned commits, glob patterns, exclusion dirs, 5% drift alerting against the GitHub tree. No other aggregator shows its work like this.</p>
+      </div>
+      <div>
+        <h3>Observable extraction</h3>
+        <p>Parsing rule logic down to processes, event IDs, paths and regexes across ten query languages is the genuinely novel engineering here.</p>
+      </div>
+      <div>
+        <h3>The longitudinal record</h3>
+        <p>Weekly deltas, twelve-week pulses, newly-covered techniques. This is the only asset that compounds and that a competitor starting today cannot have.</p>
+      </div>
+      <div>
+        <h3>Gap framing</h3>
+        <p>Ranking 185 actors and 826 tools by distinctive techniques nobody detects is a better product than search, and it's buried under search.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">B</span>
+      <h2>Blocks sharing — fix before you post it anywhere</h2>
+    </div>
+    <p class="sec-sub">Every item here is a few hours of work and each one is currently costing you most of the audience you'd get from a single good post.</p>
+    <div class="findings">
+
+      <div class="f crit">
+        <div class="id">F01</div>
+        <div class="body">
+          <h3>Zero Open Graph tags on every page<span class="pill crit">Critical</span></h3>
+          <p>I checked the DOM on the home page and on a rule detail page: <code>meta[property^="og:"]</code> returns <strong>0 elements</strong>. No <code>og:title</code>, no <code>og:description</code>, no <code>og:image</code>, no Twitter card, no canonical. A rule page dropped in a Slack channel, a LinkedIn post, a Discord server or a Teams chat unfurls as a bare blue link. Your entire organic growth path is one detection engineer pasting a rule link somewhere, and that path is currently dead.</p>
+          <p class="fix">Server-render per-page OG tags (you already compute the title and description client-side via <code>useDocumentMeta</code> — the data is right there). Then add a generated OG image endpoint: rule title, source badge, language, ATT&CK technique, hygiene score on your terminal-green card. A shared rule link that unfurls into a good-looking card is the single highest-leverage change on this list.</p>
+        </div>
+      </div>
+
+      <div class="f crit">
+        <div class="id">F02</div>
+        <div class="body">
+          <h3>Nothing is server-rendered, so nothing is indexed<span class="pill crit">Critical</span></h3>
+          <p>Every route returns the identical Vite shell — I fetched <code>/llms.txt</code>, <code>/sitemap.xml</code> and <code>/api/docs</code> and all three returned the same <code>index.html</code>. Titles and descriptions are injected client-side after hydration. Google can execute JS, but it does so on a deferred second pass and inconsistently at this scale; 15,579 rule pages behind a client-side router will not enter the index in any meaningful way. Someone searching "detect T1003.001" or "Sigma rule certutil download" will never find you.</p>
+          <p class="fix">Prerender the detail routes at build time or put SSR in front (<code>vite-plugin-ssr</code>, or a small prerender worker on Cloudflare). You don't need the whole app rendered — just detection, technique, actor and observable detail pages, which is where the searchable long tail lives.</p>
+        </div>
+      </div>
+
+      <div class="f crit">
+        <div class="id">F03</div>
+        <div class="body">
+          <h3>robots.txt points at a sitemap that doesn't exist<span class="pill crit">Critical</span></h3>
+          <p><code>/robots.txt</code> declares <code>Sitemap: https://detectionexplorer.io/sitemap.xml</code>. That URL returns the SPA shell, not XML. The real generator is <code>/api/sitemap.xml</code> on the backend — which the same robots.txt blocks with <code>Disallow: /api/</code>. So the sitemap is simultaneously unreachable and disallowed.</p>
+          <p class="fix">Proxy <code>/sitemap.xml</code> to the backend generator at the edge, or write it to static at build. Two lines. Then submit it in Search Console.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F04</div>
+        <div class="body">
+          <h3>No mobile navigation<span class="pill warn">High</span></h3>
+          <p>At 375px the header nav runs off the right edge — <code>HOME</code>, <code>DETECTIONS</code>, <code>MITRE</code> are visible and the remaining five items are simply gone, with no hamburger and no horizontal scroll affordance. The <code>LIMIT</code> select on /detections is also clipped at the viewport edge. Links shared on LinkedIn get opened on phones more often than not.</p>
+          <p class="fix">Collapse to a drawer below 768px. The dense table can stay horizontally scrollable — that's fine and expected — but the navigation can't be.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">C</span>
+      <h2>Operational — the things that break when a post lands</h2>
+    </div>
+    <p class="sec-sub">These don't hurt today because traffic is low. They are exactly what fails on the day a post does well.</p>
+    <div class="findings">
+
+      <div class="f crit">
+        <div class="id">F05</div>
+        <div class="body">
+          <h3>Unauthenticated write endpoints in the public OpenAPI spec<span class="pill crit">Verify today</span></h3>
+          <p>The backend is hardcoded in the bundle and directly reachable at <code>threat-detection-explorer-production.up.railway.app</code>, with full Swagger docs at <code>/docs</code> and a complete spec at <code>/openapi.json</code>. That spec declares <strong>no security schemes at all</strong> — <code>components.securitySchemes</code> is empty and every operation's <code>security</code> is null, including <code>POST /api/repositories/sync-all</code>, <code>POST /api/repositories/ingest-all</code>, <code>POST /api/mitre/refresh</code> and <code>POST /api/scheduler/trigger</code>. I did not call any of them — triggering a full re-ingest on your production database isn't mine to do. But if there's no middleware enforcing auth outside the spec, anyone reading this spec can make your box clone thirteen repos on demand, repeatedly.</p>
+          <p class="fix">Verify first. Then: put mutating routes behind a bearer token, drop them from the public router entirely and drive syncs from the scheduler or a GitHub Action, and set <code>openapi_url=None</code>/<code>docs_url</code> gated for the admin surface. Keep the read spec public — see F17.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F06</div>
+        <div class="body">
+          <h3>No caching anywhere, single container, slow first paint<span class="pill warn">High</span></h3>
+          <p>Measured on a warm load of /detections: <code>/api/detections/facets</code> <strong>1,503 ms</strong>, <code>/api/detections</code> <strong>1,278 ms</strong>, <code>/api/detections/filters</code> <strong>695 ms</strong>. No <code>Cache-Control</code> header on any API response. No CDN in front of the backend. One Railway container serving every query for every visitor, with the browser talking to it cross-origin directly.</p>
+          <p class="fix">Your corpus changes once a day — that is close to the most cacheable workload there is. Put Cloudflare in front, proxy the API under <code>detectionexplorer.io/api</code> (same origin, kills the CORS preflight too), and set <code>s-maxage=900, stale-while-revalidate=86400</code> on read routes with a purge on sync completion. Facets and filters should be a static JSON blob regenerated nightly, not a live query.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F07</div>
+        <div class="body">
+          <h3>The visible loading state reads as an empty site<span class="pill warn">Medium</span></h3>
+          <p>On /actors, the page paints <code>ACTORS —  (0 with rules)</code> and <code>SOFTWARE + TOOLS — (0 with rules)</code> for the ~1.5s the facets call takes. A first-time visitor's first impression of your best page is a catalog with zero coverage. Same pattern on the home page's actor ranking, which shows <code>loading ranking…</code>.</p>
+          <p class="fix">Skeleton rows, and bake the top-level counts (185 actors, 826 software, 15,579 rules) into the prerendered HTML so the numbers are correct before any request resolves.</p>
+        </div>
+      </div>
+
+      <div class="f note">
+        <div class="id">F08</div>
+        <div class="body">
+          <h3>"Open source" with no LICENSE file<span class="pill note">Medium</span></h3>
+          <p>The About page calls it "an open-source tool" and links <code>InfoSecJay/threat-detection-explorer</code>, which is public — but the GitHub API reports no license, which legally means all rights reserved. Nobody can fork, contribute or run it. The repo description also still says five sources, and it has zero stars, which is worth noting only because it tells you the distribution work hasn't started.</p>
+          <p class="fix">Add a license (Apache-2.0 or AGPL depending on whether you'd mind a vendor reskinning it), refresh the description, add a real README with a screenshot, and pin it on your profile.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">D</span>
+      <h2>Trust — what a skeptical detection engineer will push back on</h2>
+    </div>
+    <p class="sec-sub">This is the section that matters most for "long lasting". Credibility with maintainers and with your peers is the thing that's slow to build and fast to lose.</p>
+    <div class="findings">
+
+      <div class="f crit">
+        <div class="id">F09</div>
+        <div class="body">
+          <h3>The hygiene score is a schema-similarity leaderboard, and it insults two of your sources<span class="pill crit">Reputational</span></h3>
+          <p>I sampled 50 recent rules per source and averaged the score. The spread isn't measuring hygiene — it's measuring how closely each repo's metadata resembles Sigma/Elastic conventions:</p>
+          <div class="tablewrap" style="margin:4px 0;">
+            <table>
+              <thead><tr><th>Source</th><th>Mean score (n=50)</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Splunk</td><td class="num">70</td><td><span class="bar" style="width:140px"></span></td></tr>
+                <tr><td>Elastic</td><td class="num">67</td><td><span class="bar" style="width:134px"></span></td></tr>
+                <tr><td>Panther</td><td class="num">63</td><td><span class="bar" style="width:126px"></span></td></tr>
+                <tr><td>Sigma</td><td class="num">59</td><td><span class="bar" style="width:118px"></span></td></tr>
+                <tr><td>Elastic Protections</td><td class="num">59</td><td><span class="bar" style="width:118px"></span></td></tr>
+                <tr><td>PyPanther</td><td class="num">53</td><td><span class="bar" style="width:106px"></span></td></tr>
+                <tr><td>Sentinel</td><td class="num">49</td><td><span class="bar" style="width:98px"></span></td></tr>
+                <tr><td>LOLRMM</td><td class="num">48</td><td><span class="bar" style="width:96px"></span></td></tr>
+                <tr><td>Google SecOps</td><td class="num">38</td><td><span class="bar low" style="width:76px"></span></td></tr>
+                <tr><td>Sublime</td><td class="num">34</td><td><span class="bar low" style="width:68px"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Sublime's email rules are some of the best-written detection content in your whole corpus — the one I opened had a five-paragraph description of a real phishing TTP with Unicode evasion detail. It scored <strong>33/100</strong>: <code>MITRE ATT&CK 0/20</code> because MQL email rules don't carry technique tags, and <code>Testability 0/20</code> because the repo's test convention isn't the one you check for. You've built a page that tells a Sublime or Chronicle maintainer their work is failing. That is not the first impression you want when you eventually want those maintainers to link to you.</p>
+          <p class="fix">Three changes. Normalize per format — score each rule against what its language and repo conventions can actually express, so an MQL rule isn't docked for a field that doesn't exist in MQL. Rename it: <em>Metadata Completeness</em>, not <em>Hygiene</em>, and never surface a cross-vendor ranking of it. And keep the "rule hygiene, not detection accuracy" caveat, but move it above the number instead of below.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F10</div>
+        <div class="body">
+          <h3>Permalinks use an internal UUID that isn't the upstream rule ID<span class="pill warn">High</span></h3>
+          <p>The rule I opened lives at <code>/detections/37c8593b-9f9e-d0d4-262a-c8f0238b830d</code> while its displayed Rule ID is <code>c28c8fa1-5378-552f-9a0f-c6d186a406dc</code>, and the upstream ID doesn't resolve. If that internal ID is a database surrogate, or derived from file path or row order, then every shared link, every bookmark, every export and every citation breaks on the next re-ingest. For a site whose value is being linkable, permalink stability is a load-bearing property.</p>
+          <p class="fix">Make the ID a deterministic function of <code>(source, upstream_id)</code> — a UUIDv5 over that pair — so it survives re-ingest, path moves and full rebuilds. Then publish that guarantee on the methodology page, and accept the upstream ID as an alias route so people can link with the ID the vendor uses.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F11</div>
+        <div class="body">
+          <h3>404 on rules that were removed upstream<span class="pill warn">Medium</span></h3>
+          <p>Your own 404 copy admits this: "the rule may have been removed upstream." You already know links rot. A dead link on a site people are meant to cite is worse than a stale page.</p>
+          <p class="fix">Serve tombstones, not 404s. "This rule was tracked from 2025-11-02 until 2026-08-12, when it was removed from SigmaHQ at commit abc123. Here's the last version we saw, and three current rules covering the same technique." That page is more useful than the live rule was, and it's a thing only you can produce — nobody else kept the record.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F12</div>
+        <div class="body">
+          <h3>"Same behaviour, other vendors" returned zero other vendors<span class="pill warn">Medium</span></h3>
+          <p>Cross-vendor comparison is your headline claim. On the Sublime rule I opened, that panel read <strong>"12 rules · 0 other sources"</strong> and filled all twelve slots with other Sublime rules matched on <code>source table type.inbound</code> — i.e. "also an inbound email rule." That's not similarity, it's a fallback that hides the fact that there was no match.</p>
+          <p class="fix">When there's no genuine cross-vendor match, say so — "no equivalent found in the other 12 sources" is a finding, and it's the gap-analysis story you're already telling elsewhere. Keep same-source neighbours in a visually separate, clearly labelled block.</p>
+        </div>
+      </div>
+
+      <div class="f note">
+        <div class="id">F13</div>
+        <div class="body">
+          <h3>Search relevance ranking is unweighted<span class="pill note">Medium</span></h3>
+          <p>Specific queries are good — "powershell encoded command" returns the right rule first, "okta mfa bypass" and "Salt Typhoon" both land well. Broad ones fall apart: <code>q=ransomware</code> returns 588 hits whose top three are "Potential NFS Destructive Operation Burst", "Linux EFI Bootloader File Deletion" and "Speculus - Network traffic to or from high-risk IP indicator" — not one with the word in its title. First-time visitors type broad words.</p>
+          <p class="fix">Boost title and rule-name matches heavily over description and query-body matches (Postgres <code>setweight</code> A/B/C/D if you're on tsvector). Broad-query relevance is what a first-time visitor judges the whole site on.</p>
+        </div>
+      </div>
+
+      <div class="f note">
+        <div class="id">F14</div>
+        <div class="body">
+          <h3>Per-source licenses aren't shown where they matter<span class="pill note">Medium</span></h3>
+          <p>The legal notice correctly tells people to check each repo's license, which puts the work on the reader at exactly the moment they're about to copy a query into production. The licenses genuinely differ and some of them matter — Elastic's rules are ELv2 with a managed-service restriction, and the person copying from your site is very often at an MSSP.</p>
+          <p class="fix">A license badge in the source table on /about, and one on every rule detail page next to the source badge, linking to the upstream LICENSE. It costs you a column and buys you a lot of goodwill with the vendors.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">E</span>
+      <h2>Structure and reach</h2>
+    </div>
+    <div class="findings">
+
+      <div class="f warn">
+        <div class="id">F15</div>
+        <div class="body">
+          <h3>Your most credible page is buried and its obvious URL 404s<span class="pill warn">High</span></h3>
+          <p>The "What we count" table — pinned commits, glob patterns, exclusion dirs, per-source scope prose, drift alerting — is the single strongest trust artifact on the site. It sits at the bottom of <code>/about</code>, below a personal bio, with no nav entry. Meanwhile <code>/methodology</code> returns 404, even though there's already an <code>/api/methodology</code> endpoint. And the same sync story is told in three places: <code>/about</code>, <code>/integrations</code> and <code>/intel</code>, with <code>/integrations</code> adding nothing <code>/intel</code> doesn't.</p>
+          <p class="fix">Promote it to <code>/methodology</code>, put it in the nav, and link to it from every count on the site — the hero's "15,579", the source cards, the coverage percentages. Fold <code>/integrations</code> into <code>/intel</code>. Keep <code>/about</code> for the bio.</p>
+        </div>
+      </div>
+
+      <div class="f warn">
+        <div class="id">F16</div>
+        <div class="body">
+          <h3>The digest is your retention engine and it has no subscribe and no permalink<span class="pill warn">High</span></h3>
+          <p>The weekly digest is the best thing on the site for coming back — themes clustered by technique, per-source deltas, copy-as-markdown. But the only subscription channel is RSS, which most SOC people don't run, and the page is a rolling window: a link you share today shows different content next week, so it can't be cited or archived.</p>
+          <p class="fix">Give every week a URL (<code>/digest/2026-w35</code>) and keep the archive forever. Add email — Buttondown or Listmonk, a few hundred subscribers is a real audience in this niche. Add a Slack/Teams webhook format, since that's where detection teams actually read things. Then post the same digest to LinkedIn every Monday for six months; that consistency is what turns it into a fixture.</p>
+        </div>
+      </div>
+
+      <div class="f note">
+        <div class="id">F17</div>
+        <div class="body">
+          <h3>Your most durable asset is the API, and it's invisible<span class="pill note">Strategic</span></h3>
+          <p>There's a complete, well-shaped 64-endpoint API with a full OpenAPI 3.1 spec and Swagger UI — reachable only if you know to guess the Railway hostname. Nothing on detectionexplorer.io links to it. No version prefix, no rate limits, no fair-use terms, no examples. Also missing: a contribution path. No "suggest a source", no issue link, no discussion, nothing that lets a stranger participate. Projects that last have a way in.</p>
+          <p class="fix">Publish it at <code>detectionexplorer.io/api/docs</code> with a <code>/v1</code> prefix and a stated deprecation policy, add rate limits and a short fair-use note, and write three worked examples (pull today's new rules into a Slack channel; export a Navigator layer for an actor; diff your own rule set against the corpus). People who build against your API stop being visitors. Pair it with the MCP server you've been planning — that's the version of this that gets used inside an agent loop daily.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="n">F</span>
+      <h2>What makes this last</h2>
+    </div>
+    <p class="sec-sub">The findings above are execution. This part is the bet, and it's the one worth arguing with me about.</p>
+    <div class="bet">
+
+      <div class="layer">
+        <div class="tag">The problem</div>
+        <p><em>"Search 15,579 detection rules" is a commodity in 2026.</em> Sigma has a search. Elastic has docs. An LLM answers "give me a rule for T1003.001" instantly and will keep getting better at it. If browsing is the pitch, the site's value decays as models improve. Nothing on the home page currently says why a person should use you rather than ask a model.</p>
+      </div>
+
+      <div class="layer">
+        <div class="tag">The asset</div>
+        <p><em>The longitudinal record is the only thing that compounds.</em> Observable extraction is clever but reproducible by a well-resourced team in a quarter. The normalized schema is a moat measured in months. But "what did the open detection ecosystem cover on 2026-08-30, and how did that change over three years" cannot be built by someone starting tomorrow — it requires having been running since today. Keep every nightly snapshot forever, even the ones you don't currently surface.</p>
+      </div>
+
+      <div class="layer">
+        <div class="tag">The pitch</div>
+        <p><em>Lead with the gap, not the catalog.</em> "89.9% of ATT&CK techniques have at least one public rule — here are the 21 that have none, and the 40 actors whose distinctive TTPs nobody detects" is a headline people repost. "15,579 rules, searchable" is a headline people scroll past. Your /actors gap ranking is already the most interesting page on the site; it should be the front door, with search as the utility underneath it.</p>
+      </div>
+
+      <div class="layer">
+        <div class="tag">The proof</div>
+        <p><em>Get cited, not just visited.</em> Traffic decays; citations compound. Publish one quarterly coverage report with a stable URL and real numbers — coverage growth by technique, which vendors moved, what went uncovered — and make the underlying data downloadable. Conference talks, vendor blogs and threat reports will link to it, and inbound links are the only SEO that survives a platform change. This is also the thing that makes the site outlive your interest in maintaining it.</p>
+      </div>
+
+      <div class="layer">
+        <div class="tag">The tension</div>
+        <p><em>"Engineered by Jay Tymchuk" cuts both ways.</em> It's excellent for the portfolio use — and this is clearly a strong portfolio piece — but a site presented as one person's project has a visible bus factor, and enterprise readers discount it accordingly. If longevity is the real goal, shift the framing toward a project with contributors, a license, and a governance note, and keep the byline in a credits line. If the portfolio is the real goal, ignore this one; the two goals genuinely conflict and it's worth deciding which you're optimizing for.</p>
+      </div>
+
+    </div>
+
+    <details>
+      <summary>Smaller things worth a line</summary>
+      <ul>
+        <li>Name inconsistency: the site calls itself <em>Threat Detection Explorer</em>, the domain and your resume say <em>Detection Explorer</em>. Pick one — it's the difference between people finding you again and half-remembering.</li>
+        <li>Google Fonts loads three families (Orbitron, Rajdhani, JetBrains Mono) as a render-blocking stylesheet from a third-party origin. Self-host and subset; it's ~18KB and a DNS round trip on first paint.</li>
+        <li>The default sort on /detections is Created (Newest), which shows a first-time visitor eight Sublime email rules in a row. Relevance or a curated "start here" set would sell the corpus better.</li>
+        <li>The query language is genuinely good (<code>actor:"Salt Typhoon"</code>, <code>tech:T1003.001 platform:windows</code>) and the example chips are the right call — but <code>/query</code> isn't in the nav, and the syntax help is a <code>?</code> button most people won't press.</li>
+        <li>Rule detail pages show <code>Author: unknown</code> where upstream metadata is missing. Falling back to the repo name would read better than "unknown" and is more accurate.</li>
+        <li>No analytics that I could detect. You'll want to know which rule pages get shared before deciding what to build next — Plausible or Umami, self-hosted, no cookie banner needed.</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer>
+    Review of detectionexplorer.io v1.4.0 · 30 August 2026 · Findings F01–F17 · All measurements taken live against the production site
+  </footer>
+
+</div>
+
+</body>
+</html>
