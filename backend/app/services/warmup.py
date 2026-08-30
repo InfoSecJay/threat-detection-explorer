@@ -51,6 +51,8 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
     await step("facets", search.get_facets(SearchFilters()))
     await step("technique_source_counts", technique_source_counts(db))
     await step("digest", compute_digest(db))
+    # Observables index + the eight default top-150 lists the page requests.
+    await step("observable_types", _warm_observables(db))
 
     await step("mitre", mitre_service.ensure_loaded())
     # Home hero reads the parent-technique matrix; the ATT&CK browser the full one.
@@ -80,6 +82,15 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
     total = round(sum(timings.values()), 3)
     logger.info("cache warm-up done in %.1fs (%d steps)", total, len(timings))
     return timings
+
+
+async def _warm_observables(db: AsyncSession) -> None:
+    from app.api.routes.observables import list_types, list_values
+    from app.services.observables import OBSERVABLE_TYPES
+
+    await list_types(db=db)
+    for kind in OBSERVABLE_TYPES:
+        await list_values(kind, limit=150, source=None, q=None, db=db)
 
 
 async def warm_caches_background() -> None:

@@ -149,3 +149,29 @@ async def test_value_search_and_network_shapes(client, db_session):
         "10.0.0.0/8": "ip", "2001:db8::1": "ip", "443": "port",
         "evil.example": "domain", "https://evil.example/x": "url",
     }
+
+
+@pytest.mark.asyncio
+async def test_index_and_default_lists_are_memoised(client, seeded, db_session):
+    first = (await client.get("/api/observables")).json()
+    calls = 0
+    orig = db_session.execute
+
+    async def counting(*a, **kw):
+        nonlocal calls
+        calls += 1
+        return await orig(*a, **kw)
+
+    db_session.execute = counting
+    try:
+        again = (await client.get("/api/observables")).json()
+        top1 = (await client.get("/api/observables/process", params={"limit": 150})).json()
+        top2 = (await client.get("/api/observables/process", params={"limit": 150})).json()
+        searched = (await client.get("/api/observables/process", params={"q": "mimi"})).json()
+    finally:
+        db_session.execute = orig
+    assert again == first
+    assert top1 == top2
+    assert searched["query"] == "mimi"
+    # index hit (1 fingerprint) + first top list (fingerprint + scan) + second (1) + search (fingerprint-free scan)
+    assert calls == 1 + 2 + 1 + 1, calls

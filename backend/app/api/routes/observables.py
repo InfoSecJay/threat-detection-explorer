@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.corpus_cache import corpus_cache
 from app.services.observables import OBSERVABLE_TYPES, observable_profile, top_values
 
 router = APIRouter(prefix="/observables", tags=["observables"])
@@ -30,6 +31,12 @@ def _kind(kind: str) -> str:
 
 @router.get("")
 async def list_types(db: AsyncSession = Depends(get_db)):
+    """The surfaces with their distinct counts and top values -- eight
+    scans, memoised on the corpus fingerprint."""
+    return await corpus_cache.get(db, ("observable_types",), lambda: _compute_types(db))
+
+
+async def _compute_types(db: AsyncSession) -> dict:
     out = []
     for k, (_, filter_key, label) in OBSERVABLE_TYPES.items():
         top = await top_values(db, k, limit=5)
@@ -45,7 +52,13 @@ async def list_values(
     q: Optional[str] = Query(None, max_length=200, description="Case-insensitive substring of the value"),
     db: AsyncSession = Depends(get_db),
 ):
-    return await top_values(db, _kind(kind), limit=limit, source=source, q=q)
+    k = _kind(kind)
+    if q:
+        # Searches are unbounded input; compute, do not memoise.
+        return await top_values(db, k, limit=limit, source=source, q=q)
+    return await corpus_cache.get(
+        db, ("observable_top", k, limit, source), lambda: top_values(db, k, limit=limit, source=source),
+    )
 
 
 @router.get("/{kind}/{value:path}")
