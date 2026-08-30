@@ -70,6 +70,10 @@ async def test_digest_composes_every_section(client, seeded):
     assert d["summary"]["total_rules"] == 3
     assert d["summary"]["created"] == 2 and d["summary"]["modified"] == 1
     assert d["summary"]["created_by_source"] == {"sigma": 1, "splunk": 1}
+    assert d["summary"]["by_source"] == {"sigma": {"created": 1, "modified": 1}, "splunk": {"created": 1, "modified": 0}}
+    assert [r["title"] for r in d["modified_rules"]] == ["Old rule"]
+    assert d["themes"][0]["technique_id"] in ("T1059", "T1651") and d["themes"][0]["rules"] == 1
+    assert d["themes"][0]["samples"][0]["title"].startswith("Fresh")
     assert d["source_deltas"]["by_source"]["sigma"]["delta"] == 3
     assert [r["title"] for r in d["new_rules"]] == ["Fresh sigma", "Fresh splunk"]
     assert d["new_rules"][0]["quality_score"] == 72
@@ -112,3 +116,31 @@ async def test_newly_covered_feed_is_valid_rss(client, seeded):
     assert any(t.startswith("T1651") for t in titles)
     links = [i.findtext("link") for i in root.findall("./channel/item")]
     assert all("/mitre/T" in l for l in links)
+
+
+@pytest.mark.asyncio
+async def test_new_rule_is_not_also_counted_as_modified(client, db_session, seeded):
+    """A rule created in the window carries a modified date too; it must
+    show up once, under new."""
+    db_session.add(_rule(title="Fresh and touched", rule_created_date=NOW - timedelta(days=1),
+                         rule_modified_date=NOW - timedelta(hours=1)))
+    await db_session.commit()
+    d = (await client.get("/api/digest", params={"days": 7})).json()
+    assert d["summary"]["created"] == 3 and d["summary"]["modified"] == 1
+    assert "Fresh and touched" in [r["title"] for r in d["new_rules"]]
+    assert "Fresh and touched" not in [r["title"] for r in d["modified_rules"]]
+
+
+@pytest.mark.asyncio
+async def test_feeds_filter_by_source_and_modified_feed_exists(client, seeded):
+    resp = await client.get("/api/digest/feed.xml", params={"source": "splunk"})
+    assert resp.status_code == 200
+    items = ET.fromstring(resp.text).find("channel").findall("item")
+    assert [i.findtext("title") for i in items] == ["[splunk] Fresh splunk"]
+    assert (await client.get("/api/digest/feed.xml", params={"source": "nope"})).status_code == 400
+
+    resp = await client.get("/api/digest/modified.xml")
+    assert resp.status_code == 200
+    items = ET.fromstring(resp.text).find("channel").findall("item")
+    assert [i.findtext("title") for i in items] == ["[sigma] Old rule"]
+    assert items[0].findtext("guid").startswith("detection:") and ":modified:" in items[0].findtext("guid")

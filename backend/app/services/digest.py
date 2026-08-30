@@ -10,16 +10,18 @@ queries so subscribers and the page never disagree.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
+from typing import Optional
 from datetime import timedelta
 from xml.sax.saxutils import escape
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
 from app.services.corpus_cache import corpus_cache
 from app.services.coverage_snapshot import compute_newly_covered
+from app.services.mitre import mitre_service
 from app.services.source_deltas import compute_source_deltas
 from app.services.technique_deltas import compute_technique_deltas
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -51,11 +53,27 @@ def _rule_dict(row) -> dict:
     }
 
 
-async def new_rules(db: AsyncSession, *, since, limit: int) -> list[dict]:
+def _created_in(since):
+    return and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= since)
+
+
+def _modified_in(since):
+    """Changed in the window but NOT created in it -- a brand-new rule
+    also carries a modified date and must not be counted twice."""
+    return and_(
+        Detection.rule_modified_date.isnot(None),
+        Detection.rule_modified_date >= since,
+        or_(Detection.rule_created_date.is_(None), Detection.rule_created_date < since),
+    )
+
+
+async def new_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None) -> list[dict]:
+    cond = _created_in(since)
+    if source:
+        cond = and_(cond, Detection.source == source)
     rows = (
         await db.execute(
-            select(*_RULE_COLS)
-            .where(and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= since))
+            select(*_RULE_COLS).where(cond)
             .order_by(Detection.rule_created_date.desc(), Detection.title.asc())
             .limit(limit)
         )
@@ -63,26 +81,79 @@ async def new_rules(db: AsyncSession, *, since, limit: int) -> list[dict]:
     return [_rule_dict(r) for r in rows]
 
 
-async def compute_digest(db: AsyncSession, days: int = 7, limit: int = 15) -> dict:
+async def modified_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None) -> list[dict]:
+    cond = _modified_in(since)
+    if source:
+        cond = and_(cond, Detection.source == source)
+    rows = (
+        await db.execute(
+            select(*_RULE_COLS).where(cond)
+            .order_by(Detection.rule_modified_date.desc(), Detection.title.asc())
+            .limit(limit)
+        )
+    ).all()
+    return [_rule_dict(r) for r in rows]
+
+
+def _themes(rules: list[dict], limit: int = 8) -> list[dict]:
+    """The techniques the new rules cluster on -- the data-driven "key
+    takeaways": technique, tactic, how many new rules, from which
+    sources, and a few of them by name."""
+    counts: Counter[str] = Counter()
+    sources: dict[str, Counter[str]] = defaultdict(Counter)
+    samples: dict[str, list[dict]] = defaultdict(list)
+    for r in rules:
+        for tid in dict.fromkeys(t.upper() for t in r["mitre_techniques"] if isinstance(t, str) and t):
+            counts[tid] += 1
+            sources[tid][r["source"]] += 1
+            if len(samples[tid]) < 3:
+                samples[tid].append({"id": r["id"], "title": r["title"], "source": r["source"]})
+    out = []
+    for tid, n in counts.most_common(limit):
+        info = mitre_service.get_technique(tid) or {}
+        tactic_ids = info.get("tactics") or []
+        tactic = mitre_service.get_tactic(tactic_ids[0]) if tactic_ids else None
+        out.append({
+            "technique_id": tid,
+            "technique_name": info.get("name", ""),
+            "tactic": (tactic or {}).get("name", ""),
+            "rules": n,
+            "sources": dict(sources[tid].most_common()),
+            "samples": samples[tid],
+        })
+    return out
+
+
+async def compute_digest(db: AsyncSession, days: int = 7, limit: int = 15, rules_limit: int = 300) -> dict:
     """Weekly digest payload, memoised on the corpus fingerprint plus
     the UTC date (the window is anchored to "now", so the answer can
     change at midnight even when the corpus does not)."""
-    key = ("digest", days, limit, utcnow().date().isoformat())
-    return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit))
+    key = ("digest", days, limit, rules_limit, utcnow().date().isoformat())
+    return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit, rules_limit))
 
 
-async def _compute_digest(db: AsyncSession, days: int, limit: int) -> dict:
+async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: int) -> dict:
     end = utcnow()
     start = end - timedelta(days=days)
 
-    async def _count(col) -> int:
-        return (
-            await db.execute(select(func.count(Detection.id)).where(and_(col.isnot(None), col >= start)))
-        ).scalar() or 0
+    async def _count(cond) -> int:
+        return (await db.execute(select(func.count(Detection.id)).where(cond))).scalar() or 0
+
+    async def _count_by_source(cond) -> dict[str, int]:
+        rows = (
+            await db.execute(select(Detection.source, func.count(Detection.id)).where(cond).group_by(Detection.source))
+        ).all()
+        return {src: int(n) for src, n in rows}
 
     total_rules = (await db.execute(select(func.count(Detection.id)))).scalar() or 0
-    created = await _count(Detection.rule_created_date)
-    modified = await _count(Detection.rule_modified_date)
+    created = await _count(_created_in(start))
+    modified = await _count(_modified_in(start))
+    created_by = await _count_by_source(_created_in(start))
+    modified_by = await _count_by_source(_modified_in(start))
+    by_source = {
+        src: {"created": created_by.get(src, 0), "modified": modified_by.get(src, 0)}
+        for src in sorted(set(created_by) | set(modified_by), key=lambda s: (-created_by.get(s, 0), -modified_by.get(s, 0), s))
+    }
 
     # Emerging data sources: canonical data_sources by new-rule volume.
     ds_rows = (
@@ -108,19 +179,8 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int) -> dict:
     source_deltas = await compute_source_deltas(db, days=days)
     newly_covered = await compute_newly_covered(db, days=days, limit=limit)
     momentum = await compute_technique_deltas(db, days=days, limit=8)
-    rules = await new_rules(db, since=start, limit=limit)
-
-    # Per-source new-rule counts for the header strip.
-    by_source: dict[str, int] = defaultdict(int)
-    src_rows = (
-        await db.execute(
-            select(Detection.source, func.count(Detection.id))
-            .where(and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= start))
-            .group_by(Detection.source)
-        )
-    ).all()
-    for source, n in src_rows:
-        by_source[source] = int(n)
+    rules = await new_rules(db, since=start, limit=rules_limit)
+    changed = await modified_rules(db, since=start, limit=rules_limit)
 
     return {
         "generated_at": to_utc_iso(end),
@@ -129,12 +189,16 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int) -> dict:
             "total_rules": total_rules,
             "created": created,
             "modified": modified,
-            "created_by_source": dict(sorted(by_source.items(), key=lambda kv: (-kv[1], kv[0]))),
+            # Kept for older clients; by_source carries both counts.
+            "created_by_source": {s: v["created"] for s, v in by_source.items() if v["created"]},
+            "by_source": by_source,
         },
+        "themes": _themes(rules),
         "source_deltas": source_deltas,
         "newly_covered": newly_covered,
         "momentum": momentum,
         "new_rules": rules,
+        "modified_rules": changed,
         "emerging_data_sources": emerging,
     }
 
@@ -179,14 +243,15 @@ def _rfc822(iso: str | None) -> str | None:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 
-async def new_rules_feed(db: AsyncSession, site_url: str, *, days: int = 30, limit: int = 50) -> str:
-    rules = await new_rules(db, since=utcnow() - timedelta(days=days), limit=limit)
-    items = [
+def _rule_items(rules: list[dict], site_url: str, date_key: str) -> list[dict]:
+    return [
         {
             "title": f"[{r['source']}] {r['title']}",
             "link": f"{site_url}/detections/{r['id']}",
-            "guid": f"detection:{r['id']}",
-            "pub_date": _rfc822(r["created"]),
+            # New-rule guids stay stable (subscribers already have them);
+            # an update is a new event, so its guid carries the date.
+            "guid": f"detection:{r['id']}" if date_key == "created" else f"detection:{r['id']}:modified:{r['modified'] or ''}",
+            "pub_date": _rfc822(r[date_key]),
             "description": (
                 f"{r['description'] or 'No description.'} "
                 f"(severity {r['severity']}, techniques {', '.join(r['mitre_techniques']) or 'none'}"
@@ -196,11 +261,31 @@ async def new_rules_feed(db: AsyncSession, site_url: str, *, days: int = 30, lim
         }
         for r in rules
     ]
+
+
+async def new_rules_feed(
+    db: AsyncSession, site_url: str, *, days: int = 30, limit: int = 50, source: Optional[str] = None,
+) -> str:
+    rules = await new_rules(db, since=utcnow() - timedelta(days=days), limit=limit, source=source)
+    scope = f"from {source}" if source else "across every tracked source"
     return _rss(
-        "Detection Explorer - new detection rules",
+        f"Detection Explorer - new detection rules{' (' + source + ')' if source else ''}",
         f"{site_url}/digest",
-        f"Detection rules added to the corpus in the last {days} days, across every tracked source.",
-        items,
+        f"Detection rules added to the corpus in the last {days} days, {scope}.",
+        _rule_items(rules, site_url, "created"),
+    )
+
+
+async def modified_rules_feed(
+    db: AsyncSession, site_url: str, *, days: int = 30, limit: int = 50, source: Optional[str] = None,
+) -> str:
+    rules = await modified_rules(db, since=utcnow() - timedelta(days=days), limit=limit, source=source)
+    scope = f"from {source}" if source else "across every tracked source"
+    return _rss(
+        f"Detection Explorer - updated detection rules{' (' + source + ')' if source else ''}",
+        f"{site_url}/digest",
+        f"Existing detection rules changed upstream in the last {days} days, {scope}.",
+        _rule_items(rules, site_url, "modified"),
     )
 
 

@@ -959,14 +959,32 @@ export interface DigestRule {
   description: string;
 }
 
+export interface DigestTheme {
+  technique_id: string;
+  technique_name: string;
+  tactic: string;
+  rules: number;
+  sources: Record<string, number>;
+  samples: { id: string; title: string; source: string }[];
+}
 export interface DigestResponse {
   generated_at: string;
   period: { days: number; start: string; end: string };
-  summary: { total_rules: number; created: number; modified: number; created_by_source: Record<string, number> };
+  summary: {
+    total_rules: number;
+    created: number;
+    /** Changed in the window and created before it. */
+    modified: number;
+    created_by_source: Record<string, number>;
+    by_source: Record<string, { created: number; modified: number }>;
+  };
+  /** Techniques the new rules cluster on -- the data-driven takeaways. */
+  themes: DigestTheme[];
   source_deltas: SourceDeltasResponse;
   newly_covered: NewlyCoveredResponse;
   momentum: TechniqueDeltasResponse;
   new_rules: DigestRule[];
+  modified_rules: DigestRule[];
   emerging_data_sources: { data_source: string; count: number; sources: string[] }[];
 }
 
@@ -977,7 +995,8 @@ export const digestApi = {
   },
   // Feed URLs go through the same API base as everything else (the
   // Vercel /api rewrite in production, the dev proxy locally).
-  feedUrl: (name: 'feed' | 'newly-covered'): string => `${API_BASE_URL}/digest/${name}.xml`,
+  feedUrl: (name: 'feed' | 'newly-covered' | 'modified', source?: string): string =>
+    `${API_BASE_URL}/digest/${name}.xml${source ? `?source=${encodeURIComponent(source)}` : ''}`,
 };
 
 // Observable pages: everything the corpus knows about one extracted value.
