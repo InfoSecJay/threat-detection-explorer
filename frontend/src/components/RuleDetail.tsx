@@ -1,4 +1,9 @@
-/** Single-rule detail card. Sections live in components/ruledetail/. */
+/** Single-rule page, laid out like an Elastic rule: header with the
+ * identity chips, then ABOUT (what it is, who wrote it, how to triage
+ * it) on the left and DEFINITION (where it reads from, the query, the
+ * fields and observables it keys on) on the right. "View source"
+ * swaps the definition for the upstream file as-is. Sections live in
+ * components/ruledetail/. */
 
 import { parseApiDate } from '../utils/dates';
 import { useState } from 'react';
@@ -9,9 +14,8 @@ import { useEventIds } from '../hooks/useEventIds';
 import { CopyButton } from './ruledetail/CopyButton';
 import { CodeBlock } from './ruledetail/CodeBlock';
 import { AttackSection } from './ruledetail/AttackSection';
-import { TaxonomyChips } from './ruledetail/TaxonomyChips';
-import { RuleNotes } from './ruledetail/RuleNotes';
 import { HygieneBars } from './ruledetail/HygieneBars';
+import { sourceTheme } from '../constants/style';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -34,206 +38,238 @@ const statusColors: Record<string, string> = {
   unknown: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
-const sourceGradients: Record<string, string> = {
-  sigma: 'from-purple-500 to-purple-600',
-  elastic: 'from-blue-500 to-blue-600',
-  splunk: 'from-orange-500 to-orange-600',
-  sublime: 'from-pink-500 to-pink-600',
-  elastic_protections: 'from-cyan-500 to-cyan-600',
-  lolrmm: 'from-green-500 to-green-600',
+const LANGUAGE_LABEL: Record<string, string> = {
+  sigma: 'Sigma', spl: 'SPL', eql: 'EQL', kql: 'KQL', esql: 'ES|QL', mql: 'MQL', yaral: 'YARA-L',
+  oie: 'Okta expression', python: 'Python', panther: 'Panther declarative', panther_correlation: 'Panther correlation',
 };
+
+function fmt(iso: string | null | undefined): string {
+  if (!iso) return 'unknown';
+  const d = parseApiDate(iso);
+  return isNaN(d.getTime()) ? 'unknown' : d.toLocaleDateString();
+}
+
+/** Label / value row, Elastic style. */
+function Row({ label, children, testId }: { label: string; children: React.ReactNode; testId?: string }) {
+  return (
+    <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3 py-2 border-b border-void-800 last:border-b-0" data-testid={testId}>
+      <div className="text-xs font-semibold text-gray-400 pt-0.5">{label}</div>
+      <div className="text-sm text-gray-200 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function Chips({ items, tone, unknownTone = false }: { items: string[] | undefined | null; tone: string; unknownTone?: boolean }) {
+  if (!items || items.length === 0) return <span className="text-gray-600 text-xs italic">none</span>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((v) => (
+        <span key={v} className={`inline-flex px-2 py-0.5 rounded text-xs font-mono border ${unknownTone && v === 'unknown' ? 'bg-gray-500/20 text-gray-400 border-gray-500/30 italic' : tone}`}>{v}</span>
+      ))}
+    </div>
+  );
+}
+
+function Card({ title, children, right, testId }: { title: string; children: React.ReactNode; right?: React.ReactNode; testId?: string }) {
+  return (
+    <section className="bg-void-850 rounded-xl border border-void-700" data-testid={testId}>
+      <div className="px-5 py-3 border-b border-void-700 flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase">{title}</h2>
+        {right}
+      </div>
+      <div className="px-5 py-2">{children}</div>
+    </section>
+  );
+}
 
 export function RuleDetail({ detection }: RuleDetailProps) {
   const { labels: eventIdLabels } = useEventIds();
-  const [activeTab, setActiveTab] = useState<'normalized' | 'raw'>('normalized');
+  const [aboutTab, setAboutTab] = useState<'details' | 'guide'>('details');
+  const [viewSource, setViewSource] = useState(false);
+  const src = sourceTheme[detection.source];
+  const language = LANGUAGE_LABEL[(detection.language || '').toLowerCase()] || (detection.language || 'unknown');
+  const hasObservables = (detection.extracted_observables?.length ?? 0) > 0 || (detection.extracted_source_tables?.length ?? 0) > 0;
 
   return (
-    <div className="bg-void-850 rounded-xl border border-void-700 overflow-hidden">
-      {/* Color bar */}
-      <div className={`h-1.5 bg-gradient-to-r ${sourceGradients[detection.source] || 'from-gray-500 to-gray-600'}`} />
-
+    <div className="space-y-4">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-void-700">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 bg-void-700 text-gray-300 rounded text-xs font-semibold uppercase">
-                {detection.source.replace('_', ' ')}
-              </span>
-              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold uppercase">
-                {detection.language || 'unknown'}
-              </span>
-              <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity]}`}>
-                {detection.severity}
-              </span>
-              <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>
-                {detection.status}
-              </span>
-              {detection.is_building_block && (
-                <span
-                  className="px-2 py-0.5 rounded text-xs font-semibold border bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30"
-                  title="Building block: emits signal for other rules to correlate on; does not alert on its own"
-                >
-                  Building block
+      <div className="bg-void-850 rounded-xl border border-void-700 overflow-hidden">
+        <div className={`h-1 ${src?.dot || 'bg-gray-500'}`} />
+        <div className="px-6 py-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase border ${src?.bg || 'bg-void-700'} ${src?.text || 'text-gray-300'} ${src?.border || 'border-void-600'}`}>
+                  {src?.name || detection.source}
                 </span>
-              )}
-            </div>
-            <h1 className="text-xl font-bold text-white">{detection.title}</h1>
-          </div>
-          {detection.source_rule_url && (
-            <a
-              href={detection.source_rule_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              View Source
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-void-700 bg-void-900">
-        <nav className="flex px-6">
-          <button
-            onClick={() => setActiveTab('normalized')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === 'normalized'
-                ? 'border-cyan-500 text-cyan-400 bg-void-850'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Normalized View
-          </button>
-          <button
-            onClick={() => setActiveTab('raw')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === 'raw'
-                ? 'border-cyan-500 text-cyan-400 bg-void-850'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Raw Rule
-          </button>
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'normalized' ? (
-        <div className="p-6 space-y-6">
-          {/* Description */}
-          {detection.description && (
-            <div>
-              <p className="text-gray-300">{detection.description}</p>
-            </div>
-          )}
-
-          <AttackSection detection={detection} />
-
-
-          {/* Metadata Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-void-700">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Rule ID</label>
-              <p className="font-mono text-sm text-gray-300 bg-void-900 px-2 py-1 rounded truncate" title={detection.rule_id || 'N/A'}>
-                {detection.rule_id || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Author</label>
-              <p className="text-sm text-gray-300 truncate" title={detection.author || 'Unknown'}>
-                {detection.author || 'Unknown'}
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Created</label>
-              <p className="text-sm text-gray-300">
-                {detection.rule_created_date ? parseApiDate(detection.rule_created_date).toLocaleDateString() : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Modified</label>
-              <p className="text-sm text-gray-300">
-                {detection.rule_modified_date ? parseApiDate(detection.rule_modified_date).toLocaleDateString() : 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          <TaxonomyChips detection={detection} />
-
-
-          {/* Extracted Observables: typed view (observables v2) */}
-          {((detection.extracted_observables?.length ?? 0) > 0 ||
-            (detection.extracted_source_tables?.length ?? 0) > 0) && (
-            <div className="pt-4 border-t border-void-700">
-              <ObservablesPanel
-                observables={detection.extracted_observables || []}
-                sourceTables={detection.extracted_source_tables || []}
-                complexity={detection.query_complexity}
-                eventIdLabels={eventIdLabels}
-              />
-            </div>
-          )}
-
-          <RuleNotes detection={detection} />
-
-          {detection.quality_details && <HygieneBars details={detection.quality_details} />}
-
-          {/* Detection Logic */}
-          <div className="pt-4 border-t border-void-700">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Detection Logic</label>
-                <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold uppercase">
-                  {detection.language || 'unknown'}
-                </span>
+                <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold">{language}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity] || severityColors.unknown}`}>{detection.severity}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>{detection.status}</span>
+                {detection.is_building_block && (
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30" title="Building block: emits signal for other rules to correlate on; does not alert on its own">
+                    Building block
+                  </span>
+                )}
               </div>
-              {detection.detection_logic && (
-                <CopyButton text={detection.detection_logic} label="Copy Logic" />
+              <h1 className="text-xl font-bold text-white">{detection.title}</h1>
+              <p className="text-xs text-gray-500 mt-1 font-mono" data-testid="rule-byline">
+                Created by {detection.author || 'unknown'} on {fmt(detection.rule_created_date)} · Updated {fmt(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewSource((v) => !v)}
+                aria-pressed={viewSource}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${viewSource ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' : 'bg-void-700 text-gray-300 border-transparent hover:bg-void-600 hover:text-white'}`}
+                data-testid="view-source"
+              >
+                {viewSource ? 'View definition' : 'View source'}
+              </button>
+              {detection.source_rule_url && (
+                <a href={detection.source_rule_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors">
+                  Upstream &#8599;
+                </a>
               )}
             </div>
-            <CodeBlock language={detection.language} code={detection.detection_logic} fallback="No detection logic available" />
-          </div>
-
-
-          {/* Find Related Detections Button */}
-          <div className="flex justify-center pt-4">
-            <Link
-              // /compare is hidden pending its rework (#11) and redirects
-              // to Home, so route to the catalog filtered the same way.
-              to={detection.mitre_techniques.length > 0
-                ? `/detections?mitre_techniques=${detection.mitre_techniques[0]}`
-                : `/detections?search=${encodeURIComponent(detection.title.split(' ').slice(0, 3).join(' '))}`
-              }
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg font-medium transition-all shadow-glow-cyan"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              Find Related Detections
-            </Link>
-          </div>
-
-          {/* Footer */}
-          <div className="pt-4 border-t border-void-700 flex items-center justify-between text-sm">
-            <span className="text-gray-500">
-              Source: <span className="font-mono text-gray-400">{detection.source_file}</span>
-            </span>
-            <span className="text-gray-600">Synced: {parseApiDate(detection.updated_at).toLocaleString()}</span>
           </div>
         </div>
-      ) : (
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Raw Rule Content</label>
-            {detection.raw_content && (
-              <CopyButton text={detection.raw_content} label="Copy Raw" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-4 items-start">
+        {/* ABOUT */}
+        <Card
+          title="About"
+          testId="about-card"
+          right={
+            <div className="flex gap-1 text-xs" role="tablist" aria-label="About tabs">
+              {([['details', 'Details'], ['guide', 'Investigation guide']] as const).map(([k, label]) => (
+                <button key={k} role="tab" aria-selected={aboutTab === k} onClick={() => setAboutTab(k)}
+                  className={`px-3 py-1 rounded-md font-medium transition-colors ${aboutTab === k ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-400 hover:text-white'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {aboutTab === 'guide' ? (
+            <div className="py-6 text-center" data-testid="guide-placeholder">
+              <p className="text-sm text-gray-300">No investigation guide yet.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Guides will be generated per rule from its logic, observables and references. Until then, the description and false-positive notes under Details are the triage material.
+              </p>
+            </div>
+          ) : (
+            <div>
+              {detection.description && (
+                <p className="text-sm text-gray-300 leading-relaxed py-2 border-b border-void-800">{detection.description}</p>
+              )}
+              <Row label="Author">{detection.author || <span className="text-gray-600 italic text-xs">unknown</span>}</Row>
+              <Row label="Severity"><span className="capitalize">{detection.severity}</span></Row>
+              <Row label="Status"><span className="capitalize">{detection.status}</span></Row>
+              <Row label="Rule ID"><span className="font-mono text-xs break-all">{detection.rule_id || 'N/A'}</span></Row>
+              {detection.quality_details && (
+                <div className="py-3 border-b border-void-800"><HygieneBars details={detection.quality_details} /></div>
+              )}
+              <Row label="Reference URLs">
+                {detection.references && detection.references.length > 0 ? (
+                  <ul className="space-y-1">
+                    {detection.references.map((ref, i) => (
+                      <li key={i}>
+                        {ref.startsWith('http') ? (
+                          <a href={ref} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:text-cyan-300 hover:underline break-all">{ref}</a>
+                        ) : (
+                          <span className="text-xs text-gray-400">{ref}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : <span className="text-gray-600 text-xs italic">none</span>}
+              </Row>
+              <Row label="False positive examples">
+                {detection.false_positives && detection.false_positives.length > 0 ? (
+                  <ul className="space-y-1 list-disc pl-4">
+                    {detection.false_positives.map((fp, i) => <li key={i} className="text-xs text-gray-300">{fp}</li>)}
+                  </ul>
+                ) : <span className="text-gray-600 text-xs italic">none documented</span>}
+              </Row>
+              <div className="py-2 border-b border-void-800">
+                <AttackSection detection={detection} />
+              </div>
+              {(detection.use_cases?.length ?? 0) > 0 && (
+                <Row label="Use cases"><Chips items={detection.use_cases} tone="bg-void-700 text-gray-300 border-void-600" /></Row>
+              )}
+              <Row label="Tags">
+                {detection.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {detection.tags.slice(0, 16).map((t) => <span key={t} className="px-2 py-0.5 bg-void-700 text-gray-400 rounded text-xs">{t}</span>)}
+                    {detection.tags.length > 16 && <span className="px-2 py-0.5 text-gray-500 text-xs">+{detection.tags.length - 16} more</span>}
+                  </div>
+                ) : <span className="text-gray-600 text-xs italic">none</span>}
+              </Row>
+              <Row label="Source file"><span className="font-mono text-xs text-gray-400 break-all">{detection.source_file}</span></Row>
+            </div>
+          )}
+        </Card>
+
+        {/* DEFINITION */}
+        <div className="space-y-4">
+          <Card
+            title={viewSource ? 'Source' : 'Definition'}
+            testId="definition-card"
+            right={
+              viewSource
+                ? (detection.raw_content ? <CopyButton text={detection.raw_content} label="Copy source" /> : null)
+                : (detection.detection_logic ? <CopyButton text={detection.detection_logic} label="Copy query" /> : null)
+            }
+          >
+            {viewSource ? (
+              <div className="py-2" data-testid="raw-source">
+                <CodeBlock language={detection.language} code={detection.raw_content} fallback="No raw content available" />
+              </div>
+            ) : (
+              <div>
+                <Row label="Source tables / indices" testId="def-tables"><Chips items={detection.extracted_source_tables} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" /></Row>
+                <Row label="Data sources"><Chips items={detection.data_sources} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" unknownTone /></Row>
+                <Row label="Platforms"><Chips items={detection.platforms} tone="bg-cyan-500/15 text-cyan-300 border-cyan-500/30" unknownTone /></Row>
+                <Row label="Event types"><Chips items={detection.event_types} tone="bg-orange-500/15 text-orange-300 border-orange-500/30" unknownTone /></Row>
+                <Row label="Rule type"><span className="text-xs">{language}{detection.query_complexity ? <span className="text-gray-500"> · {detection.query_complexity} complexity</span> : null}</span></Row>
+                <div className="py-3 border-b border-void-800" data-testid="def-query">
+                  <div className="text-xs font-semibold text-gray-400 mb-2">Query</div>
+                  <CodeBlock language={detection.language} code={detection.detection_logic} fallback="No detection logic available" />
+                </div>
+                <Row label="Required fields" testId="def-fields">
+                  <Chips items={detection.extracted_fields_used} tone="bg-void-700 text-gray-300 border-void-600" />
+                </Row>
+              </div>
             )}
-          </div>
-          <CodeBlock language={detection.language} code={detection.raw_content} fallback="No raw content available" />
+          </Card>
+
+          {!viewSource && hasObservables && (
+            <Card title="Observables" testId="observables-card">
+              <div className="py-2">
+                <ObservablesPanel
+                  observables={detection.extracted_observables || []}
+                  sourceTables={detection.extracted_source_tables || []}
+                  complexity={detection.query_complexity}
+                  eventIdLabels={eventIdLabels}
+                />
+              </div>
+            </Card>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="flex justify-center pt-2">
+        <Link
+          to={detection.mitre_techniques.length > 0
+            ? `/detections?mitre_techniques=${detection.mitre_techniques[0]}`
+            : `/detections?search=${encodeURIComponent(detection.title.split(' ').slice(0, 3).join(' '))}`}
+          className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-lg font-medium transition-all shadow-glow-cyan"
+        >
+          Find related detections
+        </Link>
+      </div>
     </div>
   );
 }
