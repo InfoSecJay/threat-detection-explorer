@@ -12,14 +12,15 @@
  */
 
 import { useMemo } from 'react';
-import { useActors } from './useActors';
+import { useQuery } from '@tanstack/react-query';
+import { actorsApi } from '../services/api';
 import { useMitre } from '../contexts/MitreContext';
 
 const ATTACK_ENTITY_RE =
   /^https?:\/\/attack\.mitre\.org\/(?:wiki\/)?(groups|software|techniques)\/([GST]\d{4})(?:\/(\d{3}))?\/?$/i;
 
 export function useAttackRouteResolver(): (url: string) => string | null {
-  const { data: actors } = useActors();
+  const { data: actors } = useQuery({ queryKey: ['actors-catalog'], queryFn: actorsApi.catalog, staleTime: 1000 * 60 * 30 });
   const { techniques } = useMitre();
 
   return useMemo(() => {

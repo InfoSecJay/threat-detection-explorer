@@ -10,6 +10,7 @@ import { useDetections } from '../../hooks/useDetections';
 import { useMitre } from '../../contexts/MitreContext';
 import { MitreText } from '../../components/MitreText';
 import { useAttackRouteResolver } from '../../hooks/useAttackRoutes';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import { sourceTheme as sourceColors, clipSm as clipCornerSm, clipMd as clipCornerMd } from '../../constants/style';
 import type { CoverageData } from './types';
 
@@ -31,6 +32,7 @@ export function TechniqueDetailPane({
   const { techniques, tactics: allTactics, getTechniqueUrl } = useMitre();
   const tech = techniques[techniqueId];
   const resolveRoute = useAttackRouteResolver();
+  useDocumentMeta(tech ? `${tech.id} ${tech.name}` : techniqueId, tech?.description);
 
   // Find coverage-matrix entry (for per-source counts)
   const coverageEntry = useMemo(() => {

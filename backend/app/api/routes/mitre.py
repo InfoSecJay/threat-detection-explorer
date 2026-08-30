@@ -1,9 +1,10 @@
 """MITRE ATT&CK API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.corpus_cache import corpus_cache
 from app.services.mitre import mitre_service
 from app.services.technique_profile import technique_profile
 
@@ -71,6 +72,59 @@ async def get_mitre_stats():
     """Get statistics about loaded MITRE ATT&CK data."""
     await mitre_service.ensure_loaded()
     return mitre_service.get_stats()
+
+
+@router.get("/coverage-by-data-source")
+async def coverage_by_data_source(
+    limit: int = Query(40, ge=5, le=200, description="Techniques (rows), most rules first"),
+    sources: int = Query(15, ge=3, le=60, description="Data sources (columns), most rules first"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Techniques x canonical data sources: how many rules detect each
+    technique from each log source. Answers "what can I detect with the
+    telemetry I have". One scan, memoised on the corpus fingerprint."""
+    await mitre_service.ensure_loaded()
+    key = ("mitre_ds_matrix", limit, sources, mitre_service.get_stats()["last_fetch"])
+    return await corpus_cache.get(db, key, lambda: _compute_ds_matrix(db, limit, sources))
+
+
+async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> dict:
+    from collections import Counter, defaultdict
+
+    from sqlalchemy import select
+
+    from app.models.detection import Detection
+
+    rows = (await db.execute(select(Detection.data_sources, Detection.mitre_techniques))).all()
+    per_tech: dict[str, Counter] = defaultdict(Counter)
+    tech_total: Counter = Counter()
+    ds_total: Counter = Counter()
+    for data_sources, techniques in rows:
+        tids = {t.upper() for t in (techniques or []) if isinstance(t, str) and t}
+        dss = [d for d in (data_sources or []) if isinstance(d, str) and d and d != "unknown"]
+        for tid in tids:
+            tech_total[tid] += 1
+            for ds in dss:
+                per_tech[tid][ds] += 1
+                ds_total[ds] += 1
+    columns = [ds for ds, _ in ds_total.most_common(n_sources)]
+    out_rows = []
+    for tid, total in tech_total.most_common(limit):
+        info = mitre_service.get_technique(tid) or {}
+        tactic_ids = info.get("tactics") or []
+        tactic = mitre_service.get_tactic(tactic_ids[0]) if tactic_ids else None
+        out_rows.append({
+            "technique_id": tid,
+            "technique_name": info.get("name", ""),
+            "tactic": (tactic or {}).get("name", ""),
+            "rules": total,
+            "by_data_source": {ds: per_tech[tid][ds] for ds in columns if per_tech[tid][ds]},
+        })
+    return {
+        "data_sources": [{"id": ds, "rules": ds_total[ds]} for ds in columns],
+        "rows": out_rows,
+        "total_techniques": len(tech_total),
+    }
 
 
 @router.get("/techniques/{technique_id}/profile")

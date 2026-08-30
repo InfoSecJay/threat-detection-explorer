@@ -19,6 +19,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
 import { MitreText, MitreReferences, resolveCitations } from '../components/MitreText';
 import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { clipMd } from '../constants/style';
 import type { ActorMatchMode } from '../services/api';
 import { SectionHead } from './actors/detail/SectionHead';
@@ -33,6 +34,7 @@ export function ActorDetail() {
   const [matchMode, setMatchMode] = useState<ActorMatchMode>('exact');
   const { data: actor, isLoading, error } = useActor(id, matchMode);
   const resolveRoute = useAttackRouteResolver();
+  useDocumentMeta(actor ? `${actor.name} (${actor.id})` : null, actor?.description);
 
   if (isLoading) {
     return (

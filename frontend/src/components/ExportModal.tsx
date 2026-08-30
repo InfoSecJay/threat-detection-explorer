@@ -10,7 +10,7 @@ interface ExportModalProps {
 }
 
 export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportModalProps) {
-  const [format, setFormat] = useState<'json' | 'csv' | 'navigator'>('json');
+  const [format, setFormat] = useState<'json' | 'csv' | 'navigator' | 'observables'>('json');
   const [includeRaw, setIncludeRaw] = useState(false);
   const exportMutation = useExport();
 
@@ -96,11 +96,27 @@ export function ExportModal({ isOpen, onClose, filters, selectedIds }: ExportMod
                 />
                 Navigator layer
               </label>
+              <label className="flex items-center text-gray-300 cursor-pointer" title="One CSV row per observable value: rule, type, subtype, field, value, negated">
+                <input
+                  type="radio"
+                  name="format"
+                  value="observables"
+                  checked={format === 'observables'}
+                  onChange={() => setFormat('observables')}
+                  className="mr-2 text-cyan-500 bg-void-900 border-void-600 focus:ring-cyan-500"
+                />
+                Observables CSV
+              </label>
             </div>
           </div>
 
           {/* Include raw content (not applicable to a Navigator layer) */}
-          {format === 'navigator' ? (
+          {format === 'observables' ? (
+            <p className="text-xs text-gray-500">
+              One row per observable value the selected rules key on -- process names, event IDs, registry keys,
+              API actions, paths, indicators -- typed, with the field it came from and whether it is an exclusion.
+            </p>
+          ) : format === 'navigator' ? (
             <p className="text-xs text-gray-500">
               A layer file for the ATT&amp;CK Navigator: each technique scored by how many of these rules tag it,
               with the rule titles as comments. Open it at mitre-attack.github.io/attack-navigator via

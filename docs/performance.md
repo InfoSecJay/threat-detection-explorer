@@ -38,7 +38,10 @@ every request meant 14-22 round trips or a full scan per page view.
    (searches stay uncached), and -- via the `@memoised(name)` route
    decorator in corpus_cache.py -- the eleven trending endpoints and
    the actors list, keyed by their query parameters plus the UTC date
-   for windowed views.
+   for windowed views. Also on the fingerprint: the actors catalog
+   (`/actors/catalog`), related rules (`/detections/{id}/related`),
+   the technique x data-source matrix (`/mitre/coverage-by-data-source`)
+   and `sitemap.xml`.
 
 3. **Warm-up at startup** (`app/services/warmup.py`). A deploy empties
    the in-memory caches, so the lifespan starts a background task that

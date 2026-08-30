@@ -123,6 +123,12 @@ export interface DetectionFacets {
 }
 
 // Detection endpoints
+export interface RelatedRule {
+  id: string; title: string; source: string; severity: string; language: string;
+  quality_score: number | null; score: number; reasons: string[]; other_vendor: boolean;
+}
+export interface RelatedRulesResponse { id: string; related: RelatedRule[] }
+
 export const detectionsApi = {
   list: async (filters: SearchFilters = {}): Promise<DetectionListResponse> => {
     const params = buildFilterParams(filters);
@@ -136,6 +142,7 @@ export const detectionsApi = {
     return response.data;
   },
 
+  related: async (id: string): Promise<RelatedRulesResponse> => (await api.get(`/detections/${encodeURIComponent(id)}/related`)).data,
   get: async (id: string): Promise<Detection> => {
     const response = await api.get(`/detections/${id}`);
     return response.data;
@@ -264,7 +271,19 @@ export interface MitreData {
 }
 
 // MITRE ATT&CK endpoints
+export interface DataSourceMatrixResponse {
+  data_sources: { id: string; rules: number }[];
+  rows: { technique_id: string; technique_name: string; tactic: string; rules: number; by_data_source: Record<string, number> }[];
+  total_techniques: number;
+}
+
 export const mitreApi = {
+  coverageByDataSource: async (params: { limit?: number; sources?: number } = {}): Promise<DataSourceMatrixResponse> => {
+    const q = new URLSearchParams();
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.sources) q.set('sources', String(params.sources));
+    return (await api.get(`/mitre/coverage-by-data-source?${q.toString()}`)).data;
+  },
   getData: async (): Promise<MitreData> => {
     const response = await api.get('/mitre');
     return response.data;
@@ -651,7 +670,14 @@ function triggerDownload(blob: Blob, contentDisposition: string | undefined, fal
   URL.revokeObjectURL(url);
 }
 
+export interface ActorsCatalogResponse {
+  groups: { id: string; name: string; aliases: string[] }[];
+  software: { id: string; name: string; type: string | null; aliases: string[] }[];
+}
+
 export const actorsApi = {
+  /** Ids, names and aliases only -- for link resolution and typeahead. */
+  catalog: async (): Promise<ActorsCatalogResponse> => (await api.get('/actors/catalog')).data,
   coverageMatrix: async (params: { kind?: 'groups' | 'software'; sort?: string; limit?: number; min_techniques?: number } = {}): Promise<ActorCoverageMatrixResponse> => {
     const q = new URLSearchParams();
     if (params.kind) q.set('kind', params.kind);

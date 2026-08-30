@@ -123,7 +123,34 @@ async def export_detections(
         return _export_json(detections, request.include_raw)
     if request.format == "navigator":
         return _export_navigator(detections, request)
+    if request.format == "observables":
+        return _export_observables(detections)
     return _export_csv(detections, request.include_raw)
+
+
+def _export_observables(detections: list[Detection]) -> StreamingResponse:
+    """One row per (rule, observable value): what the selected rules
+    key on, typed, with negation -- the shape a detection engineer
+    diffs against their own telemetry."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["rule_id", "source", "title", "severity", "mitre_techniques", "type", "subtype", "field", "value", "negated"])
+    for d in detections:
+        techniques = " ".join(t for t in (d.mitre_techniques or []) if isinstance(t, str))
+        for obs in (d.extracted_observables or []):
+            if not isinstance(obs, dict):
+                continue
+            for value in obs.get("values") or []:
+                writer.writerow([
+                    d.id, d.source, d.title, d.severity, techniques,
+                    obs.get("type", ""), obs.get("subtype", ""), obs.get("field", ""), value,
+                    "true" if obs.get("negated") else "false",
+                ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=detection_observables.csv"},
+    )
 
 
 def _export_navigator(detections: list[Detection], request: ExportRequest):

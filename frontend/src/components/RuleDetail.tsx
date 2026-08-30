@@ -15,6 +15,8 @@ import { CopyButton } from './ruledetail/CopyButton';
 import { CodeBlock } from './ruledetail/CodeBlock';
 import { AttackSection } from './ruledetail/AttackSection';
 import { HygieneBars } from './ruledetail/HygieneBars';
+import { RelatedRules } from './ruledetail/RelatedRules';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { sourceTheme } from '../constants/style';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -86,6 +88,7 @@ function Card({ title, children, right, testId }: { title: string; children: Rea
 
 export function RuleDetail({ detection }: RuleDetailProps) {
   const { labels: eventIdLabels } = useEventIds();
+  useDocumentMeta(detection.title, detection.description);
   const [aboutTab, setAboutTab] = useState<'details' | 'guide'>('details');
   const [viewSource, setViewSource] = useState(false);
   const src = sourceTheme[detection.source];
@@ -266,6 +269,8 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
             </Card>
           )}
+
+          {!viewSource && <RelatedRules id={detection.id} source={detection.source} />}
         </div>
       </div>
 

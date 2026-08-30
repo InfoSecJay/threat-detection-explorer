@@ -8,6 +8,10 @@
       "destination": "${VITE_API_URL}/:path*"
     },
     {
+      "source": "/sitemap.xml",
+      "destination": "${VITE_API_URL}/sitemap.xml"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

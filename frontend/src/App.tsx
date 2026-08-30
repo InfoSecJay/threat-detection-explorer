@@ -21,6 +21,8 @@ const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default
 const Observables     = lazy(() => import('./pages/Observables').then(m => ({ default: m.Observables })));
 const ObservableDetail = lazy(() => import('./pages/ObservableDetail').then(m => ({ default: m.ObservableDetail })));
 const CoverageHeatmap = lazy(() => import('./pages/actors/CoverageHeatmap').then(m => ({ default: m.CoverageHeatmap })));
+const DataSourceHeatmap = lazy(() => import('./pages/mitre/DataSourceHeatmap').then(m => ({ default: m.DataSourceHeatmap })));
+const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -279,6 +281,7 @@ function App() {
             <Route path="/detections" element={<DetectionList />} />
             <Route path="/detections/:id" element={<DetectionDetail />} />
             <Route path="/mitre" element={<MitreCoverage />} />
+            <Route path="/mitre/heatmap" element={<DataSourceHeatmap />} />
             <Route path="/mitre/:techniqueId" element={<MitreCoverage />} />
             <Route path="/actors" element={<Actors />} />
             <Route path="/actors/heatmap" element={<CoverageHeatmap />} />
@@ -298,6 +301,7 @@ function App() {
             <Route path="/observables" element={<Observables />} />
             <Route path="/observables/:kind" element={<Observables />} />
             <Route path="/observables/:kind/*" element={<ObservableDetail />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>

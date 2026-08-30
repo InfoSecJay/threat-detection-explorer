@@ -2,7 +2,7 @@
  * summary or technique detail on the right. Panes live in pages/mitre/. */
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useCoverageMatrix } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
 import { clipSm as clipCornerSm, clipMd as clipCornerMd } from '../constants/style';
@@ -60,6 +60,7 @@ export function MitreCoverage() {
           </h1>
           <p className="text-xs text-gray-500 mt-1 font-mono">
             BROWSE_BY_TECHNIQUE // CROSS_VENDOR_COVERAGE // DRILL_TO_RULES
+            <Link to="/mitre/heatmap" className="ml-3 text-matrix-500 hover:text-matrix-400 uppercase tracking-wider">[ coverage by data source ]</Link>
           </p>
         </div>
         {data && (

@@ -53,7 +53,7 @@ export function useExport() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = request.format === 'navigator' ? 'detection-explorer-layer.json' : `detections_export.${request.format}`;
+      a.download = request.format === 'navigator' ? 'detection-explorer-layer.json' : request.format === 'observables' ? 'detection_observables.csv' : `detections_export.${request.format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

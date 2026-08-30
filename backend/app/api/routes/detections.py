@@ -284,6 +284,22 @@ async def get_facets(
         raise
 
 
+@router.get("/{detection_id}/related")
+async def get_related_detections(
+    detection_id: str,
+    limit: int = Query(12, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rules that key on the same things -- technique plus shared
+    process names, registry keys, API actions, paths, indicators, event
+    IDs -- ranked by overlap, other vendors first at equal score."""
+    from app.services.related import related_for_id
+    out = await related_for_id(db, detection_id, limit)
+    if out is None:
+        raise HTTPException(status_code=404, detail=f"Detection not found: {detection_id}")
+    return out
+
+
 @router.get("/{detection_id}", response_model=DetectionResponse)
 async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
     """Get a single detection by ID."""

@@ -25,6 +25,7 @@ import { parseApiDate } from '../utils/dates';
 import { NetChangeList, JustCoveredList } from './home/ThisWeek';
 import { TechniqueMomentumList } from './intel/Trending';
 import { SkeletonRow, EmptyLabel } from './intel/Section';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import type { DigestResponse, DigestRule } from '../services/api';
 
 const WINDOWS = [7, 14, 30] as const;
@@ -257,6 +258,7 @@ function SourceSection({ src, d }: { src: string; d: DigestResponse }) {
 export function Digest() {
   const [days, setDays] = useState<number>(7);
   const { data, isLoading, error, refetch } = useDigest(days, 20);
+  useDocumentMeta('Digest', data ? `${data.summary.created} new and ${data.summary.modified} updated detection rules in the last ${data.period.days} days.` : null);
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://detectionexplorer.io';
   const markdown = useMemo(() => (data ? toMarkdown(data, origin) : ''), [data, origin]);

@@ -18,6 +18,10 @@ vi.mock('../../contexts/MitreContext', () => ({
   }),
 }));
 
+vi.mock('../ruledetail/RelatedRules', () => ({
+  RelatedRules: () => <div data-testid="related-rules" />,
+}));
+
 import { RuleDetail } from '../RuleDetail';
 
 const detection = {

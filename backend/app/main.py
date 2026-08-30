@@ -8,14 +8,17 @@ exclusively through the shared `sync_jobs` table in Postgres.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.database import init_db
+from app.database import get_db, init_db
+from app.services.corpus_cache import corpus_cache
 from app.services.warmup import warm_caches_background
 
 # Import models to register them with SQLAlchemy Base before init_db
@@ -29,6 +32,7 @@ from app.api.routes import (
     methodology,
     mitre,
     observables,
+    sitemap,
     query,
     releases,
     repositories,
@@ -101,9 +105,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/api/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "app": settings.app_name}
+async def health_check(db: AsyncSession = Depends(get_db)):
+    """Health check with what is running: the deployed commit (Railway
+    exposes it) and the corpus stamp the caches key on."""
+    try:
+        count, latest = await corpus_cache.fingerprint(db)
+    except Exception:  # noqa: BLE001 -- health must answer even if the DB is out
+        count, latest = None, None
+    return {
+        "status": "healthy",
+        "app": settings.app_name,
+        "commit": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "")[:12] or None,
+        "corpus": {"rules": count, "updated_at": latest},
+    }
 
 
 # Include routers
@@ -121,3 +135,4 @@ app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(methodology.router, prefix=settings.api_prefix)
 app.include_router(digest.router, prefix=settings.api_prefix)
 app.include_router(observables.router, prefix=settings.api_prefix)
+app.include_router(sitemap.router, prefix=settings.api_prefix)

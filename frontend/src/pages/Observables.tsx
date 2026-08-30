@@ -18,6 +18,7 @@ import { sourceTheme, clipSm } from '../constants/style';
 import { sourceLabelsShort } from '../constants/sources';
 import { OBSERVABLE_KIND_LABEL, OBSERVABLE_FILTER_KEY, observableUrl, type ObservableKind } from '../utils/observableLinks';
 import { SkeletonRow, EmptyLabel } from './intel/Section';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import type { ObservableTopValue } from '../services/api';
 
 // Target resources are hidden from the index until the surface is
@@ -164,6 +165,7 @@ export function Observables() {
     return () => clearTimeout(id);
   }, [draft, urlQuery, searchParams, setSearchParams]);
   useEffect(() => { setDraft(urlQuery); }, [kind, urlQuery]);
+  useDocumentMeta(`${OBSERVABLE_KIND_LABEL[kind]} observables`, KIND_BLURB[kind]);
   const { data: types } = useObservableTypes();
   const { data, isLoading, error } = useObservableTop(kind, 150, source, urlQuery || undefined);
   const { data: options } = useFilterOptions();

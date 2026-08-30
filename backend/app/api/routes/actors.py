@@ -468,6 +468,25 @@ def _facets(
 
 # ── Endpoints ─────────────────────────────────────────────────────
 
+@router.get("/catalog")
+@memoised("actors.catalog", daily=False)
+async def actors_catalog(db: AsyncSession = Depends(get_db)):
+    """Ids, names and aliases only -- what link resolution and
+    typeahead need, without the 1,000 descriptions the full list
+    carries."""
+    await mitre_service.ensure_loaded()
+    await actor_context_service.ensure_loaded()
+    groups = [
+        {"id": gid, "name": g["name"], "aliases": merge_aliases(g.get("aliases", []), actor_context_service.get_context(gid), exclude=g["name"])}
+        for gid, g in mitre_service.get_all_groups().items() if not g.get("deprecated")
+    ]
+    software = [
+        {"id": sid, "name": s["name"], "type": s.get("type"), "aliases": s.get("aliases", [])}
+        for sid, s in mitre_service.get_all_software().items() if not s.get("deprecated")
+    ]
+    return {"groups": groups, "software": software}
+
+
 @router.get("")
 @memoised("actors.list", daily=False)
 async def list_actors(
