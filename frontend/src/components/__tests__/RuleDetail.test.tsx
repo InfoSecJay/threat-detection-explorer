@@ -93,7 +93,7 @@ describe('RuleDetail', () => {
     expect(getByTestId('hygiene-testability')).toHaveTextContent('2 issues');
     expect(queryByTestId('hygiene-rubric')).not.toBeInTheDocument();
     fireEvent.click(getByTestId('hygiene-explain'));
-    expect(getByTestId('hygiene-rubric')).toHaveTextContent('worth 20 points');
+    expect(getByTestId('hygiene-rubric')).toHaveTextContent('graded on their own rubric');
     expect(getByTestId('hygiene-rubric')).toHaveTextContent('Atomic Red Team reference');
   });
 

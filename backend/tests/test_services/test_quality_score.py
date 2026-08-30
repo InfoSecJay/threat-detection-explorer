@@ -1,4 +1,4 @@
-"""Tests for the deterministic hygiene scorer (issue #10)."""
+"""Tests for the deterministic metadata-completeness scorer (issue #10, rubric v2 per teardown F09)."""
 
 from datetime import datetime
 
@@ -59,7 +59,53 @@ def test_well_hygiened_rule_scores_high():
         "metadata", "mitre", "specificity", "documentation", "testability",
     }
     for d in details["dimensions"].values():
-        assert 0 <= d["score"] <= d["of"] == 20
+        assert 0 <= d["score"] <= d["of"] <= 20
+
+
+def test_sublime_scored_only_on_expressible_checks():
+    # MQL cannot carry ATT&CK tags, an author field, or a
+    # false-positive field, and Atomic Red Team has no email atomics:
+    # none of those may count against a Sublime rule (teardown F09).
+    total, details = score_detection(_rule(
+        source="sublime",
+        author=None,
+        mitre_tactics=[],
+        mitre_techniques=[],
+        false_positives=[],
+        references=["https://redcanary.com/blog/phishing/"],
+    ))
+    assert "mitre" not in details["dimensions"]
+    meta = details["dimensions"]["metadata"]
+    assert meta["of"] == 17 and "no author" not in meta["issues"] and "no author" in meta["na"]
+    doc = details["dimensions"]["documentation"]
+    assert doc["of"] == 12 and "no false-positive analysis" not in doc["issues"]
+    testability = details["dimensions"]["testability"]
+    assert testability["of"] == 9  # intel 6 + emulation 3
+    assert "no Atomic Red Team reference" not in testability["issues"]
+    assert details["applicable_points"] == 17 + 20 + 12 + 9
+    assert total == round(100 * details["raw"] / details["applicable_points"])
+    # A well-documented Sublime rule must be able to score high.
+    assert total >= 75
+
+
+def test_sentinel_not_docked_for_missing_fp_and_reference_fields():
+    total, details = score_detection(_rule(source="sentinel", references=[], false_positives=[]))
+    doc = details["dimensions"]["documentation"]
+    assert "no false-positive analysis" not in doc["issues"]
+    meta = details["dimensions"]["metadata"]
+    assert "no references" not in meta["issues"]
+    testability = details["dimensions"]["testability"]
+    assert "no threat-research reference" not in testability["issues"]
+    assert details["applicable_points"] < 100
+
+
+def test_default_profile_still_scores_over_the_full_rubric_minus_embedded():
+    # Sigma has no embedded-test convention; everything else applies.
+    _total, details = score_detection(_rule(source="sigma"))
+    assert details["applicable_points"] == 97
+    assert set(details["dimensions"]) == {
+        "metadata", "mitre", "specificity", "documentation", "testability",
+    }
 
 
 def test_bare_rule_scores_low_with_issues():

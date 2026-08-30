@@ -74,14 +74,23 @@ function bandClass(score: number, of: number): string {
 
 export function HygieneBars({ details }: { details: NonNullable<Detection['quality_details']> }) {
   const [open, setOpen] = useState(false);
+  const applicable = details.applicable_points ?? 100;
   return (
     <div data-testid="hygiene">
+      {/* The caveat leads (teardown F09): say what this is NOT before showing a number. */}
+      <p className="text-[11px] text-gray-500 mb-1.5">
+        Measures how completely the rule is documented, mapped and testable{' '}
+        <span className="text-gray-400">within what its format can express</span> -- not whether it
+        catches the attacker.
+      </p>
       <div className="flex items-baseline gap-3 mb-2 flex-wrap">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hygiene score</label>
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Metadata completeness</label>
         <span className="text-lg font-mono font-bold text-white tabular-nums">{details.total}<span className="text-gray-500 text-sm">/100</span></span>
-        <span className="text-[11px] text-gray-500">
-          five dimensions, 20 points each -- rule hygiene, not detection accuracy
-        </span>
+        {applicable < 100 && (
+          <span className="text-[11px] text-gray-500" data-testid="hygiene-applicable">
+            scored over the {applicable} points this format can express
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -117,10 +126,12 @@ export function HygieneBars({ details }: { details: NonNullable<Detection['quali
       {open && (
         <div className="mt-3 border border-void-700 bg-void-900/60 p-3 space-y-3" data-testid="hygiene-rubric">
           <p className="text-xs text-gray-400">
-            Each dimension is worth 20 points so that no single concern dominates: a perfectly documented rule with no
-            ATT&amp;CK mapping caps at 80, a well-mapped rule nobody can test caps at 80. Checks are deterministic
-            (same rule, same score, no models). Failed checks are listed under each dimension; unlisted checks passed
-            or are bonuses that do not report when missing.
+            Dimensions are weighted so no single concern dominates. Checks a rule&apos;s format cannot express -- an
+            MQL email rule has no ATT&amp;CK tag field, Sentinel YAML has no false-positive field -- are excluded
+            from both sides of the score and shown as <span className="text-gray-500 font-mono">n/a</span>, so
+            formats are graded on their own rubric, not each other&apos;s schema. Checks are deterministic (same
+            rule, same score, no models). Failed checks are listed under each dimension; unlisted checks passed or
+            are bonuses that do not report when missing.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Object.entries(details.dimensions).map(([name, dim]) => {
@@ -136,8 +147,17 @@ export function HygieneBars({ details }: { details: NonNullable<Detection['quali
                   <ul className="space-y-0.5">
                     {meta.checks.map((c) => {
                       const issues = c.issue === undefined ? [] : Array.isArray(c.issue) ? c.issue : [c.issue];
-                      const failed = issues.some((i) => dim.issues.includes(i));
+                      const na = issues.some((i) => (dim.na ?? []).includes(i));
+                      const failed = !na && issues.some((i) => dim.issues.includes(i));
                       const bonus = issues.length === 0;
+                      if (na) {
+                        return (
+                          <li key={c.label} className="flex items-baseline justify-between gap-2 text-[11px] opacity-50">
+                            <span className="text-gray-600 line-through decoration-void-600">{c.label}</span>
+                            <span className="font-mono text-gray-600 shrink-0">n/a</span>
+                          </li>
+                        );
+                      }
                       return (
                         <li key={c.label} className="flex items-baseline gap-2 text-[11px]">
                           <span className={`font-mono w-3 shrink-0 ${failed ? 'text-red-400' : bonus ? 'text-gray-600' : 'text-green-400'}`}>

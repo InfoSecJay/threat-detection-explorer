@@ -189,7 +189,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
 
       {section(
         'hygiene',
-        'Hygiene',
+        'Completeness',
         filters.min_quality !== undefined ? 1 : 0,
         <HygieneSection filters={filters} onFiltersChange={onFiltersChange} bandCounts={qualityBandCounts} />,
       )}

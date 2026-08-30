@@ -22,7 +22,7 @@ const LABELS: Record<string, string> = {
   sources: 'Source',
   statuses: 'Status',
   building_block: 'Building blocks',
-  min_quality: 'Hygiene',
+  min_quality: 'Completeness',
   severities: 'Severity',
   languages: 'Language',
   platforms: 'Platform',

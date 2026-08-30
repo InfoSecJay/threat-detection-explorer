@@ -93,7 +93,7 @@ const SCALAR_MAP: {
     // control writes); other comparisons / ranges stay bar-only.
     key: 'min_quality',
     canonical: 'quality',
-    aliases: ['quality', 'hygiene', 'score'],
+    aliases: ['quality', 'hygiene', 'score', 'completeness'],
     parse: (raw) => {
       const m = /^>=(\d{1,3})$/.exec(raw.trim());
       if (!m) return undefined;

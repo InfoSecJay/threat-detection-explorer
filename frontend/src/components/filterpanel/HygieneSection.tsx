@@ -9,7 +9,7 @@ export function HygieneSection({
 }: Omit<FilterCtx, 'toggle'> & { bandCounts: Record<string, number> }) {
   return (
     <div className="mt-2 px-2">
-      <div className="flex gap-1" role="radiogroup" aria-label="Minimum hygiene score">
+      <div className="flex gap-1" role="radiogroup" aria-label="Minimum metadata completeness">
         {([
           { value: undefined, label: 'Any' },
           { value: 80, label: '80+' },
@@ -25,7 +25,7 @@ export function HygieneSection({
               role="radio"
               aria-checked={active}
               onClick={() => onFiltersChange({ ...filters, min_quality: opt.value, offset: 0 })}
-              title={opt.value === undefined ? 'No hygiene threshold' : `Rules scoring at least ${opt.value}`}
+              title={opt.value === undefined ? 'No completeness threshold' : `Rules scoring at least ${opt.value}`}
               className={`flex-1 px-2 py-1 text-xs border rounded transition-colors ${
                 active
                   ? 'bg-matrix-500/20 text-matrix-300 border-matrix-500/40'

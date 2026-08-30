@@ -134,7 +134,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
           {typeof detection.quality_score === 'number' ? (
             <span
               className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
-              title="Hygiene score (0-100): rule hygiene, not detection accuracy"
+              title="Metadata completeness (0-100): scored on what the format can express, not detection accuracy"
             >
               {detection.quality_score}
             </span>

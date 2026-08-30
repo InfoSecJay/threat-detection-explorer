@@ -168,7 +168,7 @@ function NewRuleCard({ r }: { r: DigestRule }) {
       <div className="mt-1.5 flex items-center gap-3 text-[11px] flex-wrap">
         <Techniques ids={r.mitre_techniques} />
         {r.platforms.length > 0 && <span className="font-mono text-cyan-400/80">{r.platforms.slice(0, 3).join(' · ')}</span>}
-        {r.quality_score !== null && <span className="font-mono text-gray-600" title="Hygiene score">hyg {r.quality_score}</span>}
+        {r.quality_score !== null && <span className="font-mono text-gray-600" title="Metadata completeness">meta {r.quality_score}</span>}
         <span className="flex-1" />
         <span className="font-mono text-gray-600">{fmtDate(r.created)}</span>
         {r.source_rule_url && (

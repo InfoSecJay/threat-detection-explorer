@@ -187,8 +187,8 @@ Approximate population rates as of v1.5 (12 031 rules):
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `quality_score` | `int?` | 0 – 100. Roadmap item 5 will populate (deterministic 5-dimension scorer). |
-| `quality_details` | `dict?` | Per-dimension breakdown when populated. |
+| `quality_score` | `int?` | 0 – 100 metadata completeness (rubric v2, teardown F09): deterministic checks over metadata / ATT&CK / specificity / documentation / testability, scored ONLY against the checks the rule format can express (per-source capability profiles in `quality_score.INAPPLICABLE`) and renormalized to 100 over the applicable points. Not detection efficacy. |
+| `quality_details` | `dict?` | Per-dimension `{score, of, issues, na}` + `raw` + `applicable_points`; `na` lists checks the format cannot express (shown as n/a in the UI, never failed). |
 
 ## 10. Dates
 

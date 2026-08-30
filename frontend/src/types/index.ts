@@ -64,7 +64,7 @@ export interface Detection {
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;
-  // Hygiene score (issue #10) — rule hygiene, NOT detection efficacy.
+  // Metadata completeness (issue #10, rubric v2 per teardown F09) — NOT detection efficacy.
   quality_score?: number | null;
   quality_details?: QualityDetails | null;
   created_at: string;  // Sync timestamp
@@ -75,10 +75,15 @@ export interface QualityDimension {
   score: number;
   of: number;
   issues: string[];
+  /** Issue strings of checks the rule's format cannot express (rubric v2) -- shown as n/a, never failed. */
+  na?: string[];
 }
 
 export interface QualityDetails {
   version: number;
+  raw?: number;
+  /** Points the rule's format can express; total is renormalized over these. */
+  applicable_points?: number;
   total: number;
   dimensions: Record<string, QualityDimension>;
 }

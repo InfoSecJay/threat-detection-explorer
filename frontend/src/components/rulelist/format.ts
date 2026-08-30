@@ -34,8 +34,8 @@ export const sortOptions = [
   { value: 'data_sources:desc', label: 'Data Source (Z-A)' },
   { value: 'event_types:asc', label: 'Event Type (A-Z)' },
   { value: 'event_types:desc', label: 'Event Type (Z-A)' },
-  { value: 'quality_score:desc', label: 'Hygiene (Best first)' },
-  { value: 'quality_score:asc', label: 'Hygiene (Worst first)' },
+  { value: 'quality_score:desc', label: 'Completeness (Best first)' },
+  { value: 'quality_score:asc', label: 'Completeness (Worst first)' },
 ];
 
 // Hygiene-score band colors. The score measures rule hygiene
