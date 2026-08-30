@@ -66,7 +66,29 @@ export function RepoHealthStrip() {
   // name isn't a canonical source in `sourceConfig` is orphaned and
   // shouldn't render — otherwise it falls through to the default theme
   // and shows a phantom "0 rules" card with the wrong colors.
-  const repos = reposRaw.filter((r) => r.name in sourceConfig);
+  // Sorted biggest-first so the scan order matches importance and the
+  // small single-digit repos share the last row instead of one large
+  // card wrapping alone.
+  const repos = reposRaw
+    .filter((r) => r.name in sourceConfig)
+    .sort((a, b) => b.rule_count - a.rule_count);
+
+  // Corpus-wide totals for the leading "all sources" card. With it the
+  // strip has an even number of tiles, so common column counts (2-7)
+  // never strand a single card on the last row.
+  const totalRules = repos.reduce((a, r) => a + r.rule_count, 0);
+  const totalSpark = Array.from({ length: 12 }, (_, w) =>
+    repos.reduce((a, r) => a + (weekly?.by_source[r.name]?.[w] || 0), 0),
+  );
+  const totalNew12w = totalSpark.reduce((a, b) => a + b, 0);
+  const deltaValues = repos
+    .map((r) => deltas?.by_source[r.name]?.delta)
+    .filter((d): d is number => typeof d === 'number');
+  const totalWow = deltaValues.length ? deltaValues.reduce((a, b) => a + b, 0) : null;
+  const newestSync = repos.reduce<string | null>(
+    (acc, r) => (r.last_sync_at && (!acc || r.last_sync_at > acc) ? r.last_sync_at : acc),
+    null,
+  );
 
   // "Hot" threshold: a repo whose 12-week new-rules total is >= 2x
   // the median non-zero repo gets a subtle accent border to signal
@@ -81,6 +103,46 @@ export function RepoHealthStrip() {
       className="grid gap-2"
       style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}
     >
+      <Link
+        to="/detections"
+        title="Everything we track, in one place — click to open the full catalog"
+        className="group relative block border border-matrix-500/40 bg-matrix-500/[0.04] p-2.5 transition-all hover:bg-void-800 hover:border-matrix-500/70"
+        style={clipSm}
+        data-testid="repo-health-total"
+      >
+        <div className="flex items-center gap-1.5 mb-2">
+          <span className="w-2 h-2 rounded-full bg-matrix-500 shrink-0" />
+          <span className="text-[10px] font-mono uppercase tracking-wider truncate font-semibold text-matrix-400">
+            All sources
+          </span>
+          <span className="text-[9px] font-mono text-gray-500 ml-auto shrink-0">{repos.length}</span>
+        </div>
+        <div className="flex items-baseline gap-1 mb-2">
+          <span className="text-xl font-display font-bold text-white tabular-nums leading-none">
+            {totalRules.toLocaleString()}
+          </span>
+          <span className="text-[9px] font-mono text-gray-500">rules</span>
+          {totalNew12w > 0 && (
+            <span className="ml-auto text-[10px] font-mono text-matrix-400 tabular-nums" title="new rules in last 12 weeks, all sources">
+              +{totalNew12w}
+            </span>
+          )}
+        </div>
+        <Sparkline counts={totalSpark} colorClass="bg-matrix-500" />
+        <div className="flex items-center justify-between mt-2 text-[9px] font-mono">
+          {totalWow !== null ? (
+            <span
+              className={`tabular-nums ${totalWow > 0 ? 'text-pulse-400' : totalWow < 0 ? 'text-breach-400' : 'text-gray-500'}`}
+              title="net change across every source vs 7 days ago"
+            >
+              {totalWow > 0 ? `+${totalWow}` : totalWow} / 7d
+            </span>
+          ) : (
+            <span className="text-gray-700">-- / 7d</span>
+          )}
+          <span className="text-gray-600">synced {formatRelDate(newestSync)}</span>
+        </div>
+      </Link>
       {repos.map((repo, i) => {
         const cfg = sourceConfig[repo.name] || sourceConfig.sigma;
         const fresh = freshnessDot(repo.last_sync_at);

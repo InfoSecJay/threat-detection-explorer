@@ -168,4 +168,21 @@ describe('IndustryIntel', () => {
     expect(getByTestId('wow-sigma').className).toContain('text-pulse-400');
     expect(getByTestId('wow-splunk').className).toContain('text-breach-400');
   });
+
+  it('leads the repo health strip with an all-sources total card, biggest repo first', async () => {
+    const { getByTestId } = renderPage();
+    await waitFor(() => {
+      expect(getByTestId('repo-health-total')).toBeInTheDocument();
+    });
+    const total = getByTestId('repo-health-total');
+    expect(total).toHaveTextContent('All sources');
+    expect(total).toHaveTextContent('5,300'); // 3200 sigma + 2100 splunk
+    expect(total).toHaveTextContent('+48'); // 12-week new: 36 + 12
+    expect(total).toHaveTextContent('+9 / 7d'); // net: +12 - 3
+    // Total card renders first, then repos sorted by rule count desc.
+    const sigma = getByTestId('wow-sigma').closest('a');
+    const splunk = getByTestId('wow-splunk').closest('a');
+    expect(total.compareDocumentPosition(sigma!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sigma!.compareDocumentPosition(splunk!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
