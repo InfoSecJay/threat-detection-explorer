@@ -33,7 +33,12 @@ every request meant 14-22 round trips or a full scan per page view.
    cache without bound. Memoised today: facets (per filter set),
    statistics, filter options, the technique -> source map (shared by
    the heatmap and every actor page), actor detail (per actor, match
-   mode and catalog version), the digest (per UTC day).
+   mode and catalog version), the digest (per UTC day), the MITRE
+   coverage matrix, the observables index and its default top lists
+   (searches stay uncached), and -- via the `@memoised(name)` route
+   decorator in corpus_cache.py -- the eleven trending endpoints and
+   the actors list, keyed by their query parameters plus the UTC date
+   for windowed views.
 
 3. **Warm-up at startup** (`app/services/warmup.py`). A deploy empties
    the in-memory caches, so the lifespan starts a background task that
@@ -50,6 +55,10 @@ every request meant 14-22 round trips or a full scan per page view.
 | `GET /actors/{id}` | 2.5-2.9 s | 0.13 s |
 | `GET /digest` | 0.52 s | 0.10 s |
 
+| `GET /observables` (index) | 2.4 s | ~0.1 s |
+| `GET /trending/threats` | 0.50 s | ~0.1 s |
+| `GET /trending/summary` (cold) | 30 queries | 3 queries |
+
 Cold (first-after-deploy) costs are unchanged; the warm-up exists so
 a visitor rarely sees them.
 
@@ -60,9 +69,11 @@ the light Prism build with only the five grammars we render
 ## Adding an endpoint
 
 - If it aggregates over the corpus and takes no user-specific input,
-  wrap the computation in `corpus_cache.get(db, key, compute)`. Put
-  anything else that changes the answer (catalog version, UTC date)
-  in the key.
+  wrap the computation in `corpus_cache.get(db, key, compute)` -- or,
+  for a whole route handler, add `@memoised("area.name")` under the
+  `@router.get` decorator (the session must arrive via `Depends(get_db)`).
+  Put anything else that changes the answer (catalog version, UTC
+  date) in the key; `memoised(..., daily=True)` adds the date.
 - If it scans JSON list columns, aggregate in Python from one
   `select(col1, col2, ...)` rather than one query per dimension.
   Portable across SQLite (dev/tests) and Postgres (prod).
