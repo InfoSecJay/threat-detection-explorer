@@ -222,3 +222,18 @@ class TestObservableFields:
         assert "'%\"power%'" in _sql(parse_query("process:power*"))
         assert "'%.exe\"%'" in _sql(parse_query("process:*.exe"))
         assert "'%\"power%.exe\"%'" in _sql(parse_query("process:power*.exe"))
+
+
+class TestMitreEntityDedicatedSemantics:
+    """`actor:` matches like the actor page's DEDICATED mode: ID tag, or
+    the name/alias in the title, or a use-case label equal to it."""
+
+    def test_actor_clause_includes_title_and_story_matches(self):
+        s = _sql(parse_query("actor:APT29"))
+        assert '"g0016"' in s
+        assert "title" in s and "use_cases" in s
+        assert "cozy_bear" in s  # alias, separator-tolerant pattern
+
+    def test_unknown_actor_stays_id_tag_only(self):
+        s = _sql(parse_query("actor:UnknownGroup"))
+        assert "title" not in s

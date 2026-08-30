@@ -17,6 +17,7 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.taxonomy.event_ids import lookup as lookup_event_id
 
 # URL segment -> (column, SearchFilters key for the catalog link, label)
 OBSERVABLE_TYPES: dict[str, tuple[str, str, str]] = {
@@ -49,25 +50,42 @@ async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Opti
         query = query.where(Detection.source == source)
     rows = (await db.execute(query)).all()
     counts: Counter[str] = Counter()
-    sources: dict[str, set[str]] = defaultdict(set)
+    by_source: dict[str, Counter[str]] = defaultdict(Counter)
     canonical: dict[str, str] = {}
     for src, values in rows:
-        for v in values or []:
-            if not isinstance(v, str) or not v.strip():
-                continue
+        # A rule naming the same value twice counts once.
+        for v in {v.lower(): v for v in (values or []) if isinstance(v, str) and v.strip()}.values():
             key = v.lower()
             canonical.setdefault(key, v)
             counts[key] += 1
-            sources[key].add(src)
+            by_source[key][src] += 1
     return {
         "type": kind,
         "label": OBSERVABLE_TYPES[kind][2],
         "distinct": len(counts),
         "values": [
-            {"value": canonical[k], "rules": n, "sources": sorted(sources[k])}
+            {
+                "value": canonical[k],
+                "rules": n,
+                "sources": sorted(by_source[k]),
+                # {source: rule_count} so the UI can label the breakdown.
+                "by_source": dict(sorted(by_source[k].items(), key=lambda kv: (-kv[1], kv[0]))),
+                # What the value means where we know (event IDs: the
+                # log channel / provider the ID belongs to).
+                "context": _context(kind, canonical[k]),
+            }
             for k, n in counts.most_common(limit)
         ],
     }
+
+
+def _context(kind: str, value: str) -> Optional[dict]:
+    if kind == "eventid":
+        entry = lookup_event_id(value)
+        if entry is None:
+            return None
+        return {"label": entry.label, "provider": entry.provider, "channel": entry.channel}
+    return None
 
 
 async def observable_profile(db: AsyncSession, kind: str, value: str, sample_limit: int = 50) -> dict:

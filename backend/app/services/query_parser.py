@@ -53,6 +53,13 @@ from sqlalchemy import String, and_, cast, not_, or_
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.detection import Detection
+from app.services.actor_matching import (
+    is_ambiguous_name,
+    is_case_sensitive_name,
+    is_unmatchable_name,
+    label_like_patterns,
+    sql_like_patterns,
+)
 from app.services.mitre_lookup import GROUPS as MITRE_GROUPS
 from app.services.mitre_lookup import SOFTWARE as MITRE_SOFTWARE
 
@@ -219,7 +226,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         kind="list_mitre_group",
         columns=["mitre_groups"],
         description="ATT&CK Group. Accepts raw G-ID or a known name/alias.",
-        examples=["actor:APT29", 'actor:"Cozy Bear"', "group:G0016"],
+        examples=['actor:"Salt Typhoon"', "actor:APT29", "actor:G1017"],
     ),
     FieldSpec(
         # `software` is the canonical name (matches the filter pills
@@ -385,6 +392,32 @@ def _text_clause(column_name: str, raw_value: str) -> ColumnElement:
     return col.ilike(f"%{pattern}%")
 
 
+def _mitre_entity_clause(column_name: str, entity_id: str, info: Optional[dict]) -> ColumnElement:
+    """`actor:` / `software:` with the actor page's DEDICATED semantics
+    (issue #34): the raw ATT&CK ID in the tag column, OR an analytic
+    story / use-case label equal to the name or an alias, OR the name
+    or an alias in the rule title.
+
+    Only the ID tag matched before, which returned nothing for actors
+    vendors write rules for but tag by name -- `actor:"Salt Typhoon"`
+    was 0 while the actor page counted 60 dedicated rules. SQL-only,
+    so names the regex layer treats as risky (single English words,
+    all-caps codenames, very short names) are skipped here; the ID tag
+    still matches for those.
+    """
+    clauses = [_list_clause(column_name, entity_id)]
+    if info:
+        for name in [info.get("name", ""), *info.get("aliases", [])]:
+            if (
+                not name or len(name) < 4
+                or is_unmatchable_name(name) or is_ambiguous_name(name) or is_case_sensitive_name(name)
+            ):
+                continue
+            clauses.extend(Detection.title.ilike(p) for p in sql_like_patterns(name))
+            clauses.extend(cast(Detection.use_cases, String).ilike(p) for p in label_like_patterns(name))
+    return or_(*clauses) if len(clauses) > 1 else clauses[0]
+
+
 def _list_clause(column_name: str, raw_value: str) -> ColumnElement:
     """JSON-list column: quoted-substring ilike so `T1059` doesn't match `T1059.001`.
 
@@ -487,9 +520,11 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
     if spec.kind == "list_substring":
         return _list_substring_clause(spec.columns[0], value)
     if spec.kind == "list_mitre_group":
-        return _list_clause(spec.columns[0], _resolve_mitre_group(value))
+        gid = _resolve_mitre_group(value)
+        return _mitre_entity_clause(spec.columns[0], gid, MITRE_GROUPS.get(gid))
     if spec.kind == "list_mitre_software":
-        return _list_clause(spec.columns[0], _resolve_mitre_software(value))
+        sid = _resolve_mitre_software(value)
+        return _mitre_entity_clause(spec.columns[0], sid, MITRE_SOFTWARE.get(sid))
     if spec.kind == "list":
         return _list_clause(spec.columns[0], value)
     if spec.kind == "text":

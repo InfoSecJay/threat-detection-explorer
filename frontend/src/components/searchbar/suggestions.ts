@@ -5,12 +5,12 @@
 import type { QueryFieldSpec } from '../../services/api';
 
 export const PLACEHOLDERS = [
-  'source:sigma AND severity:high',
-  'actor:APT29',
-  'tech:T1059.001 platform:windows',
-  'title:"cobalt strike"',
-  'software:Mimikatz OR software:"Cobalt Strike"',
-  'usecase:Ransomware source:splunk',
+  'actor:"Salt Typhoon"',
+  'tech:T1219 platform:windows',
+  'eventid:4104 source:splunk',
+  'usecase:Ransomware severity:high',
+  'process:certutil.exe NOT source:sigma',
+  'software:Mimikatz OR title:lsass',
 ];
 
 export interface Suggestion {

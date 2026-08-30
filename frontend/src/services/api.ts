@@ -981,7 +981,16 @@ export const digestApi = {
 };
 
 // Observable pages: everything the corpus knows about one extracted value.
-export interface ObservableTopValue { value: string; rules: number; sources: string[] }
+export interface ObservableContext { label: string; provider: string; channel: string }
+export interface ObservableTopValue {
+  value: string;
+  rules: number;
+  sources: string[];
+  /** {source: rule_count}, descending. */
+  by_source: Record<string, number>;
+  /** Event IDs: the log the ID belongs to. Null for other surfaces. */
+  context: ObservableContext | null;
+}
 export interface ObservableTopResponse { type: string; label: string; distinct: number; values: ObservableTopValue[] }
 export interface ObservableTypesResponse {
   types: { type: string; label: string; filter_key: string; distinct: number; top: ObservableTopValue[] }[];

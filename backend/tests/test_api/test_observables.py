@@ -73,7 +73,8 @@ async def test_top_values_and_type_index(client, seeded):
     assert resp.status_code == 200
     data = resp.json()
     assert data["distinct"] == 3
-    assert data["values"][0] == {"value": "mimikatz.exe", "rules": 3, "sources": ["elastic", "sigma", "splunk"]}
+    top = data["values"][0]
+    assert (top["value"], top["rules"], top["sources"]) == ("mimikatz.exe", 3, ["elastic", "sigma", "splunk"])
 
     idx = await client.get("/api/observables")
     assert idx.status_code == 200
@@ -98,3 +99,21 @@ async def test_path_values_with_slashes_route(client, db_session):
     resp = await client.get("/api/observables/path//etc/sudoers")
     assert resp.status_code == 200
     assert resp.json()["value"] == "/etc/sudoers"
+
+
+@pytest.mark.asyncio
+async def test_top_values_carry_source_breakdown_and_event_context(client, seeded):
+    resp = await client.get("/api/observables/eventid")
+    assert resp.status_code == 200
+    values = {v["value"]: v for v in resp.json()["values"]}
+    assert values["4688"]["by_source"] == {"sigma": 1}
+    assert values["4688"]["context"] == {
+        "label": "Process created", "provider": "windows_security", "channel": "Security",
+    }
+    # Sysmon 10 (process access) resolves too; the profile page should
+    # be able to say which log the ID belongs to.
+    assert values["10"]["context"]["provider"] == "sysmon"
+
+    procs = {v["value"]: v for v in (await client.get("/api/observables/process")).json()["values"]}
+    assert procs["mimikatz.exe"]["by_source"] == {"elastic": 1, "sigma": 1, "splunk": 1}
+    assert procs["mimikatz.exe"]["context"] is None
