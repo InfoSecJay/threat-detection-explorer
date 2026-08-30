@@ -1134,7 +1134,7 @@ def _is_network_indicator(value: str) -> bool:
 
 # Fields whose values are an audit action on some products and a record
 # class or endpoint verb on others (see FIELD_TYPE_MAP, Okta block).
-_AMBIGUOUS_ACTION_FIELDS = frozenset({"eventtype", "event_type", "actiontype", "activity"})
+_AMBIGUOUS_ACTION_FIELDS = frozenset({"eventtype", "event_type", "actiontype", "activity", "event"})
 # An audit operation is namespaced: "user.session.start", "iam:PassRole",
 # "Microsoft.Compute/virtualMachines/write", "New-InboxRule". Single
 # tokens ("proxylogs", "Login", "IntrusionEvent", "RegistryValueSet")
@@ -1156,6 +1156,42 @@ def _promote_namespaced_event_actions(result: ExtractedFields) -> None:
         obs.type, obs.subtype = "identity", "action"
         if not obs.negated:
             result.api_actions.extend(promoted)
+
+
+_PLACEHOLDER_VALUE_RE = re.compile(r"^(?:<[^>]+>|\{[^}]+\})$")
+
+
+def _drop_placeholder_values(result: ExtractedFields) -> None:
+    """`data.tenant_name="{your-tenant-name}"` (every Auth0 rule) and
+    `"<UNKNOWN REASON>"` getter defaults are templates, not values.
+    The field stays in fields_used; the observable goes."""
+    kept = []
+    for obs in result.observables:
+        obs.values = [v for v in obs.values if not _PLACEHOLDER_VALUE_RE.match(str(v).strip())]
+        if obs.values:
+            kept.append(obs)
+    result.observables = kept
+    for name in ("api_actions", "target_resources", "network_indicators", "process_names", "file_paths"):
+        setattr(result, name, [v for v in getattr(result, name) if not _PLACEHOLDER_VALUE_RE.match(str(v).strip())])
+
+
+_AUTH0_OPERATION_TYPES = frozenset({"sapi", "fapi", "mgmt_api_read"})
+
+
+def _promote_auth0_operations(result: ExtractedFields) -> None:
+    """Auth0: when `data.type` is a management-API log type, the
+    `data.description` ("Update a client", "Get client by ID") IS the
+    audited operation -- the only thing those rules key on."""
+    if not any(
+        o.field.lower() == "data.type" and not o.negated
+        and any(str(v).lower() in _AUTH0_OPERATION_TYPES for v in o.values)
+        for o in result.observables
+    ):
+        return
+    for obs in result.observables:
+        if obs.field.lower() == "data.description" and not obs.negated:
+            obs.type, obs.subtype = "cloud", "api_action"
+            result.api_actions.extend(v for v in obs.values if v)
 
 
 def _deduplicate_all(result: ExtractedFields):
@@ -1214,6 +1250,8 @@ def _deduplicate_all(result: ExtractedFields):
     result.network_indicators = list(dict.fromkeys(result.network_indicators))
     result.source_tables = list(dict.fromkeys(result.source_tables))
     _promote_namespaced_event_actions(result)
+    _drop_placeholder_values(result)
+    _promote_auth0_operations(result)
     # A wildcard pattern ("user.authentication.*") is a match expression,
     # not an action anyone can look up.
     result.api_actions = [a for a in dict.fromkeys(result.api_actions) if "*" not in a and "?" not in a]
@@ -2295,7 +2333,7 @@ def _parse_spl_expression_terms(
         if not values:
             values = [
                 v.strip().strip("'\"")
-                for v in values_str.split(",")
+                for v in re.split(r"[,\s]+", values_str)
                 if v.strip()
             ]
         values = [v for v in values if v.lower() not in _SPL_NON_VALUES]
@@ -3551,6 +3589,14 @@ def _panther_field_path(
     if not isinstance(node, ast.Call):
         return None
     func = node.func
+    # event.get("A").lower() == "public" -- the method does not change
+    # which field is being tested.
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr in ("lower", "upper", "strip", "casefold", "lstrip", "rstrip")
+        and not node.args
+    ):
+        return _panther_field_path(func.value, var_fields)
     # deep_get(event, "a", "b") / deep_walk(event, "a", "b")
     if isinstance(func, ast.Name) and func.id in ("deep_get", "deep_walk"):
         if node.args and _panther_base_path(node.args[0], var_fields) is not None:
@@ -3572,6 +3618,7 @@ def _panther_field_path(
         parts = [
             a.value for a in key_args
             if isinstance(a, ast.Constant) and isinstance(a.value, str)
+            and not _PANTHER_PLACEHOLDER_RE.match(a.value)  # a default, not a key
         ]
         if not parts:
             return None
@@ -3602,7 +3649,13 @@ def _panther_literals(node: ast.AST, constants: dict) -> list[str]:
         return out
     if isinstance(node, ast.Name):
         return list(constants.get(node.id, []))
+    # self.CONST -- class-level collections on pypanther Rule classes.
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+        return list(constants.get(node.attr, []))
     return []
+
+
+_PANTHER_PLACEHOLDER_RE = re.compile(r"^(?:<[^>]+>|\{[^}]+\})$")
 
 
 class _PantherVisitor(ast.NodeVisitor):
@@ -3682,6 +3735,34 @@ class _PantherVisitor(ast.NodeVisitor):
 
     def visit_If(self, node: ast.If) -> None:
         self.branchiness += 1
+        # Guard clause: `if event.get(X) != "v": return False` means the
+        # rule REQUIRES X == v. The terms inside the test are recorded
+        # with their negation flipped (2026-08-30 review: 9/28 Panther
+        # rules had their only action recorded negated, so api_actions
+        # was empty).
+        if _panther_is_reject_guard(node):
+            before = len(self.terms)
+            self.visit(node.test)
+            self.terms[before:] = [(f, v, not neg) for f, v, neg in self.terms[before:]]
+            for stmt in node.body + node.orelse:
+                self.visit(stmt)
+            return
+        self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        # pypanther: `class R(Rule): EVENTS = ["a", "b"]` -- referenced
+        # later as self.EVENTS.
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+                if isinstance(stmt.value, (ast.Tuple, ast.List, ast.Set)):
+                    vals = _panther_literals(stmt.value, self.constants)
+                    if vals:
+                        self.constants[stmt.targets[0].id] = vals
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
+                if isinstance(stmt.value, (ast.Tuple, ast.List, ast.Set)):
+                    vals = _panther_literals(stmt.value, self.constants)
+                    if vals:
+                        self.constants[stmt.target.id] = vals
         self.generic_visit(node)
 
     def visit_BoolOp(self, node: ast.BoolOp) -> None:
@@ -3689,12 +3770,40 @@ class _PantherVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def _panther_is_reject_guard(node: ast.If) -> bool:
+    """`if <test>: return False` / `continue` with no else -- the test
+    describes what the rule does NOT match."""
+    if node.orelse or len(node.body) != 1:
+        return False
+    stmt = node.body[0]
+    if isinstance(stmt, ast.Continue):
+        return True
+    return (
+        isinstance(stmt, ast.Return)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is False
+    )
+
+
+# Panther log schemas reuse generic key names for the audited action;
+# the Splunk-CIM defaults (`action` = firewall verdict) are wrong here.
+_PANTHER_FIELD_MAP: dict[str, tuple[str, str]] = {
+    "action": ("cloud", "api_action"),            # Slack / Wiz / GitHub audit
+    "name": ("cloud", "api_action"),              # GSuite reports event name
+    "event": ("event", "event_action"),           # Teleport (promoted when namespaced)
+    "event_type": ("event", "event_action"),
+    "p_log_type": ("cloud", "event_source"),
+}
+
+
 def _add_panther_observable(
     field_name: str, values: list[str], negated: bool, result: ExtractedFields
 ) -> None:
     result.fields_used.append(field_name)
-    values = [v for v in values if v]
-    obs_type, obs_subtype = _classify_field(field_name)
+    # `<UNKNOWN REASON>` / `{tenant}`: getter defaults and template
+    # placeholders, not values anyone can search.
+    values = [v for v in values if v and not _PANTHER_PLACEHOLDER_RE.match(str(v))]
+    obs_type, obs_subtype = _PANTHER_FIELD_MAP.get(field_name.lower()) or _classify_field(field_name)
     if values:
         result.observables.append(
             ExtractedObservable(
@@ -3707,6 +3816,9 @@ def _add_panther_observable(
         )
     if field_name.lower() in ("eventid", "eventcode", "event_id"):
         result.event_ids.extend(v for v in values if v.isdigit())
+    if negated:
+        _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+        return
     if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
         result.process_names.extend(_extract_exe_names(values))
     if obs_type == "file" and "path" in obs_subtype:
