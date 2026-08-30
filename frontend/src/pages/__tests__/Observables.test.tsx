@@ -18,7 +18,16 @@ vi.mock('../../hooks/useObservables', () => ({
             ev('99999', 2, { panther: 2 }, null),
           ],
         }
-      : { type: 'process', label: 'Process', distinct: 3, values: [ev('certutil.exe', 73, { sigma: 50, elastic: 23 }, null)] },
+      : kind === 'action'
+        ? {
+            type: 'action', label: 'API action', distinct: 3,
+            values: [
+              ev('ConsoleLogin', 41, { splunk: 10, elastic: 7 }, { label: 'AWS CloudTrail', provider: 'aws_cloudtrail', channel: 'AWS CloudTrail' }),
+              ev('user.session.start', 23, { elastic: 14 }, { label: 'Okta System Log', provider: 'okta_system_log', channel: 'Okta System Log' }),
+              ev('Orphan', 1, { panther: 1 }, null),
+            ],
+          }
+        : { type: 'process', label: 'Process', distinct: 3, values: [ev('certutil.exe', 73, { sigma: 50, elastic: 23 }, null)] },
     isLoading: false, error: null,
   }),
 }));
@@ -66,5 +75,16 @@ describe('Observables', () => {
     const row = getByTestId('obs-certutil.exe');
     expect(row).toHaveTextContent('73');
     expect(row.querySelector('a[href="/detections?process_names=certutil.exe"]')).not.toBeNull();
+  });
+
+  it('groups API actions by the audit log the rules read', () => {
+    const { getByTestId, getAllByTestId } = renderAt('/observables/action');
+    const order = getAllByTestId(/^channel-/).map((el) => el.getAttribute('data-testid'));
+    expect(order).toEqual(['channel-aws_cloudtrail', 'channel-okta_system_log', 'channel-unknown']);
+    expect(getByTestId('channel-aws_cloudtrail')).toHaveTextContent('AWS CloudTrail');
+    expect(getByTestId('channel-aws_cloudtrail')).toHaveTextContent('ConsoleLogin');
+    expect(getByTestId('channel-unknown')).toHaveTextContent('Unattributed');
+    // the platform is the group title, not repeated under every value
+    expect(getByTestId('obs-ConsoleLogin')).not.toHaveTextContent('AWS CloudTrail');
   });
 });

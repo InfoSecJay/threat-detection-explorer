@@ -277,8 +277,14 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "resource.type": ("cloud", "resource_type"),
 
     # ---- IDENTITY FIELDS - Okta ----
-    "eventtype": ("identity", "action"),
-    "event_type": ("identity", "action"),
+    # eventType / event_type / ActionType / Activity are AMBIGUOUS: Okta
+    # and Snowflake put the audit action there ("user.session.start"),
+    # Cisco / CommonSecurityLog put the record class ("proxylogs",
+    # "IntrusionEvent"), MDE the endpoint verb ("RegistryValueSet").
+    # Classified neutrally; _promote_namespaced_event_actions() lifts the
+    # values that look like audit operations onto the api_actions surface.
+    "eventtype": ("event", "event_action"),
+    "event_type": ("event", "event_action"),
     "outcome.result": ("identity", "outcome"),
     "outcome.reason": ("identity", "outcome_reason"),
     "actor.displayname": ("identity", "actor"),
@@ -300,8 +306,8 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "securitycontext.isproxy": ("identity", "context"),
 
     # ---- IDENTITY FIELDS - Entra ID / AAD ----
-    "actiontype": ("identity", "action"),
-    "activity": ("identity", "action"),
+    "actiontype": ("event", "event_action"),  # ambiguous, see Okta block
+    "activity": ("event", "event_action"),
     "targetresources": ("identity", "target"),
     "initiatedby": ("identity", "actor"),
     "conditionalaccessstatus": ("identity", "context"),
@@ -556,7 +562,7 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "principal.cloud.project.name": ("cloud", "account_id"),
 
     # ---- Okta System Log (OIE filter expressions; issue #6 tail) ----
-    "eventtype": ("identity", "action"),
+    "eventtype": ("event", "event_action"),  # ambiguous, see Okta block
     "outcome.result": ("identity", "outcome"),
     "outcome.reason": ("identity", "outcome_reason"),
     "result": ("identity", "outcome"),
@@ -1030,6 +1036,32 @@ def _is_network_indicator(value: str) -> bool:
     return _DOMAIN_LIKE_RE.search(v) is not None
 
 
+# Fields whose values are an audit action on some products and a record
+# class or endpoint verb on others (see FIELD_TYPE_MAP, Okta block).
+_AMBIGUOUS_ACTION_FIELDS = frozenset({"eventtype", "event_type", "actiontype", "activity"})
+# An audit operation is namespaced: "user.session.start", "iam:PassRole",
+# "Microsoft.Compute/virtualMachines/write", "New-InboxRule". Single
+# tokens ("proxylogs", "Login", "IntrusionEvent", "RegistryValueSet")
+# are record classes or endpoint verbs and stay off the surface.
+_NAMESPACED_ACTION_RE = re.compile(r"^[A-Za-z0-9_]+(?:[.:/][A-Za-z0-9_.:/-]+|-[A-Za-z][A-Za-z0-9]+)$")
+
+
+def _promote_namespaced_event_actions(result: ExtractedFields) -> None:
+    """Lift (event, event_action) values from ambiguous fields onto the
+    api_actions surface when they look like audit operations."""
+    for obs in result.observables:
+        if obs.type != "event" or obs.subtype != "event_action":
+            continue
+        if obs.field.lower() not in _AMBIGUOUS_ACTION_FIELDS:
+            continue
+        promoted = [v for v in obs.values if isinstance(v, str) and _NAMESPACED_ACTION_RE.match(v.strip())]
+        if not promoted:
+            continue
+        obs.type, obs.subtype = "identity", "action"
+        if not obs.negated:
+            result.api_actions.extend(promoted)
+
+
 def _deduplicate_all(result: ExtractedFields):
     """Deduplicate all extraction lists and drop empty values.
 
@@ -1078,7 +1110,10 @@ def _deduplicate_all(result: ExtractedFields):
     result.registry_keys = list(dict.fromkeys(result.registry_keys))
     result.network_indicators = list(dict.fromkeys(result.network_indicators))
     result.source_tables = list(dict.fromkeys(result.source_tables))
-    result.api_actions = list(dict.fromkeys(result.api_actions))
+    _promote_namespaced_event_actions(result)
+    # A wildcard pattern ("user.authentication.*") is a match expression,
+    # not an action anyone can look up.
+    result.api_actions = [a for a in dict.fromkeys(result.api_actions) if "*" not in a and "?" not in a]
     result.target_resources = list(dict.fromkeys(result.target_resources))
 
 

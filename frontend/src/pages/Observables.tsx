@@ -28,7 +28,7 @@ const KIND_BLURB: Record<ObservableKind, string> = {
   path: 'file and directory paths named in the logic',
   registry: 'registry keys and values the rule watches',
   network: 'domains, IPs, URLs and ports used as indicators',
-  action: 'cloud / SaaS API actions (CloudTrail, Okta, Entra, GitHub...)',
+  action: 'cloud / SaaS audit operations, grouped by the log they are read from (CloudTrail, Okta, Entra, GCP, Kubernetes, GitHub...)',
   eventid: 'Windows event IDs the rule keys on, grouped by the log they come from',
   table: 'SIEM tables and datamodels the query reads from',
   resource: 'targets the rule watches: users, roles, buckets, mailboxes',
@@ -94,7 +94,7 @@ function ValuesTable({ kind, values, max, offset = 0 }: { kind: ObservableKind; 
               <Link to={observableUrl(kind, v.value)} className="font-mono text-gray-100 hover:text-matrix-400 break-all">
                 {v.value}
               </Link>
-              {v.context && (
+              {v.context && v.context.label !== v.context.channel && (
                 <div className="text-[11px] text-gray-400 mt-0.5">{v.context.label}</div>
               )}
             </td>
@@ -119,12 +119,19 @@ function ValuesTable({ kind, values, max, offset = 0 }: { kind: ObservableKind; 
   );
 }
 
-/** Event IDs grouped by the log channel they belong to, biggest first. */
-function groupByChannel(values: ObservableTopValue[]) {
+/** Values grouped by the log they belong to, biggest first; values
+ * without a known log last. Event IDs group by Windows channel, API
+ * actions by the audit log the rules read. */
+const UNKNOWN_CHANNEL: Partial<Record<ObservableKind, string>> = {
+  eventid: 'Not in the Windows event-ID dictionary',
+  action: 'Rules carry no canonical data source',
+};
+
+function groupByChannel(kind: ObservableKind, values: ObservableTopValue[]) {
   const groups = new Map<string, { provider: string; channel: string; values: ObservableTopValue[]; rules: number }>();
   for (const v of values) {
     const key = v.context?.provider || 'unknown';
-    const g = groups.get(key) || { provider: key, channel: v.context?.channel || 'Not in the Windows event-ID dictionary', values: [], rules: 0 };
+    const g = groups.get(key) || { provider: key, channel: v.context?.channel || UNKNOWN_CHANNEL[kind] || 'Unknown', values: [], rules: 0 };
     g.values.push(v);
     g.rules += v.rules;
     groups.set(key, g);
@@ -142,7 +149,10 @@ export function Observables() {
   const { data: options } = useFilterOptions();
   const sources = options?.sources || [];
   const max = data?.values?.[0]?.rules || 1;
-  const grouped = useMemo(() => (kind === 'eventid' && data ? groupByChannel(data.values) : null), [kind, data]);
+  const grouped = useMemo(
+    () => (data && (kind === 'eventid' || kind === 'action') ? groupByChannel(kind, data.values) : null),
+    [kind, data],
+  );
 
   return (
     <div className="space-y-6">
@@ -225,11 +235,11 @@ export function Observables() {
               <div className="px-3 py-2 border-b border-void-700 bg-void-900/40 flex items-baseline justify-between gap-3 flex-wrap">
                 <div className="flex items-baseline gap-2">
                   <h2 className="font-display font-semibold text-[11px] uppercase tracking-wider text-matrix-400">
-                    {PROVIDER_LABEL[g.provider] || (g.provider === 'unknown' ? 'Unrecognised IDs' : g.provider)}
+                    {PROVIDER_LABEL[g.provider] || (g.provider === 'unknown' ? (kind === 'eventid' ? 'Unrecognised IDs' : 'Unattributed') : g.channel)}
                   </h2>
-                  <span className="text-[10px] font-mono text-gray-500">{g.channel}</span>
+                  <span className="text-[10px] font-mono text-gray-500">{g.provider === 'unknown' || kind === 'action' ? (g.provider === 'unknown' ? g.channel : g.provider) : g.channel}</span>
                 </div>
-                <span className="text-[10px] font-mono text-gray-600">{g.values.length} IDs · {g.rules.toLocaleString()} rules</span>
+                <span className="text-[10px] font-mono text-gray-600">{g.values.length} {kind === 'eventid' ? 'IDs' : 'values'} · {g.rules.toLocaleString()} rules</span>
               </div>
               <ValuesTable kind={kind} values={g.values} max={max} />
             </div>

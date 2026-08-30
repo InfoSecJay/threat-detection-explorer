@@ -117,3 +117,18 @@ async def test_top_values_carry_source_breakdown_and_event_context(client, seede
     procs = {v["value"]: v for v in (await client.get("/api/observables/process")).json()["values"]}
     assert procs["mimikatz.exe"]["by_source"] == {"elastic": 1, "sigma": 1, "splunk": 1}
     assert procs["mimikatz.exe"]["context"] is None
+
+
+@pytest.mark.asyncio
+async def test_api_actions_are_labelled_with_their_audit_log(client, db_session):
+    db_session.add_all([
+        _rule(title="Console login", source="elastic", data_sources=["aws_cloudtrail"], extracted_api_actions=["ConsoleLogin"]),
+        _rule(title="Root console login", source="splunk", data_sources=["aws_cloudtrail", "siem_alert"], extracted_api_actions=["ConsoleLogin"]),
+        _rule(title="Okta session", source="sigma", data_sources=["okta_system_log"], extracted_api_actions=["user.session.start"]),
+        _rule(title="No data source", source="panther", data_sources=[], extracted_api_actions=["Orphan"]),
+    ])
+    await db_session.commit()
+    values = {v["value"]: v for v in (await client.get("/api/observables/action")).json()["values"]}
+    assert values["ConsoleLogin"]["context"] == {"label": "AWS CloudTrail", "provider": "aws_cloudtrail", "channel": "AWS CloudTrail"}
+    assert values["user.session.start"]["context"]["provider"] == "okta_system_log"
+    assert values["Orphan"]["context"] is None

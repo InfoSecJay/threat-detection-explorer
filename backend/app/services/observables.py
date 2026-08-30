@@ -33,6 +33,50 @@ OBSERVABLE_TYPES: dict[str, tuple[str, str, str]] = {
 
 _CO_OCCUR_SURFACES = ("process", "eventid", "action", "table", "path", "registry", "network")
 
+# Human names for the audit logs API actions come from. Anything else
+# falls back to the canonical data-source name, prettified.
+DATA_SOURCE_LABELS: dict[str, str] = {
+    "aws_cloudtrail": "AWS CloudTrail",
+    "aws_security_lake": "AWS Security Lake",
+    "aws_eks_audit": "AWS EKS audit",
+    "aws_bedrock_invocation": "AWS Bedrock",
+    "azure_activity": "Azure Activity log",
+    "azure_audit": "Azure audit",
+    "azure_monitor_activity": "Azure Monitor activity",
+    "azure_pim": "Entra ID PIM",
+    "entra_id_signin": "Entra ID sign-in logs",
+    "entra_id_audit": "Entra ID audit logs",
+    "azure_risk_detection": "Entra ID risk detections",
+    "gcp_audit": "GCP Cloud Audit",
+    "kubernetes_audit": "Kubernetes audit",
+    "okta_system_log": "Okta System Log",
+    "auth0_logs": "Auth0 logs",
+    "duo_activity": "Duo activity",
+    "onelogin_events": "OneLogin events",
+    "google_workspace_audit": "Google Workspace audit",
+    "m365_audit": "Microsoft 365 audit",
+    "m365_exchange_audit": "Exchange Online audit",
+    "microsoft365_exchange_audit": "Exchange Online audit",
+    "microsoft365_sharepoint_audit": "SharePoint Online audit",
+    "m365_defender": "Microsoft 365 Defender",
+    "microsoft_defender_xdr": "Defender XDR",
+    "microsoft_intune_audit": "Intune audit",
+    "github_audit": "GitHub audit log",
+    "github_webhook": "GitHub webhooks",
+    "gitlab_audit": "GitLab audit",
+    "bitbucket_audit": "Bitbucket audit",
+    "atlassian_audit": "Atlassian audit",
+    "slack_audit": "Slack audit",
+    "snyk_org_audit": "Snyk audit",
+    "cyberark_audit": "CyberArk audit",
+    "database_logs": "Database logs",
+    "siem_alert": "SIEM alerts",
+}
+
+
+def data_source_label(name: str) -> str:
+    return DATA_SOURCE_LABELS.get(name) or name.replace("_", " ").capitalize()
+
 
 def _column(kind: str):
     return getattr(Detection, OBSERVABLE_TYPES[kind][0])
@@ -45,20 +89,24 @@ def _contains(kind: str, value: str):
 
 async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Optional[str] = None) -> dict:
     """Most common values on one surface, with rule + source counts."""
-    query = select(Detection.source, _column(kind))
+    query = select(Detection.source, _column(kind), Detection.data_sources)
     if source:
         query = query.where(Detection.source == source)
     rows = (await db.execute(query)).all()
     counts: Counter[str] = Counter()
     by_source: dict[str, Counter[str]] = defaultdict(Counter)
+    by_data_source: dict[str, Counter[str]] = defaultdict(Counter)
     canonical: dict[str, str] = {}
-    for src, values in rows:
+    for src, values, data_sources in rows:
         # A rule naming the same value twice counts once.
         for v in {v.lower(): v for v in (values or []) if isinstance(v, str) and v.strip()}.values():
             key = v.lower()
             canonical.setdefault(key, v)
             counts[key] += 1
             by_source[key][src] += 1
+            for ds in data_sources or []:
+                if isinstance(ds, str) and ds and ds != "unknown":
+                    by_data_source[key][ds] += 1
     return {
         "type": kind,
         "label": OBSERVABLE_TYPES[kind][2],
@@ -72,19 +120,28 @@ async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Opti
                 "by_source": dict(sorted(by_source[k].items(), key=lambda kv: (-kv[1], kv[0]))),
                 # What the value means where we know (event IDs: the
                 # log channel / provider the ID belongs to).
-                "context": _context(kind, canonical[k]),
+                "context": _context(kind, canonical[k], by_data_source[k]),
             }
             for k, n in counts.most_common(limit)
         ],
     }
 
 
-def _context(kind: str, value: str) -> Optional[dict]:
+def _context(kind: str, value: str, data_sources: Counter[str]) -> Optional[dict]:
+    """What a value belongs to. Event IDs: the Windows log from the
+    dictionary. API actions: the audit log the rules using it read
+    (their dominant canonical data source), so "ConsoleLogin" says AWS
+    CloudTrail and "user.session.start" says Okta System Log without
+    the reader having to know."""
     if kind == "eventid":
         entry = lookup_event_id(value)
         if entry is None:
             return None
         return {"label": entry.label, "provider": entry.provider, "channel": entry.channel}
+    if kind == "action" and data_sources:
+        ds, _n = data_sources.most_common(1)[0]
+        label = data_source_label(ds)
+        return {"label": label, "provider": ds, "channel": label}
     return None
 
 
