@@ -140,7 +140,7 @@ class TestMqlLiteralSafety:
 
 class TestVocabularyPass:
     def test_auth0_fields(self):
-        assert _classify_field("data.type") == ("identity", "action")
+        assert _classify_field("data.type") == ("event", "event_category")  # Auth0 log-type codes (sapi, fapi...)
         assert _classify_field("data.tenant_name") == ("identity", "context")
         assert _classify_field("data.description") == ("event", "message")
 

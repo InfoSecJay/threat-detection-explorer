@@ -617,7 +617,7 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "possiblecause": ("event", "message"),
     "gen_ai.completion": ("event", "message"),
     # Auth0 (Sigma-format rules over Auth0 tenant logs)
-    "data.type": ("identity", "action"),
+    "data.type": ("event", "event_category"),  # Auth0 log-type codes (sapi, fapi, slo...), not actions
     "data.tenant_name": ("identity", "context"),
     "data.client_id": ("identity", "target"),
     "data.client_name": ("identity", "target"),

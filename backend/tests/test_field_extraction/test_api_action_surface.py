@@ -55,3 +55,9 @@ def test_wildcard_patterns_are_dropped():
 def test_negated_values_are_not_promoted():
     r = extract_sentinel_fields('OktaSSO | where eventType != "user.session.start"')
     assert r.api_actions == []
+
+
+def test_auth0_log_type_codes_are_categories_not_actions():
+    r = _sigma({"data.type": ["sapi", "fapi", "slo"]})
+    assert r.api_actions == []
+    assert [(o.type, o.subtype) for o in r.observables if o.field == "data.type"] == [("event", "event_category")]
