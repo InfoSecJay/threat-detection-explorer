@@ -60,3 +60,14 @@ def test_field_map_batch_and_token_heuristics():
     assert _classify_field("process.pe.imphash") == ("process", "process_hash")
     assert _classify_field("whitelistEntry") == ("network", "ip_address")
     assert _classify_field("someSubjectField") == ("email", "email_field")
+
+
+def test_single_occurrence_tail_is_mapped():
+    for name, expected in {
+        "PipeName": ("file", "file_name"),
+        "GRANTEE_NAME": ("identity", "target"),
+        "protoPayload.serviceData.policyDelta.bindingDeltas.action": ("cloud", "api_action"),
+        "target{}.type": ("identity", "target_type"),
+        "level": ("event", "severity"),
+    }.items():
+        assert _classify_field(name) == expected, name

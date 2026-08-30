@@ -454,6 +454,79 @@ floor; each is one mapping away when a rule that matters surfaces.
 Production rows refresh on the nightly sync (every rule re-normalizes
 on upsert); rerun the production audit the day after to confirm.
 
+### Semantic review (2026-08-30)
+
+The precision pass above measured shape (fallback subtypes, unknown
+fields). This pass measured meaning: 14 production rules per source
+(182 rules, `scripts/extraction_pull_samples.py`) were re-run on
+master and every rule was read against its extraction by a reviewer
+asked three questions -- what does the rule key on, what did we miss,
+what did we extract that is not an observable. Every finding was
+reproduced on a minimal snippet before it went into issue #59, and
+every fix ships with that snippet as a fixture test
+(`tests/test_field_extraction/test_*_review_2026_08_30.py`).
+
+What the read found that the numbers could not:
+
+- **EQL tuples** (`process.name : ("a", "b")`) were never read -- 13 of
+  28 sampled EQL rules had their entire signal in one. Only `!=` set
+  negation, so `not (...)` exclusion blocks were recorded as things
+  the rule detects and allowlists landed on process_names and hash
+  surfaces.
+- **Splunk ESCU macros** (`process_rundll32`, `sysmon`,
+  `wineventlog_security`) were blanked, losing the process name and
+  the data source in 10 of 14 rules.
+- **Sentinel derived-column tracking** hid real columns:
+  `extend Image = column_ifexists("Image", "")` marked Image derived,
+  and every term written against a derived alias vanished (an ADFS
+  rule lost seven process names and a named pipe). `let X =
+  dynamic([...])` lists and `query_parameters` defaults were never
+  resolved.
+- **Panther guard clauses** (`if event.get(X) != "v": return False`)
+  were recorded negated, so 9 of 28 rules had an empty api_actions.
+  pypanther `self.CONST` collections never resolved.
+- **Sublime call expressions** (`beta.ocr(...).text`,
+  `beta.file.parse_ics(.).product_id`) extracted nothing; predicate
+  helpers kept only the first of their literal arguments.
+- **Value shape vs field name**: the classify fallback matched
+  substrings (`registered_domain` -> registry, `code_signature.subject_name`
+  -> email, `relationship` -> IP); directory fragments were process
+  names; IPs under hostname fields were domains; placeholders
+  (`{your-tenant-name}`, `<UNKNOWN REASON>`), `null`, thresholds and
+  regex patterns reached the surfaces.
+
+Common rules that came out of it, now applied by every extractor:
+negated values never reach a flat surface; wildcard-only, regex,
+placeholder and null values never reach a surface; short classify
+stems must be whole tokens of the field name; surfaces are fed by
+value shape as well as subtype (a path field feeds process_names
+with its basename, a backslash value on a registry_key field feeds
+registry_keys without a hive prefix).
+
+Same 182-rule sample, before -> after (flat surface values per
+source; `*_field` share):
+
+| Source              | surface values | `*_field` share |
+| ---                 | ---:           | ---:            |
+| auth0               | 3 -> 13        | 0.0%            |
+| elastic             | 33 -> 56       | 6.1% -> 2.0%    |
+| elastic_hunting     | 60 -> 66       | 1.2%            |
+| elastic_protections | 28 -> 35       | 0.8%            |
+| google_secops       | 22 -> 21       | 1.1%            |
+| lolrmm              | 47 -> 53       | 0.0%            |
+| okta                | 20 -> 19       | 0.0%            |
+| panther             | 12 -> 37       | 0.0%            |
+| pypanther           | 15 -> 27       | 4.3%            |
+| sentinel            | 24 -> 34       | 10.7% -> 0.0%   |
+| sigma               | 29 -> 41       | 0.0%            |
+| splunk              | 33 -> 52       | 12.0% -> 0.0%   |
+| sublime             | 21 -> 22       | 9.4% -> 1.0%    |
+
+Left open on #59, on purpose: Sentinel table-scoped overrides (a
+column that means one thing on CyfirmaIndicators_CL and another on
+SecurityEvent) and Sublime `$named_list` references as an observable
+-- both need a schema decision, not a parser fix.
+
 ## Limitations
 
 - FP-class tripwires are shape heuristics — they catch contract

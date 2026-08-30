@@ -182,6 +182,28 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "action": ("network", "action"),
     # 2026-08-30 review batch (Splunk / Sentinel / Elastic / Panther)
     "sourceuser": ("authentication", "user"),
+    # Single-occurrence tail from the 2026-08-30 sample eval
+    "pipename": ("file", "file_name"),                      # Sysmon 17/18 named pipes
+    "technicalname": ("event", "event_category"),           # SailPoint IdentityNow
+    "framework": ("event", "event_category"),               # compliance framework label
+    "pattern": ("event", "message"),
+    "recommendedactions": ("event", "message"),
+    "level": ("event", "severity"),
+    "upstreamsadded.upstreamsourcetype": ("cloud", "resource_type"),
+    "upstreamsadded.location": ("cloud", "resource"),
+    "upstreamsadded.name": ("cloud", "resource"),
+    "grantee_name": ("identity", "target"),                 # Snowflake grants
+    "object": ("cloud", "resource_type"),                   # Push Security
+    "output.outputbodyjson.stopreason": ("cloud", "result"),
+    "output.outputbodyjson.amazon-bedrock-trace.guardrail.actionreason": ("cloud", "result"),
+    "protopayload.servicedata.policydelta.bindingdeltas.role": ("cloud", "resource"),
+    "protopayload.servicedata.policydelta.bindingdeltas.action": ("cloud", "api_action"),
+    "requestparameters.attributetype": ("cloud", "request_params"),
+    "security_result.about.labels.sample": ("event", "event_category"),
+    "graph.relations.entity_type": ("event", "event_category"),
+    "target{}.type": ("identity", "target_type"),
+    "ml_is_dga.malicious_prediction": ("dns", "dns_field"),
+    "process.args_count": ("process", "process_field"),
     # Sublime resolved paths (2026-08-30 review)
     "body.links.href_url.scheme": ("email", "url"),
     "file.explode.scan.url.urls.scheme": ("email", "url"),
