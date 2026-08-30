@@ -180,6 +180,43 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "transport": ("network", "protocol"),
     "direction": ("network", "direction"),
     "action": ("network", "action"),
+    # 2026-08-30 review batch (Splunk / Sentinel / Elastic / Panther)
+    "sourceuser": ("authentication", "user"),
+    "taskcontent": ("process", "command_line_pattern"),
+    "object_file_path": ("file", "file_path"),
+    "web.http_user_agent": ("network", "user_agent"),
+    "http_user_agent": ("network", "user_agent"),
+    "eventmessage": ("event", "message"),
+    "fixstatus": ("event", "event_outcome"),
+    "cip": ("network", "ip_address"),
+    "sip": ("network", "ip_address"),
+    "csuseragent": ("network", "user_agent"),
+    "csusername": ("authentication", "user"),
+    "csmethod": ("network", "http_method"),
+    "csuristem": ("network", "url"),
+    "csuriquery": ("network", "url"),
+    "scstatus": ("network", "http_status"),
+    "dns.question.registered_domain": ("dns", "query_name"),
+    "dll.code_signature.subject_name": ("file", "code_signature"),
+    "dll.code_signature.status": ("file", "code_signature"),
+    "winlog.event_data.subjectusersid": ("authentication", "user_id"),
+    "winlog.event_data.processname": ("process", "process_path"),
+    "winlog.event_data.enabledprivilegelist": ("authentication", "auth_field"),
+    "winlog.event_data.servicefilename": ("process", "process_path"),
+    "winlog.event_data.imagepath": ("process", "process_path"),
+    "azure.auditlogs.operation_name": ("identity", "action"),
+    "audittype.action": ("cloud", "api_action"),
+    "audittype.category": ("cloud", "event_source"),
+    "process.pe.imphash": ("process", "process_hash"),
+    "process.ext.api.metadata.target_address_path": ("process", "api_call"),
+    "dll.ext.device.product_id": ("file", "file_field"),
+    "azure.signinlogs.properties.client_app_used": ("identity", "device"),
+    "azure.signinlogs.properties.user_type": ("identity", "actor"),
+    "entry.protection_provenance": ("process", "call_stack"),
+    "whitelistentry": ("network", "ip_address"),
+    "generatorid": ("cloud", "event_source"),
+    "action.awsapicallaction.api": ("cloud", "api_action"),
+    "operation_type": ("cloud", "api_action"),
     # Sentinel
     "remoteport": ("network", "port"),
     "remoteip": ("network", "ip_address"),
@@ -915,37 +952,94 @@ def _classify_field(field_name: str) -> tuple[str, str]:
     key = field_name.lower().strip()
     if key in FIELD_TYPE_MAP:
         return FIELD_TYPE_MAP[key]
-    # Heuristic fallback - order matters (more specific first)
-    if any(p in key for p in ["process", "image", "commandline", "cmd"]):
+    # Heuristic fallback - order matters (more specific first).
+    # Long distinctive stems may match as substrings; short stems must
+    # be whole tokens of the field name (`relationship` is not `ip`,
+    # `registered_domain` is not `reg`, `code_signature.subject_name`
+    # is not an email subject -- 2026-08-30 review).
+    tokens = _field_tokens(field_name)
+    if any(p in key for p in ["process", "image", "commandline"]) or "cmd" in tokens:
         return ("process", "process_field")
-    if any(p in key for p in ["registry", "reg", "hklm", "hkcu"]):
+    if "dns" in tokens or any(p in key for p in ["queryname", "rcode"]):
+        return ("dns", "dns_field")
+    if "registry" in key or tokens & {"reg", "hklm", "hkcu"}:
         return ("registry", "registry_field")
     if any(p in key for p in ["file", "path", "filename"]):
         return ("file", "file_field")
     if any(p in key for p in ["operationname", "eventname", "methodname"]):
         return ("cloud", "api_action")
-    if any(p in key for p in ["sender", "recipient", "subject", "attachment"]):
+    if any(p in key for p in ["sender", "recipient", "attachment"]) or "subject" in tokens:
         return ("email", "email_field")
-    if any(p in key for p in ["dns", "queryname", "rcode"]):
-        return ("dns", "dns_field")
     if any(p in key for p in ["actor", "principal", "identity"]):
         return ("identity", "identity_field")
-    if any(p in key for p in ["resource", "arn", "bucket"]):
+    if any(p in key for p in ["resource", "bucket"]) or "arn" in tokens:
         return ("cloud", "resource")
-    if any(p in key for p in ["ip", "port", "domain", "url", "host"]):
+    if tokens & {"ip", "port", "domain", "url", "host", "hostname", "ipaddress", "srcip", "dstip"} or any(p in key for p in ["domain", "url"]):
         return ("network", "network_field")
     if any(p in key for p in ["user", "logon", "auth", "account", "signin"]):
         return ("authentication", "auth_field")
     return ("other", "unknown")
 
 
+def _field_tokens(key: str) -> set[str]:
+    """Tokens of a field name: split on . _ - and camelCase humps."""
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+    return {t.lower() for t in re.split(r"[._\-\s\[\]\"']+", spaced) if t}
+
+
 def _extract_exe_names(values: list[str]) -> list[str]:
-    """Extract .exe filenames from values (handles paths like \\powershell.exe)."""
+    """Extract .exe basenames from values (handles paths like \\powershell.exe).
+
+    The basename is the last path segment, dots included:
+    `Syncro.Installer.exe` used to come out as `installer.exe` and
+    `Microsoft.Workflow.Compiler.exe` as `compiler.exe` (2026-08-30
+    review), colliding across unrelated tools. Wildcard stems
+    (`PAExec-*.exe`) are kept as written."""
     names = []
     for v in values:
-        matches = re.findall(r'[\\\/]?([a-zA-Z0-9_\-]+\.exe)', str(v), re.IGNORECASE)
-        names.extend(matches)
+        for m in re.finditer(r'([^\\/\s"\']+?\.exe)(?![\w.])', str(v), re.IGNORECASE):
+            name = m.group(1).lstrip("*")
+            if name.lower() != ".exe" and name:
+                names.append(name)
     return list(dict.fromkeys(n.lower() for n in names))  # dedupe, preserve order
+
+
+_UNIX_NAME_RE = re.compile(r"^[*]?/?([A-Za-z0-9_.+-]{2,})$")
+_IPV4_VALUE_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$")
+
+
+def _bare_unix_names(values: list[str]) -> list[str]:
+    """`/uname`, `*/openssl`, `dd` -> the binary name, for process-name
+    fields whose values carry no `.exe` (Linux / macOS Sigma rules)."""
+    names = []
+    for v in values:
+        sv = str(v).strip()
+        if sv.lower().endswith(".exe") or "\\" in sv or "*" in sv.lstrip("*"):
+            continue
+        m = _UNIX_NAME_RE.match(sv)
+        if m and "/" not in m.group(1):
+            names.append(m.group(1).lower())
+    return list(dict.fromkeys(names))
+
+
+def _retype_by_value_shape(obs_type: str, obs_subtype: str, values: list[str]) -> tuple[str, str]:
+    """Second opinion from the values themselves.
+
+    `Image|contains: \\AppData\\Local\\Temp\\` is a directory fragment,
+    not a process name; `DestinationHostname: 136.243.104.235` is an IP
+    under a hostname field (LOLRMM). The field name says one thing, the
+    value another -- the value wins for the surface routing.
+    """
+    vals = [str(v) for v in values if str(v).strip()]
+    if not vals:
+        return obs_type, obs_subtype
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+        if all(v.rstrip("*").endswith(("\\", "/")) and not v.lower().endswith(".exe") for v in vals):
+            return "process", "process_path"
+    if obs_type == "network" and obs_subtype in ("domain", "hostname"):
+        if all(_IPV4_VALUE_RE.match(v.strip("*")) for v in vals):
+            return "network", "ip_address"
+    return obs_type, obs_subtype
 
 
 def _extract_registry_paths(values: list[str]) -> list[str]:
@@ -1192,6 +1286,7 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
 
         flat_values = _flatten_values(values)
         obs_type, obs_subtype = _classify_field(base_field)
+        obs_type, obs_subtype = _retype_by_value_shape(obs_type, obs_subtype, flat_values)
 
         # Create observable
         observable = ExtractedObservable(
@@ -1209,8 +1304,17 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
                 str(v) for v in flat_values if str(v).isdigit()
             )
 
-        if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+        # Exclusions (`filter` selections) describe what the rule ignores;
+        # they stay off the flat surfaces.
+        if is_negated:
+            _route_domain_fields(obs_type, obs_subtype, flat_values, is_negated, result)
+            continue
+
+        if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name", "process_path"):
             result.process_names.extend(_extract_exe_names(flat_values))
+            if obs_subtype != "process_path":
+                # `Image|endswith: /uname` -- Unix binaries have no .exe.
+                result.process_names.extend(_bare_unix_names(flat_values))
 
         if obs_type == "file" and obs_subtype == "file_path":
             # `TargetFilename|endswith: '.bat'` values are EXTENSIONS,
@@ -1234,7 +1338,12 @@ def _process_sigma_selection(selection: dict, is_negated: bool, result: Extracte
                 )
 
         if obs_type == "registry" and obs_subtype == "registry_key":
-            result.registry_keys.extend(_extract_registry_paths(flat_values))
+            # A value-name suffix (`TargetObject|endswith: \\IsCredGuardEnabled`)
+            # is the dominant SigmaHQ registry idiom: any backslash-bearing
+            # value on a registry_key field is a key fragment.
+            result.registry_keys.extend(
+                v for v in flat_values if "\\" in str(v) and str(v).strip("*\\")
+            )
 
         if obs_type == "network":
             result.network_indicators.extend(
@@ -1497,6 +1606,147 @@ def extract_elastic_fields(
     return result
 
 
+_EQL_OPS = ("not in~", "not in", "like~", "like", "regex~", "regex", "in~", "in", "==", "!=", ":")
+
+
+def _eql_terms(query: str) -> list[tuple[str, list[str], bool, str]]:
+    """Quote-aware scan of EQL comparisons: (field, values, negated, op).
+
+    Reads every `field <op> value` where op is one of `==`, `!=`, `:`,
+    `like`, `like~`, `regex`, `regex~`, `in`, `in~`, `not in`, and the
+    value is a string literal, a number, or a parenthesised tuple of
+    them (`process.name : ("cmd.exe", "pwsh.exe")`, possibly spanning
+    lines). A `not` before the term or before an enclosing group flips
+    negation, so exclusion blocks (`not (process.name : "x" and ...)`)
+    are recorded negated instead of as things the rule detects (the
+    2026-08-30 review found 17/28 EQL rules with allowlists landing on
+    process_names and hash surfaces). `?field` optional-field syntax is
+    read as the field.
+    """
+    terms: list[tuple[str, list[str], bool, str]] = []
+    n = len(query)
+    i = 0
+    neg_stack: list[bool] = []
+    pending_not = False
+
+    def skip_string(pos: int) -> int:
+        if query.startswith('"""', pos):
+            j = query.find('"""', pos + 3)
+            return n if j == -1 else j + 3
+        q = query[pos]
+        j = pos + 1
+        while j < n:
+            if query[j] == "\\":
+                j += 2
+                continue
+            if query[j] == q:
+                return j + 1
+            j += 1
+        return n
+
+    def literal_at(pos: int) -> tuple[str | None, int]:
+        """A string literal or number at pos -> (value, end) else (None, pos)."""
+        if pos < n and query[pos] in "\"'":
+            e = skip_string(pos)
+            raw = query[pos:e]
+            if raw.startswith('"""'):
+                return raw[3:-3], e
+            return raw[1:-1], e
+        m = re.match(r"-?\d+(?:\.\d+)?", query[pos:])
+        if m:
+            return m.group(0), pos + len(m.group(0))
+        return None, pos
+
+    while i < n:
+        ch = query[i]
+        if ch in "\"'":
+            i = skip_string(i)
+            pending_not = False
+            continue
+        if ch == "(":
+            neg_stack.append(pending_not)
+            pending_not = False
+            i += 1
+            continue
+        if ch == ")":
+            if neg_stack:
+                neg_stack.pop()
+            i += 1
+            continue
+        if ch.isspace() or ch in ",|":
+            i += 1
+            continue
+        m = re.match(r"\??[A-Za-z_][\w.]*", query[i:])
+        if not m:
+            i += 1
+            continue
+        token = m.group(0)
+        j = i + len(token)
+        low = token.lower()
+        if low == "not":
+            pending_not = True
+            i = j
+            continue
+        if low in ("and", "or", "where", "sequence", "by", "until", "with", "maxspan"):
+            pending_not = False
+            i = j
+            continue
+        k = j
+        while k < n and query[k] in " \t\r\n":
+            k += 1
+        op = None
+        for cand in _EQL_OPS:
+            if query[k:k + len(cand)].lower() == cand:
+                after = query[k + len(cand):k + len(cand) + 1]
+                if cand[-1].isalpha() and after and (after.isalnum() or after == "_"):
+                    continue
+                op = cand
+                break
+        if op is None:
+            pending_not = False
+            i = j
+            continue
+        k += len(op)
+        while k < n and query[k] in " \t\r\n":
+            k += 1
+        context_neg = pending_not or any(neg_stack)
+        pending_not = False
+        op_neg = op in ("!=", "not in", "not in~")
+        negated = context_neg != op_neg
+        field = token.lstrip("?")
+        values: list[str] = []
+        if k < n and query[k] == "(":
+            depth = 1
+            p = k + 1
+            while p < n and depth:
+                if query[p] in "\"'":
+                    lit, e = literal_at(p)
+                    if lit is not None:
+                        values.append(lit)
+                    p = e
+                    continue
+                if query[p] == "(":
+                    depth += 1
+                elif query[p] == ")":
+                    depth -= 1
+                p += 1
+            # numbers inside the tuple
+            group = query[k + 1:p - 1] if depth == 0 else query[k + 1:p]
+            if not values:
+                values = re.findall(r"-?\d+(?:\.\d+)?", group)
+            i = p
+        else:
+            lit, e = literal_at(k)
+            if lit is None:
+                i = k
+                continue
+            values = [lit]
+            i = e
+        if values:
+            terms.append((field, values, negated, op))
+    return terms
+
+
 def _extract_eql_fields(query: str, result: ExtractedFields):
     """Extract fields from EQL queries."""
     # Check for sequence (complex)
@@ -1514,39 +1764,8 @@ def _extract_eql_fields(query: str, result: ExtractedFields):
     for et in event_types:
         result.source_tables.append(et.lower())
 
-    # Extract field == "value" or field == number patterns
-    eq_patterns = re.findall(r'([\w.]+)\s*==\s*(?:"([^"]*)"|(\d+))', query)
-    for field_name, str_val, num_val in eq_patterns:
-        value = str_val if str_val else num_val
-        _add_elastic_observable(field_name, [value], False, result)
-
-    # Extract field : "value" patterns (EQL wildcard match)
-    colon_patterns = re.findall(r'([\w.]+)\s*:\s*"([^"]*)"', query)
-    for field_name, value in colon_patterns:
-        _add_elastic_observable(field_name, [value], False, result)
-
-    # Extract field in ("val1", "val2") patterns
-    in_patterns = re.findall(r'([\w.]+)\s+in\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in in_patterns:
-        values = re.findall(r'"([^"]*)"', values_str)
-        _add_elastic_observable(field_name, values, False, result)
-
-    # Extract field != "value" or field != number (negated)
-    neq_patterns = re.findall(r'([\w.]+)\s*!=\s*(?:"([^"]*)"|(\d+))', query)
-    for field_name, str_val, num_val in neq_patterns:
-        value = str_val if str_val else num_val
-        _add_elastic_observable(field_name, [value], True, result)
-
-    # Extract field like~ ("pattern") patterns
-    like_patterns = re.findall(r'([\w.]+)\s+like~?\s*\(([^)]+)\)', query, re.IGNORECASE)
-    for field_name, values_str in like_patterns:
-        values = re.findall(r'"([^"]*)"', values_str)
-        _add_elastic_observable(field_name, values, False, result)
-
-    # Single like pattern
-    like_single = re.findall(r'([\w.]+)\s+like~?\s+"([^"]+)"', query, re.IGNORECASE)
-    for field_name, value in like_single:
-        _add_elastic_observable(field_name, [value], False, result)
+    for field_name, values, negated, _op in _eql_terms(query):
+        _add_elastic_observable(field_name, values, negated, result)
 
 
 _KQL_BARE_STOP = frozenset({"and", "or", "not", "true", "false", "null", "*"})
@@ -1720,14 +1939,22 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
             elif re.match(r"^[A-Za-z][\w.-]*$", s):
                 result.api_actions.append(s)
 
-    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+    # Exclusions describe what the rule ignores, not what it detects:
+    # negated values stay off the flat surfaces (2026-08-30 review --
+    # EQL allowlists were landing on process_names and hashes).
+    if negated:
+        _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+        return
+
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name", "process_path"):
         result.process_names.extend(_extract_exe_names(values))
         # Also add bare process names (without .exe) for Linux
-        for v in values:
-            v_clean = v.strip('"').strip("*").strip("\\").strip("/")
-            if v_clean and not v_clean.endswith('.exe') and '.' not in v_clean and '\\' not in v_clean and '/' not in v_clean and '*' not in v_clean:
-                if v_clean.lower() not in [n.lower() for n in result.process_names]:
-                    result.process_names.append(v_clean.lower())
+        if obs_subtype != "process_path":
+            for v in values:
+                v_clean = v.strip('"').strip("*").strip("\\").strip("/")
+                if v_clean and not v_clean.endswith('.exe') and '.' not in v_clean and '\\' not in v_clean and '/' not in v_clean and '*' not in v_clean:
+                    if v_clean.lower() not in [n.lower() for n in result.process_names]:
+                        result.process_names.append(v_clean.lower())
 
     if obs_type == "file" and "path" in obs_subtype:
         # Bare extensions / method names (".load") are not paths.
@@ -1761,6 +1988,68 @@ def _add_elastic_observable(field_name: str, values: list[str], negated: bool, r
 
 _SPL_COMMENT_RE = re.compile(r"```.*?```", re.DOTALL)
 _SPL_MACRO_RE = re.compile(r"`[^`]*`")
+
+# ESCU (Splunk Security Content) macros that carry the observable
+# themselves. `process_rundll32` expands upstream to
+# `Processes.process_name=rundll32.exe OR Processes.original_file_name=RUNDLL32.EXE`;
+# data-source macros expand to a sourcetype. Blanking them (the previous
+# behaviour) lost the process name in 2/14 and the data source in 8/14
+# sampled rules (2026-08-30 review). Unknown macros are still blanked.
+_ESCU_PROCESS_MACRO_NAMES: dict[str, list[str]] = {
+    "powershell": ["powershell.exe", "pwsh.exe"],
+    "net": ["net.exe", "net1.exe"],
+    "python": ["python.exe", "python3.exe"],
+    "java": ["java.exe", "javaw.exe"],
+    "cmd": ["cmd.exe"],
+}
+_ESCU_SOURCE_MACROS: dict[str, str] = {
+    "sysmon": "XmlWinEventLog:Microsoft-Windows-Sysmon/Operational",
+    "wineventlog_security": "XmlWinEventLog:Security",
+    "wineventlog_system": "XmlWinEventLog:System",
+    "wineventlog_application": "XmlWinEventLog:Application",
+    "powershell": "XmlWinEventLog:Microsoft-Windows-PowerShell/Operational",
+    "wmi": "XmlWinEventLog:Microsoft-Windows-WMI-Activity/Operational",
+    "kube_audit": "kube:apiserver:audit",
+    "linux_syslog": "linux:syslog",
+    "linux_auditd": "linux:audit",
+    "cloudtrail": "aws:cloudtrail",
+    "aws_cloudwatchlogs_eks": "aws:cloudwatchlogs:eks",
+    "azure_monitor_aad": "azure:monitor:aad",
+    "azure_audit": "azure:monitor:activity",
+    "o365_management_activity": "o365:management:activity",
+    "okta": "OktaIM2:log",
+    "gsuite_gmail": "gsuite:gmail:bigquery",
+    "gws_reports_login": "gws:reports:login",
+    "gws_reports_admin": "gws:reports:admin",
+    "gcp_pubsub_events": "google:gcp:pubsub:message",
+    "zeek_conn": "bro:conn:json",
+    "suricata": "suricata",
+    "cisco_secure_firewall": "cisco:sfw:estreamer",
+    "circleci": "circleci",
+    "github": "github",
+    "splunkd": "splunkd",
+    "audit_searches": "audittrail",
+    "crowdstrike_stream": "CrowdStrike:Event:Streams:JSON",
+    "sysmon_linux": "sysmon:linux",
+    "osquery_process": "osquery:results",
+    "snowflake": "snowflake",
+}
+_ESCU_MACRO_REF_RE = re.compile(r"`(process_[a-z0-9_]+|[a-z0-9_]+)(?:\([^`]*\))?`")
+
+
+def _expand_escu_macros(search: str) -> str:
+    """Inline the ESCU macros we understand; leave the rest for the
+    blanking pass."""
+    def sub(m: re.Match) -> str:
+        name = m.group(1).lower()
+        if name.startswith("process_"):
+            stem = name[len("process_"):]
+            exes = _ESCU_PROCESS_MACRO_NAMES.get(stem, [f"{stem}.exe"])
+            return " (" + " OR ".join(f"Processes.process_name={e}" for e in exes) + ") "
+        if name in _ESCU_SOURCE_MACROS:
+            return f" sourcetype={_ESCU_SOURCE_MACROS[name]} "
+        return m.group(0)
+    return _ESCU_MACRO_REF_RE.sub(sub, search)
 # {} for ESCU multivalue paths (assocs{}.name); no ':' — colons appear
 # in values (WinEventLog:Security), not field names.
 _SPL_FIELD_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.{}\-]*$")
@@ -1905,15 +2194,34 @@ def _spl_add_observable(
     if field_name.lower() in _SPL_EVENT_ID_FIELDS:
         # Numeric codes only — "success"/operation names are not IDs.
         result.event_ids.extend(v for v in values if v.isdigit())
-    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
+    if negated:
+        # Exclusions stay off the flat surfaces.
+        _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+        return
+    if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name", "process_path", "parent_process_path"):
+        # `TargetImage=*lsass.exe` is a path field; the basename is the
+        # observable people search for.
         result.process_names.extend(_extract_exe_names(values))
+    if obs_type == "process" and obs_subtype == "command_line_pattern":
+        # `TaskContent IN ("*powershell.exe*")`: a lone executable token
+        # inside a command-line pattern names the process.
+        result.process_names.extend(
+            n for v in values if re.fullmatch(r"\*?[\w.-]+\.exe\*?", v.strip(), re.IGNORECASE)
+            for n in _extract_exe_names([v])
+        )
     if obs_type == "file" and "path" in obs_subtype:
         # Extensions and bare filenames are not paths.
         result.file_paths.extend(
             v for v in values if ("\\" in v or "/" in v)
         )
-    if obs_type == "registry":
+        # 4663 object access on a registry path (`object_file_path=
+        # "*\\CurrentVersion\\Uninstall\\*"`) is a registry key.
         result.registry_keys.extend(_extract_registry_paths(values))
+    if obs_type == "registry":
+        if obs_subtype == "registry_key":
+            result.registry_keys.extend(v for v in values if "\\" in v and v.strip("*\\"))
+        else:
+            result.registry_keys.extend(_extract_registry_paths(values))
     if obs_type == "network" and obs_subtype not in (
         # Enum-ish network metadata (action=allowed, direction=outbound,
         # protocol=tcp) is not an INDICATOR — only value-bearing
@@ -1935,6 +2243,37 @@ def _parse_spl_expression(
     text: str, result: ExtractedFields, derived: set[str]
 ) -> None:
     """field=value / field IN (...) / match(field, ...) terms."""
+    # `NOT (a=x OR b=y)` groups: parse the inside negated, then blank it.
+    text, negated_groups = _split_spl_not_groups(text)
+    for inner in negated_groups:
+        _parse_spl_expression_terms(inner, result, derived, negated=True)
+    _parse_spl_expression_terms(text, result, derived, negated=False)
+
+
+def _split_spl_not_groups(text: str) -> tuple[str, list[str]]:
+    out = text
+    groups: list[str] = []
+    for m in list(re.finditer(r"\bNOT\s*\(", text, re.IGNORECASE))[::-1]:
+        depth, p = 1, m.end()
+        while p < len(text) and depth:
+            if text[p] == "(":
+                depth += 1
+            elif text[p] == ")":
+                depth -= 1
+            p += 1
+        if depth:
+            continue
+        groups.append(text[m.end():p - 1])
+        out = out[:m.start()] + " " + out[p:]
+    return out, groups
+
+
+_SPL_NON_VALUES = frozenset({"null", "null()", "-", "*", "true", "false"})
+
+
+def _parse_spl_expression_terms(
+    text: str, result: ExtractedFields, derived: set[str], negated: bool
+) -> None:
     for m in _SPL_IN_RE.finditer(text):
         field_name, values_str = m.group(1), m.group(2)
         if not _spl_valid_field(field_name, derived):
@@ -1950,8 +2289,9 @@ def _parse_spl_expression(
                 for v in values_str.split(",")
                 if v.strip()
             ]
+        values = [v for v in values if v.lower() not in _SPL_NON_VALUES]
         if values:
-            _spl_add_observable(field_name, values, False, result)
+            _spl_add_observable(field_name, values, negated, result)
 
     remainder = _SPL_IN_RE.sub(" ", text)
     for m in _SPL_EXPR_RE.finditer(remainder):
@@ -1960,11 +2300,12 @@ def _parse_spl_expression(
         if not _spl_valid_field(field_name, derived):
             continue
         # A "value" that is pure wildcard/punctuation is match-anything
-        # noise, not an observable.
-        if not value or not re.search(r"[A-Za-z0-9]", value):
+        # noise, not an observable; `!= null` is an existence check; a
+        # threshold (`ut_shannon > 3`) is tuning, not telemetry.
+        if not value or not re.search(r"[A-Za-z0-9]", value) or value.lower() in _SPL_NON_VALUES or op in ("<", ">", "<=", ">="):
             result.fields_used.append(field_name)
             continue
-        _spl_add_observable(field_name, [value], op == "!=", result)
+        _spl_add_observable(field_name, [value], negated != (op == "!="), result)
 
     for m in _SPL_FUNC_FIELD_RE.finditer(remainder):
         if _spl_valid_field(m.group(1), derived):
@@ -2103,7 +2444,7 @@ def extract_splunk_fields(search: str) -> ExtractedFields:
         result.query_complexity = "simple"
 
     # ``` comments ``` are prose, not SPL.
-    cleaned = _SPL_COMMENT_RE.sub(" ", search)
+    cleaned = _expand_escu_macros(_SPL_COMMENT_RE.sub(" ", search))
 
     # Source tables: datamodel / index / sourcetype (global — these
     # regexes are precise and subsearches legitimately contribute).

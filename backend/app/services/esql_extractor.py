@@ -19,6 +19,21 @@ This version:
 - validates every candidate name against the ES|QL identifier shape
 - keeps the term extraction (==, !=, LIKE/RLIKE, IN) and the existing
   surface routing via _add_elastic_observable
+
+2026-08-30 semantic review of production hunting rules:
+- comments are stripped by a quote-aware scanner, so `"/usr/x/*" or
+  ... "/home/*/y"` is no longer read as one block comment and a `//`
+  inside a URL literal no longer truncates the WHERE clause
+- every string literal (double-quoted and triple-quoted) is masked to a
+  sentinel before any regex runs; values are unmasked only when an
+  observable is emitted, so literals (`aws.cloudtrail`, `svchost.exe`)
+  never reach fields_used and a `|` inside a literal no longer splits
+  the stage
+- `FROM idx METADATA _id, _version` clips the METADATA clause instead
+  of storing the metadata columns as source_tables
+- `starts_with` / `ends_with` / `cidr_match` predicates and the `:`
+  match operator produce observables like `==`; a leading `not`
+  (also `NOT IN`, `NOT LIKE`) marks the observable negated
 """
 
 from __future__ import annotations
@@ -53,13 +68,104 @@ _KEYWORDS = frozenset({
 _EVAL_TARGET_RE = re.compile(r"(?:^|,)\s*([A-Za-z_@][\w.@]*)\s*=(?!=)")
 _AS_ALIAS_RE = re.compile(r"\bAS\s+([A-Za-z_@][\w.@]*)", re.IGNORECASE)
 _CAPTURE_RE = re.compile(r"%\{[^}]*?([A-Za-z_][\w.]*)\}")
-_JSON_EXTRACT_RE = re.compile(
-    'JSON_EXTRACT[(][ ]*[A-Za-z_][A-Za-z0-9_]*[ ]*,[ ]*"([^"]+)"', re.IGNORECASE
-)
 _AGG_ARG_RE = re.compile(
     r"\b(?:count|count_distinct|sum|avg|min|max|median|values|top|percentile)\s*\(\s*([A-Za-z_@][\w.@]*)",
     re.IGNORECASE,
 )
+
+# --- string-literal masking ------------------------------------------------
+#
+# Every literal is replaced by `"<SENT>n<SENT>"` (quotes kept) before any
+# regex runs. The sentinel is outside the identifier character class, so
+# identifier scans cannot see literal bodies; term regexes match the
+# uniform masked shape and unmask the body when a value is emitted.
+_SENT = "\x01"
+_MASKED = r'"' + _SENT + r"(\d+)" + _SENT + r'"'
+_MASKED_FIND = re.compile(_MASKED)
+_UNMASK_RE = re.compile(_SENT + r"(\d+)" + _SENT)
+_JSON_EXTRACT_RE = re.compile(
+    r"JSON_EXTRACT[(][ ]*[A-Za-z_][A-Za-z0-9_]*[ ]*,[ ]*" + _MASKED, re.IGNORECASE
+)
+
+# WHERE term shapes over masked text. A field is never preceded by an
+# identifier char or `:` (so `x::keyword == "v"` does not yield `keyword`).
+_FIELD = r"(?<![\w.@:])([\w.@]+)"
+_STR_CMP_RE = re.compile(_FIELD + r"\s*(==|!=|:)\s*" + _MASKED)
+_NUM_CMP_RE = re.compile(_FIELD + r"\s*==\s*(\d+)(?!\w)")
+_LIKE_RE = re.compile(
+    _FIELD + r"\s+(NOT\s+)?(?:LIKE|RLIKE)\s+" + _MASKED, re.IGNORECASE
+)
+_IN_RE = re.compile(_FIELD + r"\s+(NOT\s+)?IN\s*\(([^)]+)\)", re.IGNORECASE)
+_FUNC_PRED_RE = re.compile(
+    r"(NOT\s+)?\b(?:starts_with|ends_with|cidr_match)\s*\(\s*([A-Za-z_@][\w.@]*)\s*,([^)]*)\)",
+    re.IGNORECASE,
+)
+
+
+def _literal_end(text: str, i: int) -> int:
+    """Index one past the string literal that starts at text[i] == '\"'.
+    Triple-quoted literals have no escapes; single-quoted honour `\\`."""
+    n = len(text)
+    if text.startswith('"""', i):
+        end = text.find('"""', i + 3)
+        return n if end < 0 else end + 3
+    j = i + 1
+    while j < n and text[j] != '"':
+        if text[j] == "\\":
+            j += 1
+        j += 1
+    return min(j + 1, n)
+
+
+def _strip_comments(text: str) -> str:
+    """Remove `//` line comments and `/* */` block comments, skipping
+    string literals so `//` or `/*` inside quotes survives."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == '"':
+            end = _literal_end(text, i)
+            out.append(text[i:end])
+            i = end
+        elif text.startswith("//", i):
+            end = text.find("\n", i)
+            i = n if end < 0 else end  # keep the newline
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            out.append(" ")
+            i = n if end < 0 else end + 2
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+def _mask_literals(text: str) -> tuple[str, list[str]]:
+    """Replace each string literal with a sentinel; return the masked
+    text and the literal bodies (as written, no unescaping)."""
+    lits: list[str] = []
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] == '"':
+            end = _literal_end(text, i)
+            body = text[i:end]
+            if body.startswith('"""'):
+                inner = body[3:-3] if body.endswith('"""') and len(body) >= 6 else body[3:]
+            else:
+                inner = body[1:-1] if body.endswith('"') and len(body) >= 2 else body[1:]
+            out.append('"' + _SENT + str(len(lits)) + _SENT + '"')
+            lits.append(inner)
+            i = end
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out), lits
+
+
+def _unmask(text: str, lits: list[str]) -> str:
+    return _UNMASK_RE.sub(lambda m: lits[int(m.group(1))], text)
 
 
 def _valid(name: str, derived: set[str]) -> bool:
@@ -111,8 +217,7 @@ def extract_esql_fields_v2(
     if not query or not isinstance(query, str):
         return result
 
-    query = re.sub(r"/\*.*?\*/", " ", query.strip(), flags=re.DOTALL)
-    query = re.sub(r"//[^\n]*", " ", query)
+    query, lits = _mask_literals(_strip_comments(query.strip()))
 
     pipe_count = query.count("|")
     if pipe_count > 5 or re.search(r"\bENRICH\b", query, re.IGNORECASE):
@@ -121,6 +226,9 @@ def extract_esql_fields_v2(
         result.query_complexity = "moderate"
     else:
         result.query_complexity = "simple"
+
+    def values_in(masked: str) -> list[str]:
+        return [lits[int(n)] for n in _MASKED_FIND.findall(masked)]
 
     for segment in _esql_segments(query):
         stages = [s.strip() for s in segment.split("|") if s.strip()]
@@ -143,11 +251,16 @@ def extract_esql_fields_v2(
                     agg_part = re.split(r"\bBY\b", rest, maxsplit=1, flags=re.IGNORECASE)[0]
                     derived.update(_EVAL_TARGET_RE.findall(_strip_parens(agg_part)))
             elif c in ("dissect", "grok"):
-                derived.update(_CAPTURE_RE.findall(rest))
+                # Captures live inside the pattern literal.
+                derived.update(_CAPTURE_RE.findall(_unmask(rest, lits)))
 
         def add_field(name: str) -> None:
             if _valid(name, derived) and name not in result.fields_used:
                 result.fields_used.append(name)
+
+        def add_term(field_name: str, values: list[str], negated: bool) -> None:
+            if values and _valid(field_name, derived):
+                _add_elastic_observable(field_name, values, negated, result)
 
         # Pass 2: per-command extraction.
         for stage in stages:
@@ -159,6 +272,7 @@ def extract_esql_fields_v2(
                 if nxt and nxt[0].lower() == "stats":
                     c, rest = "stats", (nxt[1] if len(nxt) > 1 else "")
             if c == "from":
+                rest = re.split(r"\bMETADATA\b", rest, maxsplit=1, flags=re.IGNORECASE)[0]
                 for table in rest.split(","):
                     table = table.strip()
                     if table and re.fullmatch(r"[\w.*\-]+", table):
@@ -167,33 +281,23 @@ def extract_esql_fields_v2(
                 for f in rest.split(","):
                     add_field(f.strip())
             elif c == "where":
-                for field_name, value in re.findall(r'([\w.@]+)\s*==\s*"([^"]*)"', rest):
-                    if _valid(field_name, derived):
-                        _add_elastic_observable(field_name, [value], False, result)
-                for field_name, value in re.findall(r"([\w.@]+)\s*==\s*(\d+)(?!\w)", rest):
-                    if _valid(field_name, derived):
-                        _add_elastic_observable(field_name, [value], False, result)
-                for field_name, value in re.findall(r'([\w.@]+)\s*!=\s*"([^"]*)"', rest):
-                    if _valid(field_name, derived):
-                        _add_elastic_observable(field_name, [value], True, result)
-                for field_name, value in re.findall(
-                    r'([\w.@]+)\s+(?:LIKE|RLIKE)\s+"([^"]*)"', rest, re.IGNORECASE
-                ):
-                    if _valid(field_name, derived):
-                        _add_elastic_observable(field_name, [value], False, result)
-                for field_name, values_str in re.findall(
-                    r"([\w.@]+)\s+IN\s*\(([^)]+)\)", rest, re.IGNORECASE
-                ):
-                    values = re.findall(r'"([^"]*)"', values_str)
-                    if values and _valid(field_name, derived):
-                        _add_elastic_observable(field_name, values, False, result)
+                for field_name, op, idx in _STR_CMP_RE.findall(rest):
+                    add_term(field_name, [lits[int(idx)]], op == "!=")
+                for field_name, value in _NUM_CMP_RE.findall(rest):
+                    add_term(field_name, [value], False)
+                for field_name, neg, idx in _LIKE_RE.findall(rest):
+                    add_term(field_name, [lits[int(idx)]], bool(neg))
+                for field_name, neg, values_str in _IN_RE.findall(rest):
+                    add_term(field_name, values_in(values_str), bool(neg))
+                for neg, field_name, args in _FUNC_PRED_RE.findall(rest):
+                    add_term(field_name, values_in(args), bool(neg))
                 # Bare field references (is not null, function args).
                 for ident in _IDENT_FIND.findall(_strip_parens(rest) + " " + rest):
                     if "." in ident or ident.startswith("@"):
                         add_field(ident)
             elif c == "eval":
-                for path in _JSON_EXTRACT_RE.findall(rest):
-                    add_field(path)
+                for idx in _JSON_EXTRACT_RE.findall(rest):
+                    add_field(lits[int(idx)])
                 for ident in _IDENT_FIND.findall(rest):
                     if "." in ident or ident.startswith("@"):
                         add_field(ident)
