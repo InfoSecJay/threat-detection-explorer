@@ -7,7 +7,7 @@ from typing import Optional
 
 import yaml
 
-from app.parsers.base import BaseParser, ParsedRule
+from app.parsers.base import BaseParser, ParsedRule, SkippedRule
 from app.services.mitre_tactic_inference import infer_tactics
 
 logger = logging.getLogger(__name__)
@@ -94,6 +94,30 @@ def _extract_entity_types(entity_mappings) -> list[str]:
             seen.add(et)
             out.append(et)
     return out
+
+
+_STUB_MARKERS = (
+    "this file is moved to new location",
+    "moved to new location",
+    "this analytic rule is retired",
+    "rule is retired",
+    "has been deprecated",
+    "is deprecated",
+)
+
+
+def _stub_reason(data) -> str | None:
+    """Upstream leaves id/name/description/version stubs behind when a
+    rule is moved into a Solution or retired; they carry no query."""
+    if not isinstance(data, dict) or data.get("query"):
+        return None
+    desc = str(data.get("description") or "").lower()
+    for marker in _STUB_MARKERS:
+        if marker in desc:
+            return "upstream stub (moved or retired)"
+    if set(data) <= {"id", "name", "description", "version", "kind"}:
+        return "upstream stub (no query)"
+    return None
 
 
 class SentinelParser(BaseParser):
@@ -192,6 +216,10 @@ class SentinelParser(BaseParser):
         """Parse a Microsoft Sentinel Analytics YAML rule file."""
         try:
             data = yaml.safe_load(content)
+            stub = _stub_reason(data)
+            if stub:
+                logger.debug(f"Skipping {file_path}: {stub}")
+                return SkippedRule(stub)
             validated = self._validate_rule_shape(data, file_path, "name", "query")
             if validated is None:
                 return None
@@ -201,7 +229,7 @@ class SentinelParser(BaseParser):
             kind = data.get("kind", "")
             if kind and kind.lower() not in ["scheduled", "nrt"]:
                 logger.debug(f"Skipping {file_path}: not a scheduled rule (kind={kind})")
-                return None
+                return SkippedRule(f"kind={kind}")
 
             # Extract MITRE ATT&CK
             mitre_attack = self._extract_mitre(data)

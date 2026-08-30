@@ -1,6 +1,8 @@
 """Detection rule ingestion service."""
 
 import logging
+
+from app.parsers.base import SkippedRule
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -205,6 +207,9 @@ class IngestionService:
             # Parse rule
             try:
                 parsed = parser.parse(relative_path, content)
+                if isinstance(parsed, SkippedRule):
+                    stats.skipped_by_filter += 1
+                    continue
                 if parsed is None:
                     stats.add_error(
                         file_path=relative_path,

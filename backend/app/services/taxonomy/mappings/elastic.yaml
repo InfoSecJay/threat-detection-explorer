@@ -454,6 +454,13 @@ index_patterns:
 
 # Fallback when no index_pattern matches — coarse mapping by integration name
 integrations:
+  # ── Drift 2026-08-30 (#54) ───────────────────────────────────────────
+  entityanalytics_entra_id:            # Entra ID entity analytics (users / devices)
+    platforms: [azure]
+    data_sources: [entra_id_audit]
+  microsoft_exchange_online_message_trace:
+    platforms: [microsoft_365]
+    data_sources: [m365_exchange_audit]
   # ── Endpoint ─────────────────────────────────────────────────────────
   endpoint:
     platforms: [windows, linux, macos]

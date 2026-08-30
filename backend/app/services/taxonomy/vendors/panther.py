@@ -60,6 +60,17 @@ def resolve(parsed: "ParsedRule") -> dict:
         data_sources.update(entry.get("data_sources") or [])
         event_types.update(entry.get("event_types") or [])
 
+    # A rule with no LogTypes (some Auth0.* rules, #57) is still named
+    # after its log family: try the RuleID prefix before giving up.
+    if not platforms:
+        rule_id = extra.get("rule_id") or extra.get("id") or ""
+        if isinstance(rule_id, str) and "." in rule_id:
+            entry = _lookup(rule_id.split(".")[0] + ".")
+            if entry:
+                platforms.update(entry.get("platforms") or [])
+                data_sources.update(entry.get("data_sources") or [])
+                event_types.update(entry.get("event_types") or [])
+
     # Correlation rules have no LogTypes; use the mapping's default so
     # they don't fall through to [unknown].
     if not platforms and analysis_type == "correlation_rule":

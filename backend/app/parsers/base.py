@@ -7,6 +7,19 @@ from pathlib import Path
 from typing import Any, Optional
 
 
+class SkippedRule:
+    """Returned by a parser for a file that is deliberately not a rule
+    (a moved / retired stub, a hunting query in a scheduled-rule tree).
+    Ingestion counts it as filtered, not as a parse failure, so the
+    parse-failure notifier only fires on real breakage (#58: 314
+    Sentinel migration stubs read as a 91% success rate)."""
+
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+
 @dataclass
 class ParsedRule:
     """Intermediate representation of a parsed detection rule.

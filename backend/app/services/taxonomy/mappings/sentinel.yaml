@@ -618,6 +618,11 @@ data_types:
 # folders) fall through to the `*_cl` table bucket.
 # ─────────────────────────────────────────────────────────────────────────
 solution_folders:
+  # ── SOCRadar (alarms / incidents feed; #56) ──────────────────────────
+  "socradar":
+    platforms: [socradar]
+    data_sources: [socradar_incidents]
+    event_types: [platform_alert]
   # ── Maturity Model for Event Log Management (M-21-31) ──────────────
   # Rules carry no connector at all; they audit the SIEM's own coverage.
   "maturitymodelforeventlogmanagementm2131":

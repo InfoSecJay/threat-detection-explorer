@@ -422,6 +422,15 @@ macros:
 # "Windows Security Event Log" can produce dozens of event IDs).
 # ─────────────────────────────────────────────────────────────────────────
 data_source_labels:
+  # ── Drift 2026-08-30 (#55) ───────────────────────────────────────────
+  "cisco secure access proxy":
+    platforms: [network_appliance]
+    data_sources: [proxy_logs]
+    event_types: [http_request]
+  "splunk appdynamics secure application alert":
+    platforms: [cross_platform]
+    data_sources: [application_logs]
+    event_types: [platform_alert]
   # ── Sysmon (per-event-ID) — authoritative in intent because the label
   # names the event code explicitly. Still stored here (not in macros)
   # because they come from the structured `data_source` field.
