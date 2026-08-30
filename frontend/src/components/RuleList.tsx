@@ -236,7 +236,6 @@ export function RuleList({
                 <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
                 <SortableTh {...sortProps} field="rule_created_date" label="Created" />
-                <SortableTh {...sortProps} field="rule_modified_date" label="Modified" />
                 <SortableTh {...sortProps} field="quality_score" label="Hygiene"
                   title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy." />
               </tr>

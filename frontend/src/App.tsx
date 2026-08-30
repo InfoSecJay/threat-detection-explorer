@@ -232,13 +232,13 @@ function App() {
               <NavLink to="/actors">Actors</NavLink>
               <NavLink to="/observables">Observables</NavLink>
               <NavLink to="/intel">Intel</NavLink>
+              <NavLink to="/digest">Digest</NavLink>
               <NavDropdown
                 label="Resources"
                 items={[
                   { to: '/about', label: 'About' },
                   { to: '/query', label: 'Query Reference' },
                   { to: '/integrations', label: 'Integrations' },
-                  { to: '/digest', label: 'Weekly Digest' },
                 ]}
               />
             </div>

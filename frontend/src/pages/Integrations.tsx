@@ -237,6 +237,32 @@ export function Integrations() {
         </p>
       </div>
 
+      {/* Info Section */}
+      <div
+        className="bg-void-850 border border-void-700 p-6"
+        style={clipMd}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <h3 className="font-display font-semibold text-white tracking-wide uppercase">
+            Sync Information
+          </h3>
+        </div>
+        <div className="space-y-2 text-sm text-gray-400">
+          <p>
+            Source repositories are synced periodically to ensure detection rules are up-to-date.
+            The sync process clones the latest changes from each repository and ingests new or updated rules.
+          </p>
+          <p>
+            Rules are normalized to a common schema for consistent searching and comparison across different
+            detection formats (Sigma, SPL, EQL, KQL, MQL).
+          </p>
+        </div>
+      </div>
+
+
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div
@@ -302,31 +328,6 @@ export function Integrations() {
           ))}
         </div>
       )}
-
-      {/* Info Section */}
-      <div
-        className="bg-void-850 border border-void-700 p-6"
-        style={clipMd}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <svg className="w-5 h-5 text-matrix-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="font-display font-semibold text-white tracking-wide uppercase">
-            Sync Information
-          </h3>
-        </div>
-        <div className="space-y-2 text-sm text-gray-400">
-          <p>
-            Source repositories are synced periodically to ensure detection rules are up-to-date.
-            The sync process clones the latest changes from each repository and ingests new or updated rules.
-          </p>
-          <p>
-            Rules are normalized to a common schema for consistent searching and comparison across different
-            detection formats (Sigma, SPL, EQL, KQL, MQL).
-          </p>
-        </div>
-      </div>
 
       {/* Back link */}
       <div className="pt-4">

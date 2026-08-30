@@ -247,7 +247,7 @@ export function Digest() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">Weekly Digest</h1>
+          <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">Digest</h1>
           <p className="text-xs text-gray-500 mt-1 font-mono">
             {data ? `${fmtDate(data.period.start)} to ${fmtDate(data.period.end)} · generated ${fmtDate(data.generated_at)}` : 'what changed across every tracked detection repo'}
           </p>

@@ -10,6 +10,7 @@ same semantics as the query bar's `process:` / `eventid:` fields), so
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from typing import Optional
 
@@ -87,8 +88,39 @@ def _contains(kind: str, value: str):
     return cast(_column(kind), String).ilike(f'%"{escaped}"%', escape="\\")
 
 
-async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Optional[str] = None) -> dict:
-    """Most common values on one surface, with rule + source counts."""
+_IPV4_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?$")
+_IPV6_RE = re.compile(r"^[0-9a-f:]+:[0-9a-f:]*(?:/\d{1,3})?$", re.IGNORECASE)
+_URL_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|www\.)|/", re.IGNORECASE)
+
+NETWORK_SHAPES: dict[str, str] = {
+    "ip": "IP addresses and ranges",
+    "port": "Ports",
+    "domain": "Domains and hostnames",
+    "url": "URLs and paths",
+}
+
+
+def network_shape(value: str) -> str:
+    """Which kind of network indicator a value is, from its shape."""
+    v = value.strip().strip("*")
+    if v.isdigit() and 0 < int(v) <= 65535:
+        return "port"
+    if _IPV4_RE.match(v) or _IPV6_RE.match(v):
+        return "ip"
+    if _URL_RE.search(v):
+        return "url"
+    return "domain"
+
+
+async def top_values(
+    db: AsyncSession, kind: str, limit: int = 100, source: Optional[str] = None,
+    q: Optional[str] = None,
+) -> dict:
+    """Most common values on one surface, with rule + source counts.
+
+    `q` filters values by case-insensitive substring so the index can
+    be searched (4,000+ distinct process names do not fit a top list).
+    """
     query = select(Detection.source, _column(kind), Detection.data_sources)
     if source:
         query = query.where(Detection.source == source)
@@ -97,10 +129,13 @@ async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Opti
     by_source: dict[str, Counter[str]] = defaultdict(Counter)
     by_data_source: dict[str, Counter[str]] = defaultdict(Counter)
     canonical: dict[str, str] = {}
+    needle = (q or "").strip().lower()
     for src, values, data_sources in rows:
         # A rule naming the same value twice counts once.
         for v in {v.lower(): v for v in (values or []) if isinstance(v, str) and v.strip()}.values():
             key = v.lower()
+            if needle and needle not in key:
+                continue
             canonical.setdefault(key, v)
             counts[key] += 1
             by_source[key][src] += 1
@@ -111,6 +146,7 @@ async def top_values(db: AsyncSession, kind: str, limit: int = 100, source: Opti
         "type": kind,
         "label": OBSERVABLE_TYPES[kind][2],
         "distinct": len(counts),
+        "query": needle or None,
         "values": [
             {
                 "value": canonical[k],
@@ -142,6 +178,9 @@ def _context(kind: str, value: str, data_sources: Counter[str]) -> Optional[dict
         ds, _n = data_sources.most_common(1)[0]
         label = data_source_label(ds)
         return {"label": label, "provider": ds, "channel": label}
+    if kind == "network":
+        shape = network_shape(value)
+        return {"label": NETWORK_SHAPES[shape], "provider": shape, "channel": NETWORK_SHAPES[shape]}
     return None
 
 

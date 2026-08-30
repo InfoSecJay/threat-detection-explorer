@@ -98,6 +98,7 @@ class ElasticNormalizer(BaseNormalizer):
             is_building_block=is_building_block,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
+            investigation_guide=_guide_text(parsed.extra.get("note"), parsed.extra.get("setup")),
             raw_content=parsed.raw_content,
             extracted_fields_used=extracted.fields_used,
             extracted_event_ids=extracted.event_ids,
@@ -294,3 +295,15 @@ class ElasticNormalizer(BaseNormalizer):
             return "kql"
 
         return "unknown"
+
+
+def _guide_text(note, setup) -> "str | None":
+    """Elastic `note` is the investigation guide; `setup` (when
+    present) is appended under its own heading so the page shows one
+    document."""
+    parts = []
+    if isinstance(note, str) and note.strip():
+        parts.append(note.strip())
+    if isinstance(setup, str) and setup.strip():
+        parts.append("## Setup\n\n" + setup.strip())
+    return "\n\n".join(parts) or None

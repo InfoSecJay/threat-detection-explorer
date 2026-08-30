@@ -42,9 +42,10 @@ async def list_values(
     kind: str,
     limit: int = Query(100, ge=10, le=500),
     source: Optional[str] = Query(None, description="Restrict to one source"),
+    q: Optional[str] = Query(None, max_length=200, description="Case-insensitive substring of the value"),
     db: AsyncSession = Depends(get_db),
 ):
-    return await top_values(db, _kind(kind), limit=limit, source=source)
+    return await top_values(db, _kind(kind), limit=limit, source=source, q=q)
 
 
 @router.get("/{kind}/{value:path}")

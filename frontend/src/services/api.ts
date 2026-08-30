@@ -1010,7 +1010,7 @@ export interface ObservableTopValue {
   /** Event IDs: the log the ID belongs to. Null for other surfaces. */
   context: ObservableContext | null;
 }
-export interface ObservableTopResponse { type: string; label: string; distinct: number; values: ObservableTopValue[] }
+export interface ObservableTopResponse { type: string; label: string; distinct: number; query: string | null; values: ObservableTopValue[] }
 export interface ObservableTypesResponse {
   types: { type: string; label: string; filter_key: string; distinct: number; top: ObservableTopValue[] }[];
 }
@@ -1037,9 +1037,10 @@ export interface ObservableProfile {
 
 export const observablesApi = {
   types: async (): Promise<ObservableTypesResponse> => (await api.get('/observables')).data,
-  top: async (kind: string, limit = 100, source?: string): Promise<ObservableTopResponse> => {
+  top: async (kind: string, limit = 100, source?: string, q?: string): Promise<ObservableTopResponse> => {
     const src = source ? `&source=${encodeURIComponent(source)}` : '';
-    return (await api.get(`/observables/${kind}?limit=${limit}${src}`)).data;
+    const query = q ? `&q=${encodeURIComponent(q)}` : '';
+    return (await api.get(`/observables/${kind}?limit=${limit}${src}${query}`)).data;
   },
   profile: async (kind: string, value: string): Promise<ObservableProfile> =>
     (await api.get(`/observables/${kind}/${encodeURIComponent(value)}`)).data,

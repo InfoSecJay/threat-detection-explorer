@@ -132,3 +132,20 @@ async def test_api_actions_are_labelled_with_their_audit_log(client, db_session)
     assert values["ConsoleLogin"]["context"] == {"label": "AWS CloudTrail", "provider": "aws_cloudtrail", "channel": "AWS CloudTrail"}
     assert values["user.session.start"]["context"]["provider"] == "okta_system_log"
     assert values["Orphan"]["context"] is None
+
+
+@pytest.mark.asyncio
+async def test_value_search_and_network_shapes(client, db_session):
+    db_session.add_all([
+        _rule(title="n1", source="sigma", extracted_process_names=["powershell.exe", "pwsh.exe", "cmd.exe"],
+              extracted_network_indicators=["10.0.0.0/8", "443", "evil.example", "https://evil.example/x", "2001:db8::1"]),
+    ])
+    await db_session.commit()
+    hits = (await client.get("/api/observables/process", params={"q": "PWSH"})).json()
+    assert [v["value"] for v in hits["values"]] == ["pwsh.exe"]
+    assert hits["query"] == "pwsh" and hits["distinct"] == 1
+    net = {v["value"]: v["context"]["provider"] for v in (await client.get("/api/observables/network")).json()["values"]}
+    assert net == {
+        "10.0.0.0/8": "ip", "2001:db8::1": "ip", "443": "port",
+        "evil.example": "domain", "https://evil.example/x": "url",
+    }

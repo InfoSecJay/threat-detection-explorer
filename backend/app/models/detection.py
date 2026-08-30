@@ -125,6 +125,9 @@ class Detection(Base):
     # False positives / known limitations
     false_positives: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
+    # Vendor-authored investigation guide (markdown; Elastic `note`).
+    investigation_guide: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Extracted observable fields (from detection logic parsing)
     extracted_fields_used: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     extracted_event_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

@@ -111,6 +111,18 @@ describe('RuleDetail', () => {
       <MemoryRouter><RuleDetail detection={detection} /></MemoryRouter>,
     );
     fireEvent.click(getByRole('tab', { name: 'Investigation guide' }));
-    expect(getByTestId('guide-placeholder')).toHaveTextContent('No investigation guide yet');
+    expect(getByTestId('guide-placeholder')).toHaveTextContent('No investigation guide for this rule');
+  });
+
+  it('renders a vendor-authored investigation guide as markdown when present', () => {
+    const guided = { ...detection, investigation_guide: ['## Triage steps', '', '- Check `event.action`', '- Review the **user**'].join('\n') } as unknown as Detection;
+    const { getByRole, getByTestId, queryByTestId } = render(
+      <MemoryRouter><RuleDetail detection={guided} /></MemoryRouter>,
+    );
+    fireEvent.click(getByRole('tab', { name: 'Investigation guide' }));
+    expect(queryByTestId('guide-placeholder')).not.toBeInTheDocument();
+    expect(getByTestId('guide-markdown')).toHaveTextContent('Triage steps');
+    expect(getByTestId('guide-markdown').querySelector('h2')).not.toBeNull();
+    expect(getByTestId('guide-markdown').querySelectorAll('li')).toHaveLength(2);
   });
 });

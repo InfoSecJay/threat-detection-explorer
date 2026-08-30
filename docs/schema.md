@@ -145,6 +145,7 @@ Prefer the `taxonomy_*` fields when building new features.
 | | | • Elastic's tags get lowercased and spaces → underscores. |
 | `references` | `list[str]` | External links / CVE pages / threat-intel articles. |
 | `false_positives` | `list[str]` | Author-noted FP scenarios. |
+| `investigation_guide` | `str | null` | Vendor-authored investigation guide in markdown (Elastic `note`, with `setup` appended under its own heading). Null for sources without one; the rule page renders it under the Investigation guide tab. |
 
 ## 7. Detection logic + raw content
 
@@ -244,6 +245,7 @@ For taxonomy-resolution depth (the tier system), see
 | `rule.tags` | `tags` | lowercased, spaces → underscores |
 | `rule.query` (or assembled for ML / threshold / new_terms) | `detection_logic` + `extracted_*` | |
 | `rule.false_positives` | `false_positives` | direct |
+| `rule.note` + `rule.setup` | `investigation_guide` | joined markdown |
 | `rule.references` | `references` | direct |
 | `metadata.creation_date` | `rule_created_date` | embedded |
 | `metadata.updated_date` | `rule_modified_date` | embedded |

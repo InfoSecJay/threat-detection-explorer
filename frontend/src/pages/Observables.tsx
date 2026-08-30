@@ -10,7 +10,7 @@
  * channel is ambiguous: Sysmon 1 and Security 1 are different events.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useObservableTop, useObservableTypes } from '../hooks/useObservables';
 import { useFilterOptions } from '../hooks/useDetections';
@@ -20,14 +20,17 @@ import { OBSERVABLE_KIND_LABEL, OBSERVABLE_FILTER_KEY, observableUrl, type Obser
 import { SkeletonRow, EmptyLabel } from './intel/Section';
 import type { ObservableTopValue } from '../services/api';
 
-const KINDS = Object.keys(OBSERVABLE_KIND_LABEL) as ObservableKind[];
+// Target resources are hidden from the index until the surface is
+// re-evaluated (issue: what a resource means per platform); profile
+// pages still resolve so existing links keep working.
+const KINDS: ObservableKind[] = (Object.keys(OBSERVABLE_KIND_LABEL) as ObservableKind[]).filter((k) => k !== 'resource');
 
 /** One line per surface saying what the values are, so the table needs no legend. */
 const KIND_BLURB: Record<ObservableKind, string> = {
   process: 'image / process names the rule logic tests for',
   path: 'file and directory paths named in the logic',
   registry: 'registry keys and values the rule watches',
-  network: 'domains, IPs, URLs and ports used as indicators',
+  network: 'indicators the logic tests for, grouped by shape: IP addresses and ranges, ports, domains, URLs',
   action: 'cloud / SaaS audit operations, grouped by the log they are read from (CloudTrail, Okta, Entra, GCP, Kubernetes, GitHub...)',
   eventid: 'Windows event IDs the rule keys on, grouped by the log they come from',
   table: 'SIEM tables and datamodels the query reads from',
@@ -35,6 +38,10 @@ const KIND_BLURB: Record<ObservableKind, string> = {
 };
 
 const PROVIDER_LABEL: Record<string, string> = {
+  ip: 'IP addresses and ranges',
+  port: 'Ports',
+  domain: 'Domains and hostnames',
+  url: 'URLs and paths',
   windows_security: 'Security log',
   sysmon: 'Sysmon',
   windows_defender: 'Windows Defender',
@@ -144,13 +151,26 @@ export function Observables() {
   const kind = (KINDS.includes(kindParam as ObservableKind) ? kindParam : 'process') as ObservableKind;
   const [searchParams, setSearchParams] = useSearchParams();
   const source = searchParams.get('source') || undefined;
+  const urlQuery = searchParams.get('q') || '';
+  const [draft, setDraft] = useState(urlQuery);
+  // Debounce the box into the URL (shareable, back-button friendly).
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (draft === urlQuery) return;
+      const next = new URLSearchParams(searchParams);
+      if (draft.trim()) next.set('q', draft.trim()); else next.delete('q');
+      setSearchParams(next, { replace: true });
+    }, 250);
+    return () => clearTimeout(id);
+  }, [draft, urlQuery, searchParams, setSearchParams]);
+  useEffect(() => { setDraft(urlQuery); }, [kind, urlQuery]);
   const { data: types } = useObservableTypes();
-  const { data, isLoading, error } = useObservableTop(kind, 150, source);
+  const { data, isLoading, error } = useObservableTop(kind, 150, source, urlQuery || undefined);
   const { data: options } = useFilterOptions();
   const sources = options?.sources || [];
   const max = data?.values?.[0]?.rules || 1;
   const grouped = useMemo(
-    () => (data && (kind === 'eventid' || kind === 'action') ? groupByChannel(kind, data.values) : null),
+    () => (data && (kind === 'eventid' || kind === 'action' || kind === 'network') ? groupByChannel(kind, data.values) : null),
     [kind, data],
   );
 
@@ -185,7 +205,24 @@ export function Observables() {
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <p className="text-xs text-gray-400 font-mono" data-testid="kind-blurb">{KIND_BLURB[kind]}</p>
+        <div className="flex-1 min-w-[16rem] space-y-2">
+          <p className="text-xs text-gray-400 font-mono" data-testid="kind-blurb">{KIND_BLURB[kind]}</p>
+          <div className="flex items-center gap-2 bg-void-900 border border-void-700 px-3 py-1.5 max-w-xl" style={clipSm}>
+            <span className="text-matrix-500 font-mono text-sm select-none" aria-hidden="true">&gt;</span>
+            <input
+              type="search"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={`search ${OBSERVABLE_KIND_LABEL[kind].toLowerCase()} values`}
+              className="flex-1 bg-transparent text-sm font-mono text-white placeholder:text-gray-600 focus:outline-none min-w-0"
+              aria-label={`Search ${OBSERVABLE_KIND_LABEL[kind]} values`}
+              data-testid="obs-search"
+            />
+            {draft && (
+              <button onClick={() => setDraft('')} className="text-gray-500 hover:text-white text-xs font-mono" aria-label="Clear search">&#10005;</button>
+            )}
+          </div>
+        </div>
         {sources.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mr-1">only:</span>
@@ -214,7 +251,7 @@ export function Observables() {
 
       {isLoading && <div className="space-y-1">{[...Array(12)].map((_, i) => <SkeletonRow key={i} />)}</div>}
       {error && <EmptyLabel label="UNAVAILABLE" />}
-      {data && data.values.length === 0 && <EmptyLabel label="NO_VALUES_ON_THIS_SURFACE" />}
+      {data && data.values.length === 0 && <EmptyLabel label={data.query ? 'NO_MATCHING_VALUES' : 'NO_VALUES_ON_THIS_SURFACE'} />}
 
       {data && data.values.length > 0 && !grouped && (
         <div className="bg-void-850 border border-void-700 overflow-x-auto" style={clipSm}>
@@ -222,7 +259,7 @@ export function Observables() {
             <h2 className="font-display font-semibold text-[11px] uppercase tracking-wider text-matrix-400">
               Top {OBSERVABLE_KIND_LABEL[kind].toLowerCase()} values{source ? ` in ${sourceTheme[source]?.name || source}` : ''}
             </h2>
-            <span className="text-[10px] font-mono text-gray-600">{data.distinct.toLocaleString()} distinct · showing {data.values.length}</span>
+            <span className="text-[10px] font-mono text-gray-600">{data.distinct.toLocaleString()} {data.query ? 'matching' : 'distinct'} · showing {data.values.length}</span>
           </div>
           <ValuesTable kind={kind} values={data.values} max={max} />
         </div>
@@ -237,7 +274,7 @@ export function Observables() {
                   <h2 className="font-display font-semibold text-[11px] uppercase tracking-wider text-matrix-400">
                     {PROVIDER_LABEL[g.provider] || (g.provider === 'unknown' ? (kind === 'eventid' ? 'Unrecognised IDs' : 'Unattributed') : g.channel)}
                   </h2>
-                  <span className="text-[10px] font-mono text-gray-500">{g.provider === 'unknown' || kind === 'action' ? (g.provider === 'unknown' ? g.channel : g.provider) : g.channel}</span>
+                  {kind !== 'network' && <span className="text-[10px] font-mono text-gray-500">{g.provider === 'unknown' || kind === 'action' ? (g.provider === 'unknown' ? g.channel : g.provider) : g.channel}</span>}
                 </div>
                 <span className="text-[10px] font-mono text-gray-600">{g.values.length} {kind === 'eventid' ? 'IDs' : 'values'} · {g.rules.toLocaleString()} rules</span>
               </div>

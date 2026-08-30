@@ -73,6 +73,10 @@ class NormalizedDetection:
     # False positives / known limitations
     false_positives: list[str] = field(default_factory=list)
 
+    # Vendor-authored investigation guide (markdown), when the format
+    # carries one (Elastic `note`). None otherwise.
+    investigation_guide: Optional[str] = None
+
     # Original raw content
     raw_content: str = ""
 

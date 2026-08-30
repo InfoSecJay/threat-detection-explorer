@@ -125,6 +125,8 @@ class DetectionBase(UtcTimestampsModel):
     tags: list[str] = []
     references: list[str] = []
     false_positives: list[str] = []
+    # Vendor-authored investigation guide (markdown), when present.
+    investigation_guide: Optional[str] = None
     # Extracted observable fields
     extracted_fields_used: list[str] = []
     extracted_event_ids: list[str] = []
@@ -185,6 +187,7 @@ class DetectionResponse(DetectionBase):
             "tags": normalize_string_list(detection.tags),
             "references": normalize_string_list(detection.references),
             "false_positives": normalize_string_list(detection.false_positives),
+            "investigation_guide": getattr(detection, "investigation_guide", None) or None,
             "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
             "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
             "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],

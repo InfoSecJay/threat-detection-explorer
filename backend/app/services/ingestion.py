@@ -526,6 +526,7 @@ class IngestionService:
             tags=normalized.tags,
             references=normalized.references,
             false_positives=normalized.false_positives,
+            investigation_guide=getattr(normalized, "investigation_guide", None),
             raw_content=normalized.raw_content,
             quality_score=quality_score,
             quality_details=quality_details,

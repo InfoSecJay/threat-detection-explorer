@@ -133,6 +133,9 @@ class ElasticParser(BaseParser):
                 detection_logic_raw=detection_logic,
                 false_positives=false_positives,
                 extra={
+                    # Elastic's markdown investigation guide / setup notes
+                    "note": rule.get("note"),
+                    "setup": rule.get("setup"),
                     "rule_id": rule.get("rule_id"),
                     "risk_score": rule.get("risk_score"),
                     "type": rule.get("type"),

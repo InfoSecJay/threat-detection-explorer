@@ -41,6 +41,8 @@ export interface Detection {
   tags: string[];
   references: string[];
   false_positives: string[];
+  // Vendor-authored investigation guide (markdown; Elastic `note`).
+  investigation_guide?: string | null;
   // Extracted observable fields
   extracted_fields_used: string[];
   extracted_event_ids: string[];

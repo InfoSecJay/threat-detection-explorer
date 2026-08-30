@@ -16,6 +16,8 @@ import { CodeBlock } from './ruledetail/CodeBlock';
 import { AttackSection } from './ruledetail/AttackSection';
 import { HygieneBars } from './ruledetail/HygieneBars';
 import { sourceTheme } from '../constants/style';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -153,12 +155,19 @@ export function RuleDetail({ detection }: RuleDetailProps) {
           }
         >
           {aboutTab === 'guide' ? (
-            <div className="py-6 text-center" data-testid="guide-placeholder">
-              <p className="text-sm text-gray-300">No investigation guide yet.</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Guides will be generated per rule from its logic, observables and references. Until then, the description and false-positive notes under Details are the triage material.
-              </p>
-            </div>
+            detection.investigation_guide ? (
+              <div className="py-3 prose prose-invert prose-sm max-w-none prose-headings:font-display prose-headings:uppercase prose-headings:tracking-wider prose-a:text-cyan-400 prose-code:text-matrix-300 prose-pre:bg-void-900" data-testid="guide-markdown">
+                <p className="not-prose text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-3">Vendor-authored guide, from the upstream rule</p>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{detection.investigation_guide}</ReactMarkdown>
+              </div>
+            ) : (
+              <div className="py-6 text-center" data-testid="guide-placeholder">
+                <p className="text-sm text-gray-300">No investigation guide for this rule.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Elastic rules ship one upstream (shown here when present); guides for the other sources will be generated per rule from its logic, observables and references. Until then, the description and false-positive notes under Details are the triage material.
+                </p>
+              </div>
+            )
           ) : (
             <div>
               {detection.description && (

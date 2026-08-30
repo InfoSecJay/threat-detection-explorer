@@ -5,12 +5,13 @@ export function useObservableTypes() {
   return useQuery({ queryKey: ['observable-types'], queryFn: observablesApi.types, staleTime: 1000 * 60 * 30 });
 }
 
-export function useObservableTop(kind: string, limit = 100, source?: string) {
+export function useObservableTop(kind: string, limit = 100, source?: string, q?: string) {
   return useQuery({
-    queryKey: ['observable-top', kind, limit, source ?? null],
-    queryFn: () => observablesApi.top(kind, limit, source),
+    queryKey: ['observable-top', kind, limit, source ?? null, q ?? ''],
+    queryFn: () => observablesApi.top(kind, limit, source, q),
     staleTime: 1000 * 60 * 30,
     enabled: !!kind,
+    placeholderData: (prev) => prev,
   });
 }
 

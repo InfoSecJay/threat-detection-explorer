@@ -38,7 +38,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
         onClick={() => navigate(`/detections/${detection.id}`)}
       >
         {enableSelection && (
-          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
             <input
               type="checkbox"
               checked={selected}
@@ -48,7 +48,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             />
           </td>
         )}
-        <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={(e) => onToggleExpand(e)}
             className="p-1 text-gray-500 hover:text-matrix-500 transition-colors"
@@ -66,7 +66,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             </svg>
           </button>
         </td>
-        <td className="px-4 py-3 max-w-md">
+        <td className="px-4 py-2 w-[34%] min-w-[16rem]">
           <Link
             to={`/detections/${detection.id}`}
             className="text-sm font-medium text-matrix-500 hover:text-matrix-400 transition-colors"
@@ -84,7 +84,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             </span>
           )}
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-3 py-2 whitespace-nowrap">
           <span
             className="px-2 py-1 text-xs font-mono font-medium border"
             style={{
@@ -97,48 +97,40 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             {lang && <span className="opacity-60"> · {lang}</span>}
           </span>
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-3 py-2 whitespace-nowrap">
           <span
             className={`px-2 py-1 text-xs font-mono font-medium border ${sevColors.bg} ${sevColors.text} ${sevColors.border}`}
           >
             {detection.severity.toUpperCase()}
           </span>
         </td>
-        <td className="px-3 py-3">
+        <td className="px-3 py-2">
           <TagList
             items={detection.platforms}
             colorClass="bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
           />
         </td>
-        <td className="px-3 py-3">
+        <td className="px-3 py-2">
           <TagList
             items={detection.data_sources}
             colorClass="bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
           />
         </td>
-        <td className="px-3 py-3">
+        <td className="px-3 py-2">
           <TagList
             items={detection.event_types}
             colorClass="bg-orange-500/10 text-orange-300 border-orange-500/30"
           />
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-3 py-2 whitespace-nowrap">
           <span
             className="text-xs font-mono text-gray-400"
-            title={formatDate(detection.rule_created_date)}
+            title={`Created ${formatDate(detection.rule_created_date)} - modified ${formatDate(detection.rule_modified_date)}`}
           >
             {formatRelativeDate(detection.rule_created_date)}
           </span>
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
-          <span
-            className="text-xs font-mono text-gray-400"
-            title={formatDate(detection.rule_modified_date)}
-          >
-            {formatRelativeDate(detection.rule_modified_date)}
-          </span>
-        </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-3 py-2 whitespace-nowrap">
           {typeof detection.quality_score === 'number' ? (
             <span
               className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
@@ -151,7 +143,7 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
           )}
         </td>
       </tr>
-      {expanded && <RulePreview detection={detection} lang={lang} colSpan={enableSelection ? 11 : 10} />}
+      {expanded && <RulePreview detection={detection} lang={lang} colSpan={enableSelection ? 10 : 9} />}
     </Fragment>
   );
 }
