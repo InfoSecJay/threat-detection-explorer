@@ -5,6 +5,7 @@
 export const HOME_SOURCES = [
   {
     id: 'sigma' as const,
+    format: 'Sigma YAML',
     name: 'SigmaHQ',
     description: 'Community-driven detection rules covering comprehensive MITRE ATT&CK techniques.',
     repoUrl: 'https://github.com/SigmaHQ/sigma',
@@ -12,6 +13,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'elastic' as const,
+    format: 'TOML / KQL, EQL, ES|QL',
     name: 'Elastic Detection Rules',
     description: 'Detection rules for Elastic Security using KQL and EQL query formats.',
     repoUrl: 'https://github.com/elastic/detection-rules',
@@ -19,6 +21,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'splunk' as const,
+    format: 'YAML / SPL',
     name: 'Splunk Security Content',
     description: 'Analytics stories and detection searches for Splunk Enterprise Security.',
     repoUrl: 'https://github.com/splunk/security_content',
@@ -26,6 +29,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'sublime' as const,
+    format: 'YAML / MQL',
     name: 'Sublime Security',
     description: 'Email security detection rules using Message Query Language (MQL).',
     repoUrl: 'https://github.com/sublime-security/sublime-rules',
@@ -33,6 +37,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'elastic_protections' as const,
+    format: 'TOML / EQL',
     name: 'Elastic Protections',
     description: 'Endpoint behavior rules for Elastic Endpoint Security using EQL.',
     repoUrl: 'https://github.com/elastic/protections-artifacts',
@@ -40,6 +45,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'lolrmm' as const,
+    format: 'YAML / Sigma',
     name: 'LOLRMM',
     description: 'Detection rules for RMM tools commonly abused by threat actors.',
     repoUrl: 'https://github.com/magicsword-io/LOLRMM',
@@ -47,6 +53,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'elastic_hunting' as const,
+    format: 'TOML / ES|QL',
     name: 'Elastic Hunting',
     description: 'Proactive threat hunting queries using ES|QL for Elastic Security.',
     repoUrl: 'https://github.com/elastic/detection-rules/tree/main/hunting',
@@ -54,6 +61,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'sentinel' as const,
+    format: 'YAML / KQL',
     name: 'Microsoft Sentinel',
     description: 'Analytics rules for Microsoft Sentinel SIEM using KQL queries.',
     repoUrl: 'https://github.com/Azure/Azure-Sentinel',
@@ -61,6 +69,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'google_secops' as const,
+    format: 'YARA-L',
     name: 'Google SecOps',
     description: 'Community detection rules for Google SecOps (Chronicle) using YARA-L 2.0.',
     repoUrl: 'https://github.com/chronicle/detection-rules/tree/main/rules/community',
@@ -68,6 +77,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'okta' as const,
+    format: 'YAML / OIE',
     name: 'Okta',
     description: 'Okta-authored detections for Okta Identity Engine (OIE) and Splunk SIEM queries.',
     repoUrl: 'https://github.com/okta/customer-detections',
@@ -75,6 +85,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'auth0' as const,
+    format: 'YAML / OIE',
     name: 'Auth0',
     description: 'Auth0-authored Sigma detections with Splunk implementations, covering refresh tokens, MFA, brute force, and tenant attack protection.',
     repoUrl: 'https://github.com/auth0/auth0-customer-detections',
@@ -82,6 +93,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'panther' as const,
+    format: 'YAML / Python',
     name: 'Panther',
     description: 'Panther Labs community detections — Python-based rules spanning 97 log types across AWS, GCP, Azure, Okta, GitHub, Databricks, Snowflake, and 60+ other SaaS and infrastructure sources.',
     repoUrl: 'https://github.com/panther-labs/panther-analysis',
@@ -89,6 +101,7 @@ export const HOME_SOURCES = [
   },
   {
     id: 'pypanther' as const,
+    format: 'Python',
     name: 'PyPanther',
     description: 'Panther Labs pypanther framework — the newer Pythonic rule catalog: pure Python rule classes covering AWS, GCP, Azure, Okta, GitHub, and 60+ other log sources.',
     repoUrl: 'https://github.com/panther-labs/pypanther',

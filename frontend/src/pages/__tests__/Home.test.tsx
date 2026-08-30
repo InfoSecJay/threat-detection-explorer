@@ -1,7 +1,7 @@
 /**
- * Render test for the refreshed Home page: every data hook mocked in
- * its loaded shape, then asserts the composed sections show the live
- * numbers they are meant to (ticker cells, gap ranking, source cards).
+ * Render test for the Home entry point: every data hook mocked in its
+ * loaded shape, then asserts the hero numbers, the source tiles and
+ * the three showcase cards show the live values they are meant to.
  */
 
 import { describe, it, vi, expect } from 'vitest';
@@ -20,11 +20,20 @@ vi.mock('../../hooks/useDetections', () => ({
     },
     isLoading: false, error: null, refetch: () => {},
   }),
-  useFacets: () => ({
-    data: { quality_band: [{ value: '80', count: 100 }, { value: '60', count: 900 }, { value: '40', count: 4000 }] },
-  }),
+  useFacets: () => ({ data: undefined }),
   useQueryFields: () => ({ data: { fields: [] } }),
   useFilterOptions: () => ({ data: undefined }),
+}));
+
+vi.mock('../../hooks/useCompare', () => ({
+  useCoverageMatrix: () => ({
+    data: {
+      sources: ['sigma', 'splunk'],
+      tactics: [],
+      summary: { total_tactics: 14, total_techniques: 203, techniques_with_any_coverage: 171, overall_coverage_percent: 84, source_coverage: {} },
+    },
+    isLoading: false, error: null,
+  }),
 }));
 
 vi.mock('../../hooks/useTrending', () => ({
@@ -36,27 +45,14 @@ vi.mock('../../hooks/useTrending', () => ({
     },
     isLoading: false, error: null,
   }),
-  useNewlyCovered: () => ({
-    data: {
-      method: 'rule_dates', window_days: 7, baseline_date: null, new_sources: [],
-      catalog_newly_covered: [{ technique_id: 'T1651', technique_name: 'Cloud Administration Command', sources: { splunk: 2 }, total_rules: 2 }],
-      source_newly_covered: [],
-    },
-    isLoading: false, error: null,
-  }),
-  useTechniqueDeltas: () => ({
-    data: {
-      days: 7, method: 'snapshot', current_date: '2026-08-29', baseline_date: '2026-08-22',
-      gainers: [{ technique_id: 'T1059', current: 19, baseline: 15, delta: 4, sources_added: [], sources_removed: [] }],
-      losers: [],
-    },
-    isLoading: false, error: null,
-  }),
 }));
 
 vi.mock('../../hooks/useRepositories', () => ({
   useRepositories: () => ({
-    data: [{ id: '1', name: 'sigma', url: '', last_commit_hash: 'abc', last_sync_at: '2026-08-29T06:00:00Z', rule_count: 3783, status: 'idle', error_message: null, created_at: '' }],
+    data: [
+      { id: '1', name: 'sigma', url: '', last_commit_hash: 'abc', last_sync_at: '2026-08-29T06:00:00Z', rule_count: 3783, status: 'idle', error_message: null, created_at: '' },
+      { id: '2', name: 'splunk', url: '', last_commit_hash: 'def', last_sync_at: '2026-08-28T06:00:00Z', rule_count: 2156, status: 'idle', error_message: null, created_at: '' },
+    ],
     isLoading: false,
   }),
 }));
@@ -67,7 +63,7 @@ vi.mock('../../hooks/useActors', () => ({
       items: [
         { id: 'G0016', name: 'APT29', aliases: [], description: '', deprecated: false, modified: null, technique_count: 120, covered_technique_count: 80, our_rule_count: 40, mention_count: 3, sources_with_coverage: ['sigma'], weighted_coverage: 0.62, gap_count: 40, weighted_gap: 12.5, origin_country: 'RU' },
       ],
-      total: 1, page: 1, per_page: 6, facets: {}, summary: { total_groups: 1, total_software: 0, groups_with_coverage: 1, software_with_coverage: 0 },
+      total: 1, page: 1, per_page: 1, facets: {}, summary: { total_groups: 1, total_software: 0, groups_with_coverage: 1, software_with_coverage: 0 },
     },
     isLoading: false, error: null,
   }),
@@ -99,21 +95,33 @@ function renderPage() {
 }
 
 describe('Home', () => {
-  it('renders the ticker with live corpus numbers', async () => {
-    const { getByTestId } = renderPage();
-    await waitFor(() => expect(getByTestId('ticker-rules')).toHaveTextContent('15,682'));
-    expect(getByTestId('ticker-7d-net')).toHaveTextContent('+9');
-    expect(getByTestId('ticker-newly-covered')).toHaveTextContent('1');
-    expect(getByTestId('ticker-momentum')).toHaveTextContent('T1059 +4');
+  it('states scope in the hero and shows the four exact numbers', async () => {
+    const { getByTestId, getByText } = renderPage();
+    await waitFor(() => expect(getByTestId('stat-rules')).toHaveTextContent('15,682'));
+    expect(getByText(/15,682 detection rules from 13 open-source/)).toBeInTheDocument();
+    expect(getByTestId('stat-sources')).toHaveTextContent('13');
+    expect(getByTestId('stat-coverage')).toHaveTextContent('171 / 203');
+    expect(getByTestId('stat-sync')).not.toHaveTextContent('—');
   });
 
-  it('ranks gap actors and shows source cards with deltas', async () => {
-    const { getByTestId, getByText } = renderPage();
-    await waitFor(() => expect(getByTestId('gap-G0016')).toHaveTextContent('APT29'));
-    expect(getByTestId('gap-G0016')).toHaveTextContent('40 / 120 uncovered');
-    expect(getByTestId('source-sigma')).toHaveTextContent('3,783');
-    expect(getByTestId('source-sigma')).toHaveTextContent('+12 / 7d');
-    expect(getByTestId('source-sigma')).toHaveTextContent('hygiene 61.2');
-    expect(getByText(/avg 57.3/)).toBeInTheDocument();
+  it('lists every source with its live count and format', async () => {
+    const { getByTestId } = renderPage();
+    await waitFor(() => expect(getByTestId('source-sigma')).toHaveTextContent('3,783'));
+    expect(getByTestId('source-sigma')).toHaveTextContent('Sigma YAML');
+    expect(getByTestId('source-splunk')).toHaveTextContent('2,156');
+    expect(getByTestId('source-google_secops')).toHaveTextContent('YARA-L');
+    expect(getByTestId('source-google_secops')).toHaveTextContent('—'); // no count in fixture
+  });
+
+  it('showcases ATT&CK, actors and intel with one live fact each', async () => {
+    const { getByTestId } = renderPage();
+    await waitFor(() => expect(getByTestId('card-mitre-fact')).toHaveTextContent('84%'));
+    expect(getByTestId('card-mitre-fact')).toHaveTextContent('171 / 203');
+    expect(getByTestId('card-actors-fact')).toHaveTextContent('APT29');
+    expect(getByTestId('card-actors-fact')).toHaveTextContent('40 of 120 techniques uncovered');
+    expect(getByTestId('card-intel-fact')).toHaveTextContent('+9 rules net');
+    expect(getByTestId('card-mitre')).toHaveAttribute('href', '/mitre');
+    expect(getByTestId('card-actors')).toHaveAttribute('href', '/actors');
+    expect(getByTestId('card-intel')).toHaveAttribute('href', '/intel');
   });
 });
