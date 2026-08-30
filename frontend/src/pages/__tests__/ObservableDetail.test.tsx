@@ -20,7 +20,7 @@ vi.mock('../../hooks/useObservables', () => ({
 vi.mock('../../contexts/MitreContext', () => ({
   useMitre: () => ({ getTechniqueName: () => 'OS Credential Dumping: LSASS Memory', getTacticName: () => 'Credential Access', tactics: {}, techniques: {}, isLoading: false, error: null, getTacticUrl: () => '', getTechniqueUrl: () => '', refresh: async () => {} }),
 }));
-vi.mock('../../hooks/useEventIds', () => ({ useEventIds: () => ({ labels: {} }) }));
+vi.mock('../../hooks/useEventIds', () => ({ useEventIds: () => ({ labels: {}, entries: {} }) }));
 
 import { ObservableDetail } from '../ObservableDetail';
 

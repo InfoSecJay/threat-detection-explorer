@@ -47,7 +47,7 @@ export function ObservableDetail() {
   const value = decodeURIComponent(params['*'] || '');
   const { data, isLoading, error } = useObservableProfile(kind, value);
   const { getTechniqueName, getTacticName } = useMitre();
-  const { labels: eventIdLabels } = useEventIds();
+  const { entries: eventIdEntries } = useEventIds();
   const label = OBSERVABLE_KIND_LABEL[kind] || kind;
 
   if (isLoading) return <div className="space-y-2">{[...Array(5)].map((_, i) => <SkeletonRow key={i} height="h-12" />)}</div>;
@@ -64,7 +64,7 @@ export function ObservableDetail() {
   }
 
   const srcMax = Math.max(...Object.values(data.by_source), 1);
-  const eventLabel = kind === 'eventid' ? eventIdLabels?.[value] : undefined;
+  const eventEntry = kind === 'eventid' ? eventIdEntries?.[value] : undefined;
   const catalogHref = `/detections?${OBSERVABLE_FILTER_KEY[kind]}=${encodeURIComponent(value)}`;
 
   return (
@@ -75,7 +75,14 @@ export function ObservableDetail() {
           <div className="min-w-0">
             <div className="text-[10px] font-mono text-matrix-400 uppercase tracking-[0.2em]">{label}</div>
             <h1 className="text-2xl font-mono font-bold text-white break-all" data-testid="observable-value">{data.value}</h1>
-            {eventLabel && <p className="text-sm text-gray-400">{eventLabel}</p>}
+            {eventEntry && (
+              <p className="text-sm text-gray-400 flex items-center gap-2 flex-wrap" data-testid="event-context">
+                <span>{eventEntry.label}</span>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-1.5 py-0.5" title={`Log channel: ${eventEntry.channel}`}>
+                  {eventEntry.channel}
+                </span>
+              </p>
+            )}
           </div>
           <Link to={catalogHref} className="btn-primary text-xs inline-flex items-center gap-2 shrink-0">
             Open {data.total_rules.toLocaleString()} rule{data.total_rules === 1 ? '' : 's'} in catalog
