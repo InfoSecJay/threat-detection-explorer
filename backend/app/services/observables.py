@@ -18,6 +18,7 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.taxonomy.auth0_events import lookup as lookup_auth0_event
 from app.services.taxonomy.event_ids import lookup as lookup_event_id
 
 # URL segment -> (column, SearchFilters key for the catalog link, label)
@@ -171,9 +172,12 @@ def _context(kind: str, value: str, data_sources: Counter[str]) -> Optional[dict
     the reader having to know."""
     if kind == "eventid":
         entry = lookup_event_id(value)
-        if entry is None:
-            return None
-        return {"label": entry.label, "provider": entry.provider, "channel": entry.channel}
+        if entry is not None:
+            return {"label": entry.label, "provider": entry.provider, "channel": entry.channel}
+        auth0 = lookup_auth0_event(value)
+        if auth0 is not None:
+            return {"label": auth0.label, "provider": "auth0", "channel": "Auth0 log events"}
+        return None
     if kind == "action" and data_sources:
         ds, _n = data_sources.most_common(1)[0]
         label = data_source_label(ds)

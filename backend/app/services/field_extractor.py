@@ -1234,6 +1234,22 @@ def _drop_placeholder_values(result: ExtractedFields) -> None:
 _AUTH0_OPERATION_TYPES = frozenset({"sapi", "fapi", "mgmt_api_read"})
 
 
+def _surface_auth0_event_codes(result: ExtractedFields) -> None:
+    """Auth0 `data.type` codes ARE the rule's events (issue #72): put
+    recognized codes on the event_ids surface so they group and label
+    like Windows event IDs. Dictionary membership gates the surface --
+    other `*.type` event-category fields never leak in."""
+    from app.services.taxonomy.auth0_events import is_auth0_event_code
+
+    for obs in result.observables:
+        if obs.field.lower() != "data.type" or obs.negated:
+            continue
+        result.event_ids.extend(
+            v for v in obs.values
+            if isinstance(v, str) and is_auth0_event_code(v) and v not in result.event_ids
+        )
+
+
 def _promote_auth0_operations(result: ExtractedFields) -> None:
     """Auth0: when `data.type` is a management-API log type, the
     `data.description` ("Update a client", "Get client by ID") IS the
@@ -1308,6 +1324,7 @@ def _deduplicate_all(result: ExtractedFields):
     _promote_namespaced_event_actions(result)
     _drop_placeholder_values(result)
     _promote_auth0_operations(result)
+    _surface_auth0_event_codes(result)
     # A wildcard pattern ("user.authentication.*") is a match expression,
     # not an action anyone can look up.
     result.api_actions = [a for a in dict.fromkeys(result.api_actions) if "*" not in a and "?" not in a]

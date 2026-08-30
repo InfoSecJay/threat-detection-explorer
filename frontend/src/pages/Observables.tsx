@@ -51,6 +51,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   powershell: 'PowerShell',
   wmi_activity: 'WMI activity',
   codeintegrity: 'Code Integrity',
+  auth0: 'Auth0 log events',
 };
 
 function SourceChips({ bySource }: { bySource: Record<string, number> }) {

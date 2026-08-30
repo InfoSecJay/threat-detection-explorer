@@ -1,0 +1,113 @@
+# Auth0 log event type dictionary (issue #72).
+#
+# Auth0 rules key on `data.type` codes (`s`, `f`, `fp`, `sapi`, ...)
+# that are opaque to a reader, the same way Windows event IDs were
+# before mappings/event_ids.yaml. This dictionary gives every code a
+# label so the Observables page and rule pages can say what the event
+# is ("fp -> Failed login: invalid password").
+#
+# Source: https://auth0.com/docs/deploy-monitor/logs/log-event-filters
+# `category` is Auth0's own grouping of the code (success / failure /
+# warning / limit). ASCII only.
+version: 1
+events:
+  # ── Authentication ──────────────────────────────────────────────────
+  s: {label: "Successful login", category: success}
+  f: {label: "Failed login", category: failure}
+  fu: {label: "Failed login: invalid username", category: failure}
+  fp: {label: "Failed login: invalid password", category: failure}
+  w: {label: "Warnings during login", category: warning}
+  slo: {label: "Successful logout", category: success}
+  flo: {label: "Failed logout", category: failure}
+  ss: {label: "Successful signup", category: success}
+  fs: {label: "Failed signup", category: failure}
+  ssa: {label: "Successful silent authentication", category: success}
+  fsa: {label: "Failed silent authentication", category: failure}
+  scoa: {label: "Successful cross-origin authentication", category: success}
+  fcoa: {label: "Failed cross-origin authentication", category: failure}
+  fco: {label: "Origin not in Allowed Origins list", category: failure}
+  sens: {label: "Native social login succeeded", category: success}
+  fens: {label: "Native social login failed", category: failure}
+  cs: {label: "Passwordless login code sent", category: success}
+  cls: {label: "Passwordless login code/link sent", category: success}
+  oidc_backchannel_logout_succeeded: {label: "OIDC back-channel logout succeeded", category: success}
+  oidc_backchannel_logout_failed: {label: "OIDC back-channel logout failed", category: failure}
+  # ── Tokens / grants ─────────────────────────────────────────────────
+  seacft: {label: "Auth code for access token succeeded", category: success}
+  feacft: {label: "Auth code for access token failed", category: failure}
+  seccft: {label: "Client credentials for access token succeeded", category: success}
+  feccft: {label: "Client credentials for access token failed", category: failure}
+  sepft: {label: "Password for access token succeeded", category: success}
+  fepft: {label: "Password for access token failed", category: failure}
+  sertft: {label: "Refresh token for access token succeeded", category: success}
+  fertft: {label: "Refresh token for access token failed", category: failure}
+  secte: {label: "Token exchange succeeded", category: success}
+  fecte: {label: "Token exchange failed", category: failure}
+  seoobft: {label: "Password + OOB challenge for token succeeded", category: success}
+  feoobft: {label: "Password + OOB challenge for token failed", category: failure}
+  seotpft: {label: "Password + OTP challenge for token succeeded", category: success}
+  feotpft: {label: "Password + OTP challenge for token failed", category: failure}
+  sercft: {label: "Password + MFA recovery code for token succeeded", category: success}
+  fercft: {label: "Password + MFA recovery code for token failed", category: failure}
+  sede: {label: "Device code for access token succeeded", category: success}
+  fede: {label: "Device code for access token failed", category: failure}
+  sd: {label: "Delegation token generated", category: success}
+  fd: {label: "Failed to generate delegation token", category: failure}
+  fdeac: {label: "Failed to activate device", category: failure}
+  fdeaz: {label: "Device authorization request failed", category: failure}
+  fdecc: {label: "User did not confirm device", category: failure}
+  # ── Account changes ─────────────────────────────────────────────────
+  sce: {label: "Email changed", category: success}
+  fce: {label: "Failed to change email", category: failure}
+  scp: {label: "Password changed", category: success}
+  fcp: {label: "Failed to change password", category: failure}
+  scpr: {label: "Change password request succeeded", category: success}
+  fcpr: {label: "Change password request failed", category: failure}
+  scpn: {label: "Phone number changed", category: success}
+  fcpn: {label: "Failed to change phone number", category: failure}
+  scu: {label: "Username changed", category: success}
+  fcu: {label: "Failed to change username", category: failure}
+  sdu: {label: "User deleted", category: success}
+  fdu: {label: "User deletion failed", category: failure}
+  sui: {label: "Users imported", category: success}
+  fui: {label: "Failed to import users", category: failure}
+  sv: {label: "Verification email sent", category: success}
+  fv: {label: "Failed to send verification email", category: failure}
+  svr: {label: "Verification email request succeeded", category: success}
+  fvr: {label: "Verification email request failed", category: failure}
+  fn: {label: "Failed to send email notification", category: failure}
+  ublkdu: {label: "User block released (anomaly detection)", category: success}
+  fcpro: {label: "Failed to provision AD/LDAP connector", category: failure}
+  fcph: {label: "Post-change password hook failed", category: failure}
+  fpurh: {label: "Post user registration hook failed", category: failure}
+  # ── MFA (Guardian) ──────────────────────────────────────────────────
+  gd_start_auth: {label: "MFA second factor started", category: success}
+  gd_auth_succeed: {label: "MFA OTP authentication succeeded", category: success}
+  gd_auth_failed: {label: "MFA OTP authentication failed", category: failure}
+  gd_auth_rejected: {label: "MFA OTP authentication rejected", category: failure}
+  gd_start_enroll: {label: "MFA enrollment started", category: success}
+  gd_start_enroll_failed: {label: "MFA enrollment failed", category: failure}
+  gd_enrollment_complete: {label: "MFA enrollment completed", category: success}
+  gd_unenroll: {label: "MFA device unenrolled", category: success}
+  gd_update_device_account: {label: "MFA device updated", category: success}
+  gd_recovery_succeed: {label: "MFA recovery code succeeded", category: success}
+  gd_recovery_failed: {label: "MFA recovery code failed", category: failure}
+  gd_send_pn: {label: "MFA push notification sent", category: success}
+  gd_send_pn_failure: {label: "MFA push notification failed", category: failure}
+  gd_send_sms: {label: "MFA SMS sent", category: success}
+  gd_send_sms_failure: {label: "MFA SMS failed", category: failure}
+  gd_send_email: {label: "MFA email sent", category: success}
+  gd_tenant_update: {label: "MFA tenant settings updated", category: success}
+  gd_otp_rate_limit_exceed: {label: "MFA OTP rate limit exceeded", category: limit}
+  # ── Anomaly detection / rate limits ─────────────────────────────────
+  limit_wc: {label: "IP blocked: 10+ failed logins on one account", category: limit}
+  limit_mu: {label: "IP blocked: 100+ failed logins / 50+ signups", category: limit}
+  limit_delegation: {label: "Rate limit on /delegation endpoint", category: limit}
+  api_limit: {label: "Authentication API rate limit reached", category: limit}
+  pwd_leak: {label: "Login attempt with leaked password", category: failure}
+  # ── Management API ──────────────────────────────────────────────────
+  sapi: {label: "Management API operation", category: success}
+  fapi: {label: "Management API operation failed", category: failure}
+  mgmt_api_read: {label: "Management API GET returning secrets", category: success}
+  # ── Misc ────────────────────────────────────────────────────────────
+  depnote: {label: "Deprecated feature used", category: warning}
