@@ -182,6 +182,7 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "action": ("network", "action"),
     # 2026-08-30 review batch (Splunk / Sentinel / Elastic / Panther)
     "sourceuser": ("authentication", "user"),
+    "source": ("event", "event_source"),
     "taskcontent": ("process", "command_line_pattern"),
     "object_file_path": ("file", "file_path"),
     "web.http_user_agent": ("network", "user_agent"),
@@ -1086,9 +1087,10 @@ def _route_domain_fields(obs_type: str, obs_subtype: str, values: list[str],
     if obs_type == "identity" and obs_subtype == "action" and not negated:
         result.api_actions.extend(v for v in values if v)
 
-    # Cloud resources and identity targets
+    # Cloud resources and identity targets (`instanceId == 24050` is an
+    # id, not a resource anyone searches for)
     if obs_type == "cloud" and obs_subtype in ("resource", "resource_type") and not negated:
-        result.target_resources.extend(v for v in values if v)
+        result.target_resources.extend(v for v in values if v and not str(v).isdigit())
     if obs_type == "identity" and obs_subtype == "target" and not negated:
         result.target_resources.extend(v for v in values if v)
 
@@ -1146,7 +1148,7 @@ def _promote_namespaced_event_actions(result: ExtractedFields) -> None:
     for obs in result.observables:
         if obs.type != "event" or obs.subtype != "event_action":
             continue
-        if obs.field.lower() not in _AMBIGUOUS_ACTION_FIELDS:
+        if _LA_SUFFIX_RE.sub("", obs.field.lower()) not in _AMBIGUOUS_ACTION_FIELDS:
             continue
         promoted = [v for v in obs.values if isinstance(v, str) and _NAMESPACED_ACTION_RE.match(v.strip())]
         if not promoted:
@@ -1197,6 +1199,13 @@ def _deduplicate_all(result: ExtractedFields):
         if isinstance(v, str) and v not in non_indicator_values
         and (v in port_values or _is_network_indicator(v))
     ]
+    # Identical observables from a let body and the main pipeline
+    # (or two regex passes) collapse to one.
+    unique: dict[tuple, ExtractedObservable] = {}
+    for obs in result.observables:
+        key = (obs.field, tuple(obs.values), obs.negated, obs.type, obs.subtype)
+        unique.setdefault(key, obs)
+    result.observables = list(unique.values())
     result.fields_used = list(dict.fromkeys(result.fields_used))
     result.event_ids = list(dict.fromkeys(result.event_ids))
     result.process_names = list(dict.fromkeys(result.process_names))
@@ -2555,9 +2564,49 @@ def _kql_is_table(name: str, derived: set[str]) -> bool:
     return name.lower() in SENTINEL_TABLES or name[0].isupper()
 
 
+class _KqlDerived(set):
+    """Derived column names plus what the KQL pipeline told us about
+    them: `alias_of` maps a derived name to the single real column it
+    was computed from (`extend process = split(Image, '\\\\', -1)[-1]`
+    -> process: Image), `lists` holds `let X = dynamic([...])` values
+    and `scalars` holds `let x = "v"` / `declare query_parameters(x =
+    "v")` defaults, so terms written against them resolve to the
+    underlying column / values instead of vanishing (2026-08-30 review:
+    an ADFS rule lost 7 process names and a named pipe, an Okta rule
+    lost its 8 admin actions)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.alias_of: dict[str, str] = {}
+        self.lists: dict[str, list[str]] = {}
+        self.scalars: dict[str, str] = {}
+
+
+def _kql_resolve_alias(name: str, derived: set) -> str:
+    alias_of = getattr(derived, "alias_of", {})
+    seen = set()
+    while name in alias_of and name not in seen:
+        seen.add(name)
+        name = alias_of[name]
+    return name
+
+
+_KQL_COLUMN_IFEXISTS_RE = re.compile(r"\bcolumn_ifexists\s*\(\s*[\"']([A-Za-z_][\w.]*)[\"']\s*,[^()]*\)", re.IGNORECASE)
+
+
+def _kql_unwrap_column_ifexists(text: str) -> str:
+    """column_ifexists("Image", "") -> Image (the real column)."""
+    return _KQL_COLUMN_IFEXISTS_RE.sub(r"\1", text)
+
+
+def _kql_mask_strings(text: str) -> str:
+    return re.sub(r"@?\"[^\"]*\"|@?'[^']*'", '""', text)
+
+
 def _kql_unwrap_scalars(text: str) -> str:
     """tolower(Field) -> Field, repeatedly, so term patterns see the
     underlying column."""
+    text = _kql_unwrap_column_ifexists(text)
     pattern = re.compile(
         r"\b(?:%s)\s*\(([^()]*)\)" % "|".join(_KQL_SCALAR_FUNCS),
         re.IGNORECASE,
@@ -2572,6 +2621,12 @@ def _kql_unwrap_scalars(text: str) -> str:
 def _kql_expression(text: str, result: ExtractedFields, derived: set[str]) -> None:
     """Terms of a `where` expression."""
     text = _kql_unwrap_scalars(text)
+    lists = getattr(derived, "lists", {})
+    scalars = getattr(derived, "scalars", {})
+
+    def field_ok(name: str) -> Optional[str]:
+        real = _kql_resolve_alias(name, derived)
+        return real if _kql_valid_field(real, derived) else None
 
     # field in/!in/in~/!in~ (list...)
     for m in re.finditer(
@@ -2579,48 +2634,63 @@ def _kql_expression(text: str, result: ExtractedFields, derived: set[str]) -> No
         text,
     ):
         field_name, op, values_str = m.group(1), m.group(2), m.group(3)
-        if not _kql_valid_field(field_name, derived):
+        real = field_ok(field_name)
+        if real is None:
             continue
         values = re.findall(r'"([^"]*)"', values_str)
         values += re.findall(r"'([^']*)'", values_str)
         if not values:
             values = re.findall(r"\b(\d+)\b", values_str)
+        if not values:
+            # `Field in (AdminActivity)` where the list is a let-bound dynamic([...]).
+            ref = values_str.strip()
+            if ref in lists:
+                values = list(lists[ref])
         if values:
             _add_sentinel_observable(
-                field_name, values, op.startswith("!"), result
+                real, values, op.startswith("!"), result
             )
-        elif field_name not in result.fields_used:
+        elif real not in result.fields_used:
             # `Field in (LetBoundList)` — the list content lives in a
             # let, but the field reference is real.
-            result.fields_used.append(field_name)
+            result.fields_used.append(real)
     text_wo_in = re.sub(
         r"([A-Za-z_][\w.]*)\s+!?in~?\s*\([^()]*(?:\([^()]*\)[^()]*)*\)", " ", text
     )
 
-    # Binary comparisons: == =~ != !~ with quoted or numeric values
+    # Binary comparisons: == =~ != !~ with quoted / verbatim / numeric
+    # values, or a let-bound scalar name (`TechnicalName == technicalName`).
     for m in re.finditer(
-        r"([A-Za-z_][\w.]*)\s*(==|=~|!=|!~)\s*(?:\"([^\"]*)\"|'([^']*)'|(\d+))",
+        r"([A-Za-z_][\w.]*)\s*(==|=~|!=|!~)\s*(?:@?\"([^\"]*)\"|@?'([^']*)'|(\d+)|([A-Za-z_]\w*))",
         text_wo_in,
     ):
         field_name, op = m.group(1), m.group(2)
         value = m.group(3) or m.group(4) or m.group(5) or ""
-        if _kql_valid_field(field_name, derived) and value != "":
+        if not value and m.group(6):
+            value = scalars.get(m.group(6), "")
+        real = field_ok(field_name)
+        if real is not None and value != "":
             _add_sentinel_observable(
-                field_name, [value], op.startswith("!"), result
+                real, [value], op.startswith("!"), result
             )
 
-    # String operators with a single quoted value
+    # String operators with a single quoted (or verbatim @'...') value
     for m in re.finditer(
         r"([A-Za-z_][\w.]*)\s+(!?(?:contains|has|startswith|endswith)(?:_cs)?"
-        r"|hasprefix|hassuffix|matches\s+regex)\s+(?:\"([^\"]*)\"|'([^']*)')",
+        r"|hasprefix|hassuffix|matches\s+regex)\s+@?(?:\"([^\"]*)\"|'([^']*)')",
         text_wo_in, re.IGNORECASE,
     ):
         field_name, op = m.group(1), m.group(2)
         value = m.group(3) or m.group(4) or ""
-        if _kql_valid_field(field_name, derived) and value:
-            _add_sentinel_observable(
-                field_name, [value], op.startswith("!"), result
-            )
+        real = field_ok(field_name)
+        if real is not None and value:
+            if op.lower().startswith("matches"):
+                values, pattern = _kql_regex_values(value)
+                _add_sentinel_observable(real, values, False, result, pattern=pattern)
+            else:
+                _add_sentinel_observable(
+                    real, [value], op.startswith("!"), result
+                )
 
     # has_any / has_all (list)
     for m in re.finditer(
@@ -2629,12 +2699,15 @@ def _kql_expression(text: str, result: ExtractedFields, derived: set[str]) -> No
     ):
         field_name, values_str = m.group(1), m.group(2)
         values = re.findall(r'"([^"]*)"', values_str) + re.findall(r"'([^']*)'", values_str)
-        if not _kql_valid_field(field_name, derived):
+        real = field_ok(field_name)
+        if real is None:
             continue
+        if not values and values_str.strip() in lists:
+            values = list(lists[values_str.strip()])
         if values:
-            _add_sentinel_observable(field_name, values, False, result)
-        elif field_name not in result.fields_used:
-            result.fields_used.append(field_name)
+            _add_sentinel_observable(real, values, False, result)
+        elif real not in result.fields_used:
+            result.fields_used.append(real)
 
     # isempty/isnotempty/isnull/isnotnull(Field) — field reference only
     for m in re.finditer(
@@ -2643,6 +2716,16 @@ def _kql_expression(text: str, result: ExtractedFields, derived: set[str]) -> No
     ):
         if _kql_valid_field(m.group(1), derived) and m.group(1) not in result.fields_used:
             result.fields_used.append(m.group(1))
+
+
+def _kql_regex_values(pattern: str) -> tuple[list[str], bool]:
+    """`Artifacts.Feed.(Org|Project).Modify` -> the two literal values;
+    anything else stays one pattern value flagged as such."""
+    m = re.fullmatch(r"([\w.\-/ ]*)\(([\w.\-/ |]+)\)([\w.\-/ ]*)", pattern)
+    if m and "|" in m.group(2):
+        return [m.group(1) + alt + m.group(3) for alt in m.group(2).split("|")], False
+    is_pattern = bool(re.search(r"[\\^$*+?()\[\]{}|]", pattern))
+    return [pattern], is_pattern
 
 
 def _kql_field_list(
@@ -2658,10 +2741,26 @@ def _kql_field_list(
         entry = entry.strip()
         m = re.match(r"([A-Za-z_][\w.]*)\s*=(?!=)(.*)$", entry, re.DOTALL)
         if m:
-            if alias_targets_derived:
-                derived.add(m.group(1))
-            for ident in re.findall(r"[A-Za-z_][\w.]*", m.group(2)):
-                if _kql_valid_field(ident, derived) and ident not in result.fields_used:
+            alias = m.group(1)
+            rhs = _kql_unwrap_column_ifexists(m.group(2))
+            # Identifiers of the expression, minus string literals and
+            # function names (`extract(`, `tostring(`, format strings).
+            masked = _kql_mask_strings(rhs)
+            idents = [
+                i for i in re.findall(r"[A-Za-z_][\w.]*(?![\w.])(?!\s*\()", masked)
+                if not re.match(r"^\d", i)
+            ]
+            idents = [_kql_resolve_alias(i, derived) for i in idents]
+            real = [i for i in dict.fromkeys(idents) if _kql_valid_field(i, derived)]
+            if alias_targets_derived and not (real == [alias]):
+                # `extend Image = column_ifexists("Image", "")` keeps
+                # Image a real column; a genuinely new name is derived,
+                # remembering its single source column when there is one.
+                derived.add(alias)
+                if len(real) == 1 and hasattr(derived, "alias_of"):
+                    derived.alias_of[alias] = real[0]
+            for ident in real:
+                if ident not in result.fields_used:
                     result.fields_used.append(ident)
             continue
         binm = re.match(r"bin\s*\(\s*([A-Za-z_][\w.]*)", entry, re.IGNORECASE)
@@ -2815,17 +2914,35 @@ def extract_sentinel_fields(query: str) -> ExtractedFields:
     # strings use ://, so require whitespace or line start before //).
     query = re.sub(r"(?:^|(?<=\s))//[^\n]*", " ", query)
 
-    derived: set[str] = set()
+    derived: _KqlDerived = _KqlDerived()
     statements = _kql_split(query, ";")
 
-    # Pass 1: let-bound names are derived everywhere.
+    # Pass 1: let-bound names are derived everywhere; list and scalar
+    # lets (and query_parameters defaults) are remembered by value.
     let_bodies: list[str] = []
     pipelines: list[str] = []
     for stmt in statements:
+        qp = re.match(r"\s*declare\s+query_parameters\s*\((.*)\)\s*$", stmt, re.IGNORECASE | re.DOTALL)
+        if qp:
+            for pm in re.finditer(r"([A-Za-z_]\w*)\s*:\s*\w+\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|(\d+))", qp.group(1)):
+                derived.add(pm.group(1))
+                derived.scalars[pm.group(1)] = pm.group(2) or pm.group(3) or pm.group(4) or ""
+            continue
         lm = re.match(r"let\s+([A-Za-z_]\w*)\s*=\s*(.*)$", stmt, re.IGNORECASE | re.DOTALL)
         if lm:
-            derived.add(lm.group(1))
-            let_bodies.append(lm.group(2))
+            name, body = lm.group(1), lm.group(2).strip()
+            derived.add(name)
+            dyn = re.match(r"^dynamic\s*\(\s*\[(.*)\]\s*\)\s*$", body, re.DOTALL)
+            if dyn:
+                vals = re.findall(r'"([^"]*)"', dyn.group(1)) + re.findall(r"'([^']*)'", dyn.group(1))
+                if vals:
+                    derived.lists[name] = vals
+                continue
+            sc = re.match(r"^@?(?:\"([^\"]*)\"|'([^']*)')\s*$", body)
+            if sc:
+                derived.scalars[name] = sc.group(1) or sc.group(2) or ""
+                continue
+            let_bodies.append(body)
         elif stmt.strip():
             pipelines.append(stmt)
 
@@ -2853,10 +2970,32 @@ def extract_sentinel_fields(query: str) -> ExtractedFields:
     return result
 
 
-def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, result: ExtractedFields):
+_LA_SUFFIX_RE = re.compile(r"_(s|d|b|g|t)$")
+
+
+def _sentinel_classify(field_name: str) -> tuple[str, str]:
+    """Classify a Sentinel column, seeing through Log Analytics custom-log
+    suffixes: `eventType_s` -> eventType, `outcome_result_s` ->
+    outcome.result."""
+    t = _classify_field(field_name)
+    if t != ("other", "unknown"):
+        return t
+    base = _LA_SUFFIX_RE.sub("", field_name)
+    if base != field_name:
+        t = _classify_field(base)
+        if t != ("other", "unknown"):
+            return t
+        t = _classify_field(base.replace("_", "."))
+        if t != ("other", "unknown"):
+            return t
+    return ("other", "unknown")
+
+
+def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, result: ExtractedFields, pattern: bool = False):
     """Add an observable from Sentinel/KQL field extraction."""
     result.fields_used.append(field_name)
-    obs_type, obs_subtype = _classify_field(field_name)
+    obs_type, obs_subtype = _sentinel_classify(field_name)
+    obs_type, obs_subtype = _retype_by_value_shape(obs_type, obs_subtype, values)
 
     observable = ExtractedObservable(
         field=field_name,
@@ -2872,6 +3011,12 @@ def _add_sentinel_observable(field_name: str, values: list[str], negated: bool, 
         result.event_ids.extend(
             str(v) for v in values if str(v).isdigit()
         )
+
+    if negated or pattern:
+        # Exclusions and regex patterns stay off the flat surfaces.
+        if not pattern:
+            _route_domain_fields(obs_type, obs_subtype, values, negated, result)
+        return
 
     if obs_type == "process" and obs_subtype in ("process_name", "parent_process_name"):
         result.process_names.extend(_extract_exe_names(values))
