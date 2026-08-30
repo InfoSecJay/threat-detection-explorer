@@ -55,6 +55,9 @@ class Settings(BaseSettings):
 
     # API settings
     api_prefix: str = "/api"
+    # Shared secret for the admin (mutating) routes -- see
+    # app/api/admin_auth.py. Unset => those routes 404 everywhere.
+    admin_token: Optional[str] = None
 
     # CORS settings - comma-separated list for env var, or list in code
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]

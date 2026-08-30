@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin_auth import require_admin
 from app.api.schemas import UtcTimestampsModel
 from app.database import get_db
 from app.config import settings
@@ -204,7 +205,7 @@ async def get_sync_job(
     return SyncJobResponse.model_validate(job)
 
 
-@router.post("/trigger", response_model=TriggerSyncResponse, status_code=202)
+@router.post("/trigger", response_model=TriggerSyncResponse, status_code=202, include_in_schema=False, dependencies=[Depends(require_admin)])
 async def trigger_sync(
     request: TriggerSyncRequest,
     db: AsyncSession = Depends(get_db),

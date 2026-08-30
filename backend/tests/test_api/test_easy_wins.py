@@ -97,8 +97,10 @@ async def test_observables_export_is_one_row_per_value(client):
 async def test_related_rules_rank_shared_behaviour_other_vendors_first(client):
     d = (await client.get("/api/detections/sigma:a/related")).json()
     ids = [r["id"] for r in d["related"]]
-    assert ids[0] == "splunk:b"  # technique + mimikatz.exe, other vendor
-    assert "sigma:c" in ids and "elastic:d" not in ids
+    # Cross-vendor list only carries other sources (F12: never padded).
+    assert ids == ["splunk:b"]  # technique + mimikatz.exe, other vendor
+    assert [r["id"] for r in d["same_source"]] == ["sigma:c"]
+    assert "elastic:d" not in ids
     top = d["related"][0]
     assert top["other_vendor"] is True and any(r.startswith("process mimikatz.exe") for r in top["reasons"])
     assert (await client.get("/api/detections/nope/related")).status_code == 404

@@ -118,7 +118,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
               <h1 className="text-xl font-bold text-white">{detection.title}</h1>
               <p className="text-xs text-gray-500 mt-1 font-mono" data-testid="rule-byline">
-                Created by {detection.author || 'unknown'} on {fmt(detection.rule_created_date)} · Updated {fmt(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
+                Created by {detection.author || sourceTheme[detection.source]?.name || detection.source} on {fmt(detection.rule_created_date)} · Updated {fmt(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -176,7 +176,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               {detection.description && (
                 <p className="text-sm text-gray-300 leading-relaxed py-2 border-b border-void-800">{detection.description}</p>
               )}
-              <Row label="Author">{detection.author || <span className="text-gray-600 italic text-xs">unknown</span>}</Row>
+              <Row label="Author">{detection.author || <span className="text-gray-400">{sourceTheme[detection.source]?.name || detection.source} (upstream repo)</span>}</Row>
               <Row label="Severity"><span className="capitalize">{detection.severity}</span></Row>
               <Row label="Status"><span className="capitalize">{detection.status}</span></Row>
               <Row label="Rule ID"><span className="font-mono text-xs break-all">{detection.rule_id || 'N/A'}</span></Row>

@@ -61,7 +61,7 @@ async def _compute(db: AsyncSession, d: Detection, limit: int) -> dict:
             escaped = v.replace("%", "\\%").replace("_", "\\_")
             conds.append(cast(getattr(Detection, col), String).ilike(f'%"{escaped}"%', escape="\\"))
     if not conds:
-        return {"id": d.id, "related": []}
+        return {"id": d.id, "related": [], "same_source": []}
 
     rows = (
         await db.execute(select(*_COLS).where(or_(*conds)).where(Detection.id != d.id).limit(_CANDIDATES))
@@ -73,26 +73,37 @@ async def _compute(db: AsyncSession, d: Detection, limit: int) -> dict:
         (rid, title, source, severity, language, r_techs, r_ds, quality, *surfaces) = r
         score = 0.0
         reasons: list[str] = []
+        specific = False  # shared technique or a real observable, not just a table
         shared_t = sorted(my_techs & {t.upper() for t in (r_techs or []) if isinstance(t, str)})
         if shared_t:
             score += 2.0 * len(shared_t)
             reasons.append(f"technique {', '.join(shared_t[:3])}")
+            specific = True
         for (col, label, weight), values in zip(_SURFACES, surfaces):
             shared = sorted(mine[col] & _lower_set(values))
             if shared:
                 score += weight * min(len(shared), 4)
                 reasons.append(f"{label} {', '.join(shared[:3])}")
+                if col != "extracted_source_tables":
+                    specific = True
         if my_ds and (my_ds & _lower_set(r_ds)):
             score += 0.5
-        if score <= 0:
+        # A shared source table alone ("also an inbound email rule") is
+        # not the same behaviour -- it was padding the panel with
+        # same-source lookalikes on rules that have no real match
+        # (teardown F12). Table overlap may boost a real match, never
+        # constitute one.
+        if score <= 0 or not specific:
             continue
         scored.append({
             "id": rid, "title": title, "source": source, "severity": severity, "language": language,
             "quality_score": quality, "score": round(score, 1), "reasons": reasons,
             "other_vendor": source != d.source,
         })
-    scored.sort(key=lambda x: (-x["score"], not x["other_vendor"], x["title"].lower()))
-    return {"id": d.id, "related": scored[:limit]}
+    scored.sort(key=lambda x: (-x["score"], x["title"].lower()))
+    cross = [x for x in scored if x["other_vendor"]]
+    same = [x for x in scored if not x["other_vendor"]]
+    return {"id": d.id, "related": cross[:limit], "same_source": same[:6]}
 
 
 async def related_for_id(db: AsyncSession, detection_id: str, limit: int = _RESULTS) -> Optional[dict]:

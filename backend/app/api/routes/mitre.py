@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin_auth import require_admin
 from app.database import get_db
 from app.services.corpus_cache import corpus_cache
 from app.services.mitre import mitre_service
@@ -57,7 +58,7 @@ async def get_technique(technique_id: str):
     return technique
 
 
-@router.post("/refresh")
+@router.post("/refresh", include_in_schema=False, dependencies=[Depends(require_admin)])
 async def refresh_mitre_data():
     """Force refresh MITRE ATT&CK data from the official repository."""
     success = await mitre_service.refresh()

@@ -9,7 +9,7 @@
     },
     {
       "source": "/sitemap.xml",
-      "destination": "${VITE_API_URL}/sitemap.xml"
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/sitemap.xml"
     },
     {
       "source": "/((?!api/).*)",

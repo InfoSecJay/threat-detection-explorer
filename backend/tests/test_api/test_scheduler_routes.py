@@ -20,13 +20,20 @@ from app.models.sync_job import SyncJob
 
 
 @pytest.fixture
-async def client(db_session):
+async def client(db_session, monkeypatch):
+    # The sync/ingest/trigger routes sit behind the admin gate (#74);
+    # these tests exercise the handlers, so authenticate the client.
+    monkeypatch.setattr(settings, "admin_token", "admin-test-token")
+
     async def _override_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport, base_url="http://test",
+        headers={"X-Admin-Token": "admin-test-token"},
+    ) as c:
         yield c
     app.dependency_overrides.pop(get_db, None)
 

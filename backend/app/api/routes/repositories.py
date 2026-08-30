@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin_auth import require_admin
 from app.database import get_db
 from app.api.schemas import RepositoryResponse, SyncResponse, IngestionResponse, IngestionStatsSchema
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
@@ -36,7 +37,7 @@ async def get_repository(name: str, db: AsyncSession = Depends(get_db)):
     return repo
 
 
-@router.post("/{name}/sync", response_model=SyncResponse)
+@router.post("/{name}/sync", response_model=SyncResponse, include_in_schema=False, dependencies=[Depends(require_admin)])
 async def sync_repository(name: str, db: AsyncSession = Depends(get_db)):
     """Trigger sync for a specific repository."""
     if name not in ALL_REPOSITORY_NAMES:
@@ -48,7 +49,7 @@ async def sync_repository(name: str, db: AsyncSession = Depends(get_db)):
     return SyncResponse(success=success, message=message, repository=name)
 
 
-@router.post("/sync-all", response_model=list[SyncResponse])
+@router.post("/sync-all", response_model=list[SyncResponse], include_in_schema=False, dependencies=[Depends(require_admin)])
 async def sync_all_repositories(db: AsyncSession = Depends(get_db)):
     """Trigger sync for all repositories."""
     sync_service = RepositorySyncService(db)
@@ -61,7 +62,7 @@ async def sync_all_repositories(db: AsyncSession = Depends(get_db)):
     return results
 
 
-@router.post("/{name}/ingest", response_model=IngestionResponse)
+@router.post("/{name}/ingest", response_model=IngestionResponse, include_in_schema=False, dependencies=[Depends(require_admin)])
 async def ingest_repository(name: str, db: AsyncSession = Depends(get_db)):
     """Ingest detection rules from a synced repository."""
     if name not in ALL_REPOSITORY_NAMES:
@@ -121,7 +122,7 @@ async def ingest_repository(name: str, db: AsyncSession = Depends(get_db)):
         )
 
 
-@router.post("/ingest-all", response_model=list[IngestionResponse])
+@router.post("/ingest-all", response_model=list[IngestionResponse], include_in_schema=False, dependencies=[Depends(require_admin)])
 async def ingest_all_repositories(db: AsyncSession = Depends(get_db)):
     """Ingest detection rules from all synced repositories."""
     ingestion_service = IngestionService(db)

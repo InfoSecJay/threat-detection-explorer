@@ -17,6 +17,8 @@ vi.mock('../services/api', async (importOriginal) => {
         id: 'sigma:a',
         related: [
           { id: 'splunk:b', title: 'Mimikatz LSASS', source: 'splunk', severity: 'high', language: 'spl', quality_score: 80, score: 5, reasons: ['technique T1003', 'process mimikatz.exe'], other_vendor: true },
+        ],
+        same_source: [
           { id: 'sigma:c', title: 'cmd only', source: 'sigma', severity: 'low', language: 'sigma', quality_score: 60, score: 2, reasons: ['technique T1059'], other_vendor: false },
         ],
       })),
@@ -57,13 +59,15 @@ describe('easy wins', () => {
     expect(document.title).toContain('Not found');
   });
 
-  it('related rules card lists other vendors first with the shared reasons', async () => {
+  it('related rules card separates cross-vendor matches from same-source neighbours', async () => {
     wrap(<RelatedRules id="sigma:a" source="sigma" />);
     await waitFor(() => expect(screen.getByTestId('related-splunk:b')).toBeInTheDocument());
-    const items = screen.getAllByTestId(/^related-/);
-    expect(items[0]).toHaveTextContent('Mimikatz LSASS');
-    expect(items[0]).toHaveTextContent('process mimikatz.exe');
-    expect(screen.getByText(/2 rules/)).toHaveTextContent('1 other source');
+    expect(screen.getByTestId('related-splunk:b')).toHaveTextContent('process mimikatz.exe');
+    expect(screen.getByText(/1 rule /)).toHaveTextContent('1 other source');
+    // Same-source neighbour lives in its own labelled block, never the cross-vendor list.
+    const sameBlock = screen.getByTestId('related-same-source');
+    expect(sameBlock).toHaveTextContent('Same repository, similar behaviour');
+    expect(sameBlock).toHaveTextContent('cmd only');
     expect(screen.getByRole('link', { name: 'cmd only' })).toHaveAttribute('href', '/detections/sigma:c');
   });
 

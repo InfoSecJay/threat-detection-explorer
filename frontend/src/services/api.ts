@@ -127,7 +127,7 @@ export interface RelatedRule {
   id: string; title: string; source: string; severity: string; language: string;
   quality_score: number | null; score: number; reasons: string[]; other_vendor: boolean;
 }
-export interface RelatedRulesResponse { id: string; related: RelatedRule[] }
+export interface RelatedRulesResponse { id: string; related: RelatedRule[]; same_source?: RelatedRule[] }
 
 export const detectionsApi = {
   list: async (filters: SearchFilters = {}): Promise<DetectionListResponse> => {
