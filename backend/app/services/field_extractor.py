@@ -182,6 +182,33 @@ FIELD_TYPE_MAP: dict[str, tuple[str, str]] = {
     "action": ("network", "action"),
     # 2026-08-30 review batch (Splunk / Sentinel / Elastic / Panther)
     "sourceuser": ("authentication", "user"),
+    # Sublime resolved paths (2026-08-30 review)
+    "body.links.href_url.scheme": ("email", "url"),
+    "file.explode.scan.url.urls.scheme": ("email", "url"),
+    "file.explode.scan.url.urls.domain.domain": ("email", "url"),
+    "file.explode.scan.url.urls.domain.root_domain": ("email", "url"),
+    "file.explode.file_type": ("email", "attachment_type"),
+    "file.explode.content_type": ("email", "attachment_type"),
+    "attachments.file_type": ("email", "attachment_type"),
+    "attachments.content_type": ("email", "attachment_type"),
+    "html.xpath.nodes.raw": ("email", "body_content"),
+    "html.xpath.nodes.display_text": ("email", "body_content"),
+    "ml.link_analysis.final_dom.links.href_url.domain.root_domain": ("email", "url"),
+    "ml.link_analysis.final_dom.links.href_url.domain.subdomain": ("email", "url"),
+    "ml.link_analysis.final_dom.links.href_url.domain.domain": ("email", "url"),
+    "ml.link_analysis.final_dom.links.display_text": ("email", "url"),
+    "ml.link_analysis.final_dom.display_text": ("email", "url"),
+    "ml.link_analysis.effective_url.scheme": ("email", "url"),
+    "ml.link_analysis.effective_url.domain.root_domain": ("email", "url"),
+    "ml.link_analysis.credphish.disposition": ("email", "ml_classifier"),
+    "ml.link_analysis.credphish.brand.name": ("email", "ml_classifier"),
+    "body.previous_threads.links.href_url.domain.root_domain": ("email", "url"),
+    "headers.references": ("email", "header"),
+    "beta.ocr.text": ("email", "body_content"),
+    "beta.file.parse_ics.product_id": ("email", "attachment_content"),
+    "network.whois.days_old": ("network", "domain"),
+    "profile.by_sender_email.prevalence": ("email", "sender"),
+    "profile.by_sender.prevalence": ("email", "sender"),
     "source": ("event", "event_source"),
     "taskcontent": ("process", "command_line_pattern"),
     "object_file_path": ("file", "file_path"),
@@ -3112,7 +3139,7 @@ def extract_esql_fields(
 # them, `.field` is relative to the container. `any(body.links,
 # strings.icontains(.display_text, 'x'))` means body.links.display_text.
 _MQL_ITERATORS = frozenset({"any", "all", "filter", "map", "distinct"})
-_MQL_TOKEN_RE = re.compile(r"\.?[A-Za-z_$][\w.$]*")
+_MQL_TOKEN_RE = re.compile(r"\.{0,3}[A-Za-z_$][\w.$]*")
 _MQL_FIELD_OK_RE = re.compile(r"^[A-Za-z_][\w.]*$")
 _MQL_FIELD_STOPWORDS = frozenset({
     "and", "or", "not", "in", "true", "false", "null", "mode", "type",
@@ -3279,8 +3306,13 @@ def _mql_container_of(expr: str, scope: str) -> str:
     return m2.group(0) if m2 else scope
 
 
-def _mql_resolve(text: str, scope: str, depth: int = 0) -> str:
+def _mql_resolve(text: str, scope: str, depth: int = 0, parents: tuple[str, ...] = ()) -> str:
     """Rewrite MQL so every relative `.field` carries its container path.
+
+    `parents` are the enclosing iterator scopes, outermost first:
+    `..field` (two dots) is the parent element -- `any(attachments,
+    any(file.explode(.), ..file_type == "html"))` tests
+    attachments.file_type, not file.explode.file_type.
 
     Walks the text (quote-aware); iterator calls recurse with their
     container as the new scope; a bare `.` argument (the element
@@ -3321,7 +3353,16 @@ def _mql_resolve(text: str, scope: str, depth: int = 0) -> str:
             continue
         token = m.group(0)
         end = m.end()
-        rel = token.startswith(".")
+        dots = len(token) - len(token.lstrip("."))
+        rel = dots > 0
+        if dots >= 2:
+            # Parent scope: one level up per extra dot.
+            up = dots - 1
+            parent = parents[-up] if len(parents) >= up else ""
+            name_up = token[dots:]
+            out.append(f"{parent}.{name_up}" if parent else name_up)
+            i = end
+            continue
         # `.field` directly after `)` or `]` is postfix attribute access
         # on a call result (`ml.link_analysis(...).credphish`) or an
         # index (`headers.hops[0].received`), NOT a container-relative
@@ -3361,17 +3402,70 @@ def _mql_resolve(text: str, scope: str, depth: int = 0) -> str:
             body = text[k + 1:j - 1] if depth_p == 0 else text[k + 1:j]
             if name.split(".")[-1] in _MQL_ITERATORS:
                 args = _mql_split_args(body)
-                cont_src = _mql_resolve(args[0], scope, depth + 1)
+                cont_src = _mql_resolve(args[0], scope, depth + 1, parents)
                 cont = _mql_container_of(cont_src, scope)
-                rest = [_mql_resolve(a, cont, depth + 1) for a in args[1:]]
+                rest = [_mql_resolve(a, cont, depth + 1, parents + (scope,)) for a in args[1:]]
                 out.append(f"{resolved}({', '.join([cont_src.strip()] + [r.strip() for r in rest])})")
             else:
-                out.append(f"{resolved}({_mql_resolve(body, scope, depth + 1)})")
+                out.append(f"{resolved}({_mql_resolve(body, scope, depth + 1, parents)})")
             i = j
             continue
         out.append(resolved)
         i = end
     return "".join(out)
+
+
+def _mql_collapse_calls(text: str) -> str:
+    """`beta.ocr(file.message_screenshot()).text` -> `beta.ocr.text`,
+    `ml.link_analysis(.).effective_url.scheme` ->
+    `ml.link_analysis.effective_url.scheme`: a call whose result is
+    dereferenced is a field-producing function; its arguments are not
+    the field. Iterators and predicate helpers are left alone."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        m = re.match(r"[A-Za-z_][\w.]*\s*\(", text[i:])
+        if not m or (i and (text[i - 1].isalnum() or text[i - 1] in "._")):
+            out.append(text[i])
+            i += 1
+            continue
+        name = m.group(0).rstrip("( \t")
+        depth, j, quote = 1, i + len(m.group(0)), None
+        while j < n and depth:
+            cj = text[j]
+            if quote:
+                if cj == "\\":
+                    j += 2
+                    continue
+                if cj == quote:
+                    quote = None
+            elif cj in "\"'":
+                quote = cj
+            elif cj == "(":
+                depth += 1
+            elif cj == ")":
+                depth -= 1
+            j += 1
+        last = name.split(".")[-1]
+        postfix = j < n and text[j] == "." and j + 1 < n and (text[j + 1].isalpha() or text[j + 1] == "_")
+        if postfix and last not in _MQL_ITERATORS and not name.startswith(("strings.", "regex.")):
+            inner = _mql_collapse_calls(text[i + len(m.group(0)):j - 1])
+            del inner
+            out.append(name)
+            i = j
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out)
+
+
+# MQL helpers that TEST a field against literals; other strings.* /
+# regex.* calls (concat, replace, to_lower, parse_*) are transforms.
+_MQL_PREDICATES = frozenset({
+    "ilike", "like", "icontains", "contains", "istarts_with", "starts_with",
+    "iends_with", "ends_with", "eq", "ieq", "ne", "ine", "match", "imatch",
+    "search", "isearch", "contains_any", "icontains_any", "like_any", "ilike_any",
+})
 
 
 def _mql_valid_field(name: str) -> bool:
@@ -3381,6 +3475,30 @@ def _mql_valid_field(name: str) -> bool:
         and not name.endswith(".")
         and name.lower() not in _MQL_FIELD_STOPWORDS
     )
+
+
+def _mql_negation_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans covered by a `not` -- `not (...)`, `not any(...)`,
+    `not strings.x(...)`, or `not field <op> "v"`."""
+    spans: list[tuple[int, int]] = []
+    # The resolver may glue `not (` into `not(`; both are a negated group.
+    for m in re.finditer(r"\bnot\b\s*(?=[(\w])", text):
+        k = m.end()
+        call = re.match(r"(?:[A-Za-z_][\w.]*\s*)?\(", text[k:])
+        if call:
+            depth, j = 1, k + call.end()
+            while j < len(text) and depth:
+                if text[j] == "(":
+                    depth += 1
+                elif text[j] == ")":
+                    depth -= 1
+                j += 1
+            spans.append((k, j))
+            continue
+        term = re.match(r"[\w.]+\s*(?:==|=~|!=|=)\s*(?:\"[^\"]*\"|'[^']*')", text[k:])
+        if term:
+            spans.append((k, k + term.end()))
+    return spans
 
 
 def extract_sublime_fields(query: str) -> ExtractedFields:
@@ -3429,12 +3547,24 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
     for t in type_matches:
         result.source_tables.append(f"type.{t.lower()}")
 
+    # List containers: `any([body.current_thread.text, subject.subject], ...)`
+    # applies the predicate to every member; the resolver scopes to the
+    # first, the rest are at least fields the rule reads.
+    for lst in re.findall(r"\b(?:any|all|filter|map)\s*\(\s*\[([^\[\]]+)\]", query):
+        for member in _mql_split_args(lst):
+            f = _mql_container_of(member, "")
+            if f and _mql_valid_field(f) and f not in result.fields_used:
+                result.fields_used.append(f)
+
     # Resolve iterator scopes so relative fields carry container paths.
     resolved = _mql_resolve(query, "")
 
     # Numeric subscripts are positional, not part of the field path:
     # `headers.hops[0].received.server.raw` is the hops.received path.
     resolved = re.sub(r"\[\d+\]", "", resolved)
+    resolved = re.sub(r"\[[^\[\]]*\]", "", resolved)
+    # `beta.ocr(file.message_screenshot()).text` -> `beta.ocr.text`
+    resolved = _mql_collapse_calls(resolved)
 
     # Mask string-literal bodies so the term patterns below can never
     # match INSIDE a literal: a regex like
@@ -3442,66 +3572,82 @@ def extract_sublime_fields(query: str) -> ExtractedFields:
     # `style` observables with value `.*?`. Values are restored on add.
     resolved, literals = _mask_literals(resolved)
 
-    def add(field_name: str, values: list[str], negated: bool) -> None:
+    # `not (...)`, `not any(...)`, `not strings.x(...)`, `not field == "x"`
+    # spans: every term inside is an exclusion (2026-08-30 review:
+    # DocuSign / justpaste.it / secondstreetapp rules had their
+    # exclusions recorded as positives).
+    neg_spans = _mql_negation_spans(resolved)
+
+    def is_negated(pos: int) -> bool:
+        return any(a <= pos < b for a, b in neg_spans)
+
+    def add(field_name: str, values: list[str], negated: bool, pos: int = -1) -> None:
         # Postfix attribute chains on call results keep a leading dot
         # in the resolved text (`...).credphish.disposition`) — the
         # trailing path is the usable field name.
         field_name = field_name.lstrip(".")
         values = [_unmask_literal(v, literals) for v in values]
+        if pos >= 0 and is_negated(pos):
+            negated = not negated
         if _mql_valid_field(field_name):
             _add_sublime_observable(field_name, values, negated, result)
 
     seen_pairs: set[tuple[str, str]] = set()
 
-    # Pattern: field == "value" / field == 'value'
-    for field_name, dq, sq in re.findall(
-        r'([\w.]+)\s*==\s*(?:"([^"]*)"|\'([^\']*)\')', resolved
-    ):
-        value = dq or sq
+    # Pattern: field == "value" / field =~ "value" (case-insensitive eq)
+    for m in re.finditer(r'([\w.]+)\s*(==|=~)\s*(?:"([^"]*)"|\'([^\']*)\')', resolved):
+        field_name, value = m.group(1), m.group(3) or m.group(4)
         seen_pairs.add((field_name, value))
-        add(field_name, [value], False)
+        add(field_name, [value], False, m.start())
 
     # Pattern: field != "value"
-    for field_name, dq, sq in re.findall(
-        r'([\w.]+)\s*!=\s*(?:"([^"]*)"|\'([^\']*)\')', resolved
-    ):
-        add(field_name, [dq or sq], True)
+    for m in re.finditer(r'([\w.]+)\s*!=\s*(?:"([^"]*)"|\'([^\']*)\')', resolved):
+        add(m.group(1), [m.group(2) or m.group(3)], True, m.start())
 
     # Pattern: field = "value" (single equals, common in MQL)
-    for field_name, dq, sq in re.findall(
-        r'([\w.]+)\s*(?<![=!<>])=\s*(?!=)(?:"([^"]*)"|\'([^\']*)\')', resolved
-    ):
-        value = dq or sq
+    for m in re.finditer(r'([\w.]+)\s*(?<![=!<>~])=\s*(?![=~])(?:"([^"]*)"|\'([^\']*)\')', resolved):
+        field_name, value = m.group(1), m.group(2) or m.group(3)
         if (field_name, value) not in seen_pairs:
-            add(field_name, [value], False)
+            add(field_name, [value], False, m.start())
 
-    # Pattern: field in ("v1", "v2")
-    for field_name, values_str in re.findall(
-        r'([\w.]+)\s+in~?\s*\(([^)]+)\)', resolved, re.IGNORECASE
-    ):
-        values = re.findall(r'"([^"]*)"|\'([^\']*)\'', values_str)
-        values = [dq or sq for dq, sq in values]
+    # Pattern: field [not] in ("v1", "v2")
+    for m in re.finditer(r'([\w.]+)\s+(not\s+)?in~?\s*\(([^)]+)\)', resolved, re.IGNORECASE):
+        values = [dq or sq for dq, sq in re.findall(r'"([^"]*)"|\'([^\']*)\'', m.group(3))]
         if values:
-            add(field_name, values, False)
+            add(m.group(1), values, bool(m.group(2)), m.start())
 
-    # Pattern: field in $named_list — the list content isn't in the
-    # rule, but the FIELD reference is real.
-    for field_name in re.findall(r'([\w.]+)\s+in\s+\$[\w]+', resolved, re.IGNORECASE):
-        field_name = field_name.lstrip(".")
+    # Pattern: field [not] in $named_list — the list content isn't in
+    # the rule, but the FIELD reference is real.
+    for m in re.finditer(r'([\w.]+)\s+(?:not\s+)?in\s+\$[\w]+', resolved, re.IGNORECASE):
+        field_name = m.group(1).lstrip(".")
         if _mql_valid_field(field_name) and field_name not in result.fields_used:
             result.fields_used.append(field_name)
 
     # Pattern: strings./regex. predicate functions — first arg is the
-    # field, second the value/pattern. A transform wrapped around the
-    # field (`strings.replace_confusables(sender.display_name)`,
-    # `strings.to_lower(x)`) is unwrapped: the FIELD is the observable,
-    # not the helper name.
-    for wrapper, field_name, dq, sq in re.findall(
-        r'(?:strings|regex)\.\w+\s*\(\s*(?:((?:strings|regex)\.\w+)\s*\(\s*)?([\w.]+)\s*\)?\s*,\s*'
-        r'(?:"([^"]*)"|\'([^\']*)\')',
-        resolved, re.IGNORECASE
-    ):
-        add(field_name, [dq or sq], False)
+    # field (a transform around it is unwrapped), EVERY further literal
+    # argument is a value (`strings.ilike(subject.subject, "*a*", "*b*")`
+    # used to keep only the first). Non-predicate helpers (concat,
+    # to_lower, replace_confusables...) are transforms, not tests.
+    for m in re.finditer(r'(?<![\w.])(strings|regex)\.(\w+)\s*\(', resolved):
+        if m.group(2).lower() not in _MQL_PREDICATES:
+            continue
+        depth, j = 1, m.end()
+        while j < len(resolved) and depth:
+            if resolved[j] == "(":
+                depth += 1
+            elif resolved[j] == ")":
+                depth -= 1
+            j += 1
+        args = _mql_split_args(resolved[m.end():j - 1])
+        if len(args) < 2:
+            continue
+        field_expr = args[0].strip()
+        fm = re.match(r'(?:(?:strings|regex)\.\w+\s*\(\s*)*([\w.]+)', field_expr)
+        if not fm:
+            continue
+        values = [dq or sq for a in args[1:] for dq, sq in re.findall(r'^\s*(?:"([^"]*)"|\'([^\']*)\')\s*$', a)]
+        if values:
+            add(fm.group(1), values, False, m.start())
 
     # Unquoted comparisons (== true / >= 4 / != null): the field
     # reference is real even though the value isn't an observable.
