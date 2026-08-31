@@ -995,7 +995,7 @@ export interface DigestTheme {
 }
 export interface DigestResponse {
   generated_at: string;
-  period: { days: number; start: string; end: string };
+  period: { days: number; start: string; end: string; week?: string | null; this_week?: string };
   summary: {
     total_rules: number;
     created: number;
@@ -1017,6 +1017,11 @@ export interface DigestResponse {
 export const digestApi = {
   get: async (days: number = 7, limit: number = 15): Promise<DigestResponse> => {
     const response = await api.get(`/digest?days=${days}&limit=${limit}`);
+    return response.data;
+  },
+  /** Permanent ISO-week archive (#91): same shape, window pinned to e.g. 2026-w35. */
+  getWeek: async (week: string, limit: number = 15): Promise<DigestResponse> => {
+    const response = await api.get(`/digest/week/${encodeURIComponent(week)}?limit=${limit}`);
     return response.data;
   },
   // Feed URLs go through the same API base as everything else (the

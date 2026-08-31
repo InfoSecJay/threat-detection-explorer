@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from typing import Optional
-from datetime import timedelta
+import re
+from datetime import datetime, timedelta
 from xml.sax.saxutils import escape
 
 from sqlalchemy import and_, func, or_, select
@@ -53,22 +54,54 @@ def _rule_dict(row) -> dict:
     }
 
 
-def _created_in(since):
-    return and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= since)
+def _created_in(since, until=None):
+    cond = and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= since)
+    if until is not None:
+        cond = and_(cond, Detection.rule_created_date < until)
+    return cond
 
 
-def _modified_in(since):
+def _modified_in(since, until=None):
     """Changed in the window but NOT created in it -- a brand-new rule
     also carries a modified date and must not be counted twice."""
-    return and_(
+    cond = and_(
         Detection.rule_modified_date.isnot(None),
         Detection.rule_modified_date >= since,
         or_(Detection.rule_created_date.is_(None), Detection.rule_created_date < since),
     )
+    if until is not None:
+        cond = and_(cond, Detection.rule_modified_date < until)
+    return cond
 
 
-async def new_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None) -> list[dict]:
-    cond = _created_in(since)
+def parse_iso_week(week: str) -> tuple[datetime, datetime]:
+    """`2026-w35` -> (Monday 00:00 UTC, next Monday 00:00 UTC).
+
+    Raises ValueError on malformed input or a week in the future.
+    Permanent digest URLs (#91 / teardown F16) hang off these windows.
+    """
+    m = re.fullmatch(r"(\d{4})-[wW](\d{1,2})", (week or "").strip())
+    if not m:
+        raise ValueError(f"invalid week {week!r}; expected e.g. 2026-w35")
+    year, wk = int(m.group(1)), int(m.group(2))
+    if not 1 <= wk <= 53:
+        raise ValueError(f"invalid week number {wk}")
+    try:
+        start = datetime.fromisocalendar(year, wk, 1)
+    except ValueError as e:
+        raise ValueError(f"invalid week {week!r}: {e}") from e
+    if start > utcnow():
+        raise ValueError(f"week {week!r} is in the future")
+    return start, start + timedelta(days=7)
+
+
+def iso_week_label(dt: datetime) -> str:
+    y, w, _ = dt.isocalendar()
+    return f"{y}-w{w:02d}"
+
+
+async def new_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None, until=None) -> list[dict]:
+    cond = _created_in(since, until)
     if source:
         cond = and_(cond, Detection.source == source)
     rows = (
@@ -81,8 +114,8 @@ async def new_rules(db: AsyncSession, *, since, limit: int, source: Optional[str
     return [_rule_dict(r) for r in rows]
 
 
-async def modified_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None) -> list[dict]:
-    cond = _modified_in(since)
+async def modified_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None, until=None) -> list[dict]:
+    cond = _modified_in(since, until)
     if source:
         cond = and_(cond, Detection.source == source)
     rows = (
@@ -124,17 +157,39 @@ def _themes(rules: list[dict], limit: int = 8) -> list[dict]:
     return out
 
 
-async def compute_digest(db: AsyncSession, days: int = 7, limit: int = 15, rules_limit: int = 300) -> dict:
-    """Weekly digest payload, memoised on the corpus fingerprint plus
-    the UTC date (the window is anchored to "now", so the answer can
-    change at midnight even when the corpus does not)."""
+async def compute_digest(
+    db: AsyncSession,
+    days: int = 7,
+    limit: int = 15,
+    rules_limit: int = 300,
+    week: Optional[str] = None,
+) -> dict:
+    """Digest payload, memoised on the corpus fingerprint.
+
+    Rolling mode (default): last `days`, keyed with the UTC date since
+    the window is anchored to "now". Week mode (#91): `week` like
+    `2026-w35` pins the window to that ISO week -- a permanent,
+    citable URL whose content does not roll (no date in the key).
+    Raises ValueError for malformed/future weeks (route -> 400).
+    """
+    if week is not None:
+        start, end = parse_iso_week(week)
+        key = ("digest-week", week, limit, rules_limit)
+        return await corpus_cache.get(
+            db, key,
+            lambda: _compute_digest(db, 7, limit, rules_limit, start=start, end=end, week=week.lower()),
+            persist=True,
+        )
     key = ("digest", days, limit, rules_limit, utcnow().date().isoformat())
     return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit, rules_limit), persist=True)
 
 
-async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: int) -> dict:
-    end = utcnow()
-    start = end - timedelta(days=days)
+async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: int, start=None, end=None, week: Optional[str] = None) -> dict:
+    if end is None:
+        end = utcnow()
+    if start is None:
+        start = end - timedelta(days=days)
+    until = end if week is not None else None
 
     async def _count(cond) -> int:
         return (await db.execute(select(func.count(Detection.id)).where(cond))).scalar() or 0
@@ -146,10 +201,10 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: 
         return {src: int(n) for src, n in rows}
 
     total_rules = (await db.execute(select(func.count(Detection.id)))).scalar() or 0
-    created = await _count(_created_in(start))
-    modified = await _count(_modified_in(start))
-    created_by = await _count_by_source(_created_in(start))
-    modified_by = await _count_by_source(_modified_in(start))
+    created = await _count(_created_in(start, until))
+    modified = await _count(_modified_in(start, until))
+    created_by = await _count_by_source(_created_in(start, until))
+    modified_by = await _count_by_source(_modified_in(start, until))
     by_source = {
         src: {"created": created_by.get(src, 0), "modified": modified_by.get(src, 0)}
         for src in sorted(set(created_by) | set(modified_by), key=lambda s: (-created_by.get(s, 0), -modified_by.get(s, 0), s))
@@ -179,12 +234,18 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: 
     source_deltas = await compute_source_deltas(db, days=days)
     newly_covered = await compute_newly_covered(db, days=days, limit=limit)
     momentum = await compute_technique_deltas(db, days=days, limit=8)
-    rules = await new_rules(db, since=start, limit=rules_limit)
-    changed = await modified_rules(db, since=start, limit=rules_limit)
+    rules = await new_rules(db, since=start, limit=rules_limit, until=until)
+    changed = await modified_rules(db, since=start, limit=rules_limit, until=until)
 
     return {
         "generated_at": to_utc_iso(end),
-        "period": {"days": days, "start": to_utc_iso(start), "end": to_utc_iso(end)},
+        "period": {
+            "days": days,
+            "start": to_utc_iso(start),
+            "end": to_utc_iso(end),
+            "week": week,
+            "this_week": iso_week_label(utcnow()),
+        },
         "summary": {
             "total_rules": total_rules,
             "created": created,

@@ -378,6 +378,7 @@ function App() {
             <Route path="/methodology" element={<Methodology />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/digest" element={<Digest />} />
+            <Route path="/digest/:week" element={<Digest />} />
             <Route path="/observables" element={<Observables />} />
             <Route path="/observables/:kind" element={<Observables />} />
             <Route path="/observables/:kind/*" element={<ObservableDetail />} />

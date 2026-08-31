@@ -37,6 +37,21 @@ async def get_digest(
     return await compute_digest(db, days=days, limit=limit, rules_limit=rules_limit)
 
 
+@router.get("/week/{week}")
+async def get_week_digest(
+    week: str,
+    limit: int = Query(15, ge=5, le=50),
+    rules_limit: int = Query(300, ge=10, le=1000),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanent weekly digest (#91): /digest/week/2026-w35 always
+    shows that ISO week, citable and archivable."""
+    try:
+        return await compute_digest(db, limit=limit, rules_limit=rules_limit, week=week)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 def _source_param(source: Optional[str]) -> Optional[str]:
     if source and source not in ALL_REPOSITORY_NAMES:
         raise HTTPException(status_code=400, detail=f"Unknown source: {source}")

@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useDigest } from '../hooks/useTrending';
 import { digestApi } from '../services/api';
 import { sourceTheme, clipSm, clipMd } from '../constants/style';
@@ -255,10 +256,28 @@ function SourceSection({ src, d }: { src: string; d: DigestResponse }) {
   );
 }
 
+function weekShift(week: string, delta: number): string | null {
+  // 2026-w35 +/- n weeks via date arithmetic (handles year edges).
+  const m = /^(\d{4})-w(\d{2})$/.exec(week);
+  if (!m) return null;
+  // Thursday of the ISO week is always inside the ISO year.
+  const jan4 = new Date(Date.UTC(Number(m[1]), 0, 4));
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (Number(m[2]) - 1 + delta) * 7);
+  const y = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + 3));
+  const week1 = new Date(Date.UTC(y.getUTCFullYear(), 0, 4));
+  const n = 1 + Math.round((monday.getTime() - (week1.getTime() - ((week1.getUTCDay() + 6) % 7) * 86400000)) / (7 * 86400000));
+  return `${y.getUTCFullYear()}-w${String(n).padStart(2, '0')}`;
+}
+
 export function Digest() {
+  const { week } = useParams<{ week?: string }>();
   const [days, setDays] = useState<number>(7);
-  const { data, isLoading, error, refetch } = useDigest(days, 20);
-  useDocumentMeta('Digest', data ? `${data.summary.created} new and ${data.summary.modified} updated detection rules in the last ${data.period.days} days.` : null);
+  const { data, isLoading, error, refetch } = useDigest(days, 20, week);
+  useDocumentMeta(
+    week ? `Digest ${week}` : 'Digest',
+    data ? `${data.summary.created} new and ${data.summary.modified} updated detection rules${week ? ` in ${week}` : ` in the last ${data.period.days} days`}.` : null,
+  );
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://detectionexplorer.io';
   const markdown = useMemo(() => (data ? toMarkdown(data, origin) : ''), [data, origin]);
@@ -282,9 +301,30 @@ export function Digest() {
           <p className="text-xs text-gray-500 mt-1 font-mono">
             {data ? `${fmtDate(data.period.start)} to ${fmtDate(data.period.end)} · generated ${fmtDate(data.generated_at)}` : 'what changed across every tracked detection repo'}
           </p>
+          <p className="text-[11px] font-mono mt-1 flex items-center gap-3 flex-wrap" data-testid="digest-week-nav">
+            {week ? (
+              <>
+                <span className="text-amber-300 uppercase tracking-wider">archived week {week} -- this URL always shows this week</span>
+                {weekShift(week, -1) && <Link to={`/digest/${weekShift(week, -1)}`} className="text-gray-500 hover:text-matrix-400">&larr; {weekShift(week, -1)}</Link>}
+                {data?.period.this_week && week < data.period.this_week && weekShift(week, 1) && (
+                  <Link to={`/digest/${weekShift(week, 1)}`} className="text-gray-500 hover:text-matrix-400">{weekShift(week, 1)} &rarr;</Link>
+                )}
+                <Link to="/digest" className="text-matrix-500 hover:text-matrix-400 uppercase tracking-wider">latest</Link>
+              </>
+            ) : (
+              data?.period.this_week && (
+                <>
+                  <Link to={`/digest/${data.period.this_week}`} className="text-matrix-500 hover:text-matrix-400" title="Permanent URL for the current ISO week">permalink: {data.period.this_week}</Link>
+                  {weekShift(data.period.this_week, -1) && (
+                    <Link to={`/digest/${weekShift(data.period.this_week, -1)}`} className="text-gray-500 hover:text-matrix-400" title="Archive: previous ISO week">&larr; {weekShift(data.period.this_week, -1)}</Link>
+                  )}
+                </>
+              )
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1" role="radiogroup" aria-label="Digest window">
+          <div className={`flex items-center gap-1 ${week ? 'hidden' : ''}`} role="radiogroup" aria-label="Digest window">
             {WINDOWS.map((w) => (
               <button
                 key={w}

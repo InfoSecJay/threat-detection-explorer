@@ -111,10 +111,10 @@ export function useSourceDeltas(days: number = 7) {
 
 
 /** Weekly digest document (JSON twin of the RSS feeds). */
-export function useDigest(days: number = 7, limit: number = 15) {
+export function useDigest(days: number = 7, limit: number = 15, week?: string) {
   return useQuery({
-    queryKey: ['digest', days, limit],
-    queryFn: () => digestApi.get(days, limit),
-    staleTime: 1000 * 60 * 10,
+    queryKey: week ? ['digest-week', week, limit] : ['digest', days, limit],
+    queryFn: () => (week ? digestApi.getWeek(week, limit) : digestApi.get(days, limit)),
+    staleTime: week ? 1000 * 60 * 60 : 1000 * 60 * 10,
   });
 }
