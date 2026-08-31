@@ -4,7 +4,7 @@
  * glance; each opens the catalog with that query applied.
  */
 
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { SearchBar } from '../../components/SearchBar';
 import { clipSm } from '../../constants/style';
 
@@ -40,6 +40,14 @@ export function HeroSearch() {
             {e.label}
           </button>
         ))}
+        <Link
+          to="/query"
+          className="px-2 py-0.5 text-[11px] font-mono text-matrix-500 hover:text-matrix-400 border border-matrix-500/30 hover:border-matrix-500/60 transition-colors"
+          style={clipSm}
+          title="Full query language: field filters, actors, techniques, boolean logic"
+        >
+          query syntax -&gt;
+        </Link>
       </div>
     </div>
   );

@@ -232,9 +232,9 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
         <Link
           to="/query"
           className="text-[10px] font-mono text-gray-500 hover:text-matrix-500 uppercase tracking-wider shrink-0 border border-void-700 hover:border-matrix-500/40 px-1.5 py-0.5"
-          title="Query syntax reference"
+          title="Query syntax reference: field filters, actors, techniques, boolean logic"
         >
-          ?
+          syntax
         </Link>
       </div>
 
