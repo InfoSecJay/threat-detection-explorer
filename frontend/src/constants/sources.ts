@@ -53,6 +53,24 @@ export const sourceLabels: Record<string, string> = {
   pypanther: 'PyPanther',
 };
 
+/** Upstream rule licenses (#89 / teardown F14) -- shown on every rule
+ * page next to the source. Mirrors the backend methodology facts. */
+export const sourceLicenses: Record<string, { label: string; url: string; note?: string }> = {
+  sigma: { label: 'DRL 1.1', url: 'https://github.com/SigmaHQ/Detection-Rule-License/blob/main/LICENSE.Detection.Rules.md' },
+  elastic: { label: 'ELv2', url: 'https://github.com/elastic/detection-rules/blob/main/LICENSE.txt', note: 'Elastic License 2.0: no managed-service redistribution' },
+  elastic_hunting: { label: 'ELv2', url: 'https://github.com/elastic/detection-rules/blob/main/LICENSE.txt', note: 'Elastic License 2.0: no managed-service redistribution' },
+  elastic_protections: { label: 'ELv2', url: 'https://github.com/elastic/protections-artifacts/blob/main/LICENSE.txt', note: 'Elastic License 2.0: no managed-service redistribution' },
+  splunk: { label: 'Apache-2.0', url: 'https://github.com/splunk/security_content/blob/develop/LICENSE' },
+  sublime: { label: 'MIT', url: 'https://github.com/sublime-security/sublime-rules/blob/main/LICENSE' },
+  sentinel: { label: 'MIT', url: 'https://github.com/Azure/Azure-Sentinel/blob/master/LICENSE' },
+  google_secops: { label: 'Apache-2.0', url: 'https://github.com/chronicle/detection-rules/blob/main/LICENSE' },
+  lolrmm: { label: 'Apache-2.0', url: 'https://github.com/magicsword-io/LOLRMM/blob/main/LICENSE' },
+  panther: { label: 'Apache-2.0', url: 'https://github.com/panther-labs/panther-analysis/blob/develop/LICENSE.txt' },
+  pypanther: { label: 'Apache-2.0', url: 'https://github.com/panther-labs/pypanther/blob/main/LICENSE.txt' },
+  okta: { label: 'Apache-2.0', url: 'https://github.com/okta/customer-detections/blob/main/LICENSE' },
+  auth0: { label: 'Custom', url: 'https://github.com/auth0/auth0-customer-detections/blob/main/LICENSE' },
+};
+
 export const sourceLabelsShort: Record<string, string> = {
   sigma: 'SIGMA',
   elastic: 'ELASTIC',

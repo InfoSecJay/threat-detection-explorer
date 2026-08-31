@@ -28,6 +28,26 @@ from app.utils.datetime_utils import to_utc_iso, utcnow
 
 router = APIRouter(prefix="/methodology", tags=["methodology"])
 
+# Upstream licenses (#89 / teardown F14). Verified against the GitHub
+# license API 2026-08-31; "NOASSERTION" repos checked by hand. The
+# distinctions matter: Elastic content is ELv2 (managed-service
+# restriction), Sigma rules are under the Detection Rule License.
+LICENSES: dict[str, dict] = {
+    "sigma": {"spdx": "DRL-1.1", "name": "Detection Rule License 1.1", "url": "https://github.com/SigmaHQ/Detection-Rule-License/blob/main/LICENSE.Detection.Rules.md"},
+    "elastic": {"spdx": "Elastic-2.0", "name": "Elastic License 2.0", "url": "https://github.com/elastic/detection-rules/blob/main/LICENSE.txt", "note": "No managed-service redistribution"},
+    "elastic_hunting": {"spdx": "Elastic-2.0", "name": "Elastic License 2.0", "url": "https://github.com/elastic/detection-rules/blob/main/LICENSE.txt", "note": "No managed-service redistribution"},
+    "elastic_protections": {"spdx": "Elastic-2.0", "name": "Elastic License 2.0", "url": "https://github.com/elastic/protections-artifacts/blob/main/LICENSE.txt", "note": "No managed-service redistribution"},
+    "splunk": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/splunk/security_content/blob/develop/LICENSE"},
+    "sublime": {"spdx": "MIT", "name": "MIT License", "url": "https://github.com/sublime-security/sublime-rules/blob/main/LICENSE"},
+    "sentinel": {"spdx": "MIT", "name": "MIT License", "url": "https://github.com/Azure/Azure-Sentinel/blob/master/LICENSE"},
+    "google_secops": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/chronicle/detection-rules/blob/main/LICENSE"},
+    "lolrmm": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/magicsword-io/LOLRMM/blob/main/LICENSE"},
+    "panther": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/panther-labs/panther-analysis/blob/develop/LICENSE.txt"},
+    "pypanther": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/panther-labs/pypanther/blob/main/LICENSE.txt"},
+    "okta": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/okta/customer-detections/blob/main/LICENSE"},
+    "auth0": {"spdx": "Custom", "name": "Custom license (see repo)", "url": "https://github.com/auth0/auth0-customer-detections/blob/main/LICENSE"},
+}
+
 # The human half of the methodology: WHY the globs are what they are.
 # Keep each note to the decisions that move the count.
 SCOPE_NOTES: dict[str, str] = {
@@ -84,6 +104,7 @@ async def get_methodology(db: AsyncSession = Depends(get_db)):
             "include_patterns": list(patterns.get("include_patterns", [])),
             "exclude_dirs": sorted(patterns.get("exclude_dirs", [])),
             "scope_notes": SCOPE_NOTES.get(name, ""),
+            "license": LICENSES.get(name),
             "last_commit_hash": repo.last_commit_hash if repo else None,
             "last_sync_at": to_utc_iso(repo.last_sync_at) if repo else None,
             "rule_count": repo.rule_count if repo else None,

@@ -17,6 +17,7 @@ import { AttackSection } from './ruledetail/AttackSection';
 import { HygieneBars } from './ruledetail/HygieneBars';
 import { RelatedRules } from './ruledetail/RelatedRules';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { sourceLicenses } from '../constants/sources';
 import { sourceTheme } from '../constants/style';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -177,6 +178,23 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <p className="text-sm text-gray-300 leading-relaxed py-2 border-b border-void-800">{detection.description}</p>
               )}
               <Row label="Author">{detection.author || <span className="text-gray-400">{sourceTheme[detection.source]?.name || detection.source} (upstream repo)</span>}</Row>
+              {sourceLicenses[detection.source] && (
+                <Row label="License">
+                  <a
+                    href={sourceLicenses[detection.source].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-matrix-500 hover:text-matrix-400"
+                    title={sourceLicenses[detection.source].note || 'Upstream repository license -- applies to this rule content'}
+                    data-testid="license-badge"
+                  >
+                    {sourceLicenses[detection.source].label} &#8599;
+                  </a>
+                  {sourceLicenses[detection.source].note && (
+                    <span className="text-[10px] text-amber-300/80 ml-2">{sourceLicenses[detection.source].note}</span>
+                  )}
+                </Row>
+              )}
               <Row label="Severity"><span className="capitalize">{detection.severity}</span></Row>
               <Row label="Status"><span className="capitalize">{detection.status}</span></Row>
               <Row label="Rule ID"><span className="font-mono text-xs break-all">{detection.rule_id || 'N/A'}</span></Row>

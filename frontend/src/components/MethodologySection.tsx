@@ -72,6 +72,7 @@ export function MethodologySection() {
                   <tr className="text-left text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
                     <th className="px-3 py-2">Source</th>
                     <th className="px-3 py-2">Upstream</th>
+                    <th className="px-3 py-2">License</th>
                     <th className="px-3 py-2">Included</th>
                     <th className="px-3 py-2">Excluded dirs</th>
                     <th className="px-3 py-2">Scope</th>
@@ -104,6 +105,15 @@ export function MethodologySection() {
                             <span className="ml-1 text-[9px] font-mono text-gray-600 uppercase" title={`sparse checkout: ${s.sparse_checkout.join(', ')}`}>
                               sparse
                             </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {s.license ? (
+                            <a href={s.license.url} target="_blank" rel="noopener noreferrer" className="font-mono text-gray-300 hover:text-matrix-400" title={s.license.note || s.license.name}>
+                              {s.license.spdx}
+                            </a>
+                          ) : (
+                            <span className="text-gray-600">-</span>
                           )}
                         </td>
                         <td className="px-3 py-2 min-w-[180px]"><Globs items={s.include_patterns} /></td>

@@ -949,6 +949,7 @@ export interface MethodologySource {
   include_patterns: string[];
   exclude_dirs: string[];
   scope_notes: string;
+  license?: { spdx: string; name: string; url: string; note?: string } | null;
   last_commit_hash: string | null;
   last_sync_at: string | null;
   rule_count: number | null;
