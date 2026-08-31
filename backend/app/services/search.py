@@ -851,9 +851,11 @@ class SearchService:
 
         `relevance` (#12 / S4.13, the catalog default): with a query on
         Postgres, order by weighted ts_rank_cd over the free-text
-        terms; without a query (or on SQLite), a curated default --
-        best-documented rules first, newest as tiebreak -- instead of
-        an arbitrary column that fronts whichever source pushed last.
+        terms; without a query (or on SQLite), round-robin across
+        sources by documentation quality. A plain quality_score sort
+        fronted a first page of all-88s, four of five from Splunk --
+        the highest-scoring source on our own metric -- which
+        misrepresents what the corpus contains (teardown R21 / #118).
         """
         if sort_by == "relevance":
             from sqlalchemy import literal_column
@@ -870,9 +872,19 @@ class SearchService:
                     rank.desc(),
                     Detection.rule_created_date.desc().nullslast(),
                 )
+            per_source_rank = func.row_number().over(
+                partition_by=Detection.source,
+                order_by=(
+                    Detection.quality_score.desc().nullslast(),
+                    Detection.rule_created_date.desc().nullslast(),
+                    Detection.id.asc(),
+                ),
+            )
             return query.order_by(
+                per_source_rank.asc(),
                 Detection.quality_score.desc().nullslast(),
                 Detection.rule_created_date.desc().nullslast(),
+                Detection.id.asc(),
             )
         # Map sort field names to columns
         sort_columns = {

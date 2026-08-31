@@ -451,6 +451,19 @@ async def test_pagination_offset_and_limit(search):
 
 
 @pytest.mark.asyncio
+async def test_empty_query_relevance_diversifies_sources(search):
+    """The empty-query catalog default must not front one vendor
+    (teardown R21 / #118): the first page round-robins sources, so the
+    first N rows are N distinct sources."""
+    rows, _ = await search.search_detections(
+        SearchFilters(sort_by="relevance", sort_order="desc")
+    )
+    n_sources = len({d.source for d in rows})
+    first = [d.source for d in rows[:n_sources]]
+    assert len(set(first)) == n_sources, first
+
+
+@pytest.mark.asyncio
 async def test_no_filters_returns_everything(search, corpus):
     # Everything except deprecated r7, which is opt-in (teardown R11 / #109).
     rows, total = await search.search_detections(SearchFilters())
