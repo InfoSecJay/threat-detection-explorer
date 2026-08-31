@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { clipLg, clipXl } from '../constants/style';
-import { MethodologySection } from '../components/MethodologySection';
 
 export function About() {
   return (
@@ -160,8 +159,24 @@ export function About() {
         </div>
       </section>
 
-      {/* What we count (#32) */}
-      <MethodologySection />
+      {/* What we count moved to /methodology (#90 / teardown F15) --
+          it deserves its own URL and a nav entry; About keeps the bio. */}
+      <section>
+        <Link
+          to="/methodology"
+          className="block bg-void-850 border border-void-700 hover:border-matrix-500/40 p-6 transition-colors group"
+          style={clipLg}
+          data-testid="methodology-pointer"
+        >
+          <h2 className="text-lg font-display font-bold text-white tracking-wider uppercase group-hover:text-matrix-400 transition-colors">
+            What we count -&gt;
+          </h2>
+          <p className="text-sm text-gray-400 mt-2">
+            Pinned commits, discovery globs, exclusions, drift alerting, scoring -- every headline number on
+            this site is reproducible. The full methodology has its own page.
+          </p>
+        </Link>
+      </section>
 
       {/* Disclaimer Section */}
       <section>

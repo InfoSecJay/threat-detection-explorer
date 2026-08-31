@@ -39,14 +39,14 @@ export function StatsStrip() {
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-4 pt-5 mt-5 border-t border-void-800">
       <Stat to="/detections" value={stats ? stats.total.toLocaleString() : '—'} label="detection rules" testId="stat-rules" />
-      <Stat to="/integrations" value={String(ALL_SOURCES.length)} label="open-source repos" testId="stat-sources" />
+      <Stat to="/methodology" value={String(ALL_SOURCES.length)} label="open-source repos" testId="stat-sources" />
       <Stat
         to="/mitre"
         value={covered !== undefined && total ? `${covered} / ${total}` : '—'}
         label="ATT&CK techniques covered"
         testId="stat-coverage"
       />
-      <Stat to="/integrations" value={lastSync ? formatRelDate(lastSync) : '—'} label="last sync" testId="stat-sync" />
+      <Stat to="/methodology" value={lastSync ? formatRelDate(lastSync) : '—'} label="last sync" testId="stat-sync" />
     </div>
   );
 }

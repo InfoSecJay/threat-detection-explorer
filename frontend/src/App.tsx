@@ -23,6 +23,7 @@ const ObservableDetail = lazy(() => import('./pages/ObservableDetail').then(m =>
 const CoverageHeatmap = lazy(() => import('./pages/actors/CoverageHeatmap').then(m => ({ default: m.CoverageHeatmap })));
 const DataSourceHeatmap = lazy(() => import('./pages/mitre/DataSourceHeatmap').then(m => ({ default: m.DataSourceHeatmap })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
+const Methodology = lazy(() => import('./pages/Methodology').then(m => ({ default: m.Methodology })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -39,6 +40,7 @@ const ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
   '/digest': () => import('./pages/Digest'),
   '/query': () => import('./pages/QueryReference'),
   '/about': () => import('./pages/About'),
+  '/methodology': () => import('./pages/Methodology'),
   '/integrations': () => import('./pages/Integrations'),
 };
 const prefetchRoute = (to: string) => { void ROUTE_LOADERS[to]?.(); };
@@ -227,9 +229,10 @@ const MOBILE_NAV: { to: string; label: string }[] = [
   { to: '/observables', label: 'Observables' },
   { to: '/intel', label: 'Intel' },
   { to: '/digest', label: 'Digest' },
-  { to: '/about', label: 'About' },
+  { to: '/methodology', label: 'Methodology' },
   { to: '/query', label: 'Query Reference' },
   { to: '/integrations', label: 'Integrations' },
+  { to: '/about', label: 'About' },
 ];
 
 function MobileMenu() {
@@ -328,9 +331,10 @@ function App() {
               <NavDropdown
                 label="Resources"
                 items={[
-                  { to: '/about', label: 'About' },
+                  { to: '/methodology', label: 'Methodology' },
                   { to: '/query', label: 'Query Reference' },
                   { to: '/integrations', label: 'Integrations' },
+                  { to: '/about', label: 'About' },
                 ]}
               />
             </div>
@@ -371,6 +375,7 @@ function App() {
             <Route path="/compare" element={<Navigate to="/" replace />} />
             <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />
+            <Route path="/methodology" element={<Methodology />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/digest" element={<Digest />} />
             <Route path="/observables" element={<Observables />} />
