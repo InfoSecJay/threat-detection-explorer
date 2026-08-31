@@ -20,6 +20,7 @@ export const sortOptions = [
   { value: 'title:desc', label: 'Title (Z-A)' },
   { value: 'severity:desc', label: 'Severity (High to Low)' },
   { value: 'severity:asc', label: 'Severity (Low to High)' },
+  { value: 'relevance:desc', label: 'Relevance' },
   { value: 'rule_created_date:desc', label: 'Created (Newest)' },
   { value: 'rule_created_date:asc', label: 'Created (Oldest)' },
   { value: 'rule_modified_date:desc', label: 'Modified (Newest)' },

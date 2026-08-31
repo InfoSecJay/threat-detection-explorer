@@ -171,6 +171,43 @@ def _migrate_widen_rule_id(connection):
         break
 
 
+def _migrate_search_vector(connection):
+    """Weighted full-text search vector (#12 / teardown F13).
+
+    Postgres-only STORED generated column -- zero ingest-path changes,
+    the DB keeps it current itself:
+
+        title A > rule_id B > description C > detection logic D
+
+    `left(..., 16384)` caps pathological detection_logic bodies well
+    under to_tsvector's 1MB document limit. Idempotent via inspector;
+    SQLite (dev) keeps the ILIKE path and never sees this column.
+    """
+    if connection.engine.dialect.name != "postgresql":
+        return
+    inspector = inspect(connection)
+    if not inspector.has_table("detections"):
+        return
+    cols = {c["name"] for c in inspector.get_columns("detections")}
+    if "search_vector" not in cols:
+        connection.execute(text(
+            """
+            ALTER TABLE detections ADD COLUMN search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('english', coalesce(rule_id, '')), 'B') ||
+                setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
+                setweight(to_tsvector('english', left(coalesce(detection_logic, ''), 16384)), 'D')
+            ) STORED
+            """
+        ))
+        logger.info("Added detections.search_vector (weighted tsvector)")
+    connection.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_detections_search_vector "
+        "ON detections USING GIN (search_vector)"
+    ))
+
+
 async def init_db() -> None:
     """Initialize the database, creating all tables and migrating missing columns."""
     async with engine.begin() as conn:
@@ -185,3 +222,4 @@ async def init_db() -> None:
         # Rule_id column widen for Panther's dotted human-readable
         # RuleIDs — idempotent, Postgres-only.
         await conn.run_sync(_migrate_widen_rule_id)
+        await conn.run_sync(_migrate_search_vector)

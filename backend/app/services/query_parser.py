@@ -49,7 +49,7 @@ from luqum.tree import (
     UnknownOperation,
     Word,
 )
-from sqlalchemy import String, and_, cast, not_, or_
+from sqlalchemy import String, and_, cast, func, not_, or_
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.detection import Detection
@@ -534,9 +534,62 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
     raise QueryParseError(f"internal error: unknown field kind {spec.kind!r}")
 
 
+# Dialect for the CURRENT parse_query call. Set synchronously before the
+# walk and read by _bare_word_clause; safe under asyncio because the
+# walk contains no awaits (no interleaving between set and use).
+_ACTIVE_DIALECT = "generic"
+
+
 def _bare_word_clause(value: str) -> ColumnElement:
-    """Bare word (no `field:` prefix): substring across curated fields."""
+    """Bare word (no `field:` prefix).
+
+    Postgres (#12 / teardown F13): weighted full-text match against the
+    generated `search_vector` column (title A > rule_id B > description
+    C > logic D) via websearch_to_tsquery -- so `ransomware` ranks a
+    rule TITLED ransomware above one that merely mentions it in a
+    comment. SQLite (dev) keeps the curated-field substring match.
+    """
+    if _ACTIVE_DIALECT == "postgresql":
+        from sqlalchemy import literal_column
+
+        return literal_column("detections.search_vector").op("@@")(
+            func.websearch_to_tsquery("english", value)
+        )
     return or_(*[_text_clause(c, value) for c in _BARE_WORD_FIELDS])
+
+
+def free_text_terms(q: str) -> list[str]:
+    """The bare (unfielded) words/phrases in a query, for ranking.
+
+    `powershell source:sigma "encoded command"` -> ["powershell",
+    "encoded command"]. Negated terms and everything under a field are
+    excluded. Returns [] on any parse problem -- ranking is best-effort.
+    """
+    q = (q or "").strip()
+    if not q:
+        return []
+    try:
+        tree = luqum_parser.parse(q)
+    except Exception:  # noqa: BLE001 -- unparsable queries just do not rank
+        return []
+
+    terms: list[str] = []
+
+    def collect(node) -> None:
+        if isinstance(node, (SearchField, Not, Prohibit)):
+            return  # fielded or negated subtrees do not contribute rank terms
+        if isinstance(node, Word):
+            if node.value and not node.value.startswith("-"):
+                terms.append(node.value)
+            return
+        if isinstance(node, Phrase):
+            terms.append(node.value.strip('"'))
+            return
+        for child in getattr(node, "children", []) or []:
+            collect(child)
+
+    collect(tree)
+    return terms
 
 
 # ── Field-name suggestions ──────────────────────────────────────────
@@ -603,13 +656,16 @@ def _walk(node: Item) -> ColumnElement:
     raise QueryParseError(f"unsupported query construct: {type(node).__name__}")
 
 
-def parse_query(q: str) -> Optional[ColumnElement]:
+def parse_query(q: str, dialect: str = "generic") -> Optional[ColumnElement]:
     """Parse a user-supplied query string into a SQLAlchemy WHERE clause.
 
     Returns None for empty/whitespace-only input (caller treats as
     "no filter"). Raises QueryParseError for malformed queries or
-    unknown fields; the API surfaces this as a 400.
+    unknown fields; the API surfaces this as a 400. `dialect` selects
+    the bare-word strategy (tsvector on postgresql, ILIKE otherwise).
     """
+    global _ACTIVE_DIALECT
+    _ACTIVE_DIALECT = dialect or "generic"
     q = (q or "").strip()
     if not q:
         return None

@@ -111,7 +111,9 @@ class SearchService:
         total_count = count_result.scalar() or 0
 
         # Apply sorting
-        query = self._apply_sorting(query, filters.sort_by, filters.sort_order)
+        query = self._apply_sorting(
+            query, filters.sort_by, filters.sort_order, q=filters.q,
+        )
 
         # Apply pagination
         query = query.offset(filters.offset).limit(filters.limit)
@@ -591,7 +593,7 @@ class SearchService:
         # QueryParseError; the route layer turns them into 400s).
         if filters.q:
             from app.services.query_parser import parse_query
-            clause = parse_query(filters.q)
+            clause = parse_query(filters.q, dialect=self._dialect_name())
             if clause is not None:
                 conditions.append(clause)
 
@@ -824,8 +826,40 @@ class SearchService:
         "quality_score",
     } | _JSON_LIST_SORT_FIELDS
 
-    def _apply_sorting(self, query, sort_by: str, sort_order: str):
-        """Apply sorting to query."""
+    def _dialect_name(self) -> str:
+        try:
+            return self.db.bind.dialect.name
+        except AttributeError:
+            return "unknown"
+
+    def _apply_sorting(self, query, sort_by: str, sort_order: str, q: str | None = None):
+        """Apply sorting to query.
+
+        `relevance` (#12 / S4.13, the catalog default): with a query on
+        Postgres, order by weighted ts_rank_cd over the free-text
+        terms; without a query (or on SQLite), a curated default --
+        best-documented rules first, newest as tiebreak -- instead of
+        an arbitrary column that fronts whichever source pushed last.
+        """
+        if sort_by == "relevance":
+            from sqlalchemy import literal_column
+
+            from app.services.query_parser import free_text_terms
+
+            terms = free_text_terms(q) if q else []
+            if terms and self._dialect_name() == "postgresql":
+                rank = func.ts_rank_cd(
+                    literal_column("detections.search_vector"),
+                    func.websearch_to_tsquery("english", " ".join(terms)),
+                )
+                return query.order_by(
+                    rank.desc(),
+                    Detection.rule_created_date.desc().nullslast(),
+                )
+            return query.order_by(
+                Detection.quality_score.desc().nullslast(),
+                Detection.rule_created_date.desc().nullslast(),
+            )
         # Map sort field names to columns
         sort_columns = {
             "title": Detection.title,

@@ -142,7 +142,7 @@ export function DetectionList() {
     source_tables: searchParams.get('source_tables')?.split(',').filter(Boolean) || [],
     offset: parseInt(searchParams.get('offset') || '0', 10),
     limit: parseInt(searchParams.get('limit') || '25', 10),
-    sort_by: searchParams.get('sort_by') || 'rule_created_date',
+    sort_by: searchParams.get('sort_by') || 'relevance',
     sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
   });
 
@@ -182,7 +182,7 @@ export function DetectionList() {
     if (filters.source_tables?.length) params.set('source_tables', filters.source_tables.join(','));
     if (filters.offset) params.set('offset', String(filters.offset));
     if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit));
-    if (filters.sort_by && filters.sort_by !== 'rule_created_date') params.set('sort_by', filters.sort_by);
+    if (filters.sort_by && filters.sort_by !== 'relevance') params.set('sort_by', filters.sort_by);
     if (filters.sort_order && filters.sort_order !== 'desc') params.set('sort_order', filters.sort_order);
     return params;
   };
