@@ -7,9 +7,10 @@
     <meta name="description" content="Open-source detection rules from thirteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on." />
     <meta name="theme-color" content="#010409" />
 
-    <!-- Preconnect to Google Fonts for faster loading -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fonts are self-hosted (see index.css); preload the two faces
+         that paint the header for a flash-free first render. -->
+    <link rel="preload" href="/fonts/orbitron-var-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/rajdhani-400-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <link rel="alternate" type="application/rss+xml" title="Detection Explorer - new detection rules" href="/api/digest/feed.xml" />
     <link rel="alternate" type="application/rss+xml" title="Detection Explorer - techniques newly covered" href="/api/digest/newly-covered.xml" />
