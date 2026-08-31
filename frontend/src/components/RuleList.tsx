@@ -171,13 +171,15 @@ export function RuleList({
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* flex-wrap + capped select width: at 375px these controls
+            used to run past the viewport edge (teardown F04/S1.8). */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
             <label className="text-xs font-mono text-gray-500">SORT:</label>
             <select
               value={currentSortValue}
               onChange={(e) => handleQuickSort(e.target.value)}
-              className="text-xs bg-void-850 border border-void-700 text-white px-2 py-1.5 focus:ring-matrix-500/50 focus:border-matrix-500/50"
+              className="text-xs bg-void-850 border border-void-700 text-white px-2 py-1.5 focus:ring-matrix-500/50 focus:border-matrix-500/50 max-w-[55vw]"
             >
               {sortOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>

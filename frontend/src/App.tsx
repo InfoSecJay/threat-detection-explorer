@@ -217,6 +217,77 @@ function Logo() {
   );
 }
 
+// Mobile navigation drawer (teardown F04 / #78): below md the nav row
+// is hidden and every destination lives here. Closes on route change.
+const MOBILE_NAV: { to: string; label: string }[] = [
+  { to: '/', label: 'Home' },
+  { to: '/detections', label: 'Detections' },
+  { to: '/mitre', label: 'MITRE' },
+  { to: '/actors', label: 'Actors' },
+  { to: '/observables', label: 'Observables' },
+  { to: '/intel', label: 'Intel' },
+  { to: '/digest', label: 'Digest' },
+  { to: '/about', label: 'About' },
+  { to: '/query', label: 'Query Reference' },
+  { to: '/integrations', label: 'Integrations' },
+];
+
+function MobileMenu() {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  return (
+    <div className="md:hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={open ? 'Close navigation' : 'Open navigation'}
+        data-testid="mobile-menu-button"
+        className="p-2 text-gray-300 hover:text-matrix-400 border border-void-700 hover:border-void-600"
+        style={clipSm}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          {open ? (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          )}
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 right-0 top-full bg-void-900 border-b border-void-700 shadow-xl z-50"
+          data-testid="mobile-menu"
+        >
+          <div className="px-4 py-2 grid grid-cols-2 gap-1">
+            {MOBILE_NAV.map((item) => {
+              const active = item.to === '/'
+                ? location.pathname === '/'
+                : location.pathname === item.to || location.pathname.startsWith(item.to + '/');
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`px-3 py-2.5 font-display text-sm uppercase tracking-wider ${
+                    active ? 'text-matrix-500 bg-matrix-500/10' : 'text-gray-300 hover:text-matrix-400 hover:bg-void-800'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   return (
     <div className="min-h-screen bg-void-950 flex flex-col">
@@ -243,8 +314,10 @@ function App() {
             <Logo />
 
             {/* Navigation links. Comparison temporarily hidden pending
-                rework — see docs/roadmap.md. */}
-            <div className="flex items-center gap-1">
+                rework — see docs/roadmap.md. Below md the row collapses
+                into the drawer (teardown F04: five of eight items were
+                simply unreachable on phones). */}
+            <div className="hidden md:flex items-center gap-1">
               <NavLink to="/">Home</NavLink>
               <NavLink to="/detections">Detections</NavLink>
               <NavLink to="/mitre">MITRE</NavLink>
@@ -269,6 +342,8 @@ function App() {
                 <span className="text-matrix-400">{ALL_SOURCES.length}</span> SOURCES ACTIVE
               </span>
             </div>
+
+            <MobileMenu />
           </div>
         </div>
       </nav>
