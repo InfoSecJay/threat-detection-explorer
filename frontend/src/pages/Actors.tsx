@@ -179,7 +179,7 @@ export function Actors() {
                   {data?.summary.total_groups ?? '—'}
                 </span>
                 <span className="text-[10px] font-mono text-gray-500">
-                  ({data?.summary.groups_with_coverage ?? 0} with rules)
+                  ({data ? data.summary.groups_with_coverage : '—'} with rules)
                 </span>
               </div>
             </div>
@@ -190,7 +190,7 @@ export function Actors() {
                   {data?.summary.total_software ?? '—'}
                 </span>
                 <span className="text-[10px] font-mono text-gray-500">
-                  ({data?.summary.software_with_coverage ?? 0} with rules)
+                  ({data ? data.summary.software_with_coverage : '—'} with rules)
                 </span>
               </div>
             </div>
