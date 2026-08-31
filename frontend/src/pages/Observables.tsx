@@ -85,11 +85,11 @@ function ValuesTable({ kind, values, max, offset = 0 }: { kind: ObservableKind; 
     <table className="w-full text-xs">
       <thead className="bg-void-900/60 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
         <tr>
-          <th className="px-3 py-2 text-left w-10">#</th>
-          <th className="px-3 py-2 text-left">Value</th>
-          <th className="px-3 py-2 text-left">Sources</th>
-          <th className="px-3 py-2 text-right w-40">Rules</th>
-          <th className="px-3 py-2 w-24" />
+          <th scope="col" className="px-3 py-2 text-left w-10">#</th>
+          <th scope="col" className="px-3 py-2 text-left">Value</th>
+          <th scope="col" className="px-3 py-2 text-left">Sources</th>
+          <th scope="col" className="px-3 py-2 text-right w-40">Rules</th>
+          <th scope="col" className="px-3 py-2 w-24" />
         </tr>
       </thead>
       <tbody className="divide-y divide-void-800">

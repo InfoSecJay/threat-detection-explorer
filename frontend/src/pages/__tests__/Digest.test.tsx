@@ -60,7 +60,7 @@ describe('Digest', () => {
     expect(sigma).toHaveTextContent('+30 new');
     expect(sigma).toHaveTextContent('~100 updated');
     expect(getByTestId('digest-rule-r1')).toHaveTextContent('Detects handles opened on lsass.exe');
-    expect(getByTestId('digest-rule-r1')).toHaveTextContent('meta 74');
+    expect(getByTestId('digest-rule-r1')).toHaveTextContent('completeness 74');
     expect(getByTestId('digest-updated-r3')).toHaveTextContent('Mofcomp Execution');
     expect(getByTestId('digest-updated-r3')).toHaveTextContent('2026-08-26');
     // capped lists say how many are not listed

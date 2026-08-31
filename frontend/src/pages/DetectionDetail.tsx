@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { RuleDetail } from '../components/RuleDetail';
 import { useDetection } from '../hooks/useDetections';
@@ -71,6 +72,16 @@ function TombstonePage({ t }: { t: Tombstone }) {
 export function DetectionDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: detection, isLoading, error } = useDetection(id || '');
+
+  // Alias routes (legacy id, vendor rule_id) resolve to the same rule but
+  // leave the alias in the address bar, so visitors copy non-canonical
+  // links onward (teardown R23). Swap in the canonical id silently;
+  // replaceState keeps back/forward history intact and doesn't remount.
+  useEffect(() => {
+    if (detection && id && detection.id !== id) {
+      window.history.replaceState(window.history.state, '', `/detections/${detection.id}`);
+    }
+  }, [detection, id]);
 
   if (isLoading) {
     return (

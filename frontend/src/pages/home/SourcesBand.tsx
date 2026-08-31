@@ -14,7 +14,10 @@ import { HOME_SOURCES } from './sources';
 export function SourcesBand() {
   const { data: stats } = useStatistics();
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+    // Four columns max: five squeezed the names into "Elastic Dete..."
+    // at 1280px (teardown R22). The count lives on the format line so
+    // the name gets the full card width.
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
       {HOME_SOURCES.map((source) => {
         const count = stats?.by_source?.[source.id] ?? null;
         return (
@@ -31,13 +34,12 @@ export function SourcesBand() {
               <div className="text-sm font-display font-semibold truncate" style={{ color: source.color }}>
                 {source.name}
               </div>
-              <div className="text-[10px] font-mono text-gray-500 truncate">{source.format}</div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="text-base font-display font-bold text-white tabular-nums leading-none">
-                {count === null ? '—' : count.toLocaleString()}
+              <div className="text-[10px] font-mono text-gray-500 truncate">
+                {source.format}
+                <span className="text-gray-400 tabular-nums">
+                  {' · '}{count === null ? '—' : count.toLocaleString()} rules
+                </span>
               </div>
-              <div className="text-[9px] font-mono text-gray-600 uppercase">rules</div>
             </div>
           </Link>
         );

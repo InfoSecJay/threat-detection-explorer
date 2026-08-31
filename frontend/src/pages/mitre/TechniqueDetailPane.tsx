@@ -226,7 +226,7 @@ export function TechniqueDetailPane({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-xs font-mono text-matrix-400 uppercase">{src.replace(/_/g, ' ')}</span>
                   <span className="text-[10px] font-mono text-gray-500 tabular-nums">
-                    {info.rules} {info.rules === 1 ? 'rule' : 'rules'}{info.hygiene_avg !== null ? ` / hygiene ${info.hygiene_avg}` : ''}
+                    {info.rules} {info.rules === 1 ? 'rule' : 'rules'}{info.hygiene_avg !== null ? ` / completeness ${info.hygiene_avg}` : ''}
                   </span>
                 </div>
                 {Object.keys(info.observables).length === 0 ? (

@@ -70,12 +70,12 @@ export function DataSourceHeatmap() {
           <table className="w-full text-xs border-collapse">
             <thead className="bg-void-900/60 sticky top-0">
               <tr>
-                <th className="text-left px-3 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider min-w-[240px]">
+                <th scope="col" className="text-left px-3 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider min-w-[240px]">
                   Technique <span className="text-gray-700 normal-case font-mono">({data.rows.length} of {data.total_techniques})</span>
                 </th>
-                <th className="px-2 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider text-right">Rules</th>
+                <th scope="col" className="px-2 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider text-right">Rules</th>
                 {data.data_sources.map((ds) => (
-                  <th key={ds.id} className="px-1 py-2 text-center" title={`${ds.id}: ${ds.rules} technique-rule pairs`}>
+                  <th key={ds.id} scope="col" className="px-1 py-2 text-center" title={`${ds.id}: ${ds.rules} technique-rule pairs`}>
                     <div className="text-[9px] font-mono text-cyan-300 break-all max-w-[6rem]">{ds.id}</div>
                     <div className="text-[9px] font-mono text-gray-600 tabular-nums">{ds.rules}</div>
                   </th>

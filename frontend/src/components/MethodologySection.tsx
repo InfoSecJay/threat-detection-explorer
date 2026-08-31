@@ -70,14 +70,14 @@ export function MethodologySection() {
               <table className="w-full text-xs">
                 <thead className="bg-void-900">
                   <tr className="text-left text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-3 py-2">Source</th>
-                    <th className="px-3 py-2">Upstream</th>
-                    <th className="px-3 py-2">License</th>
-                    <th className="px-3 py-2">Included</th>
-                    <th className="px-3 py-2">Excluded dirs</th>
-                    <th className="px-3 py-2">Scope</th>
-                    <th className="px-3 py-2 text-right">Rules</th>
-                    <th className="px-3 py-2">Pinned</th>
+                    <th scope="col" className="px-3 py-2">Source</th>
+                    <th scope="col" className="px-3 py-2">Upstream</th>
+                    <th scope="col" className="px-3 py-2">License</th>
+                    <th scope="col" className="px-3 py-2">Included</th>
+                    <th scope="col" className="px-3 py-2">Excluded dirs</th>
+                    <th scope="col" className="px-3 py-2">Scope</th>
+                    <th scope="col" className="px-3 py-2 text-right">Rules</th>
+                    <th scope="col" className="px-3 py-2">Pinned</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-void-800 align-top">

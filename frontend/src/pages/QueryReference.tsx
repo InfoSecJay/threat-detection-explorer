@@ -116,9 +116,9 @@ export function QueryReference() {
           <table className="w-full text-xs font-mono">
             <thead className="bg-void-900 text-gray-500 uppercase tracking-wider">
               <tr>
-                <th className="px-3 py-2 text-left font-display font-semibold w-40">Token</th>
-                <th className="px-3 py-2 text-left font-display font-semibold">Description</th>
-                <th className="px-3 py-2 text-left font-display font-semibold">Example</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold w-40">Token</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Description</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Example</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
@@ -204,8 +204,8 @@ export function QueryReference() {
           <table className="w-full text-xs font-mono">
             <thead className="bg-void-900 text-gray-500 uppercase tracking-wider">
               <tr>
-                <th className="px-3 py-2 text-left font-display font-semibold w-32">Key</th>
-                <th className="px-3 py-2 text-left font-display font-semibold">Action</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold w-32">Key</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">

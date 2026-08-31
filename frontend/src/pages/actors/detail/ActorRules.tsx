@@ -128,13 +128,13 @@ export function ActorRules({ actor, matchMode, setMatchMode }: {
         <table className="w-full text-xs font-mono">
           <thead className="bg-void-900 text-gray-500 uppercase tracking-wider">
             <tr>
-              <th className="px-3 py-2 text-left font-display font-semibold">Source</th>
-              <th className="px-3 py-2 text-left font-display font-semibold">Sev</th>
-              <th className="px-3 py-2 text-left font-display font-semibold">Title</th>
+              <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Source</th>
+              <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Sev</th>
+              <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Title</th>
               {matchMode !== 'coverage' && (
-                <th className="px-3 py-2 text-left font-display font-semibold">Match</th>
+                <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Match</th>
               )}
-              <th className="px-3 py-2 text-left font-display font-semibold">Techniques</th>
+              <th scope="col" className="px-3 py-2 text-left font-display font-semibold">Techniques</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-void-800">

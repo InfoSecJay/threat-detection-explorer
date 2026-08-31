@@ -75,6 +75,10 @@ function bandClass(score: number, of: number): string {
 export function HygieneBars({ details }: { details: NonNullable<Detection['quality_details']> }) {
   const [open, setOpen] = useState(false);
   const applicable = details.applicable_points ?? 100;
+  // Raw points earned across dimensions. When a format can't express the
+  // full rubric, the primary figure is points/applicable, not the scaled
+  // percentage next to a different denominator (teardown R20).
+  const earned = Object.values(details.dimensions).reduce((sum, d) => sum + d.score, 0);
   return (
     <div data-testid="hygiene">
       {/* The caveat leads (teardown F09): say what this is NOT before showing a number. */}
@@ -85,10 +89,10 @@ export function HygieneBars({ details }: { details: NonNullable<Detection['quali
       </p>
       <div className="flex items-baseline gap-3 mb-2 flex-wrap">
         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Metadata completeness</label>
-        <span className="text-lg font-mono font-bold text-white tabular-nums">{details.total}<span className="text-gray-500 text-sm">/100</span></span>
+        <span className="text-lg font-mono font-bold text-white tabular-nums">{earned}<span className="text-gray-500 text-sm">/{applicable} pts</span></span>
         {applicable < 100 && (
           <span className="text-[11px] text-gray-500" data-testid="hygiene-applicable">
-            scored over the {applicable} points this format can express
+            = {details.total}% of the {applicable} points this format can express
           </span>
         )}
         <button

@@ -215,7 +215,7 @@ export function RuleList({
             <thead className="bg-void-900">
               <tr>
                 {enableSelection && (
-                  <th className="px-3 py-3 text-left w-10">
+                  <th scope="col" className="px-3 py-3 text-left w-10">
                     <input
                       type="checkbox"
                       checked={selectedIds.size === detections.length && selectedIds.size > 0}
@@ -226,7 +226,7 @@ export function RuleList({
                   </th>
                 )}
                 {/* Expand-chevron column — no header label */}
-                <th className="px-2 py-3 w-8" aria-label="Expand row" />
+                <th scope="col" className="px-2 py-3 w-8" aria-label="Expand row" />
                 <SortableTh {...sortProps} field="title" label="Title" pad="px-4" />
                 <SortableTh {...sortProps} field="source" label="Source"
                   title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
@@ -238,8 +238,8 @@ export function RuleList({
                 <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
                 <SortableTh {...sortProps} field="rule_created_date" label="Created" />
-                <SortableTh {...sortProps} field="quality_score" label="Hygiene"
-                  title="Hygiene score: metadata, ATT&CK mapping, specificity, docs, testability. Measures rule hygiene, not detection accuracy." />
+                <SortableTh {...sortProps} field="quality_score" label="Completeness"
+                  title="Metadata completeness: metadata, ATT&CK mapping, specificity, docs, testability. Measures documentation quality, not detection accuracy." />
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">

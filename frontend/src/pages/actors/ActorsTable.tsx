@@ -56,7 +56,7 @@ export function ActorsTable({
         <thead className="bg-void-900 text-gray-500 uppercase tracking-wider">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} className="px-3 py-2 text-left font-display font-semibold whitespace-nowrap">
+              <th key={c.key} scope="col" className="px-3 py-2 text-left font-display font-semibold whitespace-nowrap">
                 {c.sort ? (
                   <button
                     onClick={() => onSort(c.sort!)}

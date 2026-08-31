@@ -292,6 +292,13 @@ function MobileMenu() {
 function App() {
   return (
     <div className="min-h-screen bg-void-950 flex flex-col">
+      {/* Skip link (teardown R24): eight nav items precede the content. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-2 focus:left-2 focus:bg-void-900 focus:text-matrix-400 focus:px-3 focus:py-2 focus:border focus:border-matrix-500 focus:text-sm focus:font-mono"
+      >
+        Skip to content
+      </a>
       {/* Top status bar */}
       <div className="bg-void-900/80 border-b border-void-700 px-4 py-1">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between">
@@ -351,7 +358,7 @@ function App() {
       </nav>
 
       {/* Main content */}
-      <main className="flex-1 max-w-[1800px] w-full mx-auto px-4 py-6">
+      <main id="main" className="flex-1 max-w-[1800px] w-full mx-auto px-4 py-6">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />

@@ -182,11 +182,11 @@ export function ObservableDetail() {
           <table className="w-full text-xs">
             <thead className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
               <tr>
-                <th className="text-left px-2 py-1">Rule</th>
-                <th className="text-left px-2 py-1">Source</th>
-                <th className="text-left px-2 py-1">Severity</th>
-                <th className="text-left px-2 py-1">Techniques</th>
-                <th className="text-right px-2 py-1">Hygiene</th>
+                <th scope="col" className="text-left px-2 py-1">Rule</th>
+                <th scope="col" className="text-left px-2 py-1">Source</th>
+                <th scope="col" className="text-left px-2 py-1">Severity</th>
+                <th scope="col" className="text-left px-2 py-1">Techniques</th>
+                <th scope="col" className="text-right px-2 py-1">Completeness</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">

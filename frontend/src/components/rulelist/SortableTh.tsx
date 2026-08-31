@@ -15,7 +15,7 @@ export function SortableTh({
   const active = sortBy === field;
   const ariaSort = active ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
   return (
-    <th aria-sort={ariaSort} className={`${pad} py-3 text-left`} title={title}>
+    <th scope="col" aria-sort={ariaSort} className={`${pad} py-3 text-left`} title={title}>
       <button
         type="button"
         onClick={() => onSort(field)}

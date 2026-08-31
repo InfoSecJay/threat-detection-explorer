@@ -85,12 +85,12 @@ export function CoverageHeatmap() {
           <table className="w-full text-xs border-collapse">
             <thead className="bg-void-900/60 sticky top-0">
               <tr>
-                <th className="text-left px-3 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider min-w-[220px]">
+                <th scope="col" className="text-left px-3 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider min-w-[220px]">
                   {kind === 'groups' ? 'Actor' : 'Software'} <span className="text-gray-700 normal-case font-mono">({data.rows.length} of {data.total_entities})</span>
                 </th>
-                <th className="px-2 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider text-right" title="Techniques with at least one rule anywhere / known techniques">Any</th>
+                <th scope="col" className="px-2 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider text-right" title="Techniques with at least one rule anywhere / known techniques">Any</th>
                 {data.sources.map((s) => (
-                  <th key={s} className="px-1 py-2 text-center" title={`${sourceTheme[s]?.name || s}: covers ${data.source_totals[s]} of the shown ${kind}`}>
+                  <th key={s} scope="col" className="px-1 py-2 text-center" title={`${sourceTheme[s]?.name || s}: covers ${data.source_totals[s]} of the shown ${kind}`}>
                     <div className={`text-[9px] font-mono uppercase ${sourceTheme[s]?.text || 'text-gray-400'}`}>{sourceLabelsShort[s] || s}</div>
                     <div className="text-[9px] font-mono text-gray-600 tabular-nums">{data.source_totals[s]}</div>
                   </th>
