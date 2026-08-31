@@ -6,10 +6,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import hashlib
+import uuid
 
 from app.parsers.base import ParsedRule
 from app.services.git_service import GitService
 from app.services.log_source_taxonomy import standardize_log_sources
+
+# Namespace for deterministic detection ids (#86). NEVER change: every
+# permalink derives from it.
+_PERMALINK_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://detectionexplorer.io")
 
 
 @dataclass
@@ -121,8 +126,25 @@ class NormalizedDetection:
     # Stable signature of the rule's logsource input — groups identical
     # unmapped rules in drift reports.
     taxonomy_fingerprint: str = ""
+    # The v1 path-hash id (sha256 of source:file_path). Kept so ingest
+    # can write a legacy alias for links shared before the
+    # deterministic-id migration (#86). Set in __post_init__.
+    legacy_id: str = ""
 
     def __post_init__(self) -> None:
+        # Deterministic permalinks (#86 / teardown F10): when the
+        # upstream publishes a rule id, the canonical id is a UUIDv5
+        # over (source, rule_id) — stable across file moves, renames
+        # and full rebuilds. The path-hash id becomes `legacy_id` and
+        # is written to the alias table so old links 301. Rules without
+        # an upstream id keep the path hash (nothing better exists).
+        # Upstream duplicate rule_ids are detected at ingest time and
+        # fall back to the path hash there.
+        self.legacy_id = self.id
+        rid = (self.rule_id or "").strip() if isinstance(self.rule_id, str) else ""
+        if rid:
+            self.id = str(uuid.uuid5(_PERMALINK_NAMESPACE, f"{self.source}:{rid}"))
+
         # Second-pass taxonomy refinement (issue #16): a coarse
         # `audit_event` from a channel-level logsource is replaced by
         # what the rule's own event IDs say (4624 -> authentication,

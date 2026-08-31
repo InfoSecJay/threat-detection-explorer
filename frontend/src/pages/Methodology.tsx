@@ -62,6 +62,16 @@ export function Methodology() {
         </Principle>
       </div>
 
+      <div className="bg-void-850 border border-void-700 p-5" style={clipMd} data-testid="permalink-guarantee">
+        <h3 className="text-sm font-display font-bold text-white tracking-wider uppercase mb-2">Permalink guarantee</h3>
+        <p className="text-sm text-gray-400">
+          Rule URLs are stable for the life of the site. Each rule&apos;s id derives deterministically from its
+          source and the id its vendor publishes, so links survive upstream file moves, renames and full
+          rebuilds. Links using a vendor&apos;s own rule id redirect to the same page, and ids from before this
+          guarantee redirect permanently to their new home.
+        </p>
+      </div>
+
       <div className="bg-void-850 border border-void-700 p-5" style={clipMd}>
         <h3 className="text-sm font-display font-bold text-white tracking-wider uppercase mb-2">Licensing</h3>
         <p className="text-sm text-gray-400">

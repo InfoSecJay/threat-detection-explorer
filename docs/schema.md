@@ -49,7 +49,7 @@ groups of fields:
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `id` | `str` (36) | Deterministic UUID-like, derived from `source + source_file`. Drives upserts. |
+| `id` | `str` (36) | Deterministic permalink id (#86): UUIDv5 over `source + upstream rule_id` when the vendor publishes one (survives file moves and rebuilds), else sha256 of `source + source_file`. Legacy path-hash ids and upstream rule ids resolve via `detection_aliases` with a 301. Drives upserts. |
 | `source` | enum | One of `sigma`, `elastic`, `splunk`, `sublime`, `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`, `google_secops`, `okta`, `auth0`. |
 | `source_file` | `str` | Path within the source repo (e.g. `rules/windows/process_creation/foo.yml`). |
 | `source_repo_url` | `str` | Canonical URL of the source repo. |

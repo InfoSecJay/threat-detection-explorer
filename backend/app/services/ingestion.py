@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.detection import Detection
+from app.models.detection_alias import DetectionAlias
 from app.models.repository import Repository
 from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
@@ -160,6 +161,12 @@ class IngestionService:
         stats = IngestionStats()
         stats.start_time = utcnow()
         run_id = sync_run_id or str(uuid.uuid4())
+        # Deterministic-id bookkeeping (#86): detect upstream duplicate
+        # rule_ids within this run (two files sharing one id would
+        # merge() into one row) and collect alias rows to write after
+        # the store phase.
+        seen_ids: set[str] = set()
+        alias_rows: dict[str, tuple[str, str]] = {}
 
         if repo_name == "sentinel":
             # The Sentinel normalizer classifies threat tags against the
@@ -249,6 +256,27 @@ class IngestionService:
                     ),
                 )
 
+                # Duplicate upstream rule_id inside this run: fall
+                # back to the path-hash id for the later file so both
+                # rows survive, and say so loudly (#86).
+                if normalized.id in seen_ids and normalized.legacy_id and normalized.legacy_id != normalized.id:
+                    stats.add_error(
+                        file_path=relative_path,
+                        stage=ErrorStage.NORMALIZE,
+                        message=(
+                            f"Duplicate upstream rule_id {normalized.rule_id!r}; "
+                            f"this file keeps its path-derived id"
+                        ),
+                        severity=ErrorSeverity.WARNING,
+                    )
+                    normalized.id = normalized.legacy_id
+                seen_ids.add(normalized.id)
+                if normalized.legacy_id and normalized.legacy_id != normalized.id:
+                    alias_rows[normalized.legacy_id] = (normalized.id, "legacy")
+                rid_alias = (normalized.rule_id or "").strip() if isinstance(normalized.rule_id, str) else ""
+                if rid_alias and rid_alias != normalized.id:
+                    alias_rows.setdefault(rid_alias, (normalized.id, "rule_id"))
+
                 # Convert to database model
                 detection = self._to_detection_model(normalized, run_id)
                 rules_to_store.append(detection)
@@ -272,6 +300,18 @@ class IngestionService:
         if rules_to_store:
             stored_count = await self._store_rules_safe(rules_to_store, stats)
             stats.stored += stored_count
+
+        # Permalink aliases (#86): legacy path-hash ids and upstream
+        # rule ids both resolve (the API 301s to the canonical id).
+        # Kept forever -- shared links must not rot.
+        for alias_value, (canonical_id, alias_kind) in alias_rows.items():
+            try:
+                await self.db.merge(DetectionAlias(
+                    alias=alias_value[:200], detection_id=canonical_id, kind=alias_kind,
+                ))
+            except Exception as e:  # noqa: BLE001 -- one bad alias must not sink the ingest
+                logger.warning(f"alias merge failed for {alias_value!r}: {e}")
+        await self.db.commit()
 
         # Remove rules that no longer exist in the upstream repo. Any row
         # of this source not stamped with this run's id was NOT touched

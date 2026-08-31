@@ -107,7 +107,9 @@ async def _compute(db: AsyncSession, d: Detection, limit: int) -> dict:
 
 
 async def related_for_id(db: AsyncSession, detection_id: str, limit: int = _RESULTS) -> Optional[dict]:
-    d = await db.get(Detection, detection_id)
+    from app.services.detection_resolver import resolve_detection
+
+    d, _via_alias = await resolve_detection(db, detection_id)
     if d is None:
         return None
     return await related_rules(db, d, limit)

@@ -302,13 +302,21 @@ async def get_related_detections(
 
 @router.get("/{detection_id}", response_model=DetectionResponse)
 async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
-    """Get a single detection by ID."""
-    search_service = SearchService(db)
-    detection = await search_service.get_detection_by_id(detection_id)
+    """Get a single detection by canonical id, legacy id, or upstream
+    rule id. Alias matches 301 to the canonical URL (#86)."""
+    from fastapi.responses import RedirectResponse
 
-    if not detection:
+    from app.services.detection_resolver import resolve_detection
+
+    detection, via_alias = await resolve_detection(db, detection_id)
+    if detection is None:
         raise HTTPException(status_code=404, detail=f"Detection not found: {detection_id}")
+    if via_alias:
+        from app.config import settings
 
+        return RedirectResponse(
+            url=f"{settings.api_prefix}{router.prefix}/{detection.id}", status_code=301,
+        )
     return DetectionResponse.from_detection(detection)
 
 

@@ -90,10 +90,13 @@ def test_normalize_generates_deterministic_id(normalizer):
     assert n1.id == n2.id
 
 
-def test_normalize_generates_distinct_ids_per_file(normalizer):
+def test_normalize_ids_are_deterministic_per_upstream_rule_id(normalizer):
+    # #86: the id derives from (source, rule_id) -- a file move does
+    # NOT change the permalink; the path hash survives as legacy_id.
     n1 = normalizer.normalize(_parsed(file_path="rules/windows/a.yml"))
     n2 = normalizer.normalize(_parsed(file_path="rules/windows/b.yml"))
-    assert n1.id != n2.id
+    assert n1.id == n2.id
+    assert n1.legacy_id != n2.legacy_id
 
 
 # ── Status + severity ────────────────────────────────────────────────

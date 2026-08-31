@@ -82,7 +82,9 @@ def _kv(label: str, value: str) -> str:
 
 @router.get("/detection/{detection_id}", response_class=HTMLResponse)
 async def prerender_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
-    d = await db.get(Detection, detection_id)
+    from app.services.detection_resolver import resolve_detection
+
+    d, _via_alias = await resolve_detection(db, detection_id)
     if d is None:
         return HTMLResponse(status_code=404, content="<h1>Rule not found</h1>")
     techniques = [t for t in (d.mitre_techniques or []) if isinstance(t, str)]

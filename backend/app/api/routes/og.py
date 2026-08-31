@@ -119,7 +119,9 @@ def _png(data: bytes) -> Response:
 
 @router.get("/detection/{detection_id}.png")
 async def og_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
-    det = await db.get(Detection, detection_id)
+    from app.services.detection_resolver import resolve_detection
+
+    det, _via_alias = await resolve_detection(db, detection_id)
     if det is None:
         raise HTTPException(status_code=404, detail="Detection not found")
     badges: list[tuple[str, tuple[int, int, int]]] = [(det.source.upper(), GREEN)]

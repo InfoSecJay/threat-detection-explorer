@@ -48,7 +48,11 @@ def test_every_shared_field_reaches_the_orm_row(db_session):
     # Required fields the sentinel loop may have typed differently.
     values.update(id="det-1", source="sigma", status="test", severity="high")
 
-    row = svc._to_detection_model(NormalizedDetection(**values))
+    norm = NormalizedDetection(**values)
+    # #86: __post_init__ recomputes id from (source, rule_id); the
+    # mapping contract is that the FINAL id reaches the row.
+    values["id"] = norm.id
+    row = svc._to_detection_model(norm)
 
     for name, expected in values.items():
         assert getattr(row, name) == expected, f"{name} dropped by _to_detection_model"
