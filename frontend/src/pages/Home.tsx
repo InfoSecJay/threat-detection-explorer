@@ -56,7 +56,6 @@ export function Home() {
             Open detection rules · one schema · ATT&amp;CK-mapped
           </div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold tracking-wider mb-4">
-            <span className="text-white">THREAT </span>
             <span className="text-matrix-500 text-glow-sm">DETECTION </span>
             <span className="text-white">EXPLORER</span>
           </h1>

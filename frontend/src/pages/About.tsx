@@ -4,14 +4,14 @@ import { MethodologySection } from '../components/MethodologySection';
 
 export function About() {
   return (
-    <div className="space-y-12 max-w-4xl mx-auto">
+    <div className="space-y-12 max-w-6xl mx-auto">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-display font-bold text-white tracking-wider uppercase">
           About
         </h1>
         <p className="text-sm text-gray-500 mt-1 font-mono">
-          THREAT_DETECTION_EXPLORER // SYSTEM_INFO
+          DETECTION_EXPLORER // SYSTEM_INFO
         </p>
       </div>
 
