@@ -16,7 +16,6 @@ const Actors          = lazy(() => import('./pages/Actors').then(m => ({ default
 const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ default: m.ActorDetail })));
 const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({ default: m.QueryReference })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
-const Integrations    = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
 const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default: m.Digest })));
 const Observables     = lazy(() => import('./pages/Observables').then(m => ({ default: m.Observables })));
 const ObservableDetail = lazy(() => import('./pages/ObservableDetail').then(m => ({ default: m.ObservableDetail })));
@@ -41,7 +40,6 @@ const ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
   '/query': () => import('./pages/QueryReference'),
   '/about': () => import('./pages/About'),
   '/methodology': () => import('./pages/Methodology'),
-  '/integrations': () => import('./pages/Integrations'),
 };
 const prefetchRoute = (to: string) => { void ROUTE_LOADERS[to]?.(); };
 
@@ -376,7 +374,8 @@ function App() {
             <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/methodology" element={<Methodology />} />
-            <Route path="/integrations" element={<Integrations />} />
+            {/* /integrations folded into /intel (#90 / teardown S4.3) */}
+            <Route path="/integrations" element={<Navigate to="/intel" replace />} />
             <Route path="/digest" element={<Digest />} />
             <Route path="/digest/:week" element={<Digest />} />
             <Route path="/observables" element={<Observables />} />

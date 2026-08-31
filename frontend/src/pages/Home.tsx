@@ -39,7 +39,7 @@ const MORE: { to: string; label: string; hint: string }[] = [
   { to: '/digest', label: 'Weekly digest', hint: 'what shipped upstream this week, with RSS' },
   { to: '/observables', label: 'Observables', hint: 'the processes, event IDs, paths and indicators rules key on' },
   { to: '/query', label: 'Query reference', hint: 'every field the search bar understands' },
-  { to: '/about', label: 'Methodology', hint: 'what we count and how' },
+  { to: '/methodology', label: 'Methodology', hint: 'what we count and how' },
 ];
 
 export function Home() {
@@ -92,7 +92,7 @@ export function Home() {
         <SectionHeader
           title="What we ingest"
           subtitle="Sigma, TOML, SPL, KQL, EQL, ES|QL, MQL, YARA-L, OIE and Python rules, nightly, into one schema and one platform / data-source / event-type taxonomy"
-          right={<Link to="/integrations" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider mb-2">Sync status &#8594;</Link>}
+          right={<Link to="/intel" className="text-[10px] font-mono text-gray-500 hover:text-matrix-400 uppercase tracking-wider mb-2">Sync status &#8594;</Link>}
         />
         <SourcesBand />
       </section>
