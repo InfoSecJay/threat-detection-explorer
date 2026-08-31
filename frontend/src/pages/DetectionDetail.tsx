@@ -1,6 +1,72 @@
 import { useParams, Link } from 'react-router-dom';
 import { RuleDetail } from '../components/RuleDetail';
 import { useDetection } from '../hooks/useDetections';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
+
+interface Tombstone {
+  removed: true;
+  id: string;
+  rule_id: string | null;
+  source: string;
+  source_file: string;
+  title: string;
+  severity: string | null;
+  mitre_techniques: string[];
+  first_seen_at: string | null;
+  removed_at: string | null;
+  last_seen: Record<string, unknown>;
+  successors: { id: string; title: string; source: string; severity: string | null }[];
+}
+
+function TombstonePage({ t }: { t: Tombstone }) {
+  useDocumentMeta(`${t.title} (removed)`, `This ${t.source} rule was removed upstream.`);
+  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '?');
+  const lastLogic = typeof t.last_seen.detection_logic === 'string' ? t.last_seen.detection_logic : '';
+  return (
+    <div className="max-w-4xl space-y-5" data-testid="tombstone">
+      <Link to="/detections" className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1">
+        <span>&larr;</span> Back to list
+      </Link>
+      <div className="bg-void-850 border border-amber-500/40 p-6">
+        <div className="text-[10px] font-mono text-amber-300 uppercase tracking-[0.25em] mb-2">removed upstream</div>
+        <h1 className="text-2xl font-display font-bold text-white tracking-wide">{t.title}</h1>
+        <p className="text-sm text-gray-400 mt-3">
+          Tracked from <span className="text-gray-200 font-mono">{day(t.first_seen_at)}</span> until{' '}
+          <span className="text-gray-200 font-mono">{day(t.removed_at)}</span>, when it was removed from the{' '}
+          <span className="text-gray-200">{t.source}</span> repository ({t.source_file}). This URL preserves the
+          last version we saw -- a record only this site keeps.
+        </p>
+        {t.mitre_techniques.length > 0 && (
+          <p className="text-xs font-mono text-gray-500 mt-2">
+            ATT&amp;CK:{' '}
+            {t.mitre_techniques.map((tid) => (
+              <Link key={tid} to={`/mitre/${tid}`} className="text-matrix-500 hover:text-matrix-400 mr-2">{tid}</Link>
+            ))}
+          </p>
+        )}
+      </div>
+      {t.successors.length > 0 && (
+        <div className="bg-void-850 border border-void-700 p-5">
+          <h2 className="text-sm font-display font-bold text-white uppercase tracking-wider mb-2">Current rules covering the same technique</h2>
+          <ul className="space-y-1">
+            {t.successors.map((s) => (
+              <li key={s.id} className="text-sm">
+                <Link to={`/detections/${s.id}`} className="text-gray-200 hover:text-matrix-400">{s.title}</Link>
+                <span className="text-[10px] font-mono text-gray-500 ml-2 uppercase">{s.source}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {lastLogic && (
+        <div className="bg-void-850 border border-void-700 p-5">
+          <h2 className="text-sm font-display font-bold text-white uppercase tracking-wider mb-2">Last version we saw</h2>
+          <pre className="text-xs font-mono text-gray-300 bg-void-900 border border-void-800 p-3 overflow-x-auto whitespace-pre-wrap max-h-96 overflow-y-auto">{lastLogic}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DetectionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +82,12 @@ export function DetectionDetail() {
   }
 
   if (error) {
+    // Tombstone (#87 / teardown F11): a rule removed upstream answers
+    // 410 with its history -- render the record, never a dead end.
+    const resp = (error as { response?: { status?: number; data?: Tombstone } }).response;
+    if (resp?.status === 410 && resp.data?.removed) {
+      return <TombstonePage t={resp.data} />;
+    }
     return (
       <div className="bg-red-500/20 text-red-400 border border-red-500/30 p-4 rounded-lg">
         Error loading detection: {error.message}

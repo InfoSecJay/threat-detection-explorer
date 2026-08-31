@@ -86,6 +86,25 @@ async def prerender_detection(detection_id: str, db: AsyncSession = Depends(get_
 
     d, _via_alias = await resolve_detection(db, detection_id)
     if d is None:
+        from app.services.tombstones import get_tombstone
+
+        tomb = await get_tombstone(db, detection_id)
+        if tomb is not None:
+            succ = "".join(
+                f'<li><a href="{ORIGIN}/detections/{escape(x["id"])}">{escape(x["title"])}</a> ({escape(x["source"])})</li>'
+                for x in tomb["successors"]
+            )
+            body = f"""<h1>{escape(tomb["title"])} (removed upstream)</h1>
+<p>Tracked from {escape((tomb.get("first_seen_at") or "?")[:10])} until {escape((tomb.get("removed_at") or "?")[:10])},
+when it was removed from the {escape(tomb["source"])} repository.</p>
+{f"<p>Current rules covering the same technique:</p><ul>{succ}</ul>" if succ else ""}"""
+            return _page(
+                f"{tomb['title']} (removed)",
+                f"This {tomb['source']} rule was removed upstream on {(tomb.get('removed_at') or '')[:10]}.",
+                f"/detections/{tomb['id']}",
+                "/api/og/site.png",
+                body,
+            )
         return HTMLResponse(status_code=404, content="<h1>Rule not found</h1>")
     techniques = [t for t in (d.mitre_techniques or []) if isinstance(t, str)]
     tech_html = " ".join(

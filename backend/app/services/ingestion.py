@@ -418,6 +418,22 @@ class IngestionService:
         (strictly better than the old DELETE-first approach which left
         zero rows on crash).
         """
+        # Tombstones (#87 / teardown F11): preserve the full final row
+        # of every rule about to be deleted, so its URL serves
+        # "tracked until X, removed upstream" instead of a 404.
+        doomed = (
+            await self.db.execute(
+                select(Detection)
+                .where(Detection.source == repo_name)
+                .where(or_(Detection.sync_run_id.is_(None), Detection.sync_run_id != sync_run_id))
+            )
+        ).scalars().all()
+        if doomed:
+            from app.services.tombstones import record_removed
+
+            preserved = await record_removed(self.db, doomed)
+            logger.info(f"Tombstoned {preserved}/{len(doomed)} removed {repo_name} rule(s)")
+
         result = await self.db.execute(
             delete(Detection)
             .where(Detection.source == repo_name)

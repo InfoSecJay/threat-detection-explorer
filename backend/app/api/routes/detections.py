@@ -310,6 +310,15 @@ async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
 
     detection, via_alias = await resolve_detection(db, detection_id)
     if detection is None:
+        # Tombstone (#87): a rule removed upstream answers 410 Gone
+        # with its history and live successors, never a bare 404.
+        from fastapi.responses import JSONResponse
+
+        from app.services.tombstones import get_tombstone
+
+        tomb = await get_tombstone(db, detection_id)
+        if tomb is not None:
+            return JSONResponse(status_code=410, content=tomb)
         raise HTTPException(status_code=404, detail=f"Detection not found: {detection_id}")
     if via_alias:
         from app.config import settings
