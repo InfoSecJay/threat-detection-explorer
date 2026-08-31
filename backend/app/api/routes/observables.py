@@ -33,7 +33,7 @@ def _kind(kind: str) -> str:
 async def list_types(db: AsyncSession = Depends(get_db)):
     """The surfaces with their distinct counts and top values -- eight
     scans, memoised on the corpus fingerprint."""
-    return await corpus_cache.get(db, ("observable_types",), lambda: _compute_types(db))
+    return await corpus_cache.get(db, ("observable_types",), lambda: _compute_types(db), persist=True)
 
 
 async def _compute_types(db: AsyncSession) -> dict:

@@ -98,17 +98,19 @@ class SearchService:
         """
         # Build base query
         query = select(Detection)
-        count_query = select(func.count(Detection.id))
 
         # Apply filters
         conditions = self._build_conditions(filters)
         if conditions:
             query = query.where(and_(*conditions))
-            count_query = count_query.where(and_(*conditions))
-
-        # Get total count
-        count_result = await self.db.execute(count_query)
-        total_count = count_result.scalar() or 0
+            count_query = select(func.count(Detection.id)).where(and_(*conditions))
+            count_result = await self.db.execute(count_query)
+            total_count = count_result.scalar() or 0
+        else:
+            # Unfiltered default view (#81 / S2.5): the corpus
+            # fingerprint already counts the table -- one tiny indexed
+            # query instead of a full COUNT(*) scan per page view.
+            total_count = (await corpus_cache.fingerprint(self.db))[0]
 
         # Apply sorting
         query = self._apply_sorting(
@@ -272,7 +274,7 @@ class SearchService:
         """Corpus statistics, memoised on the corpus fingerprint (see
         corpus_cache): a hit is one COUNT/MAX query instead of four
         aggregates."""
-        return await corpus_cache.get(self.db, ("statistics",), self._compute_statistics)
+        return await corpus_cache.get(self.db, ("statistics",), self._compute_statistics, persist=True)
 
     async def _compute_statistics(self) -> dict:
         """Get overall statistics about stored detections.
@@ -347,7 +349,7 @@ class SearchService:
 
     async def get_filter_options(self) -> dict:
         """Filter-option lists, memoised on the corpus fingerprint."""
-        return await corpus_cache.get(self.db, ("filter_options",), self._compute_filter_options)
+        return await corpus_cache.get(self.db, ("filter_options",), self._compute_filter_options, persist=True)
 
     async def _compute_filter_options(self) -> dict:
         """Everything GET /detections/filters returns, from ONE corpus scan.
@@ -487,8 +489,15 @@ class SearchService:
         """Sidebar facets for `filters`, memoised per filter set on the
         corpus fingerprint (pagination and sort do not affect counts and
         are excluded from the key)."""
-        key = ("facets", repr(replace(filters, offset=0, limit=0, sort_by="", sort_order="")))
-        return await corpus_cache.get(self.db, key, lambda: self._compute_facets(filters))
+        normalized = replace(filters, offset=0, limit=0, sort_by="", sort_order="")
+        key = ("facets", repr(normalized))
+        # Only the default (no-filter) facet set persists across
+        # deploys -- it is the one every catalog landing pays for;
+        # filtered variants stay in-process so the table stays bounded.
+        persist_default = normalized == replace(
+            SearchFilters(), offset=0, limit=0, sort_by="", sort_order="",
+        )
+        return await corpus_cache.get(self.db, key, lambda: self._compute_facets(filters), persist=persist_default)
 
     async def _compute_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
         """Faceted counts for the filter sidebar, computed against the

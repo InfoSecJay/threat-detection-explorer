@@ -129,7 +129,7 @@ async def compute_digest(db: AsyncSession, days: int = 7, limit: int = 15, rules
     the UTC date (the window is anchored to "now", so the answer can
     change at midnight even when the corpus does not)."""
     key = ("digest", days, limit, rules_limit, utcnow().date().isoformat())
-    return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit, rules_limit))
+    return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit, rules_limit), persist=True)
 
 
 async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: int) -> dict:

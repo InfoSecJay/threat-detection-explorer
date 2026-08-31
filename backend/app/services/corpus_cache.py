@@ -16,8 +16,12 @@ has to be signalled between them.
 from __future__ import annotations
 
 import functools
+import json
+import logging
 from collections import OrderedDict
 from typing import Any, Awaitable, Callable, Hashable
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +30,8 @@ from app.models.detection import Detection
 from app.utils.datetime_utils import utcnow
 
 Fingerprint = tuple[int, str]
+
+_MISS = object()  # sentinel: artifact table had no usable row
 
 
 class CorpusCache:
@@ -54,8 +60,21 @@ class CorpusCache:
         self._entries.clear()
 
     async def get(
-        self, db: AsyncSession, key: Hashable, compute: Callable[[], Awaitable[Any]]
+        self,
+        db: AsyncSession,
+        key: Hashable,
+        compute: Callable[[], Awaitable[Any]],
+        persist: bool = False,
     ) -> Any:
+        """Fingerprint-keyed memo.
+
+        With `persist=True` (#81 / teardown S2.4) the value is also
+        written to the computed_artifacts table, so the NEXT process
+        (every deploy empties the in-process cache) finds it at the
+        same fingerprint and serves warm instead of rescanning.
+        Persistence is strictly best-effort: unserializable values and
+        DB hiccups fall back to compute.
+        """
         fp = await self.fingerprint(db)
         if fp != self._fingerprint:
             self._entries.clear()
@@ -64,12 +83,56 @@ class CorpusCache:
             self.hits += 1
             self._entries.move_to_end(key)
             return self._entries[key]
+
+        if persist:
+            stored = await self._load_artifact(db, key, fp)
+            if stored is not _MISS:
+                self.hits += 1
+                self._remember(key, stored)
+                return stored
+
         self.misses += 1
         value = await compute()
+        self._remember(key, value)
+        if persist:
+            await self._store_artifact(db, key, fp, value)
+        return value
+
+    def _remember(self, key: Hashable, value: Any) -> None:
         self._entries[key] = value
         while len(self._entries) > self.max_entries:
             self._entries.popitem(last=False)
-        return value
+
+    async def _load_artifact(self, db: AsyncSession, key: Hashable, fp: Fingerprint) -> Any:
+        from app.models.computed_artifact import ComputedArtifact
+
+        try:
+            row = await db.get(ComputedArtifact, repr(key)[:400])
+        except Exception as e:  # noqa: BLE001 -- table missing, connection blip
+            logger.debug(f"artifact load failed for {key!r}: {e}")
+            return _MISS
+        if row is not None and row.fingerprint == repr(fp):
+            return row.payload
+        return _MISS
+
+    async def _store_artifact(self, db: AsyncSession, key: Hashable, fp: Fingerprint, value: Any) -> None:
+        from app.models.computed_artifact import ComputedArtifact
+
+        try:
+            json.dumps(value)  # only JSON-shaped values persist
+        except (TypeError, ValueError):
+            return
+        try:
+            await db.merge(ComputedArtifact(
+                key=repr(key)[:400], fingerprint=repr(fp), payload=value,
+            ))
+            await db.commit()
+        except Exception as e:  # noqa: BLE001 -- persistence is best-effort
+            logger.warning(f"artifact store failed for {key!r}: {e}")
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
 
     def stats(self) -> dict:
         return {

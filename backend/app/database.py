@@ -171,6 +171,24 @@ def _migrate_widen_rule_id(connection):
         break
 
 
+def _migrate_sort_indexes(connection):
+    """Indexes for the catalog's default orderings (#81 / S2.5).
+
+    The teardown measured 1,278 ms for the default 25-row list: the
+    sort columns had no indexes. Postgres-only (dev SQLite is small).
+    """
+    if connection.engine.dialect.name != "postgresql":
+        return
+    connection.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_detections_rule_created_date "
+        "ON detections (rule_created_date DESC NULLS LAST)"
+    ))
+    connection.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_detections_quality_created "
+        "ON detections (quality_score DESC NULLS LAST, rule_created_date DESC NULLS LAST)"
+    ))
+
+
 def _migrate_search_vector(connection):
     """Weighted full-text search vector (#12 / teardown F13).
 
@@ -223,3 +241,4 @@ async def init_db() -> None:
         # RuleIDs — idempotent, Postgres-only.
         await conn.run_sync(_migrate_widen_rule_id)
         await conn.run_sync(_migrate_search_vector)
+        await conn.run_sync(_migrate_sort_indexes)

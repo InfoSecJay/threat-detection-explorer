@@ -86,7 +86,7 @@ async def coverage_by_data_source(
     telemetry I have". One scan, memoised on the corpus fingerprint."""
     await mitre_service.ensure_loaded()
     key = ("mitre_ds_matrix", limit, sources, mitre_service.get_stats()["last_fetch"])
-    return await corpus_cache.get(db, key, lambda: _compute_ds_matrix(db, limit, sources))
+    return await corpus_cache.get(db, key, lambda: _compute_ds_matrix(db, limit, sources), persist=True)
 
 
 async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> dict:
