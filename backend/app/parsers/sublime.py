@@ -8,6 +8,7 @@ from typing import Optional
 import yaml
 
 from app.parsers.base import BaseParser, ParsedRule
+from app.services.mitre_tactic_inference import infer_tactics
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,19 @@ class SublimeParser(BaseParser):
             # Extract MITRE tactics and techniques
             mitre_attack = self._extract_mitre(data)
 
+            # Vendor-declared ids are rare in Sublime rules; when absent,
+            # derive from attack_types and tag the provenance so derived
+            # mappings stay distinguishable from vendor-declared ones.
+            tags = data.get("tags", []) or []
+            if not mitre_attack["techniques"]:
+                derived = self._derive_techniques_from_attack_types(data)
+                if derived:
+                    mitre_attack["techniques"] = derived
+                    for tactic_id in infer_tactics(derived):
+                        if tactic_id not in mitre_attack["tactics"]:
+                            mitre_attack["tactics"].append(tactic_id)
+                    tags = list(tags) + ["mitre-mapping:derived"]
+
             # Extract author from authors list
             authors = data.get("authors", [])
             author = None
@@ -74,7 +88,7 @@ class SublimeParser(BaseParser):
                 status="stable",  # Sublime doesn't have status field
                 severity=severity,
                 log_source={"product": "email", "category": "email_security"},
-                tags=data.get("tags", []) or [],
+                tags=tags,
                 mitre_attack=mitre_attack,
                 detection_logic_raw=source_logic,
                 false_positives=false_positives,
@@ -118,6 +132,44 @@ class SublimeParser(BaseParser):
         "exfiltration": "TA0010",
         "impact": "TA0040",
     }
+
+    # Derived ATT&CK mapping from Sublime's `attack_types` vocabulary
+    # (teardown R10 / #108). Sublime publishes a small, stable email-threat
+    # classification instead of ATT&CK ids; without this translation all
+    # ~1,200 Sublime rules carry zero techniques -- concentrated exactly in
+    # the initial-access/phishing space. The vocabulary is 7 values total,
+    # so this table is exhaustive, not heuristic.
+    ATTACK_TYPE_TECHNIQUES = {
+        "credential phishing": ["T1566.002"],  # spearphishing link; refined to .001 on attachment signals
+        "malware/ransomware": ["T1204.002"],   # user execution: malicious file
+        "bec/fraud": ["T1656"],                # impersonation
+        "callback phishing": ["T1566.004"],    # spearphishing voice (victim dials the number)
+        "extortion": ["T1657"],                # financial theft
+        "reconnaissance": ["T1598"],           # phishing for information
+        # "spam" describes nuisance volume, not an ATT&CK behavior: no mapping.
+    }
+
+    # `tactics_and_techniques` values that indicate the phish arrives as an
+    # attachment rather than a link, flipping T1566.002 -> T1566.001.
+    ATTACHMENT_SIGNALS = {"pdf", "macros", "html smuggling", "image as content", "attachment"}
+
+    def _derive_techniques_from_attack_types(self, data: dict) -> list[str]:
+        """Map Sublime attack_types to ATT&CK techniques (mapping_origin: derived)."""
+        attack_types = [
+            a.strip().lower() for a in (data.get("attack_types") or []) if isinstance(a, str)
+        ]
+        tnt = {
+            t.strip().lower() for t in (data.get("tactics_and_techniques") or []) if isinstance(t, str)
+        }
+        attachment_based = bool(tnt & self.ATTACHMENT_SIGNALS)
+        techniques: list[str] = []
+        for at in attack_types:
+            for tid in self.ATTACK_TYPE_TECHNIQUES.get(at, []):
+                if tid == "T1566.002" and attachment_based:
+                    tid = "T1566.001"
+                if tid not in techniques:
+                    techniques.append(tid)
+        return techniques
 
     def _extract_mitre(self, data: dict) -> dict:
         """Extract MITRE ATT&CK tactics and techniques from Sublime rule."""
