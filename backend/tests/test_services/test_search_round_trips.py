@@ -84,11 +84,12 @@ async def test_facets_unfiltered_is_one_query(db_session, corpus):
     with _Counter(db_session) as c:
         facets = await search.get_facets(SearchFilters())
     assert c.n == 2, f"unfiltered facets should be fingerprint + one scan, ran {c.n}"
-    assert _fm(facets["sources"]) == {"sigma": 2, "elastic": 1, "splunk": 1}
-    assert _fm(facets["severities"]) == {"high": 2, "critical": 1, "low": 1}
-    assert _fm(facets["platforms"]) == {"windows": 3, "linux": 2}
+    # Rule "d" is deprecated and hidden by default (teardown R11 / #109).
+    assert _fm(facets["sources"]) == {"sigma": 2, "elastic": 1}
+    assert _fm(facets["severities"]) == {"high": 1, "critical": 1, "low": 1}
+    assert _fm(facets["platforms"]) == {"windows": 2, "linux": 2}
     assert _fm(facets["mitre_techniques"]) == {"T1059": 2, "T1003": 1}
-    assert _fm(facets["process_names"]) == {"powershell.exe": 2, "cmd.exe": 1}
+    assert _fm(facets["process_names"]) == {"powershell.exe": 1}
     assert _fm(facets["building_block"]) == {"true": 1}
     assert _fm(facets["quality_band"]) == {"80": 1, "60": 2, "40": 3}
 
@@ -100,7 +101,7 @@ async def test_facets_each_selected_dimension_adds_one_query(db_session, corpus)
         facets = await search.get_facets(SearchFilters(sources=["sigma"], severities=["high"]))
     assert c.n == 4, f"two selected dimensions -> fingerprint + shared scan + one each, ran {c.n}"
     # Own-selection exclusion still holds per dimension.
-    assert _fm(facets["sources"]) == {"sigma": 1, "splunk": 1}  # severity=high, any source
+    assert _fm(facets["sources"]) == {"sigma": 1}  # severity=high, any source; splunk "d" deprecated
     assert _fm(facets["severities"]) == {"high": 1, "critical": 1}  # source=sigma, any severity
     assert _fm(facets["platforms"]) == {"windows": 1}  # both applied
     assert _fm(facets["quality_band"]) == {"80": 1, "60": 1, "40": 1}

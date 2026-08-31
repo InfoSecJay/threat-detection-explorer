@@ -625,9 +625,14 @@ class SearchService:
         if filters.sources:
             conditions.append(Detection.source.in_(filters.sources))
 
-        # Status filter
+        # Status filter. With no explicit status filter, deprecated rules
+        # are excluded (teardown R11 / #109): vendor-retired content must
+        # not pad default search results or the facets. Asking for a
+        # status -- including "deprecated" itself -- opts in.
         if filters.statuses:
             conditions.append(Detection.status.in_(filters.statuses))
+        else:
+            conditions.append(Detection.status != "deprecated")
 
         # Building-block filter. `isnot(True)` (not `== False`) so rows
         # that still hold NULL from before the column existed are

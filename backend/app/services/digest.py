@@ -55,7 +55,12 @@ def _rule_dict(row) -> dict:
 
 
 def _created_in(since, until=None):
-    cond = and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= since)
+    # Deprecated rules never belong in the digest (teardown R11 / #109).
+    cond = and_(
+        Detection.rule_created_date.isnot(None),
+        Detection.rule_created_date >= since,
+        Detection.status != "deprecated",
+    )
     if until is not None:
         cond = and_(cond, Detection.rule_created_date < until)
     return cond
@@ -68,6 +73,7 @@ def _modified_in(since, until=None):
         Detection.rule_modified_date.isnot(None),
         Detection.rule_modified_date >= since,
         or_(Detection.rule_created_date.is_(None), Detection.rule_created_date < since),
+        Detection.status != "deprecated",
     )
     if until is not None:
         cond = and_(cond, Detection.rule_modified_date < until)

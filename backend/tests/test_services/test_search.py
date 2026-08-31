@@ -162,9 +162,11 @@ def ids(detections: list[Detection]) -> set[str]:
 
 @pytest.mark.asyncio
 async def test_filter_by_single_source(search):
+    # r7 is sigma but deprecated: excluded without an explicit status
+    # filter (teardown R11 / #109).
     rows, total = await search.search_detections(SearchFilters(sources=["sigma"]))
-    assert ids(rows) == {"r1", "r2", "r7"}
-    assert total == 3
+    assert ids(rows) == {"r1", "r2"}
+    assert total == 2
 
 
 @pytest.mark.asyncio
@@ -434,14 +436,14 @@ async def test_total_count_matches_filter(search):
 @pytest.mark.asyncio
 async def test_pagination_offset_and_limit(search):
     rows_page1, total = await search.search_detections(
-        SearchFilters(sources=["sigma"], offset=0, limit=2, sort_by="title", sort_order="asc")
+        SearchFilters(sources=["sigma"], offset=0, limit=1, sort_by="title", sort_order="asc")
     )
     rows_page2, _ = await search.search_detections(
-        SearchFilters(sources=["sigma"], offset=2, limit=2, sort_by="title", sort_order="asc")
+        SearchFilters(sources=["sigma"], offset=1, limit=1, sort_by="title", sort_order="asc")
     )
-    assert len(rows_page1) == 2
+    assert len(rows_page1) == 1
     assert len(rows_page2) == 1
-    assert total == 3
+    assert total == 2
     assert ids(rows_page1).isdisjoint(ids(rows_page2))
 
 
@@ -450,8 +452,10 @@ async def test_pagination_offset_and_limit(search):
 
 @pytest.mark.asyncio
 async def test_no_filters_returns_everything(search, corpus):
+    # Everything except deprecated r7, which is opt-in (teardown R11 / #109).
     rows, total = await search.search_detections(SearchFilters())
-    assert total == len(corpus)
+    assert total == len(corpus) - 1
+    assert "r7" not in ids(rows)
 
 
 @pytest.mark.asyncio
@@ -459,7 +463,7 @@ async def test_empty_string_search_is_treated_as_no_search(search, corpus):
     """A literal empty `search` string should not collapse the result
     set to zero — it should behave like no text filter at all."""
     rows, total = await search.search_detections(SearchFilters(search=""))
-    assert total == len(corpus)
+    assert total == len(corpus) - 1
 
 
 # ── Facets (filter-sidebar counts) ──────────────────────────────────────
@@ -472,7 +476,7 @@ def facet_map(facet: list[dict]) -> dict[str, int]:
 @pytest.mark.asyncio
 async def test_facets_unfiltered_counts_whole_corpus(search):
     facets = await search.get_facets(SearchFilters())
-    assert facet_map(facets["sources"])["sigma"] == 3
+    assert facet_map(facets["sources"])["sigma"] == 2  # r7 deprecated, hidden
     assert facet_map(facets["severities"])["critical"] == 3
     assert facet_map(facets["mitre_techniques"])["T1059"] == 1
     assert facet_map(facets["platforms"])["windows"] == 3
@@ -484,7 +488,7 @@ async def test_facets_narrow_with_other_dimensions(search):
     sigma rules — counts must track the active query."""
     facets = await search.get_facets(SearchFilters(sources=["sigma"]))
     sev = facet_map(facets["severities"])
-    assert sev == {"high": 1, "critical": 1, "low": 1}
+    assert sev == {"high": 1, "critical": 1}  # low was deprecated r7
 
 
 @pytest.mark.asyncio

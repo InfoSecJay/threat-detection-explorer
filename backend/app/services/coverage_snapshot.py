@@ -43,7 +43,11 @@ async def _current_counts(db: AsyncSession) -> dict[tuple[str, str], int]:
     SQLite/Postgres and cheap at corpus scale (same pattern as the
     actor score bundle)."""
     rows = (
-        await db.execute(select(Detection.source, Detection.mitre_techniques))
+        await db.execute(
+            select(Detection.source, Detection.mitre_techniques)
+            # Deprecated rules do not count toward coverage (teardown R11 / #109).
+            .where(Detection.status != "deprecated")
+        )
     ).all()
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for source, techniques in rows:
@@ -167,7 +171,7 @@ async def compute_newly_covered(
                     Detection.source,
                     Detection.mitre_techniques,
                     Detection.rule_created_date,
-                )
+                ).where(Detection.status != "deprecated")
             )
         ).all()
         first_seen: dict[tuple[str, str], date] = {}

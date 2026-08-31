@@ -1,6 +1,7 @@
 """Detection rule ingestion service."""
 
 import logging
+import re
 
 from app.parsers.base import SkippedRule
 import traceback
@@ -40,6 +41,23 @@ from app.services.ingestion_errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Vendors retire rules by renaming them in place, not only by moving them
+# to a _deprecated/ directory (teardown R11): Elastic uses "Deprecated - "
+# and Sentinel uses "[Deprecated]" as prefix or suffix. Require an explicit
+# marker (bracket or trailing separator) -- the bare word must NOT match, or
+# a legitimate rule like "Deprecated TLS Version Usage" gets swallowed.
+_DEPRECATED_TITLE = re.compile(
+    r"(?:^\s*\[?deprecated\]?\s*[-:–]\s+)"  # "Deprecated - X", "[Deprecated] - X", "Deprecated: X"
+    r"|(?:^\s*\[deprecated\]\s*)"                  # "[Deprecated] X"
+    r"|(?:\[deprecated\]\s*$)",                    # "X [Deprecated]"
+    re.IGNORECASE,
+)
+
+
+def is_deprecated_title(title: Optional[str]) -> bool:
+    """True when the rule title carries a vendor deprecation marker."""
+    return bool(title and _DEPRECATED_TITLE.search(title))
 
 
 class IngestionService:
@@ -567,6 +585,17 @@ class IngestionService:
         # Deterministic hygiene score (issue #10) — computed here so
         # every source passes through one scoring point.
         quality_score, quality_details = score_detection(normalized)
+
+        # Title-marker deprecation (teardown R11 / #109): the vendor marked
+        # the rule, so status must say so even when the metadata field
+        # (e.g. Elastic maturity) still reads production.
+        status = normalized.status
+        if status != "deprecated" and is_deprecated_title(normalized.title):
+            logger.info(
+                f"Rule marked deprecated by title convention: {normalized.source} "
+                f"{normalized.source_file} ({normalized.title!r})"
+            )
+            status = "deprecated"
 
         return Detection(
             id=normalized.id,

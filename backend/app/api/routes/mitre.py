@@ -96,7 +96,13 @@ async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> di
 
     from app.models.detection import Detection
 
-    rows = (await db.execute(select(Detection.data_sources, Detection.mitre_techniques))).all()
+    rows = (
+        await db.execute(
+            select(Detection.data_sources, Detection.mitre_techniques)
+            # Deprecated rules do not count toward coverage (teardown R11 / #109).
+            .where(Detection.status != "deprecated")
+        )
+    ).all()
     per_tech: dict[str, Counter] = defaultdict(Counter)
     tech_total: Counter = Counter()
     ds_total: Counter = Counter()

@@ -110,7 +110,14 @@ class PantherParser(BaseParser):
                 detection_logic_raw = self._serialize_yaml_block(rule.get("Detection"))
             else:
                 # Declarative Detection block (Key/Condition/Value).
-                language = "panther"
+                # There is no query language we can honestly name here;
+                # surface unknown loudly instead of minting the source
+                # name as a language facet value (teardown R07 / B8).
+                logger.warning(
+                    "Panther rule has no .py sibling and is not a "
+                    f"correlation rule; language unresolved: {file_path}"
+                )
+                language = "unknown"
                 detection_logic_raw = self._serialize_yaml_block(rule.get("Detection"))
 
             # ── Log source ────────────────────────────────────────

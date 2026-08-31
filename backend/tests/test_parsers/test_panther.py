@@ -232,7 +232,7 @@ Detection:
     parsed = parser.parse(_rel("github_repo_archived.yml"), yaml_source)
 
     assert parsed is not None
-    assert parsed.extra["language"] == "panther"
+    assert parsed.extra["language"] == "unknown"
     assert "repo.archived" in parsed.detection_logic_raw
 
 
