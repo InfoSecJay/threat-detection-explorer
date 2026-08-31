@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "${VITE_API_URL}/:path*"
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/:path*"
     },
     {
       "source": "/sitemap.xml",
@@ -13,22 +13,46 @@
     },
     {
       "source": "/detections/:id",
-      "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*" }],
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/detection/:id"
     },
     {
       "source": "/mitre/:id(T[\\d.]+)",
-      "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*" }],
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/technique/:id"
     },
     {
       "source": "/actors/:id([GS]\\d+)",
-      "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*" }],
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/actor/:id"
     },
     {
       "source": "/",
-      "has": [{ "type": "header", "key": "user-agent", "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*" }],
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/home"
     },
     {
@@ -51,6 +75,42 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/detections/:id",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/mitre/:id(T[\\d.]+)",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/actors/:id([GS]\\d+)",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
         }
       ]
     }

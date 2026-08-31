@@ -210,7 +210,7 @@ function Logo() {
           <span className="text-white ml-1">EXPLORER</span>
         </div>
         <div className="text-[10px] font-mono text-gray-500 tracking-widest">
-          OPEN DETECTION RULES // v1.4.0
+          OPEN DETECTION RULES // {__APP_VERSION__}
         </div>
       </div>
     </Link>
@@ -409,7 +409,7 @@ function App() {
 
             {/* Center - Version */}
             <div className="text-xs font-mono text-gray-600">
-              DETECTION_EXPLORER // v1.4.0
+              DETECTION_EXPLORER // {__APP_VERSION__}
               <a
                 href="https://github.com/InfoSecJay/threat-detection-explorer/issues/new?template=suggest-a-source.md"
                 target="_blank"

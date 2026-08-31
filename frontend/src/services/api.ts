@@ -10,8 +10,11 @@ import type {
   ExportRequest,
 } from '../types';
 
-// API base URL - uses environment variable in production, or relative path for local dev
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// API base URL. Production is always same-origin: /api/* is rewritten to the
+// backend by vercel.json, and hardcoding '/api' here keeps the backend
+// hostname out of the bundle no matter what env vars the build ran with.
+// VITE_API_URL remains as a dev-only override.
+const API_BASE_URL = import.meta.env.PROD ? '/api' : import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -1025,10 +1028,15 @@ export const digestApi = {
     const response = await api.get(`/digest/week/${encodeURIComponent(week)}?limit=${limit}`);
     return response.data;
   },
-  // Feed URLs go through the same API base as everything else (the
-  // Vercel /api rewrite in production, the dev proxy locally).
-  feedUrl: (name: 'feed' | 'newly-covered' | 'modified', source?: string): string =>
-    `${API_BASE_URL}/digest/${name}.xml${source ? `?source=${encodeURIComponent(source)}` : ''}`,
+  // Feed URLs are shown to users to paste into a reader, so they must be
+  // absolute and on the site's own origin -- never the backend host, which
+  // is an implementation detail that can change under subscribers.
+  feedUrl: (name: 'feed' | 'newly-covered' | 'modified', source?: string): string => {
+    const path = `${API_BASE_URL}/digest/${name}.xml${source ? `?source=${encodeURIComponent(source)}` : ''}`;
+    if (/^https?:/i.test(path)) return path;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://detectionexplorer.io';
+    return `${origin}${path}`;
+  },
 };
 
 // Observable pages: everything the corpus knows about one extracted value.
