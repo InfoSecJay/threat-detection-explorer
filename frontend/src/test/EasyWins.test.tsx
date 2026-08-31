@@ -49,7 +49,7 @@ function wrap(ui: React.ReactNode, path = '/') {
 
 describe('easy wins', () => {
   beforeEach(() => {
-    document.title = 'Threat Detection Explorer';
+    document.title = 'Detection Explorer';
   });
 
   it('404 page names the path and links back into the catalog', () => {
@@ -88,10 +88,10 @@ describe('easy wins', () => {
     meta.content = 'default';
     document.head.appendChild(meta);
     const { unmount } = renderHook(() => useDocumentMeta('APT29 (G0016)', 'A group.'));
-    expect(document.title).toBe('APT29 (G0016) · Threat Detection Explorer');
+    expect(document.title).toBe('APT29 (G0016) · Detection Explorer');
     expect(meta.content).toBe('A group.');
     unmount();
-    expect(document.title).toBe('Threat Detection Explorer');
+    expect(document.title).toBe('Detection Explorer');
     expect(meta.content).toBe('default');
     meta.remove();
   });

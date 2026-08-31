@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     environment: str = "development"  # development, staging, production
 
     # Application
-    app_name: str = "Threat Detection Explorer"
+    app_name: str = "Detection Explorer"
     debug: bool = True  # Enable debug logging
 
     # Database

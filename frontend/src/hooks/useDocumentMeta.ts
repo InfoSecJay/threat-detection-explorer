@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const SITE = 'Threat Detection Explorer';
+const SITE = 'Detection Explorer';
 const DEFAULT_DESCRIPTION =
   'Open-source detection rules from thirteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on.';
 

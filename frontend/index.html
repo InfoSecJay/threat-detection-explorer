@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Unified command interface for browsing, searching, and comparing detection rules across multiple open-source security repositories." />
+    <meta name="description" content="Open-source detection rules from thirteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on." />
     <meta name="theme-color" content="#010409" />
 
     <!-- Preconnect to Google Fonts for faster loading -->
@@ -14,7 +14,21 @@
     <link rel="alternate" type="application/rss+xml" title="Detection Explorer - new detection rules" href="/api/digest/feed.xml" />
     <link rel="alternate" type="application/rss+xml" title="Detection Explorer - techniques newly covered" href="/api/digest/newly-covered.xml" />
 
-    <title>Threat Detection Explorer</title>
+    <title>Detection Explorer</title>
+
+    <!-- Default Open Graph / Twitter card (detail pages get per-page
+         tags from the bot prerender; these cover everything else). -->
+    <meta property="og:site_name" content="Detection Explorer" />
+    <meta property="og:title" content="Detection Explorer" />
+    <meta property="og:description" content="Open-source detection rules from thirteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://detectionexplorer.io/" />
+    <meta property="og:image" content="https://detectionexplorer.io/api/og/site.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Detection Explorer" />
+    <meta name="twitter:image" content="https://detectionexplorer.io/api/og/site.png" />
   </head>
   <body>
     <div id="root"></div>

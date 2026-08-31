@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![TypeScript](https://img.shields.io/badge/typescript-React-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-Apache--2.0-green)
 ![Deployment](https://img.shields.io/badge/deployed-Vercel-black)
 
 **Explore, compare, and track open-source detection rules across multiple security vendors — in one place.**
@@ -13,13 +13,13 @@
 
 ---
 
-Detection Explorer ingests and normalizes detection rules from 11 major open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
+Detection Explorer ingests and normalizes detection rules from 13 open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
 
 ### Why?
 
 Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
 
-- **Search & filter** across 11 vendors with full-text search, severity, status, and MITRE tactic/technique filters
+- **Search & filter** across 13 sources with full-text search, severity, status, and MITRE tactic/technique filters
 - **Compare coverage** across vendors for any MITRE technique or keyword
 - **Identify gaps** — find techniques covered by one vendor but missing from another
 - **Stay current** — sync and re-ingest to pull the latest rules from each repo
@@ -41,6 +41,7 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 | [Okta customer-detections](https://github.com/okta/customer-detections) | YAML (OIE / SPL) |
 | [Auth0 customer-detections](https://github.com/auth0/auth0-customer-detections) | YAML (Sigma + SPL) |
 | [Panther Labs](https://github.com/panther-labs/panther-analysis) | YAML metadata + Python detection |
+| [PyPanther](https://github.com/panther-labs/pypanther) | Python classes |
 
 ---
 
@@ -66,7 +67,7 @@ curl "https://threat-detection-explorer-production.up.railway.app/api/detections
 # Corpus statistics (rule count per source, severity, status)
 curl "https://threat-detection-explorer-production.up.railway.app/api/detections/statistics"
 
-# Coverage for a MITRE technique across all 11 sources
+# Coverage for a MITRE technique across all 13 sources
 curl "https://threat-detection-explorer-production.up.railway.app/api/compare?technique=T1059.001"
 
 # All available filter facets (platforms, data sources, event types) with counts
@@ -75,10 +76,9 @@ curl "https://threat-detection-explorer-production.up.railway.app/api/detections
 
 ### Notes for consumers
 
-- **Read-only intent.** A handful of write endpoints exist
-  (`POST /api/repositories/{name}/sync`, `POST /api/scheduler/trigger`, etc.)
-  but they're for the project's own sync infrastructure. They're not
-  rate-limited yet; please don't queue floods.
+- **Read-only.** The public API surface is read-only; sync and ingest
+  are driven by the project's own scheduler behind an admin token and
+  are not part of the public spec.
 - **Browser CORS** is allow-listed to `detectionexplorer.io`. Server-side
   callers (scripts, MCP servers, backend integrations) aren't affected.
 - **Best-effort availability.** Hosted on Railway Pro; nightly sync in
@@ -226,4 +226,6 @@ Environment variables (can be set in `.env`):
 
 ## License
 
-MIT
+Apache License 2.0 -- see [LICENSE](./LICENSE). The detection rules
+served by the site remain under their upstream repositories' own
+licenses (check each repo before redistribution).

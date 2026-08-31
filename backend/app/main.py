@@ -32,6 +32,8 @@ from app.api.routes import (
     methodology,
     mitre,
     observables,
+    og,
+    prerender,
     sitemap,
     query,
     releases,
@@ -136,3 +138,28 @@ app.include_router(methodology.router, prefix=settings.api_prefix)
 app.include_router(digest.router, prefix=settings.api_prefix)
 app.include_router(observables.router, prefix=settings.api_prefix)
 app.include_router(sitemap.router, prefix=settings.api_prefix)
+app.include_router(prerender.router, prefix=settings.api_prefix)
+app.include_router(og.router, prefix=settings.api_prefix)
+
+
+# Read routes are cacheable at the edge: the corpus changes once a day
+# (teardown F06 / #80). Set only where the handler did not choose its
+# own policy. Cloudflare/Vercel honour s-maxage; browsers ignore it.
+_CACHEABLE_PREFIXES = (
+    "/api/detections", "/api/mitre", "/api/actors", "/api/trending",
+    "/api/observables", "/api/digest", "/api/compare", "/api/query",
+    "/api/search", "/api/methodology", "/api/event-ids", "/api/export",
+)
+
+
+@app.middleware("http")
+async def edge_cache_headers(request, call_next):
+    response = await call_next(request)
+    if (
+        request.method == "GET"
+        and response.status_code == 200
+        and request.url.path.startswith(_CACHEABLE_PREFIXES)
+        and "cache-control" not in response.headers
+    ):
+        response.headers["Cache-Control"] = "public, s-maxage=900, stale-while-revalidate=86400"
+    return response

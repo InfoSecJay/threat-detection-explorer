@@ -127,7 +127,7 @@ export function About() {
 
           <div className="space-y-4 text-sm text-gray-400">
             <p>
-              <span className="text-matrix-500 font-semibold">Threat Detection Explorer</span> is an open-source tool
+              <span className="text-matrix-500 font-semibold">Detection Explorer</span> is an open-source tool
               designed to help security professionals browse, search, and compare detection rules across multiple
               community-driven security repositories.
             </p>

@@ -206,11 +206,11 @@ function Logo() {
       {/* Title */}
       <div className="hidden sm:block">
         <div className="font-display text-lg font-bold tracking-wider">
-          <span className="text-matrix-500">THREAT</span>
-          <span className="text-white ml-1">DETECTION</span>
+          <span className="text-matrix-500">DETECTION</span>
+          <span className="text-white ml-1">EXPLORER</span>
         </div>
         <div className="text-[10px] font-mono text-gray-500 tracking-widest">
-          EXPLORER // v1.4.0
+          OPEN DETECTION RULES // v1.4.0
         </div>
       </div>
     </Link>
@@ -329,7 +329,7 @@ function App() {
 
             {/* Center - Version */}
             <div className="text-xs font-mono text-gray-600">
-              THREAT_DETECTION_EXPLORER // v1.4.0
+              DETECTION_EXPLORER // v1.4.0
             </div>
 
             {/* Right - Social links */}
