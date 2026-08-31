@@ -410,6 +410,14 @@ function App() {
             {/* Center - Version */}
             <div className="text-xs font-mono text-gray-600">
               DETECTION_EXPLORER // v1.4.0
+              <a
+                href="https://github.com/InfoSecJay/threat-detection-explorer/issues/new?template=suggest-a-source.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-4 text-matrix-500 hover:text-matrix-400 uppercase tracking-wider"
+              >
+                suggest a source
+              </a>
             </div>
 
             {/* Right - Social links */}

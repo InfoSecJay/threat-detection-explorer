@@ -87,6 +87,16 @@ curl "https://threat-detection-explorer-production.up.railway.app/api/detections
 
 ---
 
+## Contributing
+
+The best contribution is a source suggestion: a public repo of
+detection rules we should ingest. Use the
+[suggest-a-source issue template](https://github.com/InfoSecJay/threat-detection-explorer/issues/new?template=suggest-a-source.md),
+or see [CONTRIBUTING.md](./CONTRIBUTING.md) for extraction bug reports
+and code contributions. Worked API examples (weekly rules to Slack, a
+Navigator layer per actor, gap-diffing your own rule set) live in
+[docs/api-examples.md](./docs/api-examples.md).
+
 ## Roadmap
 
 Priorities and to-dos live in [GitHub Issues](https://github.com/InfoSecJay/threat-detection-explorer/issues), labeled by:
