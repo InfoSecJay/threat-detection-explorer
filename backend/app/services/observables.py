@@ -30,7 +30,7 @@ OBSERVABLE_TYPES: dict[str, tuple[str, str, str]] = {
     "action": ("extracted_api_actions", "api_actions", "API action"),
     "eventid": ("extracted_event_ids", "event_ids", "Event ID"),
     "table": ("extracted_source_tables", "source_tables", "Source table"),
-    "resource": ("extracted_target_resources", "target_resources", "Target resource"),
+    "resource": ("extracted_target_resources", "target_resources", "Resource type"),
 }
 
 _CO_OCCUR_SURFACES = ("process", "eventid", "action", "table", "path", "registry", "network")
@@ -78,6 +78,17 @@ DATA_SOURCE_LABELS: dict[str, str] = {
 
 def data_source_label(name: str) -> str:
     return DATA_SOURCE_LABELS.get(name) or name.replace("_", " ").capitalize()
+
+
+_RESOURCE_TYPE_RE = re.compile(r"^[a-z][a-z0-9_-]{2,40}$")
+
+
+def _is_resource_type(value: str) -> bool:
+    """Type-shaped resource values: short lowercase tokens like
+    `bucket`, `pods`, `gcs_bucket`. Excludes names (GUIDs start with a
+    digit or carry uppercase/spaces, ARNs carry colons, field names
+    carry dots/camelCase) and one-off junk."""
+    return bool(_RESOURCE_TYPE_RE.fullmatch(value))
 
 
 def _column(kind: str):
@@ -134,6 +145,12 @@ async def top_values(
     for src, values, data_sources in rows:
         # A rule naming the same value twice counts once.
         for v in {v.lower(): v for v in (values or []) if isinstance(v, str) and v.strip()}.values():
+            # Resource index carries TYPES only (#60): "which rules
+            # watch buckets / roles / pods". Specific resource names
+            # (GUIDs, "Okta Admin Console", ARNs) are per-rule detail,
+            # visible on each rule page, and only muddied the list.
+            if kind == "resource" and not _is_resource_type(v):
+                continue
             key = v.lower()
             if needle and needle not in key:
                 continue
@@ -178,7 +195,7 @@ def _context(kind: str, value: str, data_sources: Counter[str]) -> Optional[dict
         if auth0 is not None:
             return {"label": auth0.label, "provider": "auth0", "channel": "Auth0 log events"}
         return None
-    if kind == "action" and data_sources:
+    if kind in ("action", "resource") and data_sources:
         ds, _n = data_sources.most_common(1)[0]
         label = data_source_label(ds)
         return {"label": label, "provider": ds, "channel": label}

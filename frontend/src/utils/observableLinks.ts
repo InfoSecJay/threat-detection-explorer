@@ -16,7 +16,7 @@ export const OBSERVABLE_KIND_LABEL: Record<ObservableKind, string> = {
   action: 'API action',
   eventid: 'Event ID',
   table: 'Source table',
-  resource: 'Target resource',
+  resource: 'Resource types',
 };
 
 /** SearchFilters key for "open in catalog" per kind. */

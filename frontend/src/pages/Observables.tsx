@@ -21,10 +21,7 @@ import { SkeletonRow, EmptyLabel } from './intel/Section';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import type { ObservableTopValue } from '../services/api';
 
-// Target resources are hidden from the index until the surface is
-// re-evaluated (issue: what a resource means per platform); profile
-// pages still resolve so existing links keep working.
-const KINDS: ObservableKind[] = (Object.keys(OBSERVABLE_KIND_LABEL) as ObservableKind[]).filter((k) => k !== 'resource');
+const KINDS: ObservableKind[] = Object.keys(OBSERVABLE_KIND_LABEL) as ObservableKind[];
 
 /** One line per surface saying what the values are, so the table needs no legend. */
 const KIND_BLURB: Record<ObservableKind, string> = {
@@ -35,7 +32,7 @@ const KIND_BLURB: Record<ObservableKind, string> = {
   action: 'cloud / SaaS audit operations, grouped by the log they are read from (CloudTrail, Okta, Entra, GCP, Kubernetes, GitHub...)',
   eventid: 'Windows event IDs the rule keys on, grouped by the log they come from',
   table: 'SIEM tables and datamodels the query reads from',
-  resource: 'targets the rule watches: users, roles, buckets, mailboxes',
+  resource: 'resource TYPES rules watch (buckets, roles, pods, secrets), grouped by the platform log they are read from -- specific resource names live on each rule page',
 };
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -132,6 +129,7 @@ function ValuesTable({ kind, values, max, offset = 0 }: { kind: ObservableKind; 
  * without a known log last. Event IDs group by Windows channel, API
  * actions by the audit log the rules read. */
 const UNKNOWN_CHANNEL: Partial<Record<ObservableKind, string>> = {
+  resource: 'Other platforms',
   eventid: 'Not in the Windows event-ID dictionary',
   action: 'Rules carry no canonical data source',
 };
@@ -173,7 +171,7 @@ export function Observables() {
   const sources = options?.sources || [];
   const max = data?.values?.[0]?.rules || 1;
   const grouped = useMemo(
-    () => (data && (kind === 'eventid' || kind === 'action' || kind === 'network') ? groupByChannel(kind, data.values) : null),
+    () => (data && (kind === 'eventid' || kind === 'action' || kind === 'network' || kind === 'resource') ? groupByChannel(kind, data.values) : null),
     [kind, data],
   );
 
