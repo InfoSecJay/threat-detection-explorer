@@ -232,6 +232,16 @@ async def run_full_sync_job(
             except Exception as e:
                 logger.warning(f"Coverage snapshot failed: {e}", exc_info=True)
 
+            # Full corpus snapshot (#94 / teardown S5.1): the exact
+            # normalized state of every source, gzip JSONL per (day,
+            # source). The longitudinal record only exists if we keep
+            # it; a snapshot bug never degrades the sync's status.
+            try:
+                from app.services.corpus_snapshot import write_corpus_snapshot
+                await write_corpus_snapshot(db)
+            except Exception as e:
+                logger.warning(f"Corpus snapshot failed: {e}", exc_info=True)
+
             # Taxonomy drift notifications (Issue 2 observability layer).
             # Opens/updates GitHub issues for any repo with unmapped
             # rules. Feature-flagged off by default; no-ops if the
