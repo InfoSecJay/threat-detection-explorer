@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { clipSm } from './constants/style';
 import { ALL_SOURCES } from './constants/sources';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 
 // Route-level code splitting. Each page becomes its own chunk so the
 // initial bundle only ships shared shell + the page the user lands on.
@@ -41,7 +42,10 @@ const ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
   '/about': () => import('./pages/About'),
   '/methodology': () => import('./pages/Methodology'),
 };
-const prefetchRoute = (to: string) => { void ROUTE_LOADERS[to]?.(); };
+// Swallow prefetch failures: a hover on a link right after a deploy can
+// 404 the old chunk. The real navigation is covered by the route error
+// boundary; an unhandled rejection here would just be console noise.
+const prefetchRoute = (to: string) => { void ROUTE_LOADERS[to]?.().catch(() => {}); };
 
 // Lightweight loading state shown while a lazy route's chunk fetches.
 // Plain pulse — kept minimal so the layout doesn't shift.
@@ -289,6 +293,9 @@ function MobileMenu() {
 }
 
 function App() {
+  // Keying the error boundary on the path lets a navigation away from a
+  // crashed page reset it instead of trapping the whole session.
+  const location = useLocation();
   return (
     <div className="min-h-screen bg-void-950 flex flex-col">
       {/* Skip link (teardown R24): eight nav items precede the content. */}
@@ -357,6 +364,7 @@ function App() {
 
       {/* Main content */}
       <main id="main" className="flex-1 max-w-[1800px] w-full mx-auto px-4 py-6">
+        <RouteErrorBoundary key={location.pathname}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -389,6 +397,7 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </RouteErrorBoundary>
       </main>
 
       {/* Footer */}
