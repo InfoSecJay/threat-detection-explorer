@@ -1,10 +1,18 @@
 /** Inline row preview: query logic, references and FP notes without
- * leaving the result list (keeps scroll position intact). */
+ * leaving the result list (keeps scroll position intact).
+ *
+ * List rows are slim (teardown R15 / #113) -- they don't carry the
+ * logic/references/FP fields any more -- so the preview fetches the
+ * full rule on expand. react-query caches it, so opening the detail
+ * page afterwards is free. */
 
 import { Link } from 'react-router-dom';
 import type { Detection } from '../../types';
+import { useDetection } from '../../hooks/useDetections';
 
-export function RulePreview({ detection, lang, colSpan }: { detection: Detection; lang: string | null; colSpan: number }) {
+export function RulePreview({ detection: row, lang, colSpan }: { detection: Detection; lang: string | null; colSpan: number }) {
+  const { data: full, isLoading } = useDetection(row.id);
+  const detection = full ?? row;
   return (
     <tr className="bg-void-900/60">
       <td colSpan={colSpan} className="px-6 py-4">
@@ -22,7 +30,7 @@ export function RulePreview({ detection, lang, colSpan }: { detection: Detection
               )}
             </div>
             <pre className="p-3 bg-void-950 border border-void-700 text-xs font-mono text-gray-300 whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
-              {detection.detection_logic || 'No query logic available'}
+              {detection.detection_logic || (isLoading ? 'Loading...' : 'No query logic available')}
             </pre>
           </div>
 

@@ -234,29 +234,32 @@ class DetectionListItem(UtcTimestampsModel):
     platforms: list[str] = []
     data_sources: list[str] = []
     event_types: list[str] = []
-    use_cases: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     # Raw ATT&CK Group + Software IDs; FE resolves display names.
     mitre_groups: list[str] = []
     mitre_software: list[str] = []
-    detection_logic: str = ""
     language: str = "unknown"
-    tags: list[str] = []
-    references: list[str] = []
-    false_positives: list[str] = []
-    # Extracted observable fields
-    extracted_fields_used: list[str] = []
-    extracted_event_ids: list[str] = []
-    extracted_process_names: list[str] = []
-    extracted_file_paths: list[str] = []
-    extracted_registry_keys: list[str] = []
-    extracted_network_indicators: list[str] = []
-    extracted_source_tables: list[str] = []
-    extracted_observables: list[dict] = []
-    query_complexity: str = "unknown"
-    extracted_api_actions: list[str] = []
-    extracted_target_resources: list[str] = []
+    # Heavy fields below are None unless ?verbose=true (teardown R15 /
+    # #113): the default list response was 149 KB for 25 rows with ~85%
+    # of the payload never rendered by the table. None (not []) so
+    # response_model_exclude_none drops the keys from the slim response.
+    detection_logic: Optional[str] = None
+    use_cases: Optional[list[str]] = None
+    tags: Optional[list[str]] = None
+    references: Optional[list[str]] = None
+    false_positives: Optional[list[str]] = None
+    extracted_fields_used: Optional[list[str]] = None
+    extracted_event_ids: Optional[list[str]] = None
+    extracted_process_names: Optional[list[str]] = None
+    extracted_file_paths: Optional[list[str]] = None
+    extracted_registry_keys: Optional[list[str]] = None
+    extracted_network_indicators: Optional[list[str]] = None
+    extracted_source_tables: Optional[list[str]] = None
+    extracted_observables: Optional[list[dict]] = None
+    query_complexity: Optional[str] = None
+    extracted_api_actions: Optional[list[str]] = None
+    extracted_target_resources: Optional[list[str]] = None
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
     quality_score: Optional[int] = None
@@ -267,11 +270,12 @@ class DetectionListItem(UtcTimestampsModel):
         from_attributes = True
 
     @classmethod
-    def from_detection(cls, detection) -> "DetectionListItem":
+    def from_detection(cls, detection, verbose: bool = False) -> "DetectionListItem":
         """Create a list item from a detection.
 
         Sanitizes string fields to handle control characters that could
-        cause JSON serialization failures.
+        cause JSON serialization failures. Slim by default (teardown
+        R15 / #113); verbose restores the full row for API consumers.
         """
         data = {
             "id": str(detection.id),
@@ -290,33 +294,36 @@ class DetectionListItem(UtcTimestampsModel):
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
             "event_types": getattr(detection, 'event_types', None) or [],
-            "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "mitre_groups": getattr(detection, 'mitre_groups', None) or [],
             "mitre_software": getattr(detection, 'mitre_software', None) or [],
-            "detection_logic": sanitize_string(detection.detection_logic) or "",
             "language": detection.language or "unknown",
-            "tags": normalize_string_list(detection.tags),
-            "references": normalize_string_list(detection.references),
-            "false_positives": normalize_string_list(detection.false_positives),
-            "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
-            "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
-            "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],
-            "extracted_file_paths": getattr(detection, 'extracted_file_paths', None) or [],
-            "extracted_registry_keys": getattr(detection, 'extracted_registry_keys', None) or [],
-            "extracted_network_indicators": getattr(detection, 'extracted_network_indicators', None) or [],
-            "extracted_source_tables": getattr(detection, 'extracted_source_tables', None) or [],
-            "extracted_observables": getattr(detection, 'extracted_observables', None) or [],
-            "query_complexity": getattr(detection, 'query_complexity', None) or "unknown",
-            "extracted_api_actions": getattr(detection, 'extracted_api_actions', None) or [],
-            "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "quality_score": _int_or_none(getattr(detection, 'quality_score', None)),
             "created_at": detection.created_at,
             "updated_at": detection.updated_at,
         }
+        if verbose:
+            data.update({
+                "detection_logic": sanitize_string(detection.detection_logic) or "",
+                "use_cases": getattr(detection, 'use_cases', None) or [],
+                "tags": normalize_string_list(detection.tags),
+                "references": normalize_string_list(detection.references),
+                "false_positives": normalize_string_list(detection.false_positives),
+                "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
+                "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
+                "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],
+                "extracted_file_paths": getattr(detection, 'extracted_file_paths', None) or [],
+                "extracted_registry_keys": getattr(detection, 'extracted_registry_keys', None) or [],
+                "extracted_network_indicators": getattr(detection, 'extracted_network_indicators', None) or [],
+                "extracted_source_tables": getattr(detection, 'extracted_source_tables', None) or [],
+                "extracted_observables": getattr(detection, 'extracted_observables', None) or [],
+                "query_complexity": getattr(detection, 'query_complexity', None) or "unknown",
+                "extracted_api_actions": getattr(detection, 'extracted_api_actions', None) or [],
+                "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
+            })
         return cls(**data)
 
 

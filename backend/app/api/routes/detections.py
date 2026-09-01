@@ -21,8 +21,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/detections", tags=["detections"])
 
 
-@router.get("", response_model=DetectionListResponse)
+@router.get("", response_model=DetectionListResponse, response_model_exclude_none=True)
 async def list_detections(
+    verbose: bool = Query(
+        False,
+        description=(
+            "false (default): slim rows -- the catalog table's columns only. "
+            "true: full rows including detection_logic, references, "
+            "false_positives and the extracted_* observable arrays."
+        ),
+    ),
     search: Optional[str] = None,
     q: Optional[str] = Query(
         None,
@@ -116,7 +124,7 @@ async def list_detections(
     items = []
     for d in detections:
         try:
-            items.append(DetectionListItem.from_detection(d))
+            items.append(DetectionListItem.from_detection(d, verbose=verbose))
         except Exception as e:
             logger.error(f"Failed to serialize detection {d.id}: {e}")
             logger.error(f"Detection title: {d.title[:100] if d.title else 'None'}")
@@ -175,7 +183,7 @@ async def search_detections(
     detections, total = await search_service.search_detections(filters)
 
     return DetectionListResponse(
-        items=[DetectionListItem.from_detection(d) for d in detections],
+        items=[DetectionListItem.from_detection(d, verbose=True) for d in detections],
         total=total,
         offset=params.offset,
         limit=params.limit,

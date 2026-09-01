@@ -63,7 +63,7 @@ async def compare_detections(
     total_by_source = {}
 
     for source, detections in grouped.items():
-        results[source] = [DetectionListItem.from_detection(d) for d in detections]
+        results[source] = [DetectionListItem.from_detection(d, verbose=True) for d in detections]
         total_by_source[source] = len(detections)
 
     return CompareResponse(
@@ -106,7 +106,7 @@ async def compare_detections_post(
     total_by_source = {}
 
     for source, detections in grouped.items():
-        results[source] = [DetectionListItem.from_detection(d) for d in detections]
+        results[source] = [DetectionListItem.from_detection(d, verbose=True) for d in detections]
         total_by_source[source] = len(detections)
 
     return CompareResponse(
@@ -213,7 +213,7 @@ async def compare_side_by_side(
     }
 
     return SideBySideResponse(
-        detections=[DetectionListItem.from_detection(d) for d in detections],
+        detections=[DetectionListItem.from_detection(d, verbose=True) for d in detections],
         field_comparison=field_comparison,
     )
 

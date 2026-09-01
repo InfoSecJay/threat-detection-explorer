@@ -87,7 +87,7 @@ describe('ObservablesPanel event-ID chips', () => {
     subtype: 'event_id',
     values: ['4688', '9212'],
     negated: false,
-  } as Detection['extracted_observables'][number];
+  } as NonNullable<Detection['extracted_observables']>[number];
 
   it('labels known IDs and leaves unknown ones bare', () => {
     render(

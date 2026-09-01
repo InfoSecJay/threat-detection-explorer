@@ -230,10 +230,10 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <Row label="Use cases"><Chips items={detection.use_cases} tone="bg-void-700 text-gray-300 border-void-600" /></Row>
               )}
               <Row label="Tags">
-                {detection.tags.length > 0 ? (
+                {(detection.tags ?? []).length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {detection.tags.slice(0, 16).map((t) => <span key={t} className="px-2 py-0.5 bg-void-700 text-gray-400 rounded text-xs">{t}</span>)}
-                    {detection.tags.length > 16 && <span className="px-2 py-0.5 text-gray-500 text-xs">+{detection.tags.length - 16} more</span>}
+                    {(detection.tags ?? []).slice(0, 16).map((t) => <span key={t} className="px-2 py-0.5 bg-void-700 text-gray-400 rounded text-xs">{t}</span>)}
+                    {(detection.tags ?? []).length > 16 && <span className="px-2 py-0.5 text-gray-500 text-xs">+{(detection.tags ?? []).length - 16} more</span>}
                   </div>
                 ) : <span className="text-gray-600 text-xs italic">none</span>}
               </Row>

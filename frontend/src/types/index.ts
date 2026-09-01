@@ -36,31 +36,34 @@ export interface Detection {
   // the raw ID.
   mitre_groups?: string[];
   mitre_software?: string[];
-  detection_logic: string;
   language: string;
-  tags: string[];
-  references: string[];
-  false_positives: string[];
+  // Heavy fields: absent on slim list rows (teardown R15 / #113) --
+  // the list endpoint drops them unless ?verbose=true; the detail
+  // endpoint always has them. Guard with ?. when the source is a list.
+  detection_logic?: string;
+  tags?: string[];
+  references?: string[];
+  false_positives?: string[];
   // Vendor-authored investigation guide (markdown; Elastic `note`).
   investigation_guide?: string | null;
   // Extracted observable fields
-  extracted_fields_used: string[];
-  extracted_event_ids: string[];
-  extracted_process_names: string[];
-  extracted_file_paths: string[];
-  extracted_registry_keys: string[];
-  extracted_network_indicators: string[];
-  extracted_source_tables: string[];
-  extracted_observables: Array<{
+  extracted_fields_used?: string[];
+  extracted_event_ids?: string[];
+  extracted_process_names?: string[];
+  extracted_file_paths?: string[];
+  extracted_registry_keys?: string[];
+  extracted_network_indicators?: string[];
+  extracted_source_tables?: string[];
+  extracted_observables?: Array<{
     field: string;
     values: string[];
     type: string;
     subtype: string;
     negated: boolean;
   }>;
-  query_complexity: string;
-  extracted_api_actions: string[];
-  extracted_target_resources: string[];
+  query_complexity?: string;
+  extracted_api_actions?: string[];
+  extracted_target_resources?: string[];
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;

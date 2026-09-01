@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom';
 import type { Detection } from '../types';
 import { kindFor, observableUrl, OBSERVABLE_KIND_LABEL } from '../utils/observableLinks';
 
-type Observable = Detection['extracted_observables'][number];
+type Observable = NonNullable<Detection['extracted_observables']>[number];
 
 const TYPE_ORDER = [
   'process', 'file', 'registry', 'network', 'dns', 'email', 'cloud',
