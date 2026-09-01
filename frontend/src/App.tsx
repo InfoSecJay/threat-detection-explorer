@@ -229,7 +229,6 @@ const MOBILE_NAV: { to: string; label: string }[] = [
   { to: '/digest', label: 'Digest' },
   { to: '/methodology', label: 'Methodology' },
   { to: '/query', label: 'Query Reference' },
-  { to: '/integrations', label: 'Integrations' },
   { to: '/about', label: 'About' },
 ];
 
@@ -338,7 +337,6 @@ function App() {
                 items={[
                   { to: '/methodology', label: 'Methodology' },
                   { to: '/query', label: 'Query Reference' },
-                  { to: '/integrations', label: 'Integrations' },
                   { to: '/about', label: 'About' },
                 ]}
               />
