@@ -100,23 +100,33 @@ export function CoverageHeatmap() {
             <tbody className="divide-y divide-void-800">
               {data.rows.map((r) => {
                 const anyPct = r.technique_count ? Math.round((r.covered_technique_count / r.technique_count) * 100) : 0;
+                // Cells are computed as "rules mapped to any of this
+                // entity's techniques", so the deep link must filter the
+                // catalog the same way. Filtering by mitre_groups instead
+                // (rules explicitly tagged with the actor) is a different,
+                // far narrower question and usually returns nothing.
+                const techFilter = `mitre_techniques=${(r.techniques ?? []).join(',')}`;
                 return (
                   <tr key={r.id} className="hover:bg-void-800/40" data-testid={`heat-${r.id}`}>
                     <td className="px-3 py-1.5">
                       <Link to={`/actors/${r.id}`} className="text-gray-200 hover:text-matrix-400 font-display">{r.name}</Link>
                       <span className="ml-2 text-[10px] font-mono text-gray-600">{r.id} · {r.technique_count} techs · gap {r.gap_count}</span>
                     </td>
-                    <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${heat(anyPct)}`} title={`${r.covered_technique_count} of ${r.technique_count} techniques have a rule somewhere`}>
-                      {anyPct}%
+                    <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${heat(anyPct)}`} title={`${r.covered_technique_count} of ${r.technique_count} techniques have a rule somewhere -- click to open them in the catalog`}>
+                      {r.covered_technique_count > 0 ? (
+                        <Link to={`/detections?${techFilter}`} className="block w-full h-full">{anyPct}%</Link>
+                      ) : (
+                        <span>{anyPct}%</span>
+                      )}
                     </td>
                     {data.sources.map((s) => {
                       const cell = r.by_source[s];
                       const pct = cell && r.technique_count ? Math.round((cell.techniques_covered / r.technique_count) * 100) : 0;
                       return (
                         <td key={s} className={`px-1 py-1.5 text-center font-mono tabular-nums ${heat(pct)}`}
-                          title={cell ? `${sourceTheme[s]?.name || s}: ${cell.techniques_covered}/${r.technique_count} techniques, ${cell.rule_count} rules` : `${sourceTheme[s]?.name || s}: no rules for any of this entity's techniques`}>
+                          title={cell ? `${sourceTheme[s]?.name || s}: ${cell.techniques_covered}/${r.technique_count} techniques, ${cell.rule_count} rules -- click to open them in the catalog` : `${sourceTheme[s]?.name || s}: no rules for any of this entity's techniques`}>
                           {cell ? (
-                            <Link to={`/detections?sources=${s}&mitre_groups=${r.id}`} className="block w-full h-full">{pct}%</Link>
+                            <Link to={`/detections?sources=${s}&${techFilter}`} className="block w-full h-full">{pct}%</Link>
                           ) : (
                             <span>-</span>
                           )}
@@ -134,7 +144,7 @@ export function CoverageHeatmap() {
         {[['0%', heat(0)], ['<25%', heat(10)], ['<50%', heat(30)], ['<75%', heat(60)], ['75%+', heat(90)]].map(([l, c]) => (
           <span key={l} className="flex items-center gap-1"><span className={`inline-block w-4 h-3 ${c.split(' ')[0]}`} />{l}</span>
         ))}
-        <span className="ml-auto">cells link to the catalog filtered by source; row = share of the entity&apos;s techniques covered</span>
+        <span className="ml-auto">cells open the catalog filtered to that source + the entity&apos;s techniques; row = share of techniques covered</span>
       </div>
     </div>
   );

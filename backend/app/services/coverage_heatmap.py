@@ -85,6 +85,11 @@ async def coverage_matrix(
             "id": eid,
             "name": entity.get("name", eid),
             "kind": kind,
+            # The entity's technique set, so cells can deep-link the
+            # catalog with the same semantics the percentages are
+            # computed from (source + any of these techniques), not
+            # the far narrower "rules tagged with the actor's ID".
+            "techniques": techs,
             "technique_count": len(techs),
             "covered_technique_count": covered_any,
             "gap_count": sc.gap_count,

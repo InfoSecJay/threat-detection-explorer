@@ -1091,6 +1091,8 @@ export interface CoverageMatrixRow {
   id: string;
   name: string;
   kind: 'groups' | 'software';
+  /** The entity's technique IDs — cells filter the catalog by these. */
+  techniques: string[];
   technique_count: number;
   covered_technique_count: number;
   gap_count: number;

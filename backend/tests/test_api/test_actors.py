@@ -522,6 +522,9 @@ async def test_actor_coverage_matrix(client, db_session):
     assert set(rows) == {"G0001", "G0002"}  # G0003 has no techniques
     g1 = rows["G0001"]
     assert g1["technique_count"] == 2 and g1["covered_technique_count"] == 2
+    # Cells deep-link the catalog by source + technique set, so the row
+    # must carry the same technique list the percentages come from.
+    assert sorted(g1["techniques"]) == ["T1001", "T1002"]
     assert g1["by_source"] == {
         "sigma": {"techniques_covered": 2, "rule_count": 3},
         "elastic": {"techniques_covered": 1, "rule_count": 1},
