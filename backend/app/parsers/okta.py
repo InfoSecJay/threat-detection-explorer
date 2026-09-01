@@ -143,9 +143,9 @@ class OktaParser(BaseParser):
                 # Okta YAMLs don't carry status; community-published
                 # detections in main branch are stable by convention.
                 status="stable",
-                # Okta YAMLs don't carry severity; the normalizer maps
-                # this `medium` default through `normalize_severity`.
-                severity="medium",
+                # Okta YAMLs don't carry severity; show that rather than
+                # presenting a default as data (teardown R08 / #106).
+                severity="unknown",
                 log_source={
                     "product": "okta",
                     "category": "system_log",

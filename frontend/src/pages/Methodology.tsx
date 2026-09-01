@@ -71,6 +71,16 @@ export function Methodology() {
           from the detection logic itself by per-language parsers; negated values, wildcards and placeholders
           never reach the observable surfaces.
         </Principle>
+        <Principle title="Severity provenance">
+          Severity is upstream&apos;s value where the vendor publishes one. Splunk severity is derived from the
+          published risk score (<span className="font-mono">&ge;80 critical, &ge;60 high, &ge;40 medium,
+          &gt;0 low</span>); correlation searches are high because they fire only after aggregated risk
+          crosses the notable threshold. Note that current upstream ESCU publishes a near-constant score
+          (TTP 50, Anomaly ~20), so the derived split reflects upstream&apos;s own flattening. Sources that
+          publish no severity at all (Elastic protection artifacts and hunting queries, Okta, Splunk
+          hunting content) show <span className="font-mono">not specified</span> -- never a default dressed
+          as data.
+        </Principle>
       </div>
 
       <div className="bg-void-850 border border-void-700 p-5" style={clipMd} data-testid="permalink-guarantee">

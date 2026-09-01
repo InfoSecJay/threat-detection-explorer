@@ -197,4 +197,7 @@ class ElasticProtectionsParser(BaseParser):
                 if action_type in ["terminate_process", "block"]:
                     return "high"
 
-        return "medium"
+        # Upstream publishes no severity field; a "medium" default here
+        # padded the severity:medium facet with 1,314 rules of "we don't
+        # know" (teardown R08 / #106).
+        return "unknown"

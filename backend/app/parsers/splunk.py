@@ -388,16 +388,24 @@ class SplunkParser(BaseParser):
         if risk_severity:
             return risk_severity.lower()
 
-        # Type-based fallback so every ESCU rule lands on a real
-        # severity -- `unknown` silently excluded ~2,100 Splunk rows
-        # from the severity facet. Correlation searches fire only after
-        # aggregated risk crosses the Risk Notable threshold, so they
-        # are high-fidelity alerts -> high. Hunting content is
-        # informational by design, and anything else with no score
-        # signal at all defaults with it -> low.
+        # Type-based fallback for rules with no score signal at all.
+        # Correlation searches fire only after aggregated risk crosses
+        # the Risk Notable threshold, so they are high-fidelity alerts
+        # -> high. Everything else (Hunting ships no score by design)
+        # gets `unknown`: presenting a default as data is the failure
+        # mode teardown R08 called out, and `unknown` is a first-class
+        # severity facet value.
+        #
+        # NOTE on the observed distribution (measured against upstream
+        # develop 2026-08-31): new-schema ESCU flattened per-rule risk
+        # scores -- TTP sits at a constant 50, Anomaly ~20, max 55
+        # anywhere. The medium/low split the bands produce IS upstream's
+        # published signal; no threshold recalibration can add
+        # differentiation upstream removed. Bands are published on
+        # /methodology.
         if str(rule_type or "").lower() == "correlation":
             return "high"
-        return "low"
+        return "unknown"
 
     def _determine_log_source(self, data: dict, tags: dict) -> dict:
         """Determine log source from data model and tags."""

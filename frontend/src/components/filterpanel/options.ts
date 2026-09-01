@@ -28,7 +28,10 @@ export const SEVERITY_OPTIONS: Array<{ value: string; label: string; color: stri
   { value: 'high', label: 'High', color: '#ff9500' },
   { value: 'medium', label: 'Medium', color: '#fbbf24' },
   { value: 'low', label: 'Low', color: '#00ff41' },
-  { value: 'unknown', label: 'Unknown', color: '#6b7280' },
+  // "Not specified" not "Unknown": these are rules whose upstream
+  // publishes no severity, surfaced honestly instead of defaulted to
+  // medium (teardown R08 / #106).
+  { value: 'unknown', label: 'Not specified', color: '#6b7280' },
 ];
 
 /** Display labels for query languages. Unlisted values render raw --

@@ -702,8 +702,9 @@ async def test_e2e_okta(db_session):
     # (Tnnnn: name dict keys).
     assert "T1078" in d.mitre_techniques
     assert "TA0001" in d.mitre_tactics
-    # Severity defaulted to medium (upstream YAML doesn't carry it).
-    assert d.severity == "medium"
+    # Upstream YAML carries no severity -- surfaced honestly, not
+    # defaulted (teardown R08 / #106).
+    assert d.severity == "unknown"
     # Embedded YAML dates round-trip through `parse_date`.
     assert d.rule_created_date is not None
     assert d.rule_created_date.year == 2025

@@ -244,9 +244,10 @@ finding:
         assert result is not None
         assert result.severity == "high"
 
-    def test_severity_hunting_without_score_maps_low(self):
-        """Hunting rules have no risk score by design -- informational
-        content lands on low, never unknown."""
+    def test_severity_hunting_without_score_is_not_fabricated(self):
+        """Hunting rules ship no risk score by design. That is absence
+        of signal, not low severity -- presenting a default as data is
+        the failure mode teardown R08 called out (#106)."""
         rule = """
 name: 7zip CommandLine To SMB Share Path
 search: test
@@ -254,18 +255,19 @@ type: Hunting
 """
         result = self.parser.parse(Path("detections/endpoint/test.yml"), rule)
         assert result is not None
-        assert result.severity == "low"
+        assert result.severity == "unknown"
 
-    def test_severity_never_unknown(self):
-        """Every Splunk rule must land on a real severity -- the
-        severity facet silently excluded unknowns from the catalog."""
+    def test_severity_scoreless_rule_is_unknown(self):
+        """A rule with no score signal anywhere surfaces `unknown`
+        (rendered "Not specified"), a first-class facet value -- never
+        a fabricated level (teardown R08 / #106)."""
         rule = """
 name: Bare Minimum Rule
 search: test
 """
         result = self.parser.parse(Path("detections/test.yml"), rule)
         assert result is not None
-        assert result.severity in {"low", "medium", "high", "critical"}
+        assert result.severity == "unknown"
 
     def test_severity_derivation(self):
         """Test severity is derived from confidence and impact."""

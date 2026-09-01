@@ -101,7 +101,7 @@ class ElasticHuntingParser(BaseParser):
                 description=description,
                 author=hunt.get("author", "Elastic"),
                 status="stable",  # Hunting queries in main branch are stable
-                severity="medium",  # Hunting queries are proactive, default to medium
+                severity="unknown",  # Hunting content carries no severity concept (teardown R08 / #106)
                 log_source=log_source,
                 tags=tags,
                 mitre_attack=mitre_attack,
