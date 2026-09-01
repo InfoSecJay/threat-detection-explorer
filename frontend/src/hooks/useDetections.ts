@@ -21,6 +21,10 @@ export function useStatistics() {
   return useQuery({
     queryKey: ['statistics'],
     queryFn: detectionsApi.getStatistics,
+    // Counts move only on the nightly sync; 15 min matches the CDN
+    // s-maxage so a session never refetches more often than the edge
+    // cache could answer differently (teardown R16 / #114).
+    staleTime: 15 * 60 * 1000,
   });
 }
 
@@ -28,6 +32,10 @@ export function useFilterOptions() {
   return useQuery({
     queryKey: ['filterOptions'],
     queryFn: detectionsApi.getFilterOptions,
+    // Filter vocabulary changes only after a sync -- never refetch
+    // during a session (teardown R16 / #114).
+    staleTime: Infinity,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 }
 
@@ -41,6 +49,8 @@ export function useFacets(filters: SearchFilters = {}) {
     queryKey: ['facets', facetFilters],
     queryFn: () => detectionsApi.getFacets(facetFilters),
     placeholderData: (prev) => prev,
+    // Facet counts only move on the nightly sync (teardown R16 / #114).
+    staleTime: 15 * 60 * 1000,
   });
 }
 
