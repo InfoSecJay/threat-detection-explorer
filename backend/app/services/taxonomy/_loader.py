@@ -14,6 +14,7 @@ from typing import Any
 import yaml
 
 from app.services.taxonomy.canonical import (
+    DATA_SOURCE_ALIASES,
     DATA_SOURCES,
     EVENT_TYPES,
     PLATFORMS,
@@ -65,7 +66,12 @@ def _validate_mapping(vendor: str, data: dict[str, Any], strict: bool = False) -
                 if key == "platforms" and isinstance(value, list):
                     bad_platforms.update(v for v in value if v not in PLATFORMS)
                 elif key == "data_sources" and isinstance(value, list):
-                    bad_data_sources.update(v for v in value if v not in DATA_SOURCES)
+                    # Accepted alias spellings are valid in mapping files;
+                    # the resolver canonicalizes them (teardown R04 / #102).
+                    bad_data_sources.update(
+                        v for v in value
+                        if v not in DATA_SOURCES and v not in DATA_SOURCE_ALIASES
+                    )
                 elif key == "event_types" and isinstance(value, list):
                     bad_event_types.update(v for v in value if v not in EVENT_TYPES)
                 else:

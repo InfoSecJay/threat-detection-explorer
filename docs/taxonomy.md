@@ -155,6 +155,54 @@ filter for "rules with unknown platform" to spot vendor coverage gaps.
 
 ---
 
+## Data-source aliases and the near-duplicate gate
+
+Teardown R04 (2026-08-31) found the live data-source facet carrying
+synonym twins: `m365_*` vs `microsoft365_*`, `m365_defender` vs
+`microsoft_defender_xdr` (one product, renamed), `azure_activity` vs
+`azure_monitor_activity` (one feed, two delivery names), and per-stream
+variants (`carbon_black_audit`, `sentinelone_activity`) sitting beside
+their product id. A user filtering one spelling silently missed the
+rules filed under the other.
+
+Two mechanisms in `canonical.py` keep this from recurring:
+
+1. **`DATA_SOURCE_ALIASES`** maps every accepted alternate spelling to
+   one canonical id. Vendor mapping files may keep emitting the alias
+   (the loader accepts them); `resolve_for_repo` rewrites to canonical
+   before storage, so the facet only ever shows canonical ids.
+2. **`find_near_duplicate_data_sources`** is a build gate
+   (`test_taxonomy_aliases.py`): it fails the suite when a new canonical
+   value is a spelling twin (token synonyms + depluralization) or a
+   prefix extension (`carbon_black` / `carbon_black_audit` shape) of an
+   existing one. Documented exceptions go in the test's allowlist,
+   pair by pair — never by weakening the detector.
+
+Rules for the table:
+
+- **Collapse true synonyms only.** Distinct products stay distinct:
+  `defender_endpoint` (MDE), `defender_cloud` (Defender for Cloud) and
+  `windows_defender_event_log` (the Defender AV event channel) are three
+  feeds, not three spellings.
+- The canonical pick is the established convention (`m365_*`) or the
+  spelling the corpus already uses most.
+- An alias key must not appear in `DATA_SOURCES`; its target must.
+
+### Generic buckets are a documented fallback tier
+
+`application_logs`, `webserver_logs`, `proxy_logs`,
+`network_traffic_logs`, `antivirus_logs`, `database_logs` and
+`windows_event_logs` are **deliberately generic**: they exist for rules
+whose vendor metadata names a telemetry *class* (a Sigma `webserver`
+category, Panther's `Windows.EventLogs` LogType) rather than a product.
+They are a fallback tier, not competitors to the named product feeds --
+when the vendor names the product, map to the product feed; use the
+generic only when the class is all the vendor says. Do not "upgrade" a
+generic to a guessed product, and do not add a new generic when a named
+feed exists.
+
+---
+
 ## Module layout
 
 ```

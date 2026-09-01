@@ -168,6 +168,7 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "entra_id_audit",
         "m365_audit",                # M365 Unified Audit Log
         "m365_exchange_audit",       # Exchange Online mail flow / admin
+        "m365_sharepoint_audit",     # SharePoint Online audit
         "m365_defender",             # Microsoft Defender for O365 / M365 Defender threat feeds
         "okta_system_log",
         "onelogin_events",           # OneLogin event feed
@@ -222,13 +223,9 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "aws_bedrock_invocation",      # AWS Bedrock model invocation
         "aws_eks_audit",               # EKS control-plane audit (K8s audit on AWS)
         # ── Azure / M365 additions (Panther onboarding) ─────────────────────
-        "azure_monitor_activity",      # Azure Monitor activity logs (subscription-scoped)
         "microsoft_intune_audit",
         "microsoft_intune_operational",
-        "microsoft_defender_xdr",      # M365 Defender XDR advanced hunting
         "microsoft_graph_security_alerts",
-        "microsoft365_sharepoint_audit",
-        "microsoft365_exchange_audit",
         # ── GCP additions (Panther onboarding) ──────────────────────────────
         "gcp_http_load_balancer",
         # ── DevOps additions (Panther onboarding) ───────────────────────────
@@ -275,9 +272,6 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "crowdstrike_event_streams",
         "crowdstrike_dns_request",
         "crowdstrike_detection_summary",
-        "carbon_black_audit",
-        "carbon_black_alert",
-        "sentinelone_activity",
         # ── Network SaaS (Panther onboarding) ───────────────────────────────
         "cloudflare_firewall",
         "cloudflare_http",
@@ -330,6 +324,86 @@ DATA_SOURCES: frozenset[str] = frozenset(
         UNKNOWN,
     }
 )
+
+
+# ---------------------------------------------------------------------------
+# DATA_SOURCE_ALIASES — accepted spellings that are NOT canonical
+# (teardown R04 / #102). Vendor mapping files and resolvers may emit any
+# key here; the resolver rewrites it to the canonical id before storage,
+# so a user filtering one spelling can never silently miss rules filed
+# under another. Rules:
+#   - Collapse true synonyms only. Distinct products stay distinct:
+#     defender_endpoint (MDE), defender_cloud (Defender for Cloud) and
+#     windows_defender_event_log (Defender AV channel) are three feeds,
+#     not three spellings.
+#   - The canonical pick is the established convention (m365_*) or the
+#     spelling the corpus already uses most.
+# Adding an alias: the key must NOT be in DATA_SOURCES, the value MUST.
+# test_taxonomy_aliases.py enforces both plus a near-duplicate sweep.
+# ---------------------------------------------------------------------------
+
+DATA_SOURCE_ALIASES: dict[str, str] = {
+    # microsoft365_* vs m365_*: one naming convention.
+    "microsoft365_exchange_audit": "m365_exchange_audit",
+    "microsoft365_sharepoint_audit": "m365_sharepoint_audit",
+    # Microsoft 365 Defender was renamed Microsoft Defender XDR: one
+    # product, one id (corpus majority spelling wins).
+    "microsoft_defender_xdr": "m365_defender",
+    # The Azure Activity log delivered via Azure Monitor is the same feed.
+    "azure_monitor_activity": "azure_activity",
+    # Per-stream variants of one product feed collapse into the product.
+    "carbon_black_audit": "carbon_black",
+    "carbon_black_alert": "carbon_black",
+    "sentinelone_activity": "sentinelone",
+}
+
+
+def canonical_data_source(value: str) -> str:
+    """Resolve an accepted data-source spelling to its canonical id."""
+    return DATA_SOURCE_ALIASES.get(value, value)
+
+
+# Tokens that spell the same thing; applied before comparing values in
+# the near-duplicate sweep so a future "microsoft365_teams_audit" trips
+# over "m365_teams_audit" at build time instead of shipping as a twin.
+_DS_TOKEN_SYNONYMS = {"microsoft365": "m365", "microsoft": "ms"}
+
+
+def _ds_normalized_form(value: str) -> str:
+    tokens = [_DS_TOKEN_SYNONYMS.get(t, t) for t in value.split("_")]
+    # Depluralize (logs/log, alerts/alert); short tokens like dns/aws stay.
+    tokens = [t[:-1] if t.endswith("s") and len(t) > 3 else t for t in tokens]
+    return "_".join(tokens)
+
+
+def find_near_duplicate_data_sources(
+    values: frozenset[str] | set[str] | None = None,
+    allow: frozenset[str] = frozenset(),
+) -> list[tuple[str, str]]:
+    """Pairs of values that look like alternate spellings of one id.
+
+    Two triggers (teardown R04 / B2):
+      - same normalized form (token synonyms + depluralization)
+      - prefix extension: one value is another plus one trailing token
+        (the carbon_black / carbon_black_audit shape)
+    `allow` suppresses documented exceptions pair-by-pair ("a|b").
+    """
+    vals = sorted((values if values is not None else DATA_SOURCES) - {UNKNOWN})
+    valset = set(vals)
+    pairs: list[tuple[str, str]] = []
+    seen: dict[str, str] = {}
+    for v in vals:
+        n = _ds_normalized_form(v)
+        if n in seen:
+            pairs.append((seen[n], v))
+        else:
+            seen[n] = v
+    for v in vals:
+        parts = v.split("_")
+        parent = "_".join(parts[:-1])
+        if len(parts) > 1 and parent in valset:
+            pairs.append((parent, v))
+    return [p for p in pairs if f"{p[0]}|{p[1]}" not in allow]
 
 
 # ---------------------------------------------------------------------------
@@ -513,7 +587,6 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     # ── Azure ───────────────────────────────────────────────────────────
     "azure_activity": frozenset({"azure"}),
     "azure_audit": frozenset({"azure"}),
-    "azure_monitor_activity": frozenset({"azure"}),
     "azure_risk_detection": frozenset({"azure"}),
     "azure_pim": frozenset({"azure"}),
     "defender_cloud": frozenset({"azure"}),
@@ -521,10 +594,7 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "entra_id_audit": frozenset({"azure"}),
     "microsoft_intune_audit": frozenset({"microsoft_365"}),
     "microsoft_intune_operational": frozenset({"microsoft_365"}),
-    "microsoft_defender_xdr": frozenset({"microsoft_365", "windows"}),
     "microsoft_graph_security_alerts": frozenset({"microsoft_365"}),
-    "microsoft365_sharepoint_audit": frozenset({"microsoft_365"}),
-    "microsoft365_exchange_audit": frozenset({"microsoft_365"}),
     # ── GCP ─────────────────────────────────────────────────────────────
     "gcp_audit": frozenset({"gcp"}),
     "gcp_vpc_flow": frozenset({"gcp"}),
@@ -532,6 +602,7 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     # ── M365 / SaaS identity ────────────────────────────────────────────
     "m365_audit": frozenset({"microsoft_365"}),
     "m365_exchange_audit": frozenset({"microsoft_365"}),
+    "m365_sharepoint_audit": frozenset({"microsoft_365"}),
     "okta_system_log": frozenset({"okta"}),
     "onelogin_events": frozenset({"onelogin"}),
     "duo_activity": frozenset({"duo"}),
@@ -602,9 +673,6 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "crowdstrike_event_streams": frozenset({"crowdstrike"}),
     "crowdstrike_dns_request": frozenset({"crowdstrike"}),
     "crowdstrike_detection_summary": frozenset({"crowdstrike"}),
-    "carbon_black_audit": frozenset({"carbon_black"}),
-    "carbon_black_alert": frozenset({"carbon_black"}),
-    "sentinelone_activity": frozenset({"sentinelone"}),
     # ── Network SaaS ────────────────────────────────────────────────────
     "cloudflare_firewall": frozenset({"cloudflare"}),
     "cloudflare_http": frozenset({"cloudflare"}),

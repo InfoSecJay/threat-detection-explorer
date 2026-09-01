@@ -24,7 +24,7 @@ It's the key input to coverage metrics + drift notifications.
 
 from typing import TYPE_CHECKING, Callable
 
-from app.services.taxonomy.canonical import UNKNOWN, data_source_applies
+from app.services.taxonomy.canonical import UNKNOWN, canonical_data_source, data_source_applies
 from app.services.taxonomy.vendors import (
     auth0,
     elastic,
@@ -109,7 +109,12 @@ def resolve_for_repo(repo_name: str, parsed: "ParsedRule") -> dict:
     # to canonical values". This is the definition of `matched` that
     # feeds the coverage metrics.
     raw_platforms = result.get("platforms") or []
-    raw_data_sources = result.get("data_sources") or []
+    # Alias spellings collapse to one canonical id here (teardown R04 /
+    # #102), so vendor mappings may keep their accepted spelling but the
+    # stored facet value is always the canonical one.
+    raw_data_sources = list(dict.fromkeys(
+        canonical_data_source(ds) for ds in _iter_strings(result.get("data_sources") or [])
+    ))
     raw_event_types = result.get("event_types") or []
     matched = bool(raw_platforms or raw_data_sources or raw_event_types)
 

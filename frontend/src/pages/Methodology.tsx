@@ -46,8 +46,19 @@ export function Methodology() {
         </Principle>
         <Principle title="Canonical taxonomy">
           Vendor logsources resolve to one platform / data-source / event-type vocabulary through per-vendor
-          mapping files; rules the resolver cannot place show <span className="font-mono">unknown</span>{' '}
-          rather than a guess. The mapping files and their drift reports are public in the repo.
+          mapping files. Accepted alternate spellings (m365_* vs microsoft365_*, renamed products) collapse
+          through an explicit alias table into one canonical id, and a build gate rejects new values that
+          look like spelling twins of existing ones. Rules the resolver cannot place show{' '}
+          <span className="font-mono">unknown</span> rather than a guess. The{' '}
+          <a
+            href="https://github.com/InfoSecJay/threat-detection-explorer/blob/master/backend/app/services/taxonomy/canonical.py"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-matrix-500 hover:text-matrix-400 underline"
+          >
+            canonical vocabulary and alias table
+          </a>{' '}
+          are public in the repo, alongside the mapping files and their drift reports.
         </Principle>
         <Principle title="Metadata completeness score">
           Deterministic checks over documentation, ATT&amp;CK mapping, specificity and testability -- scored
