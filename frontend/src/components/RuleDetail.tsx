@@ -104,7 +104,10 @@ export function RuleDetail({ detection }: RuleDetailProps) {
       <div className="bg-void-850 rounded-xl border border-void-700 overflow-hidden">
         <div className={`h-1 ${src?.dot || 'bg-gray-500'}`} />
         <div className="px-6 py-4">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+          {/* Stack under 640px: with three buttons in the shrink-0 group,
+              the flex-1/min-w-0 title column squeezed to a sliver on
+              phones (one word per line) instead of wrapping. */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase border ${src?.bg || 'bg-void-700'} ${src?.text || 'text-gray-300'} ${src?.border || 'border-void-600'}`}>
@@ -124,7 +127,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 Created by {detection.author || sourceTheme[detection.source]?.name || detection.source} on {fmt(detection.rule_created_date)} · Updated {fmt(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={() => setViewSource((v) => !v)}
