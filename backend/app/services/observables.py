@@ -176,7 +176,15 @@ async def top_values(
                 # log channel / provider the ID belongs to).
                 "context": _context(kind, canonical[k], by_data_source[k]),
             }
-            for k, n in counts.most_common(limit)
+            # Rank by cross-source breadth first, raw rule count second
+            # (teardown R13 / #111): a few Elastic Protections rules
+            # enumerate every Unix shell, which put seven near-identical
+            # single-family values in the top fifteen processes. Breadth
+            # across sources measures detection consensus; enumeration
+            # length does not.
+            for k, n in sorted(
+                counts.items(), key=lambda kv: (-len(by_source[kv[0]]), -kv[1], kv[0])
+            )[:limit]
         ],
     }
 
