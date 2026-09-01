@@ -142,7 +142,7 @@ class OktaParser(BaseParser):
                 author=author,
                 # Okta YAMLs don't carry status; community-published
                 # detections in main branch are stable by convention.
-                status="stable",
+                status="not_applicable",  # Okta rules carry no lifecycle concept (teardown R09 / #107)
                 # Okta YAMLs don't carry severity; show that rather than
                 # presenting a default as data (teardown R08 / #106).
                 severity="unknown",

@@ -107,7 +107,8 @@ class Auth0Parser(BaseParser):
                 title=title,
                 description=rule.get("description"),
                 author=rule.get("author"),
-                status=rule.get("status", "stable"),
+                # Upstream carries a status field; absence is unknown, not stable.
+                status=rule.get("status", "unknown"),
                 severity=rule.get("level", "unknown"),
                 log_source={
                     "product": logsource.get("product"),

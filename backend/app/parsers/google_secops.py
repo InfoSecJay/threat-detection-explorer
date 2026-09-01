@@ -117,7 +117,9 @@ class GoogleSecOpsParser(BaseParser):
 
             # Chronicle's `status` analogue is `type` (Alert / Hunt /
             # Informational). Normalize "Alert" -> "stable" downstream.
-            status = meta.get("type") or "stable"
+            # meta `type` is the rule kind (alert / hunt), not a maturity;
+            # Chronicle rules carry no lifecycle concept (teardown R09 / #107).
+            status = "not_applicable"
 
             # Tags: collect a small set of useful meta fields.
             tags: list[str] = []

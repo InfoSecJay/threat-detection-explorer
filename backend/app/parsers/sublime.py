@@ -85,7 +85,7 @@ class SublimeParser(BaseParser):
                 title=name,
                 description=data.get("description"),
                 author=author,
-                status="stable",  # Sublime doesn't have status field
+                status="not_applicable",  # Sublime rules carry no lifecycle concept (teardown R09 / #107)
                 severity=severity,
                 log_source={"product": "email", "category": "email_security"},
                 tags=tags,

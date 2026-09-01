@@ -29,7 +29,7 @@ def _parsed(**overrides) -> ParsedRule:
         ),
         description="Detects QakBot delivery via container attachments.",
         author="Sublime Security",
-        status="stable",
+        status="not_applicable",  # what the parser now emits (teardown R09 / #107)
         severity="high",
         log_source={"product": "email", "category": "email_security"},
         tags=["Attack surface reduction", "Malfam: QakBot"],

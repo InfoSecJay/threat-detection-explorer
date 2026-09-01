@@ -100,7 +100,7 @@ class ElasticHuntingParser(BaseParser):
                 title=name,
                 description=description,
                 author=hunt.get("author", "Elastic"),
-                status="stable",  # Hunting queries in main branch are stable
+                status="not_applicable",  # hunting queries have no lifecycle concept (teardown R09 / #107)
                 severity="unknown",  # Hunting content carries no severity concept (teardown R08 / #106)
                 log_source=log_source,
                 tags=tags,

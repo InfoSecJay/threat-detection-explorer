@@ -74,7 +74,7 @@ class ElasticProtectionsParser(BaseParser):
                 title=name,
                 description=rule.get("description"),
                 author="Elastic",  # All rules authored by Elastic
-                status="stable",  # Production rules
+                status="not_applicable",  # protection artifacts ship without a maturity field (teardown R09 / #107)
                 severity=severity,
                 log_source=log_source,
                 tags=tags,

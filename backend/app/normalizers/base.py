@@ -303,6 +303,11 @@ class BaseNormalizer(ABC):
             return "deprecated"
         elif status_lower in ["unsupported"]:
             return "unsupported"
+        elif status_lower in ["not_applicable"]:
+            # The source has no lifecycle/maturity concept at all --
+            # distinct from `unknown`, where the vendor has one but this
+            # rule carries no value (teardown R09 / #107).
+            return "not_applicable"
         return "unknown"
 
     def normalize_severity(self, severity: Optional[str]) -> str:

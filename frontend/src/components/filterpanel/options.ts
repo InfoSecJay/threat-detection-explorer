@@ -20,7 +20,8 @@ export const STATUS_OPTIONS: Array<{ value: string; label: string; color: string
   { value: 'experimental', label: 'Experimental', color: '#fbbf24', hint: 'Early-stage or disabled by default upstream' },
   { value: 'deprecated', label: 'Deprecated', color: '#ff0040', hint: 'Retired upstream' },
   { value: 'unsupported', label: 'Unsupported', color: '#ff9500', hint: 'Cannot run on current tooling (Sigma "unsupported")' },
-  { value: 'unknown', label: 'Unknown', color: '#6b7280', hint: 'Source carries no maturity concept' },
+  { value: 'not_applicable', label: 'Not applicable', color: '#6b7280', hint: 'Source has no lifecycle/maturity concept (Sublime, Okta, Elastic protections/hunting, Google SecOps)' },
+  { value: 'unknown', label: 'Unknown', color: '#6b7280', hint: 'Source has a status concept but this rule carries no value' },
 ];
 
 export const SEVERITY_OPTIONS: Array<{ value: string; label: string; color: string }> = [
