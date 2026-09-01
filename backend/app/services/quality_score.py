@@ -39,7 +39,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.normalizers.base import NormalizedDetection
 
-RUBRIC_VERSION = 2
+# v3: panther's embedded_tests exclusion removed -- 871/877 upstream
+# panther YAML rules carry a `Tests:` block with log-event samples in
+# the raw content the scorer reads, so the check IS expressible and
+# skipping it under-credited the best-tested source in the corpus.
+RUBRIC_VERSION = 3
 
 # ---------------------------------------------------------------------------
 # Capability profiles: check ids a source's format / repo conventions
@@ -51,8 +55,10 @@ _CHECKS_ALL = frozenset({
 })
 
 INAPPLICABLE: dict[str, frozenset[str]] = {
-    # Panther python rules carry no author field (attribution is the repo).
-    "panther": frozenset({"author", "embedded_tests"}),
+    # Panther python rules carry no author field (attribution is the
+    # repo). embedded_tests DOES apply: the YAML (our raw_content)
+    # carries `Tests:` blocks with log-event samples.
+    "panther": frozenset({"author"}),
     "pypanther": frozenset({"author"}),
     # Sublime MQL: no ATT&CK tags, no false-positive field, no author
     # field; Atomic Red Team has no email atomics and the repo's test
@@ -64,8 +70,8 @@ INAPPLICABLE: dict[str, frozenset[str]] = {
     # Chronicle YARA-L community rules: no ATT&CK meta, no FP field.
     "google_secops": frozenset({"mitre", "false_positives", "embedded_tests"}),
     "elastic_hunting": frozenset({"false_positives", "embedded_tests"}),
-    # Formats with no embedded-test convention (Splunk `tests:` and
-    # Panther `RuleTest(` are the two we can detect).
+    # Formats with no embedded-test convention (detectable markers:
+    # Splunk `tests:`, Panther YAML `Tests:`, pypanther `RuleTest(`).
     "elastic": frozenset({"embedded_tests"}),
     "sigma": frozenset({"embedded_tests"}),
     # LOLRMM is an RMM-tool catalog: its references document the tool

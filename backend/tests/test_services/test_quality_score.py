@@ -166,3 +166,26 @@ def test_complexity_ladder():
     def spec(c):
         return score_detection(_rule(query_complexity=c))[1]["dimensions"]["specificity"]["score"]
     assert spec("simple") < spec("moderate") < spec("complex")
+
+
+def test_panther_tests_block_earns_embedded_tests_credit():
+    """Rubric v3: panther YAML carries `Tests:` blocks with log-event
+    samples (871/877 upstream rules), so the embedded_tests check
+    applies and is earned when the block is present."""
+    yaml_with_tests = (
+        "AnalysisType: rule\nRuleID: X.Y\n"
+        "Tests:\n"
+        "  - Name: benign login\n"
+        "    ExpectedResult: false\n"
+        "    Log: {\"eventName\": \"ConsoleLogin\"}\n"
+    )
+    _, with_tests = score_detection(
+        _rule(source="panther", raw_content=yaml_with_tests)
+    )
+    _, without = score_detection(
+        _rule(source="panther", raw_content="AnalysisType: rule\nRuleID: X.Y\n")
+    )
+    t_with = with_tests["dimensions"]["testability"]
+    t_without = without["dimensions"]["testability"]
+    assert t_with["score"] == t_without["score"] + 3
+    assert "no embedded test cases" not in t_with["issues"]
