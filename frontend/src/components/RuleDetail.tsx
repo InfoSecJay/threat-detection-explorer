@@ -19,6 +19,7 @@ import { RelatedRules } from './ruledetail/RelatedRules';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { sourceLicenses } from '../constants/sources';
 import { sourceTheme } from '../constants/style';
+import { downloadRuleFile, ruleFileName } from '../utils/downloadRule';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -132,6 +133,17 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               >
                 {viewSource ? 'View definition' : 'View source'}
               </button>
+              {detection.raw_content && (
+                <button
+                  type="button"
+                  onClick={() => downloadRuleFile(detection)}
+                  className="px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors"
+                  title={`Download the original rule file (${ruleFileName(detection)})`}
+                  data-testid="download-rule"
+                >
+                  Download
+                </button>
+              )}
               {detection.source_rule_url && (
                 <a href={detection.source_rule_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors">
                   Upstream &#8599;
