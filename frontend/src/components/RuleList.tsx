@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { Detection, SearchFilters } from '../types';
 import { clipMd, clipLg } from '../constants/style';
 import { sortOptions } from './rulelist/format';
+import { RuleCard } from './rulelist/RuleCard';
 import { SortableTh } from './rulelist/SortableTh';
 import { RuleRow } from './rulelist/RuleRow';
 import { Pagination } from './rulelist/Pagination';
@@ -179,7 +180,7 @@ export function RuleList({
             <select
               value={currentSortValue}
               onChange={(e) => handleQuickSort(e.target.value)}
-              className="text-xs bg-void-850 border border-void-700 text-white px-2 py-1.5 focus:ring-matrix-500/50 focus:border-matrix-500/50 max-w-[55vw]"
+              className="text-xs bg-void-850 border border-void-700 text-white px-2 py-1.5 focus:ring-matrix-500/50 focus:border-matrix-500/50 max-w-[42vw]"
             >
               {sortOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -210,7 +211,14 @@ export function RuleList({
         className="bg-void-850 border border-void-700 overflow-hidden"
         style={clipMd}
       >
-        <div className="overflow-x-auto">
+        {/* Card list under 640px (teardown R18 / #116): the table's ten
+            columns leave only Title on a phone screen. */}
+        <div className="sm:hidden divide-y divide-void-800">
+          {detections.map((detection) => (
+            <RuleCard key={detection.id} detection={detection} />
+          ))}
+        </div>
+        <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-void-900">
               <tr>
