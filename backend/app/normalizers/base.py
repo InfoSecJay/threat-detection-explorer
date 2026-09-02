@@ -153,8 +153,16 @@ class NormalizedDetection:
         # and because this is the one place that has BOTH the resolved
         # taxonomy and the extracted event IDs. Pure function; see
         # `app/services/taxonomy/event_ids.py` for the rules.
-        from app.services.taxonomy.event_ids import refine_event_types
+        from app.services.taxonomy.event_ids import namespace_event_ids, refine_event_types
 
+        # Channel-namespace the IDs first (teardown R12 / #110):
+        # `sysmon:1` vs `security:4688`, decided from the rule's
+        # canonical data source. Refinement below is prefix-aware.
+        self.extracted_event_ids = namespace_event_ids(
+            self.extracted_event_ids,
+            self.platforms,
+            self.data_sources,
+        )
         self.event_types = refine_event_types(
             self.event_types,
             self.platforms,

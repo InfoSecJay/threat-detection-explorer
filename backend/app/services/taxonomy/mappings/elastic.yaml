@@ -109,13 +109,15 @@ index_patterns:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
+  # System / Application are not the Security log (#110): generic tier,
+  # channel resolved per event ID.
   "logs-system.system*":
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
     event_types: [audit_event]
   "logs-system.application*":
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
     event_types: [audit_event]
   "logs-system.auth*":
     platforms: [linux]

@@ -618,6 +618,8 @@ export interface QueryFieldsResponse {
 /** One entry of the Windows event-ID dictionary (issue #16). Keyed by
  * the raw numeric ID as a string ("4688"). */
 export interface EventIdEntry {
+  // Bare number; the dictionary key is the channel-namespaced id (#110).
+  event_id: string;
   label: string;
   provider: string;
   channel: string;
@@ -625,6 +627,7 @@ export interface EventIdEntry {
 }
 
 export interface EventIdDictionaryResponse {
+  // Keyed by namespaced id: "security:4688", "sysmon:1", ...
   event_ids: Record<string, EventIdEntry>;
 }
 

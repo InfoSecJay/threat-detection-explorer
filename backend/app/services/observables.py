@@ -19,6 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
 from app.services.taxonomy.auth0_events import lookup as lookup_auth0_event
+from app.services.taxonomy.event_ids import (
+    PREFIX_PROVIDER,
+    channel_for_prefix,
+    split_event_id,
+)
 from app.services.taxonomy.event_ids import lookup as lookup_event_id
 
 # URL segment -> (column, SearchFilters key for the catalog link, label)
@@ -96,6 +101,14 @@ def _column(kind: str):
 
 
 def _contains(kind: str, value: str):
+    if kind == "eventid":
+        # Bare `4688` is an alias for the ID on any channel (#110), so
+        # pre-namespacing links keep resolving.
+        from sqlalchemy import or_
+
+        from app.services.taxonomy.event_ids import event_id_conditions
+
+        return or_(*event_id_conditions(_column(kind), [value]))
     escaped = value.replace("%", "\\%").replace("_", "\\_")
     return cast(_column(kind), String).ilike(f'%"{escaped}"%', escape="\\")
 
@@ -199,6 +212,12 @@ def _context(kind: str, value: str, data_sources: Counter[str]) -> Optional[dict
         entry = lookup_event_id(value)
         if entry is not None:
             return {"label": entry.label, "provider": entry.provider, "channel": entry.channel}
+        # Namespaced but not in the dictionary (`security:1`): the
+        # channel is still known from the prefix; only the label is not.
+        prefix, _bare = split_event_id(value)
+        if prefix is not None:
+            channel = channel_for_prefix(prefix) or prefix
+            return {"label": channel, "provider": PREFIX_PROVIDER[prefix], "channel": channel}
         auth0 = lookup_auth0_event(value)
         if auth0 is not None:
             return {"label": auth0.label, "provider": "auth0", "channel": "Auth0 log events"}

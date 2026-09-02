@@ -293,10 +293,14 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
     ),
     FieldSpec(
         aliases=["eventid", "event_id", "eid"],
-        kind="list",
+        kind="event_id",
         columns=["extracted_event_ids"],
-        description="Vendor event ID (exact match) the rule keys on.",
-        examples=["eventid:4688"],
+        description=(
+            "Windows event ID the rule keys on, namespaced by log channel "
+            "(sysmon:1, security:4688, powershell:4104). A bare number "
+            "matches that ID on any channel."
+        ),
+        examples=["eventid:security:4688", "eventid:sysmon:1", "eventid:4104"],
     ),
     FieldSpec(
         aliases=["field", "fields"],
@@ -527,6 +531,13 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
         return _mitre_entity_clause(spec.columns[0], sid, MITRE_SOFTWARE.get(sid))
     if spec.kind == "list":
         return _list_clause(spec.columns[0], value)
+    if spec.kind == "event_id":
+        from app.services.taxonomy.event_ids import event_id_conditions
+
+        conds = event_id_conditions(getattr(Detection, spec.columns[0]), [value])
+        if not conds:
+            raise QueryParseError(f"empty value for field '{spec.aliases[0]}'")
+        return or_(*conds)
     if spec.kind == "text":
         return _text_clause(spec.columns[0], value)
     if spec.kind == "text_multi":
@@ -619,6 +630,11 @@ def _walk(node: Item) -> ColumnElement:
             # Numeric fields accept `>=60` / `<40` (luqum From / To),
             # `[60 TO 79]` ranges, or a bare number for equality (#39).
             return _int_clause(spec, node.name, child)
+        if spec.kind == "event_id" and isinstance(child, SearchField) and isinstance(child.expr, Word):
+            # `eventid:sysmon:1` -- luqum reads the channel prefix as a
+            # nested field; fold it back into one namespaced value so
+            # the natural spelling works unquoted.
+            return _apply_field(spec, f"{child.name}:{child.expr.value}")
         if isinstance(child, Phrase):
             value = child.value.strip('"')
         elif isinstance(child, Word):

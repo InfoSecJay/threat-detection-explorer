@@ -49,7 +49,7 @@ async def test_fields_registry_shape_matches_parser(client):
     for f in fields:
         assert set(f) == {"aliases", "kind", "columns", "description", "examples"}
         assert f["aliases"] and f["columns"] and f["description"]
-        assert f["kind"] in {"text", "text_multi", "list", "list_substring", "list_mitre_group", "list_mitre_software", "bool", "int"}, f["kind"]
+        assert f["kind"] in {"text", "text_multi", "list", "list_substring", "list_mitre_group", "list_mitre_software", "event_id", "bool", "int"}, f["kind"]
         for a in f["aliases"]:
             assert a not in aliases, f"alias {a!r} claimed twice"
             aliases.add(a)

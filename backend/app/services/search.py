@@ -735,15 +735,15 @@ class SearchService:
             ]
             conditions.append(or_(*ds_conds))
 
-        # Extracted Event IDs filter (JSON array, text-based matching)
+        # Extracted Event IDs filter (JSON array, text-based matching).
+        # Values are channel-namespaced (`sysmon:1`, #110); a bare
+        # number is an alias for that ID on any channel.
         if filters.event_ids:
-            event_id_conditions = []
-            for eid in filters.event_ids:
-                event_id_conditions.append(
-                    cast(Detection.extracted_event_ids, String).ilike(f'%"{eid}"%')
-                )
-            if event_id_conditions:
-                conditions.append(or_(*event_id_conditions))
+            from app.services.taxonomy.event_ids import event_id_conditions
+
+            conds = event_id_conditions(Detection.extracted_event_ids, filters.event_ids)
+            if conds:
+                conditions.append(or_(*conds))
 
         # Extracted Process Names filter (JSON array, text-based matching)
         if filters.process_names:

@@ -269,13 +269,17 @@ by_key:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
+  # System / Application are NOT the Security log: keep them on the
+  # generic tier so event-ID namespacing (#110) resolves the channel
+  # per ID from the dictionary (7045 -> system:7045) instead of
+  # stamping them `security:`.
   windows/system:
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
     event_types: [audit_event]
   windows/application:
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
     event_types: [audit_event]
   windows/sysmon:
     platforms: [windows]

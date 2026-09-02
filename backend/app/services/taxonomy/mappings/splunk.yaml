@@ -630,12 +630,14 @@ data_source_labels:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     # event_types intentionally omitted — too broad
+  # System / Application are not the Security log (#110): generic tier,
+  # channel resolved per event ID.
   "windows event log system":
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
   "windows event log application":
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
   "windows event log":
     platforms: [windows]
     data_sources: [windows_security_event_log]

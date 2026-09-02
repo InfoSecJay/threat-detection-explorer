@@ -178,11 +178,13 @@ def test_normalized_detection_keeps_sentinel_authentication_tag():
 
 def test_labels_for_and_dictionary_shape():
     assert labels_for(["4688", "nope"]) == {"4688": "Process created"}
+    assert labels_for(["security:4688", "sysmon:4688"]) == {"security:4688": "Process created"}
     d = dictionary()
-    assert d["4624"] == {
+    assert d["security:4624"] == {
+        "event_id": "4624",
         "label": "Logon success",
         "provider": "windows_security",
         "channel": "Security",
         "event_types": ["authentication"],
     }
-    assert list(d)[:3] == ["1", "2", "3"]  # numeric order, not lexical
+    assert [v["event_id"] for v in list(d.values())[:3]] == ["1", "2", "3"]  # numeric order, not lexical

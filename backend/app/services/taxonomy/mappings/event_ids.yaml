@@ -9,12 +9,15 @@
 # reclassified (4624 -> authentication, 4688 -> process_creation, ...).
 #
 # Rules:
-# - One entry per event ID across ALL providers. IDs are looked up by
-#   number alone (the extractor does not know the channel), so an ID
-#   that means different things in different channels must NOT be
-#   listed. Known collisions deliberately excluded: 8001-8004 (NTLM
-#   audit vs AppLocker EXE/DLL) and the rest of AppLocker (8005-8025).
-#   `tests/test_services/test_event_ids.py` fails on duplicates.
+# - One entry per event ID across ALL providers. Stored IDs carry a
+#   channel prefix (`sysmon:1`, `security:4688`; see PROVIDER_PREFIX in
+#   event_ids.py) decided from the rule's data source, but the prefix
+#   only falls back to THIS dictionary when the rule does not pin a
+#   single channel -- so an ID that means different things in different
+#   channels must still NOT be listed. Known collisions deliberately
+#   excluded: 8001-8004 (NTLM audit vs AppLocker EXE/DLL) and the rest
+#   of AppLocker (8005-8025). `tests/test_services/test_event_ids.py`
+#   fails on duplicates.
 # - `event_types` values must be canonical (`taxonomy/canonical.py`).
 # - `label` is the short human name shown in the UI next to the ID.
 #   ASCII only.

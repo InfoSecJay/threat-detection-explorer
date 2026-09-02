@@ -60,8 +60,9 @@ Rules of the second pass (all covered by
 `tests/test_services/test_event_ids.py`):
 
 - Only Windows-scoped rules (platform `windows` or a Windows data
-  source) are refined -- IDs are matched by number alone, so a Linux
-  rule with `type=1` must never pick up the Sysmon meaning.
+  source) are refined, so a Linux rule with `type=1` never picks up
+  the Sysmon meaning; within Windows the channel prefix (next section)
+  keeps `security:1` from doing so either.
 - Only `audit_event` / `unknown` are replaced. A specific type the
   vendor mapping produced (`process_creation` from Sigma's category,
   `authentication` from Sentinel's `securityevents`) is kept and
@@ -78,6 +79,38 @@ gets it without per-normalizer wiring. The same dictionary backs
 `GET /api/query/event-ids`, which the UI uses to label raw IDs
 ("4688 - Process created") in the Event ID facet, the filter pills and
 the detail page.
+
+#### Event IDs are channel-namespaced (#110)
+
+Stored `extracted_event_ids` carry the log channel as a short prefix:
+`sysmon:1`, `security:4688`, `powershell:4104`, `system:7045`,
+`defender:1116`. A bare number is ambiguous -- EventID 1 is
+ProcessCreate in Sysmon and something else in the System log -- so
+`taxonomy/event_ids.py::namespace_event_ids` decides the prefix right
+before refinement, in this order:
+
+1. The rule's canonical data source, when it names exactly one Windows
+   log (`sysmon`, `windows_security_event_log`, `windows_powershell`,
+   `windows_defender_event_log`). A Security-channel rule that pins
+   EventID 1 is stored as `security:1`, whatever the dictionary thinks
+   "1" means.
+2. Otherwise (generic `windows_event_logs`, or two channels at once) the
+   dictionary's provider for that number.
+3. Otherwise the value stays bare. Non-Windows rules are never touched
+   (Auth0 / Okta codes are not Windows event IDs).
+
+The System and Application logs map to the generic
+`windows_event_logs` tier for exactly this reason: they are not the
+Security log, and step 2 resolves their IDs per number.
+
+Consumers: `lookup()` is prefix-aware (`security:1` is *unknown*, not
+Sysmon ProcessCreate), so refinement never crosses channels. The
+catalog `event_ids` filter and the query bar (`eventid:sysmon:1`,
+`eventid:"security:4688"`) match a namespaced value exactly, while a
+bare `eventid:4688` matches that number on any channel -- including
+rows from before namespacing -- so old links keep working. The
+dictionary endpoint is keyed by the namespaced id with `event_id`
+carrying the bare number; `useEventIds` indexes both.
 
 The ten canonical values that only this pass produces
 (`account_management`, `privilege_use`, `policy_change`, `log_clear`,

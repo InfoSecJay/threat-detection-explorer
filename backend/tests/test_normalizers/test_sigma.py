@@ -173,7 +173,8 @@ def test_normalize_unmapped_logsource_falls_through_to_unknown(normalizer):
 
 def test_normalize_extracts_event_ids_from_detection(normalizer):
     n = normalizer.normalize(_parsed())
-    assert "4688" in n.extracted_event_ids
+    # Channel-namespaced (#110): the fixture reads windows/security.
+    assert "security:4688" in n.extracted_event_ids
 
 
 def test_normalize_extracts_process_name_from_detection(normalizer):

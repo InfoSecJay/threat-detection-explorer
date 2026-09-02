@@ -168,7 +168,7 @@ export function QueryReference() {
                   <span className="ml-auto text-[10px] font-mono text-gray-600 uppercase tracking-wider">
                     {f.kind === 'list_mitre_group' || f.kind === 'list_mitre_software'
                       ? 'lookup'
-                      : f.kind === 'list'
+                      : f.kind === 'list' || f.kind === 'event_id'
                         ? 'multi'
                         : f.kind === 'text_multi'
                           ? 'multi-text'

@@ -120,10 +120,137 @@ def _load(strict: bool = False) -> dict[str, EventIdEntry]:
 
 EVENT_ID_INDEX: dict[str, EventIdEntry] = _load()
 
+# ── Channel namespacing (teardown R12 / #110) ─────────────────────────
+#
+# Stored event IDs carry their log channel as a short prefix --
+# `sysmon:1`, `security:4688`, `powershell:4104` -- because a bare
+# number is ambiguous: EventID 1 is ProcessCreate in Sysmon and
+# something else entirely in the System log. The prefix is decided at
+# normalization time from the rule's canonical data source (the one
+# fact that says which log the rule reads); when the rule does not pin
+# a single Windows channel, the dictionary's provider for that number
+# is the fallback. Non-Windows rules keep bare values (Auth0 / Okta
+# codes are not Windows event IDs).
+#
+# Prefixes are short, stable, URL- and query-safe; `PROVIDER_PREFIX`
+# is the only place they are defined.
+
+PROVIDER_PREFIX: dict[str, str] = {
+    "windows_security": "security",
+    "windows_system": "system",
+    "sysmon": "sysmon",
+    "powershell": "powershell",
+    "windows_defender": "defender",
+    "taskscheduler": "taskscheduler",
+    "wmi_activity": "wmi",
+    "codeintegrity": "codeintegrity",
+}
+PREFIX_PROVIDER: dict[str, str] = {v: k for k, v in PROVIDER_PREFIX.items()}
+
+# Canonical data source -> channel prefix, for sources that name ONE
+# Windows log. `windows_event_logs` (generic) deliberately absent.
+DATA_SOURCE_PREFIX: dict[str, str] = {
+    "sysmon": "sysmon",
+    "windows_security_event_log": "security",
+    "windows_powershell": "powershell",
+    "windows_defender_event_log": "defender",
+}
+
+_PROVIDER_CHANNEL: dict[str, str] = {}
+for _e in EVENT_ID_INDEX.values():
+    _PROVIDER_CHANNEL.setdefault(_e.provider, _e.channel)
+
+
+def split_event_id(value: str | int) -> tuple[str | None, str]:
+    """`"sysmon:1"` -> `("sysmon", "1")`; `"4688"` -> `(None, "4688")`.
+
+    Only known prefixes split, so a stray colon in a vendor code stays
+    part of the value.
+    """
+    s = str(value).strip()
+    prefix, sep, rest = s.partition(":")
+    if sep and prefix in PREFIX_PROVIDER:
+        return prefix, rest.strip()
+    return None, s
+
+
+def channel_for_prefix(prefix: str) -> str | None:
+    """Human channel name for a prefix (`sysmon` -> the Sysmon/Operational log)."""
+    provider = PREFIX_PROVIDER.get(prefix)
+    return _PROVIDER_CHANNEL.get(provider) if provider else None
+
+
+def namespace_event_ids(
+    event_ids: Iterable[str],
+    platforms: Iterable[str],
+    data_sources: Iterable[str],
+) -> list[str]:
+    """Attach the channel prefix to each bare Windows event ID.
+
+    Channel choice, in order: the rule's single Windows data source;
+    else the dictionary's provider for the number; else left bare.
+    Already-namespaced values pass through, so the pass is idempotent
+    across re-ingests.
+    """
+    ids = [str(i).strip() for i in event_ids if str(i).strip()]
+    if not ids or not is_windows_scoped(platforms, data_sources):
+        return ids
+    rule_prefixes = {DATA_SOURCE_PREFIX[d] for d in data_sources if d in DATA_SOURCE_PREFIX}
+    rule_prefix = next(iter(rule_prefixes)) if len(rule_prefixes) == 1 else None
+
+    out: list[str] = []
+    for raw in ids:
+        prefix, bare = split_event_id(raw)
+        if prefix is None and bare.isdigit():
+            if rule_prefix is not None:
+                prefix = rule_prefix
+            else:
+                entry = EVENT_ID_INDEX.get(bare)
+                prefix = PROVIDER_PREFIX.get(entry.provider) if entry else None
+        value = f"{prefix}:{bare}" if prefix else bare
+        if value not in out:
+            out.append(value)
+    return out
+
+
+def event_id_conditions(column, values: Iterable[str]) -> list:
+    """SQLAlchemy clauses matching `values` against a JSON-list column
+    of namespaced IDs. `security:4688` matches exactly; a bare `4688`
+    matches that number on ANY channel (namespaced or legacy bare),
+    so old links and the query bar keep working. Shared by the catalog
+    filter and the query parser so the alias semantics cannot drift.
+    """
+    from sqlalchemy import String, cast
+
+    col = cast(column, String)
+    out = []
+    for raw in values:
+        prefix, bare = split_event_id(raw)
+        if not bare:
+            continue
+        if prefix is not None:
+            out.append(col.ilike(f'%"{prefix}:{bare}"%'))
+        else:
+            out.append(col.ilike(f'%"{bare}"%'))
+            out.append(col.ilike(f'%:{bare}"%'))
+    return out
+
 
 def lookup(event_id: str | int) -> EventIdEntry | None:
-    """Dictionary entry for an event ID, or None when unknown."""
-    return EVENT_ID_INDEX.get(str(event_id).strip())
+    """Dictionary entry for an event ID, or None when unknown.
+
+    Accepts bare (`4688`) and namespaced (`security:4688`) forms. A
+    namespaced value whose channel disagrees with the dictionary is
+    unknown -- `security:1` is NOT Sysmon ProcessCreate, whatever the
+    number says; that disagreement is the whole point of the prefix.
+    """
+    prefix, bare = split_event_id(event_id)
+    entry = EVENT_ID_INDEX.get(bare)
+    if entry is None:
+        return None
+    if prefix is not None and PROVIDER_PREFIX.get(entry.provider) != prefix:
+        return None
+    return entry
 
 
 def is_windows_scoped(platforms: Iterable[str], data_sources: Iterable[str]) -> bool:
@@ -149,7 +276,9 @@ def refine_event_types(
     mapped: set[str] = set()
     unknown = False
     for eid in ids:
-        entry = EVENT_ID_INDEX.get(eid)
+        # Prefix-aware: `security:1` stays unknown rather than picking
+        # up the Sysmon meaning of "1".
+        entry = lookup(eid)
         if entry is None:
             unknown = True
             continue
@@ -166,19 +295,27 @@ def refine_event_types(
 
 
 def labels_for(event_ids: Iterable[str]) -> dict[str, str]:
-    """{event_id: label} for the IDs the dictionary knows."""
+    """{event_id as given: label} for the IDs the dictionary knows."""
     out: dict[str, str] = {}
     for eid in event_ids:
         entry = lookup(eid)
         if entry is not None:
-            out[entry.event_id] = entry.label
+            out[str(eid).strip()] = entry.label
     return out
 
 
+def namespaced_id(entry: EventIdEntry) -> str:
+    """The stored form of a dictionary entry: `security:4688`."""
+    return f"{PROVIDER_PREFIX.get(entry.provider, entry.provider)}:{entry.event_id}"
+
+
 def dictionary() -> dict[str, dict]:
-    """Whole dictionary as plain JSON-able data for the API."""
+    """Whole dictionary as plain JSON-able data for the API, keyed by
+    the namespaced id (`security:4688`); `event_id` carries the bare
+    number for callers that still hold un-namespaced values."""
     return {
-        eid: {
+        namespaced_id(e): {
+            "event_id": e.event_id,
             "label": e.label,
             "provider": e.provider,
             "channel": e.channel,
