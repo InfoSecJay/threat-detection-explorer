@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.parsers.base import BaseParser, ParsedRule
+from app.services.mitre_tactic_inference import infer_tactics, technique_id_from_name
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ _META_PAIR = re.compile(
 # sub-technique separator on the URL form. We also accept the
 # T1078.004 dotted form in case a rule uses it in mitre_attack_technique.
 _TECHNIQUE_FROM_URL = re.compile(r"techniques/(T\d{4})(?:/(\d{3}))?/?")
-_TECHNIQUE_DOTTED = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+_TECHNIQUE_DOTTED = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
+_TACTIC_ID = re.compile(r"TA\d{4}")
 
 # Maps MITRE tactic display names -> tactic IDs. Chronicle rules use
 # the display name in mitre_attack_tactic. Mirrors the table used by
@@ -121,9 +123,10 @@ class GoogleSecOpsParser(BaseParser):
             # Chronicle rules carry no lifecycle concept (teardown R09 / #107).
             status = "not_applicable"
 
-            # Tags: collect a small set of useful meta fields.
+            # Tags: collect a small set of useful meta fields. `tactic`
+            # is an ATT&CK id in this repo and goes to mitre_attack, not tags.
             tags: list[str] = []
-            for k in ("platform", "data_source", "type", "tactic"):
+            for k in ("platform", "data_source", "type"):
                 v = meta.get(k)
                 if v:
                     tags.append(v.lower().replace(" ", "_"))
@@ -201,36 +204,64 @@ class GoogleSecOpsParser(BaseParser):
     def _extract_mitre(self, meta: dict, content: str) -> dict:
         """Pull tactics + techniques out of the Chronicle meta fields.
 
-        Chronicle uses display names for tactics (`mitre_attack_tactic
-        = "Initial Access"`) and a URL form for techniques
-        (`mitre_attack_url = "https://attack.mitre.org/techniques/
-        T1078/004/"`). Some rules also stash `T####.###` in
-        `mitre_attack_technique_id`; we pick up either form.
+        The community repo uses two conventions side by side (#108 C6):
+
+        - the newer, id-based `tactic = "TA0006"` / `technique =
+          "T1003.001"` pair (~150 rules), and
+        - the older display-name set: `mitre_attack_tactic = "Defense
+          Evasion, Persistence"` (comma-separated, several tactics),
+          `mitre_attack_technique = "Valid Accounts: Cloud Accounts"`,
+          and `mitre_attack_url = ".../techniques/T1078/004/"`.
+
+        Ids win wherever present; display names are resolved against
+        the ATT&CK cache only when no id-form field gave us anything,
+        so a name can never shadow a more specific id. Tactics missing
+        from the meta are inferred from the techniques.
         """
         tactics: list[str] = []
         techniques: list[str] = []
 
-        tactic_field = (meta.get("mitre_attack_tactic") or "").lower().strip()
-        if tactic_field:
-            tid = TACTIC_NAME_TO_ID.get(tactic_field)
+        def add_tactic(tid: str) -> None:
             if tid and tid not in tactics:
                 tactics.append(tid)
 
-        url = meta.get("mitre_attack_url") or ""
-        m = _TECHNIQUE_FROM_URL.search(url)
-        if m:
-            base, sub = m.group(1), m.group(2)
-            tid = f"{base}.{sub}" if sub else base
-            if tid not in techniques:
+        def add_technique(tid: str) -> None:
+            if tid and tid not in techniques:
                 techniques.append(tid)
 
-        # Some rules embed the dotted technique ID directly in a meta
-        # field (mitre_attack_technique_id, etc.) instead of the URL.
+        for key in ("tactic", "mitre_attack_tactic", "mitre_attack_tactics"):
+            for token in (meta.get(key) or "").split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                if _TACTIC_ID.fullmatch(token.upper()):
+                    add_tactic(token.upper())
+                else:
+                    add_tactic(TACTIC_NAME_TO_ID.get(token.lower(), ""))
+
+        for base, sub in _TECHNIQUE_FROM_URL.findall(meta.get("mitre_attack_url") or ""):
+            add_technique(f"{base}.{sub}" if sub else base)
+
+        # Dotted ids in any technique-ish field (`technique`,
+        # `mitre_attack_technique_id`, ...). Names-only fields simply
+        # yield no matches here.
         for k, v in meta.items():
-            if "mitre" not in k.lower():
+            kl = k.lower()
+            if "technique" not in kl and "mitre" not in kl:
+                continue
+            if kl.endswith("url"):
+                # Already handled above; the bare regex would also lift
+                # the parent id out of ".../T1003/001/" as a second hit.
                 continue
             for tid in _TECHNIQUE_DOTTED.findall(v or ""):
-                if tid not in techniques:
-                    techniques.append(tid)
+                add_technique(tid.upper())
+
+        if not techniques:
+            for token in (meta.get("mitre_attack_technique") or "").split(","):
+                add_technique(technique_id_from_name(token) or "")
+
+        if not tactics:
+            for tid in infer_tactics(techniques):
+                add_tactic(tid)
 
         return {"tactics": tactics, "techniques": techniques}

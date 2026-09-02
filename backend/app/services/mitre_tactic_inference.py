@@ -40,6 +40,10 @@ _CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "mitre_attack.json"
 _LOADED = False
 _MISSING_LOGGED = False
 _TECHNIQUE_TO_TACTICS: dict[str, list[str]] = {}
+# Lower-cased display name -> technique id. Sub-techniques are keyed the
+# way vendors write them, "Parent: Sub" (e.g. "valid accounts: cloud
+# accounts" -> T1078.004), alongside the bare sub name.
+_NAME_TO_TECHNIQUE: dict[str, str] = {}
 
 
 def _load() -> None:
@@ -79,6 +83,20 @@ def _load() -> None:
             _TECHNIQUE_TO_TACTICS[str(tid).upper()] = [
                 str(t).upper() for t in tactics if t
             ]
+    # Second pass for names: parents must be indexed before the "Parent:
+    # Sub" composite keys can be built for their sub-techniques.
+    for tid, info in techs.items():
+        if not isinstance(info, dict) or not info.get("name"):
+            continue
+        key = str(tid).upper()
+        name = str(info["name"]).strip().lower()
+        parent_id = info.get("parent_id")
+        if parent_id and isinstance(techs.get(parent_id), dict):
+            parent_name = str(techs[parent_id].get("name") or "").strip().lower()
+            if parent_name:
+                _NAME_TO_TECHNIQUE.setdefault(f"{parent_name}: {name}", key)
+        else:
+            _NAME_TO_TECHNIQUE.setdefault(name, key)
     logger.info(
         f"mitre_tactic_inference: loaded {len(_TECHNIQUE_TO_TACTICS)} "
         f"technique -> tactic mappings from {_CACHE_PATH.name}"
@@ -117,9 +135,30 @@ def infer_tactics(techniques: Iterable[str]) -> list[str]:
     return out
 
 
+def technique_id_from_name(name: str) -> Optional[str]:
+    """Resolve an ATT&CK display name to its id, or None.
+
+    Accepts "Valid Accounts" (-> T1078) and the vendor-conventional
+    "Valid Accounts: Cloud Accounts" (-> T1078.004). Whitespace and
+    case are ignored; nothing fuzzier than that -- a wrong technique
+    is worse than a missing one.
+    """
+    _load()
+    if not name or not _NAME_TO_TECHNIQUE:
+        return None
+    key = " ".join(str(name).lower().split())
+    hit = _NAME_TO_TECHNIQUE.get(key)
+    if hit is None and ":" in key:
+        # Tolerate "Parent:Sub" / "Parent :  Sub" spacing.
+        parent, _, sub = key.partition(":")
+        hit = _NAME_TO_TECHNIQUE.get(f"{parent.strip()}: {sub.strip()}")
+    return hit
+
+
 def reset_cache_for_tests() -> None:
     """Test hook -- forces re-load on next call. Never called in prod."""
     global _LOADED, _MISSING_LOGGED
     _LOADED = False
     _MISSING_LOGGED = False
     _TECHNIQUE_TO_TACTICS.clear()
+    _NAME_TO_TECHNIQUE.clear()
