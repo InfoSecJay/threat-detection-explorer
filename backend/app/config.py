@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # For local development: sqlite+aiosqlite:///path/to/db.sqlite
     # For production: postgresql+asyncpg://user:password@host:port/database
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR / 'data' / 'threat_detection.db'}"
+    # Size of the Postgres volume in MB. Postgres cannot see its own free
+    # disk, so optional growth (the nightly corpus snapshot, #94) is
+    # capped at a fraction of this to keep the database from filling the
+    # volume and PANICing mid-sync (2026-08-31 and 2026-09-02 incidents).
+    # Set POSTGRES_VOLUME_MB in Railway to match the volume after growing it.
+    postgres_volume_mb: int = 500
 
     # Repository paths
     data_dir: Path = BASE_DIR / "data"

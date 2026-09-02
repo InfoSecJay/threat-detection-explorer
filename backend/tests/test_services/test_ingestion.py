@@ -27,6 +27,7 @@ Test strategy:
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -369,6 +370,45 @@ async def test_cleanup_guard_trips_on_mass_drop(
     assert repo.status == "error"
     assert repo.error_message is not None
     assert "CIRCUIT BREAKER" in repo.error_message
+
+
+@pytest.mark.asyncio
+async def test_cleanup_guard_trips_on_store_failures(
+    ingestion_service, db_session
+):
+    """Rows that failed to STORE never got this run's id; cleanup would
+    read them as upstream removals and tombstone live rules (the
+    2026-09-02 Postgres disk-full incident: 176 Splunk rules -> 410).
+    Any store-stage error skips cleanup."""
+    from app.services.ingestion_errors import ErrorSeverity, ErrorStage, IngestionStats
+    from app.models.repository import Repository
+
+    db_session.add(_make_repo("sigma", rule_count=100))
+    long_ago = utcnow() - timedelta(days=30)
+    for i in range(5):
+        db_session.add(_detection(id_=f"unstored-{i}", updated_at=long_ago))
+    await db_session.commit()
+
+    stats = IngestionStats()
+    stats.discovered = 100  # discovery is fine; the database was not
+    stats.add_error(
+        file_path=Path("rules/x.yml"), stage=ErrorStage.STORE,
+        message="Batch commit failed: connection was closed in the middle of operation",
+        severity=ErrorSeverity.ERROR,
+    )
+    ran = await ingestion_service._cleanup_stale_rules_guarded(
+        "sigma", utcnow(), stats,
+    )
+    assert ran is False
+
+    remaining = (await db_session.execute(select(Detection))).scalars().all()
+    assert len(remaining) == 5, "un-stored rows must survive"
+    breaker = [e for e in stats.errors if "CIRCUIT BREAKER" in e.message]
+    assert len(breaker) == 1 and breaker[0].stage == ErrorStage.STORE
+    repo = (await db_session.execute(
+        select(Repository).where(Repository.name == "sigma")
+    )).scalar_one()
+    assert repo.status == "error" and "store failure" in repo.error_message
 
 
 @pytest.mark.asyncio

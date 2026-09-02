@@ -66,3 +66,34 @@ async def test_same_day_rerun_overwrites_not_duplicates(db_session):
 @pytest.mark.asyncio
 async def test_missing_snapshot_reads_empty(db_session):
     assert await read_corpus_snapshot(db_session, date(2020, 1, 1), "sigma") == []
+
+
+@pytest.mark.asyncio
+async def test_snapshot_skipped_when_database_over_volume_cap(db_session, monkeypatch):
+    """Postgres cannot see free disk; the snapshot is the one optional
+    consumer of the volume, so it stops at 70% of POSTGRES_VOLUME_MB
+    (2026-09-02 disk-full PANIC). SQLite dev never trips it."""
+    from app.services import corpus_snapshot as cs
+
+    db_session.add(_rule(1))
+    await db_session.commit()
+
+    calls: list[bool] = []
+
+    async def over_cap(_db):
+        calls.append(True)
+        return True
+
+    monkeypatch.setattr(cs, "_database_over_snapshot_cap", over_cap)
+    assert await write_corpus_snapshot(db_session, date(2026, 9, 2)) == {}
+    assert calls == [True]
+    n = (await db_session.execute(select(func.count()).select_from(CorpusSnapshot))).scalar()
+    assert n == 0
+
+
+
+@pytest.mark.asyncio
+async def test_volume_cap_is_a_no_op_outside_postgres(db_session):
+    from app.services.corpus_snapshot import _database_over_snapshot_cap
+
+    assert await _database_over_snapshot_cap(db_session) is False

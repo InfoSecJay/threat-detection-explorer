@@ -17,9 +17,10 @@ import json
 import logging
 from datetime import date, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.corpus_snapshot import CorpusSnapshot
 from app.models.detection import Detection
 from app.utils.datetime_utils import utcnow
@@ -52,6 +53,8 @@ async def write_corpus_snapshot(db: AsyncSession, snapshot_date: date | None = N
     """
     day = snapshot_date or utcnow().date()
     counts: dict[str, int] = {}
+    if await _database_over_snapshot_cap(db):
+        return counts
 
     sources = (await db.execute(select(Detection.source).distinct())).scalars().all()
     for source in sorted(sources):
@@ -84,6 +87,30 @@ async def write_corpus_snapshot(db: AsyncSession, snapshot_date: date | None = N
         f"Corpus snapshot {day}: {total} rules across {len(counts)} sources"
     )
     return counts
+
+
+# Snapshots are the one optional, unbounded consumer of the volume
+# (~16MB/night). Postgres cannot see free disk, so we stop writing them
+# when the database passes this share of the configured volume size --
+# a full volume PANICs Postgres mid-sync and tombstones live rules
+# (2026-09-02). The sync itself is never blocked; only the snapshot.
+SNAPSHOT_CAP_SHARE = 0.7
+
+
+async def _database_over_snapshot_cap(db: AsyncSession) -> bool:
+    if db.bind is None or db.bind.dialect.name != "postgresql":
+        return False
+    size = (await db.execute(text("SELECT pg_database_size(current_database())"))).scalar() or 0
+    cap = int(settings.postgres_volume_mb * 1024 * 1024 * SNAPSHOT_CAP_SHARE)
+    if size <= cap:
+        return False
+    logger.error(
+        f"Corpus snapshot SKIPPED: database is {size / 1_048_576:.0f}MB, over "
+        f"{SNAPSHOT_CAP_SHARE:.0%} of the {settings.postgres_volume_mb}MB volume "
+        f"(POSTGRES_VOLUME_MB). Grow the Railway volume and set POSTGRES_VOLUME_MB "
+        f"to resume nightly snapshots; the historical record is short this night."
+    )
+    return True
 
 
 async def read_corpus_snapshot(db: AsyncSession, snapshot_date: date, source: str) -> list[dict]:

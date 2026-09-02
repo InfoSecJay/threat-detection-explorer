@@ -583,6 +583,34 @@ class IngestionService:
                     await self.db.commit()
                 return False
 
+        # Second breaker: rows that parsed and normalized but FAILED to
+        # store never got this run's id, so cleanup would read them as
+        # "gone upstream" and tombstone them. That is exactly what
+        # happened on 2026-09-02 when Postgres hit disk-full mid-batch:
+        # 176 live Splunk rules became 410 tombstones. A store failure
+        # is a database problem, not an upstream removal -- skip
+        # cleanup and let the next clean ingest reconcile.
+        store_failures = [e for e in stats.errors if e.stage == ErrorStage.STORE]
+        if store_failures:
+            message = (
+                f"CIRCUIT BREAKER: {len(store_failures)} store failure(s) during "
+                f"{repo_name} ingest ({store_failures[0].message[:160]}). Skipping "
+                f"stale-rule cleanup so un-stored rules are not tombstoned as "
+                f"upstream removals; the next clean ingest reconciles."
+            )
+            logger.error(message)
+            stats.add_error(
+                file_path=Path(repo_name),
+                stage=ErrorStage.STORE,
+                message=message,
+                severity=ErrorSeverity.ERROR,
+            )
+            if repo:
+                repo.status = "error"
+                repo.error_message = message
+                await self.db.commit()
+            return False
+
         await self._cleanup_stale_rules(repo_name, sync_run_id)
         return True
 
