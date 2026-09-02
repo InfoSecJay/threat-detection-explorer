@@ -9,6 +9,7 @@ import { useCoverageMatrix } from '../../hooks/useCompare';
 import { useActorsQuery } from '../../hooks/useActors';
 import { useSourceDeltas } from '../../hooks/useTrending';
 import { clipMd } from '../../constants/style';
+import { BAKED_SNAPSHOT } from '../../constants/snapshot';
 import { countryFlag } from '../../utils/actorDisplay';
 
 // Literal class names so Tailwind generates them (template strings are
@@ -58,6 +59,11 @@ export function ShowcaseCards() {
   const { data: deltas } = useSourceDeltas(7);
 
   const top = gaps?.items?.[0];
+  // Live summary first; the build-time snapshot only bridges the first
+  // paint (#82 S2.7).
+  const coverageFact = coverage
+    ? { percent: coverage.summary.overall_coverage_percent, covered: coverage.summary.techniques_with_any_coverage, total: coverage.summary.total_techniques }
+    : BAKED_SNAPSHOT?.coverage ?? null;
   const netWeek = deltas ? Object.values(deltas.by_source).reduce((n, s) => n + (s.delta ?? 0), 0) : null;
 
   return (
@@ -68,8 +74,8 @@ export function ShowcaseCards() {
         title="Coverage browser"
         blurb="Every tactic and technique with the rules behind it, per vendor. See which technique each source detects and how, and where the whole ecosystem is blind."
         fact={
-          coverage
-            ? <><span className="text-white">{coverage.summary.overall_coverage_percent}%</span> of parent techniques have at least one rule · {coverage.summary.techniques_with_any_coverage} / {coverage.summary.total_techniques}</>
+          coverageFact
+            ? <><span className="text-white">{coverageFact.percent}%</span> of parent techniques have at least one rule · {coverageFact.covered} / {coverageFact.total}</>
             : 'loading coverage…'
         }
         cta="Browse ATT&CK"

@@ -8,6 +8,11 @@
  * query so the home page costs no extra request. The MITRE browser
  * defaults to techniques + sub-techniques (~655), so the label has to
  * say which one this is or the two pages look like they disagree.
+ *
+ * First paint: while the live queries are in flight the strip shows
+ * the numbers baked into the bundle at build time (#82 S2.7) instead
+ * of dashes. Live values replace them the moment they arrive; the
+ * baked ones are only ever a fallback, never the source of truth.
  */
 
 import { Link } from 'react-router-dom';
@@ -15,6 +20,7 @@ import { useStatistics } from '../../hooks/useDetections';
 import { useCoverageMatrix } from '../../hooks/useCompare';
 import { useRepositories } from '../../hooks/useRepositories';
 import { ALL_SOURCES } from '../../constants/sources';
+import { BAKED_SNAPSHOT } from '../../constants/snapshot';
 import { formatRelDate } from '../intel/lib';
 
 function Stat({ to, value, label, testId }: { to: string; value: string; label: string; testId: string }) {
@@ -33,17 +39,19 @@ export function StatsStrip() {
   const { data: coverage } = useCoverageMatrix({ include_subtechniques: false });
   const { data: repos } = useRepositories();
 
-  const lastSync = (repos || [])
+  const liveSync = (repos || [])
     .map((r) => r.last_sync_at)
     .filter((d): d is string => !!d)
     .sort()
     .pop();
-  const covered = coverage?.summary.techniques_with_any_coverage;
-  const total = coverage?.summary.total_techniques;
+  const lastSync = repos ? liveSync : BAKED_SNAPSHOT?.last_sync ?? undefined;
+  const rules = stats?.total ?? BAKED_SNAPSHOT?.rules;
+  const covered = coverage?.summary.techniques_with_any_coverage ?? BAKED_SNAPSHOT?.coverage.covered;
+  const total = coverage?.summary.total_techniques ?? BAKED_SNAPSHOT?.coverage.total;
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-4 pt-5 mt-5 border-t border-void-800">
-      <Stat to="/detections" value={stats ? stats.total.toLocaleString() : '—'} label="detection rules" testId="stat-rules" />
+      <Stat to="/detections" value={rules !== undefined ? rules.toLocaleString() : '—'} label="detection rules" testId="stat-rules" />
       <Stat to="/methodology" value={String(ALL_SOURCES.length)} label="open-source repos" testId="stat-sources" />
       <Stat
         to="/mitre"
