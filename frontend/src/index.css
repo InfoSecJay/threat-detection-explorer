@@ -209,6 +209,28 @@ body::before {
   transform-origin: top left;
 }
 
+/* Hero coverage constellation: one scan band sweeping the kill chain
+   left to right, then a beat of rest. Distance is fixed to the 14-column
+   viewBox width (210 units) plus the band width. */
+.constellation-sweep {
+  animation: constellation-sweep 9s linear infinite;
+  mix-blend-mode: screen;
+}
+
+@keyframes constellation-sweep {
+  0% { transform: translateX(0); opacity: 0; }
+  6% { opacity: 1; }
+  66% { opacity: 1; }
+  72% { transform: translateX(260px); opacity: 0; }
+  100% { transform: translateX(260px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .constellation-sweep {
+    display: none;
+  }
+}
+
 /* Glitch effect */
 .glitch {
   position: relative;

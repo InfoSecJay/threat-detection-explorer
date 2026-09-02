@@ -5,7 +5,8 @@
  *
  *   Hero       one sentence of scope, the query bar, example queries,
  *              and four exact numbers (rules, repos, ATT&CK techniques
- *              covered, last sync)
+ *              covered, last sync); at desktop widths, the coverage
+ *              constellation fills the right-hand space
  *   Sources    every repository we ingest, its live count and format
  *   Showcase   the three destinations beyond search -- ATT&CK coverage,
  *              actor gaps, repo intelligence -- each with one live fact
@@ -21,6 +22,7 @@ import { HeroSearch } from './home/HeroSearch';
 import { StatsStrip } from './home/StatsStrip';
 import { SourcesBand } from './home/SourcesBand';
 import { ShowcaseCards } from './home/ShowcaseCards';
+import { CoverageConstellation } from './home/CoverageConstellation';
 
 function SectionHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
   return (
@@ -51,21 +53,27 @@ export function Home() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-hero-radial pointer-events-none" />
         <div className="absolute inset-0 bg-grid-pattern bg-grid opacity-30 pointer-events-none" />
-        <div className="relative max-w-4xl pt-8 pb-2 lg:pt-12">
-          <div className="text-[10px] font-mono text-matrix-500 uppercase tracking-[0.25em] mb-4">
-            Open detection rules · one schema · ATT&amp;CK-mapped
+        <div className="relative flex items-center gap-12 pt-8 pb-2 lg:pt-12">
+          <div className="w-full max-w-4xl flex-none">
+            <div className="text-[10px] font-mono text-matrix-500 uppercase tracking-[0.25em] mb-4">
+              Open detection rules · one schema · ATT&amp;CK-mapped
+            </div>
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold tracking-wider mb-4">
+              <span className="text-matrix-500 text-glow-sm">DETECTION </span>
+              <span className="text-white">EXPLORER</span>
+            </h1>
+            <p className="text-base md:text-lg text-gray-400 max-w-3xl mb-6 font-sans">
+              {stats ? stats.total.toLocaleString() : 'Every'} detection rule{stats ? 's' : ''} from {ALL_SOURCES.length} open-source
+              repositories, normalized to one schema, mapped to MITRE ATT&amp;CK, with the observables each rule keys on extracted
+              and searchable.
+            </p>
+            <HeroSearch />
+            <StatsStrip />
           </div>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold tracking-wider mb-4">
-            <span className="text-matrix-500 text-glow-sm">DETECTION </span>
-            <span className="text-white">EXPLORER</span>
-          </h1>
-          <p className="text-base md:text-lg text-gray-400 max-w-3xl mb-6 font-sans">
-            {stats ? stats.total.toLocaleString() : 'Every'} detection rule{stats ? 's' : ''} from {ALL_SOURCES.length} open-source
-            repositories, normalized to one schema, mapped to MITRE ATT&amp;CK, with the observables each rule keys on extracted
-            and searchable.
-          </p>
-          <HeroSearch />
-          <StatsStrip />
+          {/* Right-hand ornament at desktop widths: the coverage matrix itself. */}
+          <div className="hidden xl:flex flex-1 justify-center">
+            <CoverageConstellation />
+          </div>
         </div>
       </section>
 
