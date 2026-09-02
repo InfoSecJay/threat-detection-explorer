@@ -18,6 +18,12 @@ Design:
   fall back to the parent T1059 (defensive against a stale cache).
 - Never raises: on any load error we log once and infer nothing.
   Empty inference is strictly better than crashing the parser.
+- A *missing* cache file does not latch. The sync worker starts with
+  no data/mitre_attack.json (the API container writes its own copy);
+  latching on the first miss left every Splunk / Sublime /
+  elastic_hunting rule with techniques but no tactics in prod
+  (#108 follow-up). We re-check on the next call, so once the
+  ingestion prelude has written the cache, inference just works.
 """
 
 from __future__ import annotations
@@ -32,31 +38,37 @@ logger = logging.getLogger(__name__)
 _CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "mitre_attack.json"
 
 _LOADED = False
+_MISSING_LOGGED = False
 _TECHNIQUE_TO_TACTICS: dict[str, list[str]] = {}
 
 
 def _load() -> None:
     """Populate _TECHNIQUE_TO_TACTICS from the STIX cache. Idempotent."""
-    global _LOADED
+    global _LOADED, _MISSING_LOGGED
     if _LOADED:
         return
-    _LOADED = True  # even on failure so we don't retry the load per call
     try:
         with _CACHE_PATH.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
-        logger.warning(
-            f"MITRE cache not found at {_CACHE_PATH}; "
-            f"tactic inference will be empty until a sync populates it"
-        )
+        # Not latched: the file may appear later in this process (the
+        # ingestion prelude writes it). One stat per call until then.
+        if not _MISSING_LOGGED:
+            _MISSING_LOGGED = True
+            logger.warning(
+                f"MITRE cache not found at {_CACHE_PATH}; "
+                f"tactic inference will be empty until a sync populates it"
+            )
         return
     except (json.JSONDecodeError, OSError) as e:
+        _LOADED = True  # a corrupt file will not fix itself; don't retry per call
         logger.warning(
             f"MITRE cache load failed ({type(e).__name__}: {e}); "
             f"tactic inference disabled for this process"
         )
         return
 
+    _LOADED = True
     techs = data.get("techniques", {}) if isinstance(data, dict) else {}
     for tid, info in techs.items():
         if not isinstance(info, dict):
@@ -107,6 +119,7 @@ def infer_tactics(techniques: Iterable[str]) -> list[str]:
 
 def reset_cache_for_tests() -> None:
     """Test hook -- forces re-load on next call. Never called in prod."""
-    global _LOADED
+    global _LOADED, _MISSING_LOGGED
     _LOADED = False
+    _MISSING_LOGGED = False
     _TECHNIQUE_TO_TACTICS.clear()

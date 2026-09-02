@@ -186,6 +186,23 @@ class IngestionService:
         seen_ids: set[str] = set()
         alias_rows: dict[str, tuple[str, str]] = {}
 
+        # Every parser that infers tactics from technique ids (Splunk,
+        # Sublime, elastic_hunting) reads the on-disk MITRE cache, and
+        # the sync worker starts without one -- only the API container
+        # writes it. Load (and thereby write) it before parsing so those
+        # sources get tactics in prod, not just in dev (#108 follow-up).
+        # Best-effort: no cache means no inferred tactics, which beats
+        # failing the whole ingest.
+        try:
+            from app.services.mitre import mitre_service
+
+            await mitre_service.ensure_loaded()
+        except Exception as exc:  # pragma: no cover - network/env
+            logger.warning(
+                f"MITRE cache unavailable for tactic inference during "
+                f"{repo_name} ingest, tactics will be vendor-declared only: {exc}"
+            )
+
         if repo_name == "sentinel":
             # The Sentinel normalizer classifies threat tags against the
             # ATT&CK + galaxy alias registries (issue #20). Best-effort:
@@ -193,9 +210,7 @@ class IngestionService:
             # beats failing the whole ingest.
             try:
                 from app.services.actor_context import actor_context_service
-                from app.services.mitre import mitre_service
 
-                await mitre_service.ensure_loaded()
                 await actor_context_service.ensure_loaded()
             except Exception as exc:  # pragma: no cover - network/env
                 logger.warning(

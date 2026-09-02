@@ -42,3 +42,29 @@ class TestInferTactics:
     def test_case_insensitive_input(self):
         assert "TA0002" in mti.infer_tactics(["t1059"])
         assert "TA0002" in mti.infer_tactics(["T1059  "])
+
+    def test_missing_cache_does_not_latch(self, tmp_path, monkeypatch):
+        """The sync worker starts with no cache file; the first call must
+        not poison the process. Once the file appears (the ingestion
+        prelude writes it) the next call loads it (#108 follow-up)."""
+        real = mti._CACHE_PATH
+        missing = tmp_path / "mitre_attack.json"
+        monkeypatch.setattr(mti, "_CACHE_PATH", missing)
+        mti.reset_cache_for_tests()
+
+        assert mti.infer_tactics(["T1059"]) == []
+        assert mti._LOADED is False
+
+        missing.write_bytes(real.read_bytes())
+        assert "TA0002" in mti.infer_tactics(["T1059"])
+        assert mti._LOADED is True
+
+    def test_corrupt_cache_latches(self, tmp_path, monkeypatch):
+        """A corrupt file will not fix itself; don't re-parse it per rule."""
+        bad = tmp_path / "mitre_attack.json"
+        bad.write_text("{not json", encoding="utf-8")
+        monkeypatch.setattr(mti, "_CACHE_PATH", bad)
+        mti.reset_cache_for_tests()
+
+        assert mti.infer_tactics(["T1059"]) == []
+        assert mti._LOADED is True
