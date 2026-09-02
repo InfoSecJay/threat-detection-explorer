@@ -234,3 +234,53 @@ class TestRelationshipEdgeCases:
         svc = MitreAttackService()
         svc._parse_mitre_data(bundle)
         assert svc.get_group("G0016") is None
+
+
+class TestTacticOrder:
+    """Column order comes from the matrix, not a hardcoded list -- ATT&CK
+    v18 added TA0112 and a fixed list dropped it (and the 15 parent
+    techniques that live only there) from the coverage browser."""
+
+    def _bundle_with_matrix(self) -> dict:
+        b = _bundle()
+        b["objects"].append({
+            "id": "x-mitre-tactic--impair-uuid",
+            "type": "x-mitre-tactic",
+            "name": "Defense Impairment",
+            "x_mitre_shortname": "defense-impairment",
+            "external_references": [{"source_name": "mitre-attack", "external_id": "TA0112"}],
+        })
+        b["objects"].append({
+            "id": "x-mitre-matrix--enterprise",
+            "type": "x-mitre-matrix",
+            "name": "Enterprise ATT&CK",
+            "tactic_refs": ["x-mitre-tactic--impair-uuid", "x-mitre-tactic--exec-uuid", "x-mitre-tactic--missing"],
+        })
+        return b
+
+    def test_order_follows_matrix_tactic_refs(self):
+        svc = MitreAttackService()
+        svc._parse_mitre_data(self._bundle_with_matrix())
+        assert svc.get_tactic_order() == ["TA0112", "TA0002"]
+
+    def test_legacy_fallback_appends_unknown_tactics(self):
+        # A cache written before matrix parsing has no order: fall back
+        # to the v17 list, but never drop a tactic the cache knows.
+        svc = MitreAttackService()
+        svc._parse_mitre_data(self._bundle_with_matrix())
+        svc._tactic_order = []
+        order = svc.get_tactic_order()
+        assert order.index("TA0002") < order.index("TA0112")
+        assert "TA0112" in order and "TA0043" not in order  # only live tactics
+
+    def test_cache_round_trips_order(self, tmp_path, monkeypatch):
+        from app.services import mitre as m
+
+        monkeypatch.setattr(m, "CACHE_FILE", tmp_path / "cache.json")
+        svc = MitreAttackService()
+        svc._parse_mitre_data(self._bundle_with_matrix())
+        svc._groups = {"G0001": {"modified": "2026-01-01"}}  # satisfy the cache sanity checks
+        svc._save_to_cache()
+        fresh = MitreAttackService()
+        assert fresh._load_from_cache() is True
+        assert fresh._tactic_order == ["TA0112", "TA0002"]

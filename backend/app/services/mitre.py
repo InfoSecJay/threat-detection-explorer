@@ -99,6 +99,11 @@ class MitreAttackService:
         # x_mitre_version, e.g. "17.1") — pinned into Navigator layer
         # exports instead of a hardcoded string.
         self._attack_version: Optional[str] = None
+        # Kill-chain order of tactic ids from the Enterprise
+        # x-mitre-matrix `tactic_refs`. ATT&CK adds tactics (v18 added
+        # TA0112 Defense Impairment); a hardcoded order silently drops
+        # the new column and every technique that lives only there.
+        self._tactic_order: list[str] = []
         self._last_fetch: Optional[datetime] = None
         self._loaded = False
 
@@ -184,6 +189,7 @@ class MitreAttackService:
             self._groups = cached_groups
             self._software = cached_software
             self._attack_version = data.get("attack_version")
+            self._tactic_order = [t for t in (data.get("tactic_order") or []) if t in cached_tactics]
             self._recompute_actor_weights()
             self._last_fetch = file_mtime
             logger.info(
@@ -208,6 +214,7 @@ class MitreAttackService:
                     "groups": self._groups,
                     "software": self._software,
                     "attack_version": self._attack_version,
+                    "tactic_order": self._tactic_order,
                     "fetched_at": utcnow().isoformat(),
                 }, f, indent=2)
             logger.info(f"Saved MITRE data to cache: {CACHE_FILE}")
@@ -272,6 +279,16 @@ class MitreAttackService:
                 self._attack_version = obj.get("x_mitre_version")
                 break
 
+        # Matrix column order: x-mitre-matrix.tactic_refs lists tactic
+        # STIX ids in kill-chain order; resolve them to TA ids below
+        # once the tactic pass has run.
+        matrix_refs: list[str] = []
+        for obj in objects:
+            if obj.get("type") == "x-mitre-matrix" and not obj.get("x_mitre_deprecated"):
+                matrix_refs = list(obj.get("tactic_refs") or [])
+                break
+        stix_to_tactic: dict[str, str] = {}
+
         for obj in objects:
             if obj.get("type") != "x-mitre-tactic":
                 continue
@@ -293,6 +310,9 @@ class MitreAttackService:
                     "deprecated": obj.get("x_mitre_deprecated", False),
                 }
                 tactic_id_map[short_name] = tactic_id
+                stix_to_tactic[obj.get("id", "")] = tactic_id
+
+        self._tactic_order = [stix_to_tactic[r] for r in matrix_refs if r in stix_to_tactic]
 
         for obj in objects:
             obj_type = obj.get("type")
@@ -540,6 +560,22 @@ class MitreAttackService:
     def get_all_tactics(self) -> dict[str, dict]:
         """Get all tactics."""
         return self._tactics
+
+    # Kill-chain order as of ATT&CK v17; only the fallback when the
+    # cache predates matrix-order parsing. Any live tactic missing from
+    # it is appended, so a new tactic is never dropped again.
+    _LEGACY_TACTIC_ORDER = [
+        "TA0043", "TA0042", "TA0001", "TA0002", "TA0003", "TA0004", "TA0005",
+        "TA0006", "TA0007", "TA0008", "TA0009", "TA0011", "TA0010", "TA0040",
+    ]
+
+    def get_tactic_order(self) -> list[str]:
+        """Non-deprecated tactic ids in matrix (kill-chain) order."""
+        order = list(self._tactic_order) or list(self._LEGACY_TACTIC_ORDER)
+        for tid in self._tactics:
+            if tid not in order:
+                order.append(tid)
+        return [t for t in order if t in self._tactics and not self._tactics[t].get("deprecated")]
 
     def get_all_techniques(self) -> dict[str, dict]:
         """Get all techniques."""

@@ -284,23 +284,10 @@ async def _compute_coverage_matrix(db: AsyncSession, tactic: Optional[str], incl
     # Organize by tactic
     tactics_data = []
 
-    # Define tactic order (kill chain order)
-    tactic_order = [
-        "TA0043",  # Reconnaissance
-        "TA0042",  # Resource Development
-        "TA0001",  # Initial Access
-        "TA0002",  # Execution
-        "TA0003",  # Persistence
-        "TA0004",  # Privilege Escalation
-        "TA0005",  # Defense Evasion
-        "TA0006",  # Credential Access
-        "TA0007",  # Discovery
-        "TA0008",  # Lateral Movement
-        "TA0009",  # Collection
-        "TA0011",  # Command and Control
-        "TA0010",  # Exfiltration
-        "TA0040",  # Impact
-    ]
+    # Kill-chain order from the ATT&CK matrix itself: a hardcoded list
+    # dropped TA0112 (Defense Impairment, v18) and the 15 parent
+    # techniques that live only there from the whole coverage browser.
+    tactic_order = mitre_service.get_tactic_order()
 
     for tactic_id in tactic_order:
         if tactic and tactic_id != tactic:
