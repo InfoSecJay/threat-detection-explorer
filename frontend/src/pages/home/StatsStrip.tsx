@@ -3,6 +3,11 @@
  * (sources), depth (ATT&CK techniques with a rule) and currency (last
  * sync). Every value comes from an endpoint another page already
  * uses; each is a link to where that number lives.
+ *
+ * Depth counts PARENT techniques only (~207), sharing the constellation's
+ * query so the home page costs no extra request. The MITRE browser
+ * defaults to techniques + sub-techniques (~655), so the label has to
+ * say which one this is or the two pages look like they disagree.
  */
 
 import { Link } from 'react-router-dom';
@@ -43,7 +48,7 @@ export function StatsStrip() {
       <Stat
         to="/mitre"
         value={covered !== undefined && total ? `${covered} / ${total}` : '—'}
-        label="ATT&CK techniques covered"
+        label="ATT&CK parent techniques covered"
         testId="stat-coverage"
       />
       <Stat to="/methodology" value={lastSync ? formatRelDate(lastSync) : '—'} label="last sync" testId="stat-sync" />

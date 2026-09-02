@@ -41,7 +41,7 @@ export function CoverageConstellation() {
     <Link
       to="/mitre"
       data-testid="hero-constellation"
-      aria-label={`ATT&CK Enterprise coverage: ${covered} of ${total} techniques covered. Open the coverage browser.`}
+      aria-label={`ATT&CK Enterprise coverage: ${covered} of ${total} parent techniques covered. Open the coverage browser.`}
       className="group block w-[230px]"
     >
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" aria-hidden="true">

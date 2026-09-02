@@ -23,6 +23,9 @@ export function MitreCoverage() {
   const { data, isLoading, error } = useCoverageMatrix({
     include_subtechniques: includeSubtechniques,
   });
+  // The home page quotes parent-only coverage (~207); this page defaults
+  // to parents + subs (~655). Name the denominator so the two agree.
+  const techniqueNoun = includeSubtechniques ? 'techniques + sub-techniques' : 'parent techniques';
 
   // If a technique is selected, auto-expand its parent tactic(s).
   const { techniques } = useMitre();
@@ -72,7 +75,7 @@ export function MitreCoverage() {
             <span className="text-gray-700">·</span>
             <span>
               <span className="text-white font-bold">{data.summary.techniques_with_any_coverage}</span>
-              <span className="text-gray-600"> / {data.summary.total_techniques}</span>
+              <span className="text-gray-600"> / {data.summary.total_techniques} {techniqueNoun}</span>
             </span>
             <span className="text-gray-700">·</span>
             <span>{data.sources.length} sources</span>
@@ -181,7 +184,7 @@ export function MitreCoverage() {
           ) : !data ? null : selectedId ? (
             <TechniqueDetailPane techniqueId={selectedId} coverageData={data} />
           ) : (
-            <SummaryPane data={data} />
+            <SummaryPane data={data} techniqueNoun={techniqueNoun} />
           )}
         </section>
       </div>

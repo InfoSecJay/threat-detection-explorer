@@ -71,7 +71,7 @@ describe('CoverageConstellation', () => {
     expect(getByTestId('hero-constellation')).toHaveAttribute('href', '/mitre');
     expect(getByTestId('hero-constellation')).toHaveAttribute(
       'aria-label',
-      'ATT&CK Enterprise coverage: 3 of 4 techniques covered. Open the coverage browser.',
+      'ATT&CK Enterprise coverage: 3 of 4 parent techniques covered. Open the coverage browser.',
     );
   });
 

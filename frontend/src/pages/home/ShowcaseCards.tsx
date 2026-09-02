@@ -69,7 +69,7 @@ export function ShowcaseCards() {
         blurb="Every tactic and technique with the rules behind it, per vendor. See which technique each source detects and how, and where the whole ecosystem is blind."
         fact={
           coverage
-            ? <><span className="text-white">{coverage.summary.overall_coverage_percent}%</span> of techniques have at least one rule · {coverage.summary.techniques_with_any_coverage} / {coverage.summary.total_techniques}</>
+            ? <><span className="text-white">{coverage.summary.overall_coverage_percent}%</span> of parent techniques have at least one rule · {coverage.summary.techniques_with_any_coverage} / {coverage.summary.total_techniques}</>
             : 'loading coverage…'
         }
         cta="Browse ATT&CK"

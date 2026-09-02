@@ -101,6 +101,9 @@ describe('Home', () => {
     expect(getByText(/15,682 detection rules from 13 open-source/)).toBeInTheDocument();
     expect(getByTestId('stat-sources')).toHaveTextContent('13');
     expect(getByTestId('stat-coverage')).toHaveTextContent('171 / 203');
+    // Parent-only figure; the MITRE browser defaults to parents + subs,
+    // so the label must name the denominator.
+    expect(getByTestId('stat-coverage')).toHaveTextContent(/parent techniques/i);
     expect(getByTestId('stat-sync')).not.toHaveTextContent('—');
   });
 

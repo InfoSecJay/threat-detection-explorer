@@ -18,7 +18,9 @@ function StatCard({ label, value, sublabel, accent }: { label: string; value: st
   );
 }
 
-export function SummaryPane({ data }: { data: CoverageData }) {
+/** `techniqueNoun` names the denominator ("techniques + sub-techniques"
+ * or "parent techniques") so the headline matches the toggle state. */
+export function SummaryPane({ data, techniqueNoun = 'techniques' }: { data: CoverageData; techniqueNoun?: string }) {
   const { summary, sources, tactics } = data;
 
   // Top gaps (parent techniques with zero detections) — cap at 12
@@ -50,10 +52,10 @@ export function SummaryPane({ data }: { data: CoverageData }) {
         <StatCard
           label="Overall Coverage"
           value={`${summary.overall_coverage_percent}%`}
-          sublabel={`${summary.techniques_with_any_coverage} / ${summary.total_techniques} techniques`}
+          sublabel={`${summary.techniques_with_any_coverage} / ${summary.total_techniques} ${techniqueNoun}`}
         />
         <StatCard
-          label="Techniques"
+          label={techniqueNoun}
           value={String(summary.total_techniques)}
           sublabel={`${summary.total_tactics} tactics`}
           accent="border-void-700"
@@ -61,7 +63,7 @@ export function SummaryPane({ data }: { data: CoverageData }) {
         <StatCard
           label="Gaps"
           value={String(summary.total_techniques - summary.techniques_with_any_coverage)}
-          sublabel="uncovered techniques"
+          sublabel={`uncovered ${techniqueNoun}`}
           accent="border-breach-500/30"
         />
       </div>
@@ -71,7 +73,7 @@ export function SummaryPane({ data }: { data: CoverageData }) {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-display text-sm text-white uppercase tracking-wider">Coverage by Source</h3>
           <span className="text-[10px] font-mono text-gray-500">
-            of {summary.total_techniques} techniques
+            of {summary.total_techniques} {techniqueNoun}
           </span>
         </div>
         <div className="space-y-2">
