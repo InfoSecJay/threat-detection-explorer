@@ -12,6 +12,10 @@
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/sitemap.xml"
     },
     {
+      "source": "/sitemap-:section(pages|mitre|actors|detections).xml",
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/sitemap-:section.xml"
+    },
+    {
       "source": "/detections/:id",
       "has": [
         {

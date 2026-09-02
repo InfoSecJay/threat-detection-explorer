@@ -69,12 +69,33 @@ async def test_health_reports_corpus_stamp(client):
 
 
 @pytest.mark.asyncio
-async def test_sitemap_lists_static_rule_technique_and_actor_pages(client):
+async def test_sitemap_is_a_per_section_index(client):
+    """/sitemap.xml is an index of one file per content type (#123), so
+    Search Console reports coverage for detections / mitre / actors
+    separately."""
     r = await client.get("/api/sitemap.xml")
     assert r.status_code == 200 and r.headers["content-type"].startswith("application/xml")
-    for loc in ("/digest", "/detections/sigma:a", "/mitre/T1059", "/actors/G0016", "/actors/S0002", "/observables/process"):
-        assert f"<loc>https://detectionexplorer.io{loc}</loc>" in r.text
-    assert "/observables/resource" not in r.text
+    assert "<sitemapindex" in r.text and "<urlset" not in r.text
+    for name in ("pages", "mitre", "actors", "detections"):
+        assert f"<loc>https://detectionexplorer.io/sitemap-{name}.xml</loc>" in r.text
+
+    expected = {
+        "pages": ["/digest", "/observables/process"],
+        "mitre": ["/mitre/T1059"],
+        "actors": ["/actors/G0016", "/actors/S0002"],
+        "detections": ["/detections/sigma:a"],
+    }
+    seen: dict[str, str] = {}
+    for name, locs in expected.items():
+        body = (await client.get(f"/api/sitemap-{name}.xml")).text
+        assert "<urlset" in body
+        for loc in locs:
+            assert f"<loc>https://detectionexplorer.io{loc}</loc>" in body
+        seen[name] = body
+    # Each URL lives in exactly one section; no resource-type index page.
+    assert "/detections/sigma:a" not in seen["mitre"] and "/mitre/T1059" not in seen["detections"]
+    assert "/observables/resource" not in seen["pages"]
+    assert (await client.get("/api/sitemap-nope.xml")).status_code == 404
 
 
 @pytest.mark.asyncio
