@@ -58,7 +58,12 @@ export function Methodology() {
           >
             canonical vocabulary and alias table
           </a>{' '}
-          are public in the repo, alongside the mapping files and their drift reports.
+          are public in the repo, alongside the mapping files and their drift reports. What did not resolve is
+          a public backlog:{' '}
+          <Link to="/methodology/unclassified" className="text-matrix-500 hover:text-matrix-400 underline" data-testid="unclassified-link">
+            unclassified counts by source and field, trending nightly
+          </Link>
+          .
         </Principle>
         <Principle title="Metadata completeness score">
           Deterministic checks over documentation, ATT&amp;CK mapping, specificity and testability -- scored

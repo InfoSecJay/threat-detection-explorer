@@ -970,9 +970,35 @@ export interface MethodologyResponse {
   sources: MethodologySource[];
 }
 
+// Unclassified burn-down (#112): what the resolver could not place,
+// per source and field, with daily history.
+export interface UnclassifiedSource {
+  source: string;
+  total_rules: number;
+  fields: Record<string, number>;
+}
+export interface UnclassifiedHistoryPoint {
+  date: string;
+  total_rules: number;
+  fields: Record<string, number>;
+}
+export interface UnclassifiedResponse {
+  generated_at: string;
+  fields: string[];
+  catalog_filter_key: Record<string, string>;
+  total_rules: number;
+  totals: Record<string, number>;
+  sources: UnclassifiedSource[];
+  history: UnclassifiedHistoryPoint[];
+}
+
 export const methodologyApi = {
   get: async (): Promise<MethodologyResponse> => {
     const response = await api.get('/methodology');
+    return response.data;
+  },
+  unclassified: async (): Promise<UnclassifiedResponse> => {
+    const response = await api.get('/methodology/unclassified');
     return response.data;
   },
 };

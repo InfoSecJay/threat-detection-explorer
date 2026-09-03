@@ -242,6 +242,15 @@ async def run_full_sync_job(
             except Exception as e:
                 logger.warning(f"Corpus snapshot failed: {e}", exc_info=True)
 
+            # Unclassified burn-down (#112): per-source counts of
+            # `unknown` per field, so the methodology page can show the
+            # backlog trending. Same isolation as the other snapshots.
+            try:
+                from app.services.unclassified import write_unclassified_snapshot
+                await write_unclassified_snapshot(db)
+            except Exception as e:
+                logger.warning(f"Unclassified snapshot failed: {e}", exc_info=True)
+
             # Taxonomy drift notifications (Issue 2 observability layer).
             # Opens/updates GitHub issues for any repo with unmapped
             # rules. Feature-flagged off by default; no-ops if the

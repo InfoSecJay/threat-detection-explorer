@@ -28,7 +28,7 @@ from app.services.observables import OBSERVABLE_TYPES
 
 router = APIRouter(tags=["sitemap"])
 
-STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/query", "/about", "/integrations"]
+STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/query", "/about", "/integrations", "/methodology", "/methodology/unclassified"]
 
 _XML_HEADERS = {"Cache-Control": "public, max-age=3600"}
 

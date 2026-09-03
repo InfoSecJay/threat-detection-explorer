@@ -8,6 +8,7 @@ from app.models.detection_alias import DetectionAlias
 from app.models.removed_detection import RemovedDetection
 from app.models.repository import Repository
 from app.models.sync_job import SyncJob
+from app.models.unclassified_snapshot import UnclassifiedSnapshot
 from app.models.worker_lease import WorkerLease
 
-__all__ = ["ComputedArtifact", "CorpusSnapshot", "Detection", "DetectionAlias", "MitreCoverageSnapshot", "RemovedDetection", "Repository", "SyncJob", "WorkerLease"]
+__all__ = ["ComputedArtifact", "CorpusSnapshot", "Detection", "DetectionAlias", "MitreCoverageSnapshot", "RemovedDetection", "Repository", "SyncJob", "UnclassifiedSnapshot", "WorkerLease"]

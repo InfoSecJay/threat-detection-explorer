@@ -23,7 +23,9 @@ from app.services.repository_sync import (
     SPARSE_CHECKOUT_PATTERNS,
     RepositorySyncService,
 )
+from app.services.corpus_cache import corpus_cache
 from app.services.rule_discovery import RuleDiscoveryService
+from app.services.unclassified import build_report
 from app.utils.datetime_utils import to_utc_iso, utcnow
 
 router = APIRouter(prefix="/methodology", tags=["methodology"])
@@ -123,3 +125,11 @@ async def get_methodology(db: AsyncSession = Depends(get_db)):
         ],
         "sources": sources,
     }
+
+
+@router.get("/unclassified")
+async def get_unclassified(db: AsyncSession = Depends(get_db)):
+    """What the resolver could not place (teardown R14 / #112): per
+    source and field, how many rules carry `unknown`, with the daily
+    history for the burn-down. Cached per corpus fingerprint."""
+    return await corpus_cache.get(db, ("methodology", "unclassified"), lambda: build_report(db))
