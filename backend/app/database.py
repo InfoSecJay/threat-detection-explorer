@@ -197,37 +197,70 @@ def _migrate_sort_indexes(connection):
     ))
 
 
+# Marker present only in the v2 expression; its absence on an existing
+# column means the v1 vector and triggers a rebuild.
+_SEARCH_VECTOR_V2_MARKER = "regexp_replace"
+
+# Split path / file / dotted-tag punctuation into spaces before
+# tokenizing. Postgres' parser otherwise keeps `lsass.exe` and
+# `\Windows\system32\lsass.exe` as single file/path tokens, so a query
+# for `lsass` never matched them (#125: 87 of 205 lsass rules and 105 of
+# 155 certutil rules were reachable only by substring). The backslash
+# is written as the POSIX collating element [.backslash.] -- it
+# survives Python, SQL and ARE escaping unchanged (plain backslashes
+# did not: verified against prod, 2026-09-02).
+_SEARCH_VECTOR_SQL = """
+    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(rule_id, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
+    setweight(to_tsvector('english', regexp_replace(
+        coalesce(use_cases::text, '') || ' ' || coalesce(tags::text, ''),
+        '[[.backslash.]./_:-]+', ' ', 'g')), 'C') ||
+    setweight(to_tsvector('english', regexp_replace(
+        left(coalesce(detection_logic, ''), 16384),
+        '[[.backslash.]./_:-]+', ' ', 'g')), 'D')
+"""
+
+
 def _migrate_search_vector(connection):
-    """Weighted full-text search vector (#12 / teardown F13).
+    """Weighted full-text search vector (#12 / teardown F13; v2 in #125).
 
     Postgres-only STORED generated column -- zero ingest-path changes,
     the DB keeps it current itself:
 
-        title A > rule_id B > description C > detection logic D
+        title A > rule_id B > description, use_cases, tags C > logic D
 
-    `left(..., 16384)` caps pathological detection_logic bodies well
-    under to_tsvector's 1MB document limit. Idempotent via inspector;
-    SQLite (dev) keeps the ILIKE path and never sees this column.
+    v2 (#125) adds the classification fields (Sublime's "Credential
+    Phishing" use case made 978 phishing rules invisible to `q=`) and
+    splits punctuation in logic and tags so process names inside paths
+    match. `left(..., 16384)` caps pathological detection_logic bodies
+    well under to_tsvector's 1MB document limit. Idempotent: the
+    generation expression is inspected and a v1 column is rebuilt (a
+    table rewrite, seconds at 15k rows). Serialized with an advisory
+    lock so the API and worker cannot both rebuild at once. SQLite
+    (dev) keeps the ILIKE path and never sees this column.
     """
     if connection.engine.dialect.name != "postgresql":
         return
     inspector = inspect(connection)
     if not inspector.has_table("detections"):
         return
-    cols = {c["name"] for c in inspector.get_columns("detections")}
-    if "search_vector" not in cols:
+    connection.execute(text("SELECT pg_advisory_xact_lock(7331001)"))
+    expr = connection.execute(text(
+        "SELECT generation_expression FROM information_schema.columns "
+        "WHERE table_name = 'detections' AND column_name = 'search_vector'"
+    )).scalar()
+    if expr is not None and _SEARCH_VECTOR_V2_MARKER not in expr:
+        connection.execute(text("DROP INDEX IF EXISTS ix_detections_search_vector"))
+        connection.execute(text("ALTER TABLE detections DROP COLUMN search_vector"))
+        logger.info("Dropped v1 detections.search_vector for rebuild (#125)")
+        expr = None
+    if expr is None:
         connection.execute(text(
-            """
-            ALTER TABLE detections ADD COLUMN search_vector tsvector
-            GENERATED ALWAYS AS (
-                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-                setweight(to_tsvector('english', coalesce(rule_id, '')), 'B') ||
-                setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
-                setweight(to_tsvector('english', left(coalesce(detection_logic, ''), 16384)), 'D')
-            ) STORED
-            """
+            "ALTER TABLE detections ADD COLUMN search_vector tsvector "
+            f"GENERATED ALWAYS AS ({_SEARCH_VECTOR_SQL}) STORED"
         ))
-        logger.info("Added detections.search_vector (weighted tsvector)")
+        logger.info("Added detections.search_vector (weighted tsvector, v2)")
     connection.execute(text(
         "CREATE INDEX IF NOT EXISTS ix_detections_search_vector "
         "ON detections USING GIN (search_vector)"

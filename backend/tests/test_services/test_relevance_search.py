@@ -87,3 +87,70 @@ async def test_relevance_with_query_still_works_on_sqlite(client):
     body = r.json()
     items = body["items"] if "items" in body else body["detections"]
     assert [i["id"] for i in items] == ["a"]
+
+
+class TestSearchVectorV2Migration:
+    """#125: the v2 vector indexes use_cases + tags and splits path /
+    file punctuation; a v1 column (no regexp_replace in its generation
+    expression) is dropped and rebuilt, a v2 one is left alone."""
+
+    def _conn(self, dialect: str, existing_expr):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.engine.dialect.name = dialect
+        executed: list[str] = []
+
+        def execute(stmt, *a, **k):
+            sql = str(stmt)
+            executed.append(sql)
+            res = MagicMock()
+            res.scalar.return_value = existing_expr if "generation_expression" in sql else None
+            return res
+
+        conn.execute.side_effect = execute
+        return conn, executed
+
+    def test_sql_covers_classification_fields_and_splits_punctuation(self):
+        from app.database import _SEARCH_VECTOR_SQL
+
+        assert "use_cases::text" in _SEARCH_VECTOR_SQL and "tags::text" in _SEARCH_VECTOR_SQL
+        assert _SEARCH_VECTOR_SQL.count("[[.backslash.]./_:-]+") == 2
+        assert "left(coalesce(detection_logic, ''), 16384)" in _SEARCH_VECTOR_SQL
+
+    def test_v1_column_is_rebuilt(self, monkeypatch):
+        from app import database
+
+        monkeypatch.setattr(database, "inspect", lambda c: MagicMockInspector(True))
+        conn, executed = self._conn("postgresql", "setweight(to_tsvector('english', coalesce(title, '')), 'A')")
+        database._migrate_search_vector(conn)
+        joined = "\n".join(executed)
+        assert "pg_advisory_xact_lock" in joined
+        assert "DROP COLUMN search_vector" in joined
+        assert "ADD COLUMN search_vector tsvector" in joined and "regexp_replace" in joined
+        assert "CREATE INDEX IF NOT EXISTS ix_detections_search_vector" in joined
+
+    def test_v2_column_is_left_alone(self, monkeypatch):
+        from app import database
+
+        monkeypatch.setattr(database, "inspect", lambda c: MagicMockInspector(True))
+        conn, executed = self._conn("postgresql", "... regexp_replace(...) ...")
+        database._migrate_search_vector(conn)
+        joined = "\n".join(executed)
+        assert "DROP COLUMN" not in joined and "ADD COLUMN" not in joined
+        assert "CREATE INDEX IF NOT EXISTS" in joined
+
+    def test_sqlite_is_untouched(self):
+        from app import database
+
+        conn, executed = self._conn("sqlite", None)
+        database._migrate_search_vector(conn)
+        assert executed == []
+
+
+class MagicMockInspector:
+    def __init__(self, has_table: bool):
+        self._has = has_table
+
+    def has_table(self, name: str) -> bool:
+        return self._has
