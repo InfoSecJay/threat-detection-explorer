@@ -977,6 +977,49 @@ def test_elastic_kql_event_category_extraction():
     assert "process_creation" in result["event_types"]
 
 
+def test_elastic_email_fieldset_pins_generic_index_rule_to_email():
+    """`filebeat-*` + `logs-*` are deliberately unmapped, so the Threat
+    Intel Email Indicator Match rule resolved to unknown on every axis
+    (#73). The ECS `email.*` fieldset in its query is the channel."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={
+            "type": "threat_match",
+            "language": "kuery",
+            "index": ["filebeat-*", "logs-*"],
+        },
+        tags=["Rule Type: Threat Match", "Resources: Investigation Guide"],
+        detection_logic_raw={
+            "type": "threat_match",
+            "query": (
+                "email.from.address:* or email.sender.address:* or "
+                "email.reply_to.address:* or email.to.address:*"
+            ),
+        },
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["email"]
+    assert result["data_sources"] == ["email_message_metadata"]
+    assert result["event_types"] == ["email_message"]
+
+
+def test_elastic_query_fieldset_needs_a_token_boundary():
+    """`user.email` and the nested `threat.indicator.email.address` are
+    not the email fieldset; a generic-index rule mentioning them stays
+    unknown rather than being pushed into the email channel."""
+    parsed = _make_parsed(
+        source="elastic",
+        extra={"type": "query", "language": "kuery", "index": ["logs-*"]},
+        tags=[],
+        detection_logic_raw={
+            "type": "query",
+            "query": "user.email:* and threat.indicator.email.address:*",
+        },
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert "email" not in result["platforms"]
+
+
 def test_elastic_alerts_security_has_cross_platform_now():
     """Higher-order rules querying `.alerts-security-*` used to show
     platforms=[unknown] because no signal set a platform. The index

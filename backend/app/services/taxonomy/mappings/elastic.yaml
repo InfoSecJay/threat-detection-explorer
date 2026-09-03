@@ -795,3 +795,23 @@ rule_types:
   machine_learning:
     data_sources: [elastic_ml]
     event_types: [ml_detection]
+
+# ═══════════════════════════════════════════════════════════════════════
+# ECS FIELDSETS — keyed on the top-level ECS fieldset the query filters on
+#
+# Last-resort signal for rules whose index list is deliberately generic
+# (`filebeat-*`, `logs-*` -- both unmapped, see the note above) but whose
+# query pins the channel through the ECS fieldset it keys on. The
+# resolver looks for `<fieldset>.` at a token boundary in the query text
+# of KQL/EQL rules. Only fieldsets that name a channel unambiguously
+# belong here; `process`/`file`/`network` are covered by the EQL/KQL
+# category signals instead.
+# ═══════════════════════════════════════════════════════════════════════
+query_fieldsets:
+  # `email.from.address`, `email.to.address`, ... -- the Threat Intel
+  # Email Indicator Match rule matches TI against mail-gateway logs and
+  # sat as unknown/unknown/unknown (#73).
+  email:
+    platforms: [email]
+    data_sources: [email_message_metadata]
+    event_types: [email_message]

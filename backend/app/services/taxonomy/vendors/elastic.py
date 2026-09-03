@@ -71,6 +71,14 @@ _KQL_EVENT_CATEGORY = re.compile(
     re.IGNORECASE,
 )
 
+# Top-level ECS fieldset a query filters on: `email.from.address:*`
+# yields `email`. Anchored at a token boundary so `user.email` or
+# `threat.indicator.email.address` (a nested fieldset) does not match.
+_QUERY_FIELDSET = re.compile(
+    r"(?<![\w.])([a-z_]+)\.[a-z_]+",
+    re.IGNORECASE,
+)
+
 
 def resolve(parsed: "ParsedRule") -> dict:
     """Resolve canonical taxonomy values for a parsed Elastic rule."""
@@ -135,6 +143,7 @@ def _resolve_all_signals(
     tag_map = _MAPPING.get("tags", {})
     rule_type_map = _MAPPING.get("rule_types", {})
     eql_category_map = _MAPPING.get("eql_category_to_event_types", {})
+    fieldset_map = _MAPPING.get("query_fieldsets", {})
 
     # ── Index patterns ──
     for idx in indices:
@@ -216,6 +225,17 @@ def _resolve_all_signals(
                     event_types.update(mapped)
                 else:
                     event_types.add(str(mapped))
+
+    # ── ECS fieldsets the query keys on ──
+    # Channel-naming fieldsets (`email.*`) pin a rule whose index list
+    # is too generic to say anything (`filebeat-*`, `logs-*`).
+    if fieldset_map and language in ("kql", "kuery", "eql") and query_text:
+        for match in _QUERY_FIELDSET.finditer(query_text):
+            entry = fieldset_map.get(match.group(1).lower())
+            if entry:
+                cap_platforms.update(entry.get("platforms") or [])
+                data_sources.update(entry.get("data_sources") or [])
+                event_types.update(entry.get("event_types") or [])
 
     # ── Promotion rules (Elastic wrapping external alerts) ──
     if promotion:
