@@ -40,6 +40,7 @@ from app.services.rule_discovery import RuleDiscoveryService
 from app.services.repository_sync import (
     RepositorySyncService,
     SPARSE_CHECKOUT_BRANCHES,
+    SPARSE_CHECKOUT_PATTERNS,
 )
 from app.utils.datetime_utils import utcnow
 
@@ -134,15 +135,34 @@ def _owner_repo_from_url(url: str) -> Optional[tuple[str, str]]:
     return owner, repo
 
 
+async def _resolve_default_branch(
+    client: httpx.AsyncClient, owner: str, repo: str,
+) -> str:
+    """Ask GitHub which branch the repo actually publishes on.
+
+    The full-clone path lets git pick the remote HEAD, so the verifier
+    has to do the same rather than guess `master`: half the sources
+    have renamed to `main`, and GitHub answers `branches/master` with a
+    301 that httpx does not follow (every nightly logged one WARNING
+    per renamed repo).
+    """
+    r = await client.get(f"/repos/{owner}/{repo}")
+    r.raise_for_status()
+    return r.json()["default_branch"]
+
+
 async def _fetch_upstream_files(
-    client: httpx.AsyncClient, owner: str, repo: str, branch: str,
+    client: httpx.AsyncClient, owner: str, repo: str, branch: Optional[str],
 ) -> list[str]:
     """Fetch every file path in a GitHub repo's tree, recursively.
 
     Two calls: first resolves the branch's head commit to get the tree
     SHA; second fetches the tree with `recursive=1`. Returns a flat
-    list of blob paths (directories filtered out).
+    list of blob paths (directories filtered out). A `None` branch
+    means "whatever the remote HEAD is" (one extra call).
     """
+    if branch is None:
+        branch = await _resolve_default_branch(client, owner, repo)
     br = await client.get(f"/repos/{owner}/{repo}/branches/{branch}")
     br.raise_for_status()
     tree_sha = br.json()["commit"]["commit"]["tree"]["sha"]
@@ -316,7 +336,11 @@ async def _verify_one_repo(
         return
     owner, repo = owner_repo
 
-    branch = SPARSE_CHECKOUT_BRANCHES.get(repo_name, "master")
+    # Verify the branch we actually checked out: sparse clones pin one
+    # explicitly, full clones follow the remote HEAD.
+    branch: Optional[str] = None
+    if repo_name in SPARSE_CHECKOUT_PATTERNS:
+        branch = SPARSE_CHECKOUT_BRANCHES.get(repo_name, "master")
 
     upstream_files = await _fetch_upstream_files(client, owner, repo, branch)
 

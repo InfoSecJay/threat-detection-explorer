@@ -278,14 +278,14 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         kind="list_substring",
         columns=["extracted_file_paths"],
         description="File path pattern the rule keys on.",
-        examples=['path:"\Temp\\"', "file:.dll"],
+        examples=['path:"\\Temp\\"', "file:.dll"],
     ),
     FieldSpec(
         aliases=["registry", "reg", "regkey"],
         kind="list_substring",
         columns=["extracted_registry_keys"],
         description="Registry key path the rule keys on.",
-        examples=['registry:"CurrentVersion\Run"'],
+        examples=['registry:"CurrentVersion\\Run"'],
     ),
     FieldSpec(
         aliases=["network", "ioc", "indicator", "ip", "domain"],

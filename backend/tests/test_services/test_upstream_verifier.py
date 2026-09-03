@@ -17,6 +17,7 @@ The GitHub API is mocked with httpx MockTransport — no live calls.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -174,11 +175,19 @@ def _github_ok_handler(
     tree_files: list[str],
     branch: str = "master",
 ) -> Any:
-    """Handler that emulates the two GitHub calls we make."""
+    """Handler that emulates the three GitHub calls we make.
+
+    `branch` is the repo's default branch; asking for any other branch
+    is a 404, the way GitHub answers for a branch that does not exist.
+    """
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if re.fullmatch(r"/repos/[^/]+/[^/]+", path):
+            return httpx.Response(200, json={"default_branch": branch})
         if path.startswith("/repos/") and "/branches/" in path:
+            if path.rsplit("/", 1)[1] != branch:
+                return httpx.Response(404, json={"message": "Branch not found"})
             return httpx.Response(200, json={
                 "commit": {"commit": {"tree": {"sha": "fake-tree-sha"}}},
             })
@@ -229,6 +238,55 @@ async def test_verify_marks_ok_when_counts_match(monkeypatch):
     assert repo_results["sigma"]["upstream_verification_status"] == "ok"
     assert repo_results["sigma"]["upstream_expected_count"] == 3
     assert repo_results["sigma"]["upstream_actual_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_verify_full_clone_follows_upstream_default_branch(monkeypatch):
+    """A fully-cloned repo that renamed master -> main still verifies.
+
+    Regression: the verifier used to hardcode `master`, and GitHub's
+    301 to `main` surfaced as one WARNING per renamed repo every
+    night (elastic, splunk, sublime, lolrmm, auth0, ...).
+    """
+    from app.config import settings
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", None)
+
+    tree = ["rules/windows/a.yml", "rules/windows/b.yml"]
+    _install_mock_client(monkeypatch, _github_ok_handler(tree, branch="main"))
+
+    repo_results = {"sigma": {"sync_success": True, "rules_discovered": 2}}
+    await uv.verify_upstream(repo_results, "job-abc")
+    assert repo_results["sigma"]["upstream_verification_status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_verify_sparse_clone_uses_pinned_branch(monkeypatch):
+    """Sparse clones verify the branch they checked out, not remote HEAD.
+
+    Panther is sparse-cloned from `develop` while GitHub reports `main`
+    as the default; the tree we compare against must be `develop`.
+    """
+    from app.config import settings
+    monkeypatch.setattr(settings, "taxonomy_notifications_enabled", True)
+    monkeypatch.setattr(settings, "github_token", None)
+
+    branches_requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if re.fullmatch(r"/repos/[^/]+/[^/]+", path):
+            return httpx.Response(200, json={"default_branch": "main"})
+        if "/branches/" in path:
+            branches_requested.append(path.rsplit("/", 1)[1])
+        return _github_ok_handler([], branch="develop")(request)
+
+    _install_mock_client(monkeypatch, handler)
+
+    repo_results = {"panther": {"sync_success": True, "rules_discovered": 0}}
+    await uv.verify_upstream(repo_results, "job-abc")
+    assert branches_requested == ["develop"]
+    assert repo_results["panther"]["upstream_verification_status"] == "ok"
 
 
 @pytest.mark.asyncio
