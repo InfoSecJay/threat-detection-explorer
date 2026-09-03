@@ -278,16 +278,20 @@ export interface MitreData {
 
 // MITRE ATT&CK endpoints
 export interface DataSourceMatrixResponse {
+  // Columns actually shown (top-N by volume, or the caller's list).
   data_sources: { id: string; rules: number }[];
+  // Every data source by volume, for the column picker (#130).
+  available: { id: string; rules: number }[];
   rows: { technique_id: string; technique_name: string; tactic: string; rules: number; by_data_source: Record<string, number> }[];
   total_techniques: number;
 }
 
 export const mitreApi = {
-  coverageByDataSource: async (params: { limit?: number; sources?: number } = {}): Promise<DataSourceMatrixResponse> => {
+  coverageByDataSource: async (params: { limit?: number; sources?: number; data_sources?: string[] } = {}): Promise<DataSourceMatrixResponse> => {
     const q = new URLSearchParams();
     if (params.limit) q.set('limit', String(params.limit));
     if (params.sources) q.set('sources', String(params.sources));
+    if (params.data_sources?.length) q.set('data_sources', params.data_sources.join(','));
     return (await api.get(`/mitre/coverage-by-data-source?${q.toString()}`)).data;
   },
   getData: async (): Promise<MitreData> => {

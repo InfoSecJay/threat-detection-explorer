@@ -10,6 +10,7 @@ import { mitreApi } from '../../services/api';
 import { clipSm } from '../../constants/style';
 import { SkeletonRow, EmptyLabel } from '../intel/Section';
 import { useDocumentMeta } from '../../hooks/useDocumentMeta';
+import { DataSourcePicker } from './DataSourcePicker';
 
 function heat(n: number, max: number): string {
   if (n === 0) return 'bg-void-900 text-gray-700';
@@ -25,16 +26,24 @@ export function DataSourceHeatmap() {
   const [params, setParams] = useSearchParams();
   const limit = Math.min(200, Math.max(5, Number(params.get('limit') ?? 40) || 40));
   const sources = Math.min(60, Math.max(3, Number(params.get('sources') ?? 15) || 15));
+  // Explicit column set (#130): `ds=a,b,c` in the URL, order preserved.
+  // Absent = top N by volume. Present-but-empty is a legal "no columns".
+  const dsParam = params.get('ds');
+  const chosen = dsParam === null ? null : dsParam.split(',').map((d) => d.trim()).filter(Boolean);
   const { data, isLoading, error } = useQuery({
-    queryKey: ['mitre-ds-matrix', limit, sources],
-    queryFn: () => mitreApi.coverageByDataSource({ limit, sources }),
+    queryKey: ['mitre-ds-matrix', limit, sources, chosen],
+    queryFn: () => mitreApi.coverageByDataSource({ limit, sources, data_sources: chosen ?? undefined }),
     staleTime: 1000 * 60 * 10,
   });
-  const set = (k: string, v: string) => {
+  const set = (k: string, v: string | null) => {
     const next = new URLSearchParams(params);
-    next.set(k, v);
+    if (v === null) next.delete(k); else next.set(k, v);
     setParams(next, { replace: true });
   };
+  // Empty explicit selection would round-trip as `ds=` -> a query with
+  // no columns; keep the columns of the current answer instead so the
+  // table never blanks while the user is mid-edit.
+  const columns = chosen && chosen.length === 0 ? [] : data?.data_sources ?? [];
 
   return (
     <div className="space-y-4">
@@ -53,14 +62,26 @@ export function DataSourceHeatmap() {
               {[20, 40, 80, 150].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
-          <label className="flex items-center gap-1 text-gray-500">
-            sources
-            <select value={sources} onChange={(e) => set('sources', e.target.value)} className="bg-void-900 border border-void-700 text-gray-300 px-2 py-1">
-              {[10, 15, 25, 40].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
+          {!chosen && (
+            <label className="flex items-center gap-1 text-gray-500">
+              sources
+              <select value={sources} onChange={(e) => set('sources', e.target.value)} className="bg-void-900 border border-void-700 text-gray-300 px-2 py-1">
+                {[10, 15, 25, 40].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       </div>
+
+      {data && (
+        <DataSourcePicker
+          available={data.available}
+          selected={chosen}
+          shown={data.data_sources}
+          topN={sources}
+          onChange={(next) => set('ds', next === null ? null : next.join(','))}
+        />
+      )}
 
       {isLoading && <div className="space-y-1">{[...Array(10)].map((_, i) => <SkeletonRow key={i} />)}</div>}
       {error && <EmptyLabel label="MATRIX_UNAVAILABLE" />}
@@ -74,7 +95,7 @@ export function DataSourceHeatmap() {
                   Technique <span className="text-gray-700 normal-case font-mono">({data.rows.length} of {data.total_techniques})</span>
                 </th>
                 <th scope="col" className="px-2 py-2 text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider text-right">Rules</th>
-                {data.data_sources.map((ds) => (
+                {columns.map((ds) => (
                   <th key={ds.id} scope="col" className="px-1 py-2 text-center" title={`${ds.id}: ${ds.rules} technique-rule pairs`}>
                     <div className="text-[9px] font-mono text-cyan-300 break-all max-w-[6rem]">{ds.id}</div>
                     <div className="text-[9px] font-mono text-gray-600 tabular-nums">{ds.rules}</div>
@@ -93,7 +114,7 @@ export function DataSourceHeatmap() {
                       {r.tactic && <span className="ml-2 text-[10px] font-mono text-gray-600 uppercase">{r.tactic}</span>}
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono tabular-nums text-white">{r.rules}</td>
-                    {data.data_sources.map((ds) => {
+                    {columns.map((ds) => {
                       const n = r.by_data_source[ds.id] || 0;
                       return (
                         <td key={ds.id} className={`px-1 py-1.5 text-center font-mono tabular-nums ${heat(n, max)}`}>

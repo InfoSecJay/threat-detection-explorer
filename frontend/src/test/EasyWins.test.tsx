@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, renderHook, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NotFound } from '../pages/NotFound';
@@ -25,8 +25,11 @@ vi.mock('../services/api', async (importOriginal) => {
     },
     mitreApi: {
       ...actual.mitreApi,
-      coverageByDataSource: vi.fn(async () => ({
-        data_sources: [{ id: 'sysmon', rules: 20 }, { id: 'aws_cloudtrail', rules: 5 }],
+      coverageByDataSource: vi.fn(async (params: { data_sources?: string[] } = {}) => ({
+        data_sources: params.data_sources
+          ? params.data_sources.map((id) => ({ id, rules: id === 'sysmon' ? 20 : 5 }))
+          : [{ id: 'sysmon', rules: 20 }, { id: 'aws_cloudtrail', rules: 5 }],
+        available: [{ id: 'sysmon', rules: 20 }, { id: 'aws_cloudtrail', rules: 5 }, { id: 'okta_system_log', rules: 3 }],
         rows: [{ technique_id: 'T1059', technique_name: 'Command and Scripting Interpreter', tactic: 'Execution', rules: 12, by_data_source: { sysmon: 10 } }],
         total_techniques: 300,
       })),
@@ -80,6 +83,28 @@ describe('easy wins', () => {
     expect(cell).toHaveAttribute('href', '/detections?mitre_techniques=T1059&data_sources_normalized=sysmon');
     expect(screen.getByTestId('ds-T1059')).toHaveTextContent('Execution');
     expect(document.title).toContain('Coverage by data source');
+  });
+
+  it('data-source picker puts an explicit column set in the URL (#130)', async () => {
+    wrap(<DataSourceHeatmap />, '/mitre/heatmap?ds=okta_system_log,sysmon');
+    await waitFor(() => expect(screen.getByTestId('ds-T1059')).toBeInTheDocument());
+    // Columns follow the chosen order; the top-N "sources" select is hidden.
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent || '');
+    expect(headers.findIndex((h) => h.includes('okta_system_log'))).toBeLessThan(headers.findIndex((h) => h.includes('sysmon')));
+    expect(screen.queryByText('aws_cloudtrail')).toBeNull();
+    expect(screen.getByTestId('ds-picker')).toHaveTextContent('2 chosen');
+    expect(screen.getByTestId('ds-picker-chips')).toHaveTextContent('okta_system_log');
+
+    // Popover lists every available source with the chosen ones checked.
+    fireEvent.click(screen.getByTestId('ds-picker-toggle'));
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes).toHaveLength(3);
+    expect(boxes.filter((b) => b.checked)).toHaveLength(2);
+    fireEvent.click(boxes.find((b) => !b.checked)!);
+    await waitFor(() => expect(screen.getByTestId('ds-picker')).toHaveTextContent('3 chosen'));
+
+    fireEvent.click(screen.getByTestId('ds-picker-reset'));
+    await waitFor(() => expect(screen.getByTestId('ds-picker')).toHaveTextContent('top 15 by rule volume'));
   });
 
   it('useDocumentMeta sets title + description and restores on unmount', () => {

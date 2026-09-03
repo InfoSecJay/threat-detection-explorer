@@ -134,3 +134,22 @@ async def test_coverage_by_data_source_matrix(client):
     row = next(r for r in d["rows"] if r["technique_id"] == "T1059")
     assert row["technique_name"] == "Command and Scripting Interpreter" and row["tactic"] == "Execution"
     assert row["rules"] == 3 and row["by_data_source"] == {"sysmon": 2, "windows_security_event_log": 1}
+    # The picker gets every data source by volume without a second call (#130).
+    assert [a["id"] for a in d["available"]] == ["sysmon", "windows_security_event_log", "o365_audit"]
+
+
+@pytest.mark.asyncio
+async def test_coverage_by_data_source_custom_columns(client):
+    """An explicit data_sources list picks the columns in that order and
+    ranks rows by what those sources cover (#130); unknown ids drop."""
+    d = (await client.get(
+        "/api/mitre/coverage-by-data-source",
+        params={"limit": 10, "data_sources": "o365_audit,windows_security_event_log,nope"},
+    )).json()
+    assert [c["id"] for c in d["data_sources"]] == ["o365_audit", "windows_security_event_log"]
+    # T1566 (1 rule, o365) and T1059 (1 rule in the chosen columns) tie on
+    # chosen coverage; T1059 wins on total rules. T1003 has none -> last.
+    ids = [r["technique_id"] for r in d["rows"]]
+    assert ids.index("T1003") == len(ids) - 1
+    assert set(ids[:2]) == {"T1059", "T1566"} and ids[0] == "T1059"
+    assert d["rows"][0]["by_data_source"] == {"windows_security_event_log": 1}

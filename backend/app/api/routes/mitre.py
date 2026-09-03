@@ -1,5 +1,7 @@
 """MITRE ATT&CK API routes."""
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,18 +80,30 @@ async def get_mitre_stats():
 @router.get("/coverage-by-data-source")
 async def coverage_by_data_source(
     limit: int = Query(40, ge=5, le=200, description="Techniques (rows), most rules first"),
-    sources: int = Query(15, ge=3, le=60, description="Data sources (columns), most rules first"),
+    sources: int = Query(15, ge=3, le=60, description="Data sources (columns), most rules first; ignored when data_sources is given"),
+    data_sources: Optional[str] = Query(
+        None,
+        description="Comma-separated canonical data-source ids to show as columns, in this order (#130). "
+                    "Rows are then ranked by rules within these sources. Unknown ids are ignored.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Techniques x canonical data sources: how many rules detect each
     technique from each log source. Answers "what can I detect with the
-    telemetry I have". One scan, memoised on the corpus fingerprint."""
+    telemetry I have". One scan, memoised on the corpus fingerprint.
+    `available` always lists every data source by volume so a picker
+    needs no second request."""
     await mitre_service.ensure_loaded()
-    key = ("mitre_ds_matrix", limit, sources, mitre_service.get_stats()["last_fetch"])
-    return await corpus_cache.get(db, key, lambda: _compute_ds_matrix(db, limit, sources), persist=True)
+    chosen = tuple(dict.fromkeys(d.strip() for d in (data_sources or "").split(",") if d.strip()))
+    key = ("mitre_ds_matrix", limit, sources, chosen, mitre_service.get_stats()["last_fetch"])
+    return await corpus_cache.get(
+        db, key, lambda: _compute_ds_matrix(db, limit, sources, list(chosen) or None), persist=True,
+    )
 
 
-async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> dict:
+async def _compute_ds_matrix(
+    db: AsyncSession, limit: int, n_sources: int, chosen: Optional[list[str]] = None,
+) -> dict:
     from collections import Counter, defaultdict
 
     from sqlalchemy import select
@@ -114,9 +128,19 @@ async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> di
             for ds in dss:
                 per_tech[tid][ds] += 1
                 ds_total[ds] += 1
-    columns = [ds for ds, _ in ds_total.most_common(n_sources)]
+    if chosen:
+        columns = [ds for ds in chosen if ds in ds_total]
+        # Rank rows by what the chosen telemetry can see, then by total,
+        # so a custom set answers "what do MY sources cover" first.
+        ranked = sorted(
+            tech_total.items(),
+            key=lambda kv: (-sum(per_tech[kv[0]][ds] for ds in columns), -kv[1], kv[0]),
+        )[:limit]
+    else:
+        columns = [ds for ds, _ in ds_total.most_common(n_sources)]
+        ranked = tech_total.most_common(limit)
     out_rows = []
-    for tid, total in tech_total.most_common(limit):
+    for tid, total in ranked:
         info = mitre_service.get_technique(tid) or {}
         tactic_ids = info.get("tactics") or []
         tactic = mitre_service.get_tactic(tactic_ids[0]) if tactic_ids else None
@@ -129,6 +153,7 @@ async def _compute_ds_matrix(db: AsyncSession, limit: int, n_sources: int) -> di
         })
     return {
         "data_sources": [{"id": ds, "rules": ds_total[ds]} for ds in columns],
+        "available": [{"id": ds, "rules": n} for ds, n in ds_total.most_common()],
         "rows": out_rows,
         "total_techniques": len(tech_total),
     }
