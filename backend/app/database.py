@@ -47,7 +47,15 @@ def _migrate_missing_columns(connection):
             if column.name not in existing_cols:
                 col_type = column.type.compile(connection.engine.dialect)
                 type_name = str(col_type).lower()
-                if "json" in type_name or "text" in type_name:
+                server_default = getattr(getattr(column.server_default, "arg", None), "text", None)
+                if isinstance(getattr(column.server_default, "arg", None), str):
+                    server_default = column.server_default.arg
+                if server_default is not None and "bool" not in type_name:
+                    # Honour an explicit model default so existing rows are
+                    # backfilled with it (rule_modality -> 'rule', #105)
+                    # instead of a NULL every reader must coerce.
+                    default = f"'{server_default}'"
+                elif "json" in type_name or "text" in type_name:
                     default = "'[]'"
                 elif "bool" in type_name:
                     # A NULL boolean is a third state every reader would
