@@ -63,7 +63,7 @@ groups of fields:
 | `title` | `str` | The rule's name. Required. |
 | `description` | `str?` | Author's prose explaining what the rule detects. |
 | `author` | `str?` | Single value. Elastic stores authors as a list; we join with `, `. Sentinel rules without an author default to `Microsoft`. |
-| `language` | `str` | One of `sigma` / `eql` / `esql` / `spl` / `mql` / `kql` / `kuery` / `lucene` / `unknown`. Drives which field-extractor pass runs. |
+| `language` | `str` | Query language only: `sigma` / `eql` / `esql` / `spl` / `mql` / `kql` / `kuery` / `lucene` / `yaral` / `python` / ... ; `none` when the rule has no query at all (Elastic ML jobs, Panther correlation rules); `unknown` when detection failed. Rule mechanism lives in `rule_modality`, never here (#105). Drives which field-extractor pass runs. |
 | `raw_content` | `str` | The original file content, unchanged. |
 | `detection_logic` | `str` | Human-readable summary of the query (often the query itself for SPL/KQL/MQL; YAML-formatted for Sigma). |
 
@@ -75,6 +75,7 @@ These are canonical enums. Vendor-specific values get mapped here.
 | --- | --- | --- | --- |
 | `status` | enum | `stable`, `test`, `experimental`, `deprecated`, `unsupported`, `unknown` | Sigma's vocabulary, preserved 1:1 (issue #26): `test` = works but not field-proven, `unsupported` = cannot run on current tooling. Elastic `production` → `stable`, `development` → `experimental`. Panther/pypanther `Enabled: false` → `experimental` (disabled upstream). Sources with no maturity concept (Sentinel, Okta, Sublime, Elastic hunting / protections) → `stable` -- they are published as production content, and `unknown` is reserved for values we could not parse (#47); `deprecated` never appears because every parser skips deprecated directories. Anything unrecognised → `unknown`. |
 | `is_building_block` | bool | `true` / `false` | Building-block / signal-only rule: emits signal for other rules to correlate on rather than alerting by itself. Elastic `building_block_type` or the `rules_building_block/` tree; Panther `CreateAlert: false` or the `panther-signal` tag. Orthogonal to `status` (a building block can be `stable`). API: `building_block=true|false`; query bar: `building_block:true`. |
+| `rule_modality` | enum | `rule`, `hunting`, `ml_job`, `correlation`, `indicator_match`, `building_block` | HOW the rule works, kept out of `event_types` (what it observes) and `language` (query syntax) -- teardown R06 / #105. Elastic `type` (`machine_learning` -> `ml_job`, `threat_match` -> `indicator_match`); Splunk ESCU `type` (`Hunting`, `Correlation`); Google SecOps meta `type: hunt`; Panther `AnalysisType: correlation_rule`; every elastic_hunting query is `hunting`. Mapping-file markers `hunting_query` / `ml_detection` / `alert_correlation` are lifted onto this field and never stored as event types. Building blocks with no more specific modality are `building_block`. API: `rule_modalities=`; query bar: `modality:hunting`. |
 | `severity` | enum | `low`, `medium`, `high`, `critical`, `unknown` | Sigma `level` (`informational` → `low`). Splunk RBA risk score → bucketed. Sentinel `severity` → direct. |
 
 ## 4. Canonical taxonomy *(the moat)*

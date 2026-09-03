@@ -46,7 +46,9 @@ def test_every_shared_field_reaches_the_orm_row(db_session):
         if f.name in columns and f.name not in NOT_PERSISTED:
             values[f.name] = _sentinel(f)
     # Required fields the sentinel loop may have typed differently.
-    values.update(id="det-1", source="sigma", status="test", severity="high")
+    # rule_modality is vocabulary-checked in __post_init__ (#105), so it
+    # needs a real value rather than a sentinel string.
+    values.update(id="det-1", source="sigma", status="test", severity="high", rule_modality="hunting")
 
     norm = NormalizedDetection(**values)
     # #86: __post_init__ recomputes id from (source, rule_id); the

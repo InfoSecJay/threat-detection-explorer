@@ -973,3 +973,53 @@ def is_canonical_data_source(value: str) -> bool:
 def is_canonical_event_type(value: str) -> bool:
     """True if `value` is a recognized event type identifier."""
     return value in EVENT_TYPES
+
+
+# ---------------------------------------------------------------------------
+# RULE_MODALITIES -- HOW the rule works, not what it observes (#105 / R06)
+# ---------------------------------------------------------------------------
+#
+# Modality used to leak into two unrelated facets: `event_type` carried
+# `hunting_query` / `ml_detection` / `alert_correlation`, and `language`
+# carried `ml` / `threat_match` / `panther_correlation`. Those describe
+# the rule's mechanism. They now live on `rule_modality`; `event_type`
+# holds only observed-event categories and `language` only query
+# languages (`none` when the rule has no query at all).
+
+RULE_MODALITIES: frozenset[str] = frozenset({
+    "rule",             # a query that fires on matching events (the default)
+    "hunting",          # exploratory query meant for an analyst, not an alert
+    "ml_job",           # anomaly scored by a machine-learning job; no query
+    "correlation",      # consumes other rules' alerts / signals
+    "indicator_match",  # joins events against a threat-intel indicator set
+    "building_block",   # emits signal for other rules instead of alerting
+})
+
+# Mapping-file event types that are really modality markers. They stay
+# accepted in the mapping YAML (vendor logsources still say "this is
+# the ML stream" / "this reads .alerts-*"), but NormalizedDetection
+# lifts them onto rule_modality and drops them from event_types, so
+# they never reach the facet.
+EVENT_TYPE_MODALITY_LIFT: dict[str, str] = {
+    "hunting_query": "hunting",
+    "ml_detection": "ml_job",
+    "alert_correlation": "correlation",
+}
+
+# Vendor rule-type vocabularies -> modality. Lower-cased keys.
+VENDOR_RULE_TYPE_MODALITY: dict[str, str] = {
+    # Elastic `type`
+    "machine_learning": "ml_job",
+    "threat_match": "indicator_match",
+    # Splunk ESCU `type`
+    "hunting": "hunting",
+    "correlation": "correlation",
+    # Google SecOps meta `type`
+    "hunt": "hunting",
+    # Panther `AnalysisType`
+    "correlation_rule": "correlation",
+}
+
+
+def is_rule_modality(value: str) -> bool:
+    return value in RULE_MODALITIES

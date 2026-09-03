@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   min_quality: 'Completeness',
   severities: 'Severity',
   languages: 'Language',
+  rule_modalities: 'Modality',
   platforms: 'Platform',
   data_sources_normalized: 'Data Source',
   event_categories: 'Event Type',

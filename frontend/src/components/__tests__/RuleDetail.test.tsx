@@ -62,6 +62,7 @@ const detection = {
     },
   },
   is_building_block: false,
+  rule_modality: 'rule',
 } as unknown as Detection;
 
 describe('RuleDetail', () => {
@@ -128,5 +129,16 @@ describe('RuleDetail', () => {
     expect(getByTestId('guide-markdown')).toHaveTextContent('Triage steps');
     expect(getByTestId('guide-markdown').querySelector('h2')).not.toBeNull();
     expect(getByTestId('guide-markdown').querySelectorAll('li')).toHaveLength(2);
+  });
+
+  it('badges non-default modalities and stays silent for plain rules (#105)', () => {
+    const plain = render(<MemoryRouter><RuleDetail detection={detection} /></MemoryRouter>);
+    expect(plain.queryByTestId('rule-modality')).toBeNull();
+    plain.unmount();
+
+    const { getByTestId } = render(
+      <MemoryRouter><RuleDetail detection={{ ...detection, rule_modality: 'hunting' } as Detection} /></MemoryRouter>,
+    );
+    expect(getByTestId('rule-modality')).toHaveTextContent('Hunting query');
   });
 });

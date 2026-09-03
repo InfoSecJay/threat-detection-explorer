@@ -49,12 +49,24 @@ export const LANGUAGE_LABELS: Record<string, string> = {
   yaral: 'YARA-L (Chronicle)',
   oie: 'OIE (Okta)',
   python: 'Python (Panther)',
-  panther_correlation: 'Panther Correlation',
-  panther: 'Panther Declarative',
   osquery: 'osquery',
-  ml: 'ML',
-  threat_match: 'Threat Match',
+  // No query at all (Elastic ML jobs, Panther correlation rules); the
+  // mechanism is on rule_modality (#105).
+  none: 'No query',
+  unknown: 'Unknown',
 };
+
+/** How the rule works (#105). Order is display order; `rule` first
+ * because it is the overwhelming majority and the baseline. */
+export const MODALITY_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
+  { value: 'rule', label: 'Detection rule', hint: 'A query that fires on matching events' },
+  { value: 'hunting', label: 'Hunting query', hint: 'Exploratory query for an analyst, not an alert (Elastic hunting, Splunk Hunting, SecOps hunt)' },
+  { value: 'correlation', label: 'Correlation', hint: 'Consumes the alerts or signals of other rules (Elastic higher-order, Splunk Correlation, Panther correlation rules)' },
+  { value: 'indicator_match', label: 'Indicator match', hint: 'Joins events against a threat-intel indicator set (Elastic threat_match)' },
+  { value: 'ml_job', label: 'ML job', hint: 'Anomaly scored by a machine-learning job; no query' },
+  { value: 'building_block', label: 'Building block', hint: 'Emits signal for other rules instead of alerting' },
+];
+export const MODALITY_LABELS: Record<string, string> = Object.fromEntries(MODALITY_OPTIONS.map((o) => [o.value, o.label]));
 
 /** [{value, count}] -> {value: count} lookup. */
 export function countMap(facet?: FacetOption[]): Record<string, number> {

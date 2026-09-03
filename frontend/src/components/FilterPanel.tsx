@@ -18,7 +18,7 @@ import { StatusSection } from './filterpanel/StatusSection';
 import { HygieneSection } from './filterpanel/HygieneSection';
 import { TacticsSection } from './filterpanel/TacticsSection';
 import { ObservablesSection } from './filterpanel/ObservablesSection';
-import { SEVERITY_OPTIONS, LANGUAGE_LABELS, countMap } from './filterpanel/options';
+import { SEVERITY_OPTIONS, LANGUAGE_LABELS, MODALITY_OPTIONS, countMap } from './filterpanel/options';
 
 interface FilterPanelProps {
   filters: SearchFilters;
@@ -37,6 +37,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const buildingBlockCount = facets?.building_block?.find((o) => o.value === 'true')?.count;
   const qualityBandCounts = useMemo(() => countMap(facets?.quality_band), [facets]);
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
+  const modalityCounts = useMemo(() => countMap(facets?.rule_modalities), [facets]);
   const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
 
   // Sources come from the live facet (scoped to the active query) so
@@ -193,6 +194,21 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         filters.min_quality !== undefined ? 1 : 0,
         <HygieneSection filters={filters} onFiltersChange={onFiltersChange} bandCounts={qualityBandCounts} />,
       )}
+
+      {section('modality', 'Modality', filters.rule_modalities?.length, (
+        <div className="space-y-1 mt-2">
+          {MODALITY_OPTIONS.filter((m) => modalityCounts[m.value] || filters.rule_modalities?.includes(m.value)).map((m) => (
+            <CheckboxOption
+              key={m.value}
+              checked={filters.rule_modalities?.includes(m.value) || false}
+              onChange={(checked) => toggle('rule_modalities', m.value, checked)}
+              label={m.label}
+              count={modalityCounts[m.value]}
+              title={m.hint}
+            />
+          ))}
+        </div>
+      ))}
 
       {section('language', 'Language', filters.languages?.length, (
         <div className="space-y-1 mt-2">

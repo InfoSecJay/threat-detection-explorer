@@ -61,6 +61,17 @@ class Detection(Base):
         server_default=false(),
         index=True,
     )
+    # HOW the rule works (#105 / teardown R06): rule | hunting | ml_job |
+    # correlation | indicator_match | building_block. Keeps mechanism
+    # out of event_types (what is observed) and language (query syntax).
+    # See canonical.RULE_MODALITIES.
+    rule_modality: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="rule",
+        server_default="rule",
+        index=True,
+    )
     severity: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

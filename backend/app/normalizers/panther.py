@@ -13,6 +13,7 @@ Correlation/declarative rules (serialized YAML, not Python) fail
 `ast.parse` and degrade to LogTypes-only extraction.
 """
 
+from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_panther_fields
@@ -67,6 +68,8 @@ class PantherNormalizer(BaseNormalizer):
             # Signal-only (`CreateAlert: false` / `panther-signal`) is a
             # building block, not a maturity level (issue #26).
             is_building_block=bool(extra.get("is_signal_only")),
+            # AnalysisType: rule | correlation_rule | scheduled_rule (#105)
+            rule_modality=VENDOR_RULE_TYPE_MODALITY.get(str(extra.get("analysis_type") or "").lower(), "rule"),
             severity=self.normalize_severity(parsed.severity),
             mitre_tactics=parsed.mitre_attack.get("tactics", []),
             mitre_techniques=parsed.mitre_attack.get("techniques", []),

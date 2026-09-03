@@ -125,6 +125,7 @@ export function DetectionList() {
     mitre_software: searchParams.get('mitre_software')?.split(',').filter(Boolean) || [],
     tags: searchParams.get('tags')?.split(',').filter(Boolean) || [],
     languages: searchParams.get('languages')?.split(',').filter(Boolean) || [],
+    rule_modalities: searchParams.get('rule_modalities')?.split(',').filter(Boolean) || [],
     // Standardized taxonomy filters
     platforms: searchParams.get('platforms')?.split(',').filter(Boolean) || [],
     event_categories: searchParams.get('event_categories')?.split(',').filter(Boolean) || [],
@@ -165,6 +166,7 @@ export function DetectionList() {
     if (filters.mitre_software?.length) params.set('mitre_software', filters.mitre_software.join(','));
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
     if (filters.languages?.length) params.set('languages', filters.languages.join(','));
+    if (filters.rule_modalities?.length) params.set('rule_modalities', filters.rule_modalities.join(','));
     // Standardized taxonomy filters
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_splunk_fields
@@ -60,6 +61,8 @@ class SplunkNormalizer(BaseNormalizer):
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=search_str,
             language="spl",
+            # ESCU `type`: TTP / Anomaly / Hunting / Correlation / Baseline (#105)
+            rule_modality=VENDOR_RULE_TYPE_MODALITY.get(str(extra.get("type") or "").lower(), "rule"),
             tags=self._normalize_tags(parsed.tags),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),

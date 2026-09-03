@@ -3,6 +3,10 @@
 import { Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
+import { MODALITY_LABELS } from '../filterpanel/options';
+
+// Two-to-four letter row badges; plain rules get none.
+const MODALITY_ABBR: Record<string, string> = { hunting: 'HUNT', correlation: 'CORR', indicator_match: 'IOC', ml_job: 'ML', building_block: 'BB' };
 import type { Detection } from '../../types';
 import { severityColors, qualityBand, formatRelativeDate, formatDate } from './format';
 import { TagList } from './TagList';
@@ -75,12 +79,13 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
           >
             {detection.title}
           </Link>
-          {detection.is_building_block && (
+          {detection.rule_modality && detection.rule_modality !== 'rule' && (
             <span
               className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30 align-middle"
-              title="Building block: feeds other rules, does not alert on its own"
+              title={MODALITY_LABELS[detection.rule_modality] || detection.rule_modality}
+              data-testid="row-modality"
             >
-              BB
+              {MODALITY_ABBR[detection.rule_modality] || detection.rule_modality}
             </span>
           )}
         </td>

@@ -1,6 +1,8 @@
 // Detection types
 export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther';
 
+export type RuleModality = 'rule' | 'hunting' | 'ml_job' | 'correlation' | 'indicator_match' | 'building_block';
+
 export interface Detection {
   id: string;
   source: DetectionSource;
@@ -17,6 +19,9 @@ export interface Detection {
   // alerting on its own (Elastic building_block_type, Panther
   // CreateAlert: false). Orthogonal to status.
   is_building_block: boolean;
+  // How the rule works (#105): rule | hunting | ml_job | correlation |
+  // indicator_match | building_block. Kept out of event_types/language.
+  rule_modality: RuleModality;
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   // Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
   // The legacy single-value siblings (platform / event_category /
@@ -162,6 +167,7 @@ export interface SearchFilters {
   min_quality?: number;
   severities?: string[];
   languages?: string[];
+  rule_modalities?: string[];
   mitre_tactics?: string[];
   mitre_techniques?: string[];
   mitre_groups?: string[];

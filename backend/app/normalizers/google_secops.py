@@ -11,6 +11,7 @@ tail): UDM-path terms in the `events:` block become typed observables,
 `product_event_type` values become event IDs (numeric) or API actions.
 """
 
+from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.yaral_extractor import extract_yaral_fields
@@ -104,6 +105,8 @@ class GoogleSecOpsNormalizer(BaseNormalizer):
             mitre_techniques=parsed.mitre_attack.get("techniques", []),
             detection_logic=detection_logic,
             language="yaral",
+            # meta `type`: alert | hunt (#105)
+            rule_modality=VENDOR_RULE_TYPE_MODALITY.get(str(parsed.extra.get("type") or "").lower(), "rule"),
             tags=parsed.tags,
             references=references,
             false_positives=self.normalize_false_positives(parsed.false_positives),

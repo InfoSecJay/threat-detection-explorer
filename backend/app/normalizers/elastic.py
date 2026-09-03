@@ -2,6 +2,7 @@
 
 from typing import Any, Optional
 
+from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_elastic_fields
@@ -96,6 +97,9 @@ class ElasticNormalizer(BaseNormalizer):
             language=lang,
             tags=self._build_tags(parsed.tags, is_building_block, extra.get("building_block_type")),
             is_building_block=is_building_block,
+            # Vendor rule type -> modality (#105). Building blocks are lifted
+            # in __post_init__ when the type gives nothing more specific.
+            rule_modality=VENDOR_RULE_TYPE_MODALITY.get(str(extra.get("type") or "").lower(), "rule"),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
             investigation_guide=_guide_text(parsed.extra.get("note"), parsed.extra.get("setup")),
@@ -275,10 +279,13 @@ class ElasticNormalizer(BaseNormalizer):
         elif rule_type == "esql":
             return "esql"
         elif rule_type == "machine_learning":
-            return "ml"
-        elif rule_type == "threat_match":
-            return "threat_match"
-        elif rule_type in ("query", "threshold", "new_terms"):
+            # No query at all -- the ML job is the detection. The
+            # modality says so; language must not (#105 / B7).
+            return "none"
+        elif rule_type in ("query", "threshold", "new_terms", "threat_match"):
+            # threat_match joins a KQL/Lucene query against indicator
+            # indices: the language is the query's, the modality is
+            # indicator_match.
             # These use a language field to specify KQL vs Lucene
             lang = detection.get("language") or extra.get("language", "")
             if lang:

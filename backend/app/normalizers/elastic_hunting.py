@@ -93,6 +93,7 @@ class ElasticHuntingNormalizer(BaseNormalizer):
             mitre_techniques=techniques,
             detection_logic=query_str,
             language=language,
+            rule_modality="hunting",
             tags=parsed.tags,
             references=extra.get("references", []),
             false_positives=self.normalize_false_positives(parsed.false_positives),

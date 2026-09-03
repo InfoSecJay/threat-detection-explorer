@@ -51,6 +51,12 @@ class NormalizedDetection:
     # Orthogonal to status (a building block can be stable). Set by
     # the Elastic and Panther/pypanther normalizers; False elsewhere.
     is_building_block: bool = False
+    # HOW the rule works (#105 / teardown R06): rule | hunting | ml_job |
+    # correlation | indicator_match | building_block. Normalizers set
+    # it from the vendor's rule-type field where one exists; otherwise
+    # __post_init__ lifts it from the modality markers in event_types
+    # and from is_building_block. See canonical.RULE_MODALITIES.
+    rule_modality: str = "rule"
     rule_id: Optional[str] = None  # Original rule ID from source
 
     # MITRE ATT&CK
@@ -169,6 +175,28 @@ class NormalizedDetection:
             self.data_sources,
             self.extracted_event_ids,
         )
+
+        # Lift modality markers out of event_types (#105): the mapping
+        # files may say `hunting_query` / `ml_detection` /
+        # `alert_correlation` for a logsource, but those describe how
+        # the rule works, not what it observes. A normalizer's explicit
+        # modality wins; the marker only fills the default.
+        from app.services.taxonomy.canonical import (
+            EVENT_TYPE_MODALITY_LIFT,
+            RULE_MODALITIES,
+        )
+
+        lifted = [EVENT_TYPE_MODALITY_LIFT[t] for t in self.event_types if t in EVENT_TYPE_MODALITY_LIFT]
+        self.event_types = [t for t in self.event_types if t not in EVENT_TYPE_MODALITY_LIFT]
+        if self.rule_modality not in RULE_MODALITIES:
+            self.rule_modality = "rule"
+        if self.rule_modality == "rule":
+            if lifted:
+                self.rule_modality = lifted[0]
+            elif self.is_building_block:
+                self.rule_modality = "building_block"
+        if not self.event_types:
+            self.event_types = ["unknown"]
 
 
 class BaseNormalizer(ABC):

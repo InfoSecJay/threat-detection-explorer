@@ -106,7 +106,9 @@ class PantherParser(BaseParser):
                 language = "python"
                 detection_logic_raw = py_source
             elif analysis_type == "correlation_rule":
-                language = "panther_correlation"
+                # Declarative correlation over other rules' alerts: no
+                # query language; the modality carries "correlation".
+                language = "none"
                 detection_logic_raw = self._serialize_yaml_block(rule.get("Detection"))
             else:
                 # Declarative Detection block (Key/Condition/Value).

@@ -202,7 +202,7 @@ Detection:
     )
     assert parsed is not None
     assert parsed.extra["analysis_type"] == "correlation_rule"
-    assert parsed.extra["language"] == "panther_correlation"
+    assert parsed.extra["language"] == "none"
     # Detection block serialized to YAML string
     assert "SESListIdentities" in parsed.detection_logic_raw
     # No LogTypes on correlation rules

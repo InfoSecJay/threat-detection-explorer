@@ -69,6 +69,7 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.min_quality !== undefined) params.set('min_quality', String(filters.min_quality));
   if (filters.severities?.length) params.set('severities', filters.severities.join(','));
   if (filters.languages?.length) params.set('languages', filters.languages.join(','));
+  if (filters.rule_modalities?.length) params.set('rule_modalities', filters.rule_modalities.join(','));
   if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
   if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
   if (filters.mitre_groups?.length) params.set('mitre_groups', filters.mitre_groups.join(','));
@@ -113,6 +114,7 @@ export interface DetectionFacets {
   // Cumulative "score >= value" counts for thresholds 80 / 60 / 40 (#39).
   quality_band: FacetOption[];
   languages: FacetOption[];
+  rule_modalities: FacetOption[];
   mitre_tactics: FacetOption[];
   mitre_techniques: FacetOption[];
   platforms: FacetOption[];
@@ -161,6 +163,7 @@ export const detectionsApi = {
     statuses: string[];
     severities: string[];
     languages: string[];
+    rule_modalities?: string[];
     platforms: Array<{ value: string; count: number }>;
     data_sources: Array<{ value: string; count: number }>;
     event_types: Array<{ value: string; count: number }>;

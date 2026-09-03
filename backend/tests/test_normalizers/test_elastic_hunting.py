@@ -105,7 +105,9 @@ def test_normalize_event_category_defaults_to_hunting(normalizer):
     """Hunting queries get the canonical `hunting_query` event type
     via the elastic_hunting mapping's always_includes."""
     n = normalizer.normalize(_parsed())
-    assert "hunting_query" in n.event_types
+    # Modality, not an observed event (#105): lifted off event_types.
+    assert n.rule_modality == "hunting"
+    assert "hunting_query" not in n.event_types
 
 
 def test_normalize_dates_are_none_without_git_fallback(normalizer):
@@ -162,4 +164,6 @@ def test_normalize_osquery_data_source_overrides_auditd(normalizer):
     # Platforms still resolve from by_product (linux is correct).
     assert "linux" in n.platforms
     # Event type still `hunting_query` from always_includes.
-    assert "hunting_query" in n.event_types
+    # Modality, not an observed event (#105): lifted off event_types.
+    assert n.rule_modality == "hunting"
+    assert "hunting_query" not in n.event_types

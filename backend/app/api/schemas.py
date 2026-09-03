@@ -107,6 +107,9 @@ class DetectionBase(UtcTimestampsModel):
     # Building-block / signal-only rule (issue #26). Legacy rows may be
     # NULL until the next sync; builders coerce to False.
     is_building_block: bool = False
+    # How the rule works (#105): rule | hunting | ml_job | correlation |
+    # indicator_match | building_block. Legacy rows may be NULL -> "rule".
+    rule_modality: str = "rule"
     # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
     platforms: list[str] = []
     data_sources: list[str] = []
@@ -173,6 +176,7 @@ class DetectionResponse(DetectionBase):
             "status": detection.status,
             "severity": detection.severity,
             "is_building_block": bool(getattr(detection, "is_building_block", False) or False),
+            "rule_modality": getattr(detection, "rule_modality", None) or "rule",
             # Canonical taxonomy (Phase 3 final names)
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
@@ -230,6 +234,9 @@ class DetectionListItem(UtcTimestampsModel):
     # Building-block / signal-only rule (issue #26). Legacy rows may be
     # NULL until the next sync; builders coerce to False.
     is_building_block: bool = False
+    # How the rule works (#105): rule | hunting | ml_job | correlation |
+    # indicator_match | building_block. Legacy rows may be NULL -> "rule".
+    rule_modality: str = "rule"
     # Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
     platforms: list[str] = []
     data_sources: list[str] = []
@@ -290,6 +297,7 @@ class DetectionListItem(UtcTimestampsModel):
             "status": detection.status,
             "severity": detection.severity,
             "is_building_block": bool(getattr(detection, "is_building_block", False) or False),
+            "rule_modality": getattr(detection, "rule_modality", None) or "rule",
             # Canonical taxonomy (Phase 3 final names)
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
@@ -424,6 +432,7 @@ class SearchParams(BaseModel):
     min_quality: Optional[int] = Field(default=None, ge=0, le=100)
     severities: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
+    rule_modalities: list[str] = Field(default_factory=list)
     mitre_tactics: list[str] = Field(default_factory=list)
     mitre_techniques: list[str] = Field(default_factory=list)
     mitre_groups: list[str] = Field(default_factory=list)

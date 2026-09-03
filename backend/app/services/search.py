@@ -36,6 +36,7 @@ class SearchFilters:
     min_quality: Optional[int] = None
     severities: list[str] = field(default_factory=list)
     languages: list[str] = field(default_factory=list)
+    rule_modalities: list[str] = field(default_factory=list)
 
     # MITRE filters
     mitre_tactics: list[str] = field(default_factory=list)
@@ -342,7 +343,7 @@ class SearchService:
 
         return stats
 
-    _FILTER_OPTION_SCALARS = ("source", "status", "severity", "language")
+    _FILTER_OPTION_SCALARS = ("source", "status", "severity", "language", "rule_modality")
     _FILTER_OPTION_FACETS = (
         "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
     )
@@ -379,7 +380,7 @@ class SearchService:
                     if isinstance(v, str):
                         bucket[v] = bucket.get(v, 0) + 1
 
-        plural = {"source": "sources", "status": "statuses", "severity": "severities", "language": "languages"}
+        plural = {"source": "sources", "status": "statuses", "severity": "severities", "language": "languages", "rule_modality": "rule_modalities"}
         out: dict = {
             plural[name]: sorted(distinct[i]) for i, name in enumerate(self._FILTER_OPTION_SCALARS)
         }
@@ -468,6 +469,7 @@ class SearchService:
         "statuses": ("statuses", "status", False),
         "severities": ("severities", "severity", False),
         "languages": ("languages", "language", False),
+        "rule_modalities": ("rule_modalities", "rule_modality", False),
         "mitre_tactics": ("mitre_tactics", "mitre_tactics", True),
         "mitre_techniques": ("mitre_techniques", "mitre_techniques", True),
         "platforms": ("platforms", "platforms", True),
@@ -653,6 +655,8 @@ class SearchService:
         # Language filter
         if filters.languages:
             conditions.append(Detection.language.in_(filters.languages))
+        if filters.rule_modalities:
+            conditions.append(Detection.rule_modality.in_(filters.rule_modalities))
 
         # MITRE tactics filter
         # Use text-based matching for cross-database compatibility (SQLite + PostgreSQL)

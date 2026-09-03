@@ -151,6 +151,16 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         examples=["status:stable", "status:test"],
     ),
     FieldSpec(
+        aliases=["modality", "kind"],
+        kind="text",
+        columns=["rule_modality"],
+        description=(
+            "How the rule works: rule, hunting, ml_job, correlation, "
+            "indicator_match, building_block."
+        ),
+        examples=["modality:hunting", "modality:correlation"],
+    ),
+    FieldSpec(
         aliases=["building_block", "bb", "signal_only"],
         kind="bool",
         columns=["is_building_block"],

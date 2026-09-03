@@ -135,7 +135,7 @@ async def test_filter_options_is_one_query_and_matches_per_column_facets(db_sess
     assert opts["platforms"] == await search.get_taxonomy_facet("platforms")
     assert opts["mitre_groups"] == []
     assert set(opts) == {
-        "sources", "statuses", "severities", "languages",
+        "sources", "statuses", "severities", "languages", "rule_modalities",
         "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
     }
 

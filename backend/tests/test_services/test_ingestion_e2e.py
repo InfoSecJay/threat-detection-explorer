@@ -613,7 +613,9 @@ async def test_e2e_elastic_hunting(db_session):
     assert "aws" in d.platforms
     assert "T1136.003" in d.mitre_techniques
     # Hunting category default
-    assert "hunting_query" in d.event_types
+    # Modality, not an observed event (#105).
+    assert d.rule_modality == "hunting"
+    assert "hunting_query" not in d.event_types
 
 
 @pytest.mark.asyncio

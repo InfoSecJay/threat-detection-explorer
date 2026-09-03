@@ -6,6 +6,7 @@
  * components/ruledetail/. */
 
 import { parseApiDate } from '../utils/dates';
+import { MODALITY_LABELS, MODALITY_OPTIONS } from './filterpanel/options';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Detection } from '../types';
@@ -116,7 +117,14 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold">{language}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity] || severityColors.unknown}`}>{detection.severity}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>{detection.status.replace(/_/g, ' ')}</span>
-                {detection.is_building_block && (
+                {/* Modality (#105): how the rule works. Plain detection
+                    rules are the baseline and get no badge. */}
+                {detection.rule_modality && detection.rule_modality !== 'rule' && (
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30" title={MODALITY_OPTIONS.find((m) => m.value === detection.rule_modality)?.hint} data-testid="rule-modality">
+                    {MODALITY_LABELS[detection.rule_modality] || detection.rule_modality}
+                  </span>
+                )}
+                {detection.is_building_block && detection.rule_modality !== 'building_block' && (
                   <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30" title="Building block: emits signal for other rules to correlate on; does not alert on its own">
                     Building block
                   </span>

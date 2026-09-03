@@ -48,6 +48,7 @@ const FIELD_MAP: { key: keyof SearchFilters; canonical: string; aliases: string[
   { key: 'severities', canonical: 'severity', aliases: ['sev', 'severity'] },
   { key: 'statuses', canonical: 'status', aliases: ['status'] },
   { key: 'languages', canonical: 'lang', aliases: ['lang', 'language'] },
+  { key: 'rule_modalities', canonical: 'modality', aliases: ['modality', 'kind'] },
   { key: 'platforms', canonical: 'platform', aliases: ['platform'] },
   { key: 'data_sources_normalized', canonical: 'data', aliases: ['data', 'datasource'] },
   { key: 'event_categories', canonical: 'event', aliases: ['event', 'eventtype'] },
