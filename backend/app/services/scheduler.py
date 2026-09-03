@@ -36,6 +36,7 @@ from app.services.parse_failure_notifier import notify_parse_failures
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
 from app.services.upstream_verifier import verify_upstream
+from app.services.volume_guard import refuse_sync_if_volume_nearly_full
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,11 @@ async def run_full_sync_job(
         )
 
         try:
+            # Disk floor (#97): a full volume PANICs Postgres mid-upsert
+            # and once tombstoned 176 live rules. Fail the job cleanly
+            # instead; the message lands on sync_jobs.error_message.
+            await refuse_sync_if_volume_nearly_full(db)
+
             repos_to_sync = [repository] if repository else ALL_REPOSITORY_NAMES
             total_discovered = 0
             total_stored = 0

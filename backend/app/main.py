@@ -109,17 +109,29 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/api/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check with what is running: the deployed commit (Railway
-    exposes it) and the corpus stamp the caches key on."""
+    exposes it) and the corpus stamp the caches key on.
+
+    The corpus stamp is a real query, and its failure is the answer:
+    during the 2026-08-31 outage (#97) every data route 500ed for five
+    hours while this endpoint stayed green because it never touched the
+    database. A 503 here is what an uptime monitor can key on.
+    """
     try:
         count, latest = await corpus_cache.fingerprint(db)
-    except Exception:  # noqa: BLE001 -- health must answer even if the DB is out
+        database = "ok"
+    except Exception as e:  # noqa: BLE001 -- health must answer even if the DB is out
         count, latest = None, None
-    return {
-        "status": "healthy",
+        database = f"unreachable: {type(e).__name__}"
+    body = {
+        "status": "healthy" if database == "ok" else "degraded",
         "app": settings.app_name,
         "commit": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "")[:12] or None,
+        "database": database,
         "corpus": {"rules": count, "updated_at": latest},
     }
+    if database != "ok":
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 # Include routers

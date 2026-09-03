@@ -17,12 +17,13 @@ import json
 import logging
 from datetime import date, datetime
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.corpus_snapshot import CorpusSnapshot
 from app.models.detection import Detection
+from app.services.volume_guard import SNAPSHOT_CAP_SHARE, database_over_share
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -90,20 +91,16 @@ async def write_corpus_snapshot(db: AsyncSession, snapshot_date: date | None = N
 
 
 # Snapshots are the one optional, unbounded consumer of the volume
-# (~16MB/night). Postgres cannot see free disk, so we stop writing them
-# when the database passes this share of the configured volume size --
-# a full volume PANICs Postgres mid-sync and tombstones live rules
-# (2026-09-02). The sync itself is never blocked; only the snapshot.
-SNAPSHOT_CAP_SHARE = 0.7
+# (~16MB/night), so they stop first (see volume_guard for the rationale
+# and the sync-level threshold above this one). The sync itself is
+# never blocked here; only the snapshot.
 
 
 async def _database_over_snapshot_cap(db: AsyncSession) -> bool:
-    if db.bind is None or db.bind.dialect.name != "postgresql":
+    over = await database_over_share(db, SNAPSHOT_CAP_SHARE)
+    if over is None:
         return False
-    size = (await db.execute(text("SELECT pg_database_size(current_database())"))).scalar() or 0
-    cap = int(settings.postgres_volume_mb * 1024 * 1024 * SNAPSHOT_CAP_SHARE)
-    if size <= cap:
-        return False
+    size, _cap = over
     logger.error(
         f"Corpus snapshot SKIPPED: database is {size / 1_048_576:.0f}MB, over "
         f"{SNAPSHOT_CAP_SHARE:.0%} of the {settings.postgres_volume_mb}MB volume "
