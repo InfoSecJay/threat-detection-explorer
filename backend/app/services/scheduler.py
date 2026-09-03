@@ -36,6 +36,7 @@ from app.services.parse_failure_notifier import notify_parse_failures
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
 from app.services.upstream_verifier import verify_upstream
+from app.services.cloudflare import purge_everything as purge_edge_cache
 from app.services.volume_guard import refuse_sync_if_volume_nearly_full
 from app.utils.datetime_utils import utcnow
 
@@ -252,6 +253,14 @@ async def run_full_sync_job(
                 await write_unclassified_snapshot(db)
             except Exception as e:
                 logger.warning(f"Unclassified snapshot failed: {e}", exc_info=True)
+
+            # Edge cache purge (#80 S2.3): read routes are cached for 15
+            # minutes + a day of stale-while-revalidate, so the new corpus
+            # would otherwise take a while to reach visitors. No-op when
+            # Cloudflare is not configured; a failure is a job warning.
+            purge_warning = await purge_edge_cache(reason=f"sync {job_id}")
+            if purge_warning:
+                job_warnings.append(purge_warning)
 
             # Taxonomy drift notifications (Issue 2 observability layer).
             # Opens/updates GitHub issues for any repo with unmapped

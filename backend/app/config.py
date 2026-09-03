@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     github_repo_owner: Optional[str] = "InfoSecJay"
     github_repo_name: Optional[str] = "threat-detection-explorer"
 
+    # Cloudflare edge cache purge at the end of each nightly sync (#80
+    # S2.3). Token needs only Zone -> Cache Purge on this zone. Both unset
+    # = no-op, so dev and the API service never touch Cloudflare.
+    cloudflare_api_token: Optional[str] = None
+    cloudflare_zone_id: Optional[str] = None
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

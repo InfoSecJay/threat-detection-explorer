@@ -129,9 +129,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "database": database,
         "corpus": {"rules": count, "updated_at": latest},
     }
+    # Never edge-cached: an uptime probe must see the live answer.
+    headers = {"Cache-Control": "no-store"}
     if database != "ok":
-        return JSONResponse(status_code=503, content=body)
-    return body
+        return JSONResponse(status_code=503, content=body, headers=headers)
+    return JSONResponse(content=body, headers=headers)
 
 
 # Include routers
