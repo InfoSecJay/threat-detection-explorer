@@ -32,7 +32,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session_maker
 from app.models.sync_job import SyncJob
 from app.services.ingestion import IngestionService
-from app.services.ingestion_errors import ErrorStage
 from app.services.parse_failure_notifier import notify_parse_failures
 from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
 from app.services.taxonomy_notifier import notify_drift
@@ -168,10 +167,7 @@ async def run_full_sync_job(
                     # notifier. Sample list is capped so the JSON blob
                     # on sync_jobs.repository_results stays bounded
                     # even if a parser regresses hard on a whole repo.
-                    parse_failures = [
-                        e for e in stats.errors
-                        if e.stage in (ErrorStage.PARSE, ErrorStage.NORMALIZE)
-                    ]
+                    parse_failures = stats.parse_failures
                     repo_result["parse_failure_count"] = len(parse_failures)
                     repo_result["parse_failure_samples"] = [
                         {

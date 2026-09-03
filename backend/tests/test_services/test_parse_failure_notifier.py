@@ -9,12 +9,38 @@ from unittest.mock import patch
 
 import pytest
 
+from app.services.ingestion_errors import ErrorSeverity, ErrorStage, IngestionStats
 from app.services.parse_failure_notifier import (
     _SMALL_CORPUS_FLOOR,
     _SUCCESS_THRESHOLD_PCT,
     _format_parse_failure_body,
     notify_parse_failures,
 )
+
+
+# --- What counts as a parse failure -----------------------------------
+
+
+def test_parse_failures_exclude_advisories_about_stored_rules():
+    """Only rules we LOST count toward the threshold (#98, #99).
+
+    The duplicate-rule_id advisory is filed at the NORMALIZE stage but
+    the rule is stored under its path-derived id; it dragged
+    elastic_protections to 99.47% every night for a week.
+    """
+    stats = IngestionStats(discovered=4, stored=3)
+    stats.add_error("a.toml", ErrorStage.PARSE, "Parser returned None",
+                    severity=ErrorSeverity.WARNING)
+    stats.add_error("b.toml", ErrorStage.NORMALIZE, "boom")
+    stats.add_error("c.toml", ErrorStage.NORMALIZE,
+                    "Duplicate upstream rule_id 'x'; this file keeps its path-derived id",
+                    severity=ErrorSeverity.WARNING, dropped=False)
+    stats.add_error("d.toml", ErrorStage.STORE, "db down")
+
+    assert [e.file_path for e in stats.parse_failures] == ["a.toml", "b.toml"]
+    # The advisory is still visible to humans through the generic counters.
+    assert stats.warning_count == 2
+    assert stats.errors[2].to_dict()["dropped"] is False
 
 
 # --- Body formatter ---------------------------------------------------

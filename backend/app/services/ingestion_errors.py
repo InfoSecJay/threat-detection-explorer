@@ -33,6 +33,11 @@ class IngestionError:
     message: str
     details: Optional[str] = None
     timestamp: datetime = field(default_factory=utcnow)
+    # Whether the rule was lost. Most entries mean the file never made
+    # it to the store; a few (duplicate upstream rule_id, #86) record
+    # something worth a human's eye about a rule that WAS stored, and
+    # those must not count as parse failures (#98, #99).
+    dropped: bool = True
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -43,6 +48,7 @@ class IngestionError:
             "message": self.message,
             "details": self.details,
             "timestamp": to_utc_iso(self.timestamp),
+            "dropped": self.dropped,
         }
 
 
@@ -89,7 +95,8 @@ class IngestionStats:
         stage: ErrorStage,
         message: str,
         details: Optional[str] = None,
-        severity: ErrorSeverity = ErrorSeverity.ERROR
+        severity: ErrorSeverity = ErrorSeverity.ERROR,
+        dropped: bool = True,
     ) -> None:
         """Add an error to the tracking list."""
         self.errors.append(IngestionError(
@@ -98,7 +105,22 @@ class IngestionStats:
             severity=severity,
             message=message,
             details=details,
+            dropped=dropped,
         ))
+
+    @property
+    def parse_failures(self) -> list[IngestionError]:
+        """PARSE/NORMALIZE entries where the rule was actually lost.
+
+        This is what the parse-failure notifier (#30) measures: files we
+        discovered but never stored. Advisory entries about stored rules
+        are excluded so they cannot drag a source under the alert
+        threshold night after night.
+        """
+        return [
+            e for e in self.errors
+            if e.stage in (ErrorStage.PARSE, ErrorStage.NORMALIZE) and e.dropped
+        ]
 
     def record_taxonomy_result(
         self,

@@ -301,6 +301,7 @@ class IngestionService:
                             f"this file keeps its path-derived id"
                         ),
                         severity=ErrorSeverity.WARNING,
+                        dropped=False,
                     )
                     normalized.id = normalized.legacy_id
                 seen_ids.add(normalized.id)
