@@ -82,6 +82,11 @@ class SearchFilters:
     sort_order: str = "desc"
 
 
+# Bump when the facets response gains or changes a key. Persisted default
+# facets (#81) are otherwise keyed on the corpus fingerprint alone.
+_FACETS_SHAPE_VERSION = 2
+
+
 class SearchService:
     """Service for searching and filtering detection rules."""
 
@@ -493,7 +498,12 @@ class SearchService:
         corpus fingerprint (pagination and sort do not affect counts and
         are excluded from the key)."""
         normalized = replace(filters, offset=0, limit=0, sort_by="", sort_order="")
-        key = ("facets", repr(normalized))
+        # The shape version is part of the key so a deploy that changes
+        # what facets CONTAIN (event_type_groups, #104) recomputes the
+        # persisted default set instead of serving the old shape until
+        # the next sync moves the fingerprint (same lesson as the
+        # sitemap artifacts).
+        key = ("facets", f"v{_FACETS_SHAPE_VERSION}:" + repr(normalized))
         # Only the default (no-filter) facet set persists across
         # deploys -- it is the one every catalog landing pays for;
         # filtered variants stay in-process so the table stays bounded.

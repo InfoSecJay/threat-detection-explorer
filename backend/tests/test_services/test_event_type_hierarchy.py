@@ -123,6 +123,27 @@ async def test_facets_nest_children_with_union_counts(db_session):
     assert facets["event_type_groups"][-1]["value"] == "unknown"
 
 
+@pytest.mark.asyncio
+async def test_persisted_facets_key_carries_the_shape_version(db_session, monkeypatch):
+    """The default facet set persists across deploys keyed on the corpus
+    fingerprint (#81); a change to the response SHAPE (event_type_groups)
+    must invalidate it or prod serves the old shape until the next sync."""
+    from app.services import search as search_module
+
+    captured: dict = {}
+
+    async def fake_get(db, key, compute, persist=False):
+        captured["key"] = key
+        captured["persist"] = persist
+        return await compute()
+
+    monkeypatch.setattr(search_module.corpus_cache, "get", fake_get)
+    await SearchService(db_session).get_facets(SearchFilters())
+    assert captured["persist"] is True
+    assert captured["key"][0] == "facets"
+    assert captured["key"][1].startswith(f"v{search_module._FACETS_SHAPE_VERSION}:")
+
+
 def test_query_bar_event_field_expands_parents():
     from app.services.query_parser import parse_query
 
