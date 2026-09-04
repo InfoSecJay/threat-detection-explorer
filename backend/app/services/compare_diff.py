@@ -28,6 +28,8 @@ AXES: tuple[tuple[str, Callable], ...] = (
     ("mitre_tactics", lambda d: d.mitre_tactics),
     ("data_sources", lambda d: d.data_sources),
     ("platforms", lambda d: d.platforms),
+    ("domains", lambda d: getattr(d, "domains", None)),
+    ("products", lambda d: getattr(d, "products", None)),
     ("event_types", lambda d: d.event_types),
     ("source_tables", lambda d: getattr(d, "extracted_source_tables", None)),
     ("fields", lambda d: getattr(d, "extracted_fields_used", None)),

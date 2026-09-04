@@ -75,6 +75,8 @@ export interface FilterOptionsLike {
   statuses?: string[];
   languages?: string[];
   platforms?: FacetLike[];
+  domains?: FacetLike[];
+  products?: FacetLike[];
   data_sources?: FacetLike[];
   event_types?: FacetLike[];
   use_cases?: FacetLike[];
@@ -105,6 +107,8 @@ export function buildValueIndex(
     add(['status'], (filterOpts.statuses || []).map((v) => ({ value: v })));
     add(['lang', 'language'], (filterOpts.languages || []).map((v) => ({ value: v })));
     add(['platform'], filterOpts.platforms || []);
+    add(['domain'], filterOpts.domains || []);
+    add(['product', 'vendor'], filterOpts.products || []);
     add(['data', 'datasource'], filterOpts.data_sources || []);
     add(['event', 'eventtype'], filterOpts.event_types || []);
     add(['usecase', 'story', 'use_case'], filterOpts.use_cases || []);

@@ -5,8 +5,8 @@ import type { CompareDiffResponse } from '../../services/api';
 
 const DIFF: CompareDiffResponse = {
   rules: [
-    { id: 'a', title: 'Rundll32 JS Sigma', source: 'sigma', severity: 'high', status: 'stable', language: 'sigma', rule_modality: 'rule', platforms: ['windows'], data_sources: ['sysmon'], event_types: ['process_creation'], mitre_tactics: ['TA0005'], mitre_techniques: ['T1218.011'], quality_score: 70, query_complexity: 'moderate', source_rule_url: null, observable_count: 3 },
-    { id: 'b', title: 'Rundll32 JS Elastic', source: 'elastic', severity: 'medium', status: 'stable', language: 'eql', rule_modality: 'rule', platforms: ['windows'], data_sources: ['elastic_endpoint'], event_types: ['process_creation'], mitre_tactics: ['TA0005'], mitre_techniques: ['T1218.011'], quality_score: null, query_complexity: 'simple', source_rule_url: null, observable_count: 2 },
+    { id: 'a', title: 'Rundll32 JS Sigma', source: 'sigma', severity: 'high', status: 'stable', language: 'sigma', rule_modality: 'rule', platforms: ['windows'], domains: ['endpoint'], products: ['sysmon'], data_sources: ['sysmon'], event_types: ['process_creation'], mitre_tactics: ['TA0005'], mitre_techniques: ['T1218.011'], quality_score: 70, query_complexity: 'moderate', source_rule_url: null, observable_count: 3 },
+    { id: 'b', title: 'Rundll32 JS Elastic', source: 'elastic', severity: 'medium', status: 'stable', language: 'eql', rule_modality: 'rule', platforms: ['windows'], domains: ['endpoint'], products: ['elastic_defend'], data_sources: ['elastic_endpoint'], event_types: ['process_creation'], mitre_tactics: ['TA0005'], mitre_techniques: ['T1218.011'], quality_score: null, query_complexity: 'simple', source_rule_url: null, observable_count: 2 },
   ],
   observables: [
     { type: 'process', subtype: 'process_name', value: 'rundll32.exe', present_in: ['a', 'b'], negated_in: [], fields: { a: ['Image'], b: ['process.name'] }, shared: true },
@@ -18,6 +18,8 @@ const DIFF: CompareDiffResponse = {
     mitre_tactics: [{ value: 'TA0005', present_in: ['a', 'b'] }],
     data_sources: [{ value: 'sysmon', present_in: ['a'] }, { value: 'elastic_endpoint', present_in: ['b'] }],
     platforms: [{ value: 'windows', present_in: ['a', 'b'] }],
+    domains: [{ value: 'endpoint', present_in: ['a', 'b'] }],
+    products: [{ value: 'sysmon', present_in: ['a'] }],
     event_types: [{ value: 'process_creation', present_in: ['a', 'b'] }],
     source_tables: [],
     fields: [{ value: 'Image', present_in: ['a'] }],

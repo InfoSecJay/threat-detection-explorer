@@ -127,7 +127,7 @@ def test_normalize_resolves_canonical_taxonomy_for_office_activity(normalizer):
     extractor + taxonomy mapping."""
     n = normalizer.normalize(_parsed())
     assert n.platforms != ["unknown"]
-    assert "microsoft_365" in n.platforms
+    assert "microsoft_365" in n.products
     assert "audit_event" in n.event_types
     assert n.taxonomy_matched is True
 
@@ -157,8 +157,8 @@ def test_security_alert_maps_to_microsoft_platforms_not_cross_platform(normalize
         extra={"id": "x", "kql_tables": ["SecurityAlert"]},
     ))
     assert "cross_platform" not in n.platforms
-    assert "microsoft_365" in n.platforms
-    assert "azure" in n.platforms
+    assert "microsoft_365" in n.products
+    assert "azure" in n.products
     assert "windows" in n.platforms
 
 
@@ -169,7 +169,7 @@ def test_behavior_analytics_maps_to_azure_not_cross_platform(normalizer):
         extra={"id": "x", "kql_tables": ["BehaviorAnalytics"]},
     ))
     assert "cross_platform" not in n.platforms
-    assert "azure" in n.platforms
+    assert "azure" in n.products
 
 
 def test_ado_audit_logs_maps_to_azure_not_cross_platform(normalizer):
@@ -179,7 +179,7 @@ def test_ado_audit_logs_maps_to_azure_not_cross_platform(normalizer):
         extra={"id": "x", "kql_tables": ["ADOAuditLogs"]},
     ))
     assert "cross_platform" not in n.platforms
-    assert "azure" in n.platforms
+    assert "azure" in n.products
 
 
 def test_threat_intel_indicator_maps_to_azure(normalizer):
@@ -189,7 +189,7 @@ def test_threat_intel_indicator_maps_to_azure(normalizer):
         extra={"id": "x", "kql_tables": ["ThreatIntelligenceIndicator"]},
     ))
     assert "cross_platform" not in n.platforms
-    assert "azure" in n.platforms
+    assert "azure" in n.products
 
 
 def test_unknown_cl_table_does_not_inject_cross_platform(normalizer):

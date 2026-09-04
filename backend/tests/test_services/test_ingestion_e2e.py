@@ -547,7 +547,7 @@ async def test_e2e_sentinel(db_session):
     # Note: taxonomy_matched and taxonomy_fingerprint live only on the
     # in-memory NormalizedDetection — they're not persisted to the
     # Detection row so we can't read them back from the DB here.
-    assert "microsoft_365" in d.platforms
+    assert "microsoft_365" in d.products
     assert "audit_event" in d.event_types
     # MITRE technique pulled from relevantTechniques
     assert "T1114.003" in d.mitre_techniques
@@ -568,7 +568,7 @@ async def test_e2e_sublime(db_session):
     assert d.title == "Phishing attachment from QakBot delivery campaign"
     assert d.language == "mql"
     # Sublime is always email-context — legacy column forced to email
-    assert "email" in d.platforms
+    assert "email" in d.domains
     # `Malfam: QakBot` tag preserved verbatim (Threat Pulse extracts it)
     assert "Malfam: QakBot" in d.tags
 
@@ -610,7 +610,7 @@ async def test_e2e_elastic_hunting(db_session):
     # ES|QL vendor symbol normalized to esql canonical token
     assert d.language == "esql"
     # Product → platform mapping
-    assert "aws" in d.platforms
+    assert "aws" in d.products
     assert "T1136.003" in d.mitre_techniques
     # Hunting category default
     # Modality, not an observed event (#105).
@@ -658,8 +658,8 @@ async def test_e2e_google_secops(db_session):
     # Chronicle rules are YARA-L 2.0 -- canonical language token.
     assert d.language == "yaral"
     # Explicit `platform = "AWS"` meta -> canonical `aws`.
-    assert "aws" in d.platforms
-    assert "aws" in d.platforms
+    assert "aws" in d.products
+    assert "aws" in d.products
     # Explicit `data_source = "AWS CloudTrail"` meta resolves the
     # canonical data_source AND the implied api_call event_type.
     assert "aws_cloudtrail" in d.data_sources
@@ -696,8 +696,8 @@ async def test_e2e_okta(db_session):
     assert "Okta" in d.author
     # Always-includes contract: platform=okta, data_source=okta_system_log,
     # event_type=authentication.
-    assert "okta" in d.platforms
-    assert "okta" in d.platforms
+    assert "okta" in d.products
+    assert "okta" in d.products
     assert "okta_system_log" in d.data_sources
     assert "authentication" in d.event_types
     # MITRE extracted from threat.Tactic (display names) + threat.Technique
@@ -734,7 +734,7 @@ async def test_e2e_auth0(db_session):
     assert "index=auth0" in d.detection_logic
     # Always-includes contract: platform=auth0, data_source=auth0_logs,
     # event_type=authentication (per mappings/auth0.yaml).
-    assert "auth0" in d.platforms
+    assert "auth0" in d.products
     assert "auth0_logs" in d.data_sources
     assert "authentication" in d.event_types
     # MITRE techniques extracted from `attack.t<id>` Sigma tags via
@@ -786,7 +786,7 @@ async def test_e2e_panther(db_session):
     assert d.language == "python"
     assert 'event.get("eventName") == "StopLogging"' in d.detection_logic
     # LogTypes -> canonical taxonomy via the Panther vendor resolver.
-    assert "aws" in d.platforms
+    assert "aws" in d.products
     assert "aws_cloudtrail" in d.data_sources
     assert "api_call" in d.event_types
     # MITRE (colon-joined format) split correctly.

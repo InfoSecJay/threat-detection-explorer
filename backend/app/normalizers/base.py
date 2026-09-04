@@ -121,6 +121,12 @@ class NormalizedDetection:
     platforms: list[str] = field(default_factory=list)
     data_sources: list[str] = field(default_factory=list)
     event_types: list[str] = field(default_factory=list)
+    # Platform split (#103): derived in __post_init__ from the resolver's
+    # raw platforms + data sources. `platforms` then holds OS values only;
+    # `domains` says where the attack surface is; `products` whose
+    # telemetry the rule reads. See app/services/taxonomy/domains.py.
+    domains: list[str] = field(default_factory=list)
+    products: list[str] = field(default_factory=list)
 
     # Vendor-preserved analytic story / use-case labels. Populated for
     # sources with an explicit story/use-case concept (Splunk, Elastic,
@@ -200,6 +206,17 @@ class NormalizedDetection:
                 self.rule_modality = "building_block"
         if not self.event_types:
             self.event_types = ["unknown"]
+
+        # Platform split (#103 / teardown R05), last because everything
+        # above reads the resolver's raw platform vocabulary. Explicit
+        # domains/products passed by a caller (tests, re-normalization)
+        # are kept when the raw list is already OS-only.
+        from app.services.taxonomy.domains import split_platforms
+
+        platforms, domains, products = split_platforms(self.platforms, self.data_sources)
+        self.platforms = platforms
+        self.domains = domains if domains != ["unknown"] or not self.domains else self.domains
+        self.products = products or self.products
 
 
 class BaseNormalizer(ABC):

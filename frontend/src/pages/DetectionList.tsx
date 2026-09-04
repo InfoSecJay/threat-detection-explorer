@@ -166,6 +166,8 @@ export function DetectionList() {
     platforms: searchParams.get('platforms')?.split(',').filter(Boolean) || [],
     event_categories: searchParams.get('event_categories')?.split(',').filter(Boolean) || [],
     data_sources_normalized: searchParams.get('data_sources_normalized')?.split(',').filter(Boolean) || [],
+    domains: searchParams.get('domains')?.split(',').filter(Boolean) || [],
+    products: searchParams.get('products')?.split(',').filter(Boolean) || [],
     use_cases: searchParams.get('use_cases')?.split(',').filter(Boolean) || [],
     // Extracted observable filters
     event_ids: searchParams.get('event_ids')?.split(',').filter(Boolean) || [],
@@ -207,6 +209,8 @@ export function DetectionList() {
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
     if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+    if (filters.domains?.length) params.set('domains', filters.domains.join(','));
+    if (filters.products?.length) params.set('products', filters.products.join(','));
     if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
     // Extracted observable filters
     if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));

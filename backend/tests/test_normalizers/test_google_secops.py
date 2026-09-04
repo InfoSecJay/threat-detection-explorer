@@ -79,8 +79,8 @@ def test_normalize_language_is_always_yaral(normalizer):
 def test_normalize_explicit_platform_meta_maps_to_canonical(normalizer):
     """`platform = "AWS"` -> canonical platform `aws`."""
     n = normalizer.normalize(_parsed())
-    assert "aws" in n.platforms
-    assert "aws" in n.platforms
+    assert "aws" in n.products
+    assert "aws" in n.products
 
 
 def test_normalize_explicit_data_source_meta_maps_to_canonical(normalizer):
@@ -124,7 +124,7 @@ def test_normalize_microsoft_platform_resolves(normalizer):
             "platform": "Microsoft", "data_source": "Office 365",
         },
     ))
-    assert "microsoft_365" in n.platforms
+    assert "microsoft_365" in n.products
 
 
 def test_normalize_folder_fallback_when_meta_missing(normalizer):
@@ -140,7 +140,7 @@ def test_normalize_folder_fallback_when_meta_missing(normalizer):
             "platform": None, "data_source": None,
         },
     ))
-    assert "github" in n.platforms
+    assert "github" in n.products
     assert "github_audit" in n.data_sources
 
 

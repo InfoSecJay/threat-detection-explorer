@@ -80,7 +80,7 @@ def test_normalize_lowercases_other_languages(normalizer):
 def test_normalize_product_to_platform_mapping(normalizer):
     """`aws` product → `aws` platform on the legacy column."""
     n = normalizer.normalize(_parsed())
-    assert "aws" in n.platforms
+    assert "aws" in n.products
 
 
 def test_normalize_passes_techniques_through(normalizer):

@@ -80,6 +80,10 @@ keys on. No authentication.
   keep resolving for as long as v1 exists.
 - Additive changes (new endpoints, new optional fields, new enum values in
   facets as the corpus grows) ship without a version bump.
+- Vocabulary changes are documented here. 2026-09: `platforms` was split
+  into `platforms` (OS only), `domains` (attack surface) and `products`
+  (vendor / application); a `platforms=` filter using a pre-split value
+  such as `okta` is re-targeted at the field that holds it now.
 - Breaking changes ship as `/api/v2` with v1 kept for at least six months.
   Deprecations are announced in the repository release notes and on a
   GitHub issue labelled `api` at least 30 days ahead.

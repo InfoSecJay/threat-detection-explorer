@@ -4,7 +4,8 @@ import type { SearchFilters } from '../types';
 /**
  * Unified canonical-taxonomy filter section for the Detections page.
  *
- * Three stacked facets — Platform / Data Source / Event Type — each
+ * Five stacked facets — Domain / Platform / Data Source / Event Type /
+ * Product (#103) — each
  * backed by live corpus counts from /api/detections/facets. Replaces
  * ~140 lines of hardcoded Platform subcategories + the never-built
  * Data Source filter + the hardcoded Event Category list.
@@ -32,9 +33,13 @@ interface TelemetryFilterProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
   options: {
+    /** Attack-surface domains (#103): endpoint, identity, cloud, saas, network, email, devops, data. */
+    domains?: FacetOption[];
     platforms: FacetOption[];
     data_sources: FacetOption[];
     event_types: FacetOption[];
+    /** Vendor / application whose telemetry the rule reads (#103). */
+    products?: FacetOption[];
     /** Nested event types; when present the Event Type facet renders grouped. */
     event_type_groups?: FacetGroupOption[];
   };
@@ -44,6 +49,16 @@ export function TelemetryFilter({ filters, onFiltersChange, options }: Telemetry
   const groups = options.event_type_groups;
   return (
     <div className="space-y-4">
+      <Facet
+        title="Domain"
+        filterKey="domains"
+        accent="purple"
+        options={options.domains || []}
+        selected={filters.domains || []}
+        onChange={(values) =>
+          onFiltersChange({ ...filters, domains: values, offset: 0 })
+        }
+      />
       <Facet
         title="Platform"
         filterKey="platforms"
@@ -86,6 +101,16 @@ export function TelemetryFilter({ filters, onFiltersChange, options }: Telemetry
           }
         />
       )}
+      <Facet
+        title="Product"
+        filterKey="products"
+        accent="amber"
+        options={options.products || []}
+        selected={filters.products || []}
+        onChange={(values) =>
+          onFiltersChange({ ...filters, products: values, offset: 0 })
+        }
+      />
     </div>
   );
 }

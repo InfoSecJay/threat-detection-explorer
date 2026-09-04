@@ -102,7 +102,7 @@ def test_normalize_language_falls_back_to_sigma_when_no_splunk(normalizer):
 
 def test_normalize_platform_is_always_auth0(normalizer):
     n = normalizer.normalize(_parsed())
-    assert "auth0" in n.platforms
+    assert "auth0" in n.products
 
 
 def test_normalize_data_source_is_always_auth0_logs(normalizer):

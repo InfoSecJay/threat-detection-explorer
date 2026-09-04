@@ -172,32 +172,61 @@ Sign-in logs are the exception — Entra ID `signinlogs` and Azure AD
 sign-in events are exclusively authentication activity, so they get
 `authentication` instead of the generic `api_call`.
 
-## The model: 3 orthogonal dimensions
+## The model: 5 fields, one meaning each
 
-Every detection rule answers three independent questions about its
-telemetry source. We model each as a separate multi-value field on the
+Every detection rule answers independent questions about its telemetry
+source. We model each as a separate multi-value field on the
 `Detection` row.
 
-| Field | Question | Examples |
+| Field | Question | Values |
 |---|---|---|
-| `platforms` | **WHERE** does the telemetry live? | `windows`, `aws`, `okta`, `email` |
-| `data_sources` | **WHAT** product/integration produces it? | `sysmon`, `aws_cloudtrail`, `crowdstrike_fdr` |
-| `event_types` | **WHICH** activity is being detected? | `process_creation`, `network_connection`, `authentication` |
+| `platforms` | **Which operating system** does the telemetry come from? | `windows`, `linux`, `macos`, `container`, `cross_platform`, `not_applicable`, `unknown` (closed, 7) |
+| `domains` | **Where is the attack surface?** | `endpoint`, `identity`, `cloud`, `saas`, `network`, `email`, `devops`, `data` (closed, 8, + `unknown`) |
+| `products` | **Whose telemetry** does the rule read? | `aws`, `okta`, `crowdstrike`, `sysmon`, `palo_alto` ... (open; may be empty) |
+| `data_sources` | **What product / integration / feed** produces it? | `sysmon`, `aws_cloudtrail`, `crowdstrike_fdr` |
+| `event_types` | **Which activity** is being detected? | `process_creation`, `network_connection`, `authentication` |
 
-All three are `list[str]` so a rule can span multiple sources. Elastic's
+Until 2026-09 (#103 / teardown R05) `platforms` carried all of the first
+three at once -- 56 values mixing operating systems, cloud providers,
+SaaS apps and security products, because Panther's log-type vocabulary
+was written straight into it. The split keeps the vendor mapping files
+unchanged: they still say `platforms: [okta]` or `[crowdstrike]` as the
+"raw platform", and `app/services/taxonomy/domains.py` derives the three
+public fields from that plus the data sources at normalization
+(`split_platforms`). `not_applicable` is the platform of SaaS, cloud,
+email and network telemetry, where an OS is meaningless -- the same
+precedent as `status: not_applicable`. EDR telemetry with no OS stated
+(`crowdstrike`, `sentinelone`, `carbon_black`) is `cross_platform`: the
+sensor runs wherever it is installed. Old `platforms=okta` filters are
+re-targeted at `products=okta` by the search service, so bookmarks keep
+working.
+
+Domains are the future-proofing axis. The list is a crosswalk of Devo's
+certified-data-source categories (Authentication and IAM -> `identity`;
+Endpoint, EDR and Operating Systems -> `endpoint`; Firewall, Network,
+IDS, Proxy, VPN and WAF -> `network`; Database -> `data`; Application ->
+`saas`). Adding a ninth value is a table edit in `domains.py` plus a row
+here; `application` (framework and app-server logs, today domain
+`unknown`) is the first candidate.
+
+All lists are `list[str]` so a rule can span multiple sources. Elastic's
 cross-platform Node.js rule, for example, lists six index patterns and
 naturally resolves to:
 
 ```python
 platforms = ["windows", "linux", "macos"]
+domains = ["endpoint"]
+products = ["elastic_defend", "sysmon", "crowdstrike", "sentinelone", "auditd"]
 data_sources = ["elastic_defend", "sysmon", "windows_security_event_log",
                 "crowdstrike_fdr", "sentinelone", "auditd"]
 event_types = ["process_creation"]
 ```
 
 When the vendor data doesn't supply enough info to determine a value,
-the list contains `["unknown"]` — never silently empty. Users can
-filter for "rules with unknown platform" to spot vendor coverage gaps.
+`platforms`, `domains`, `data_sources` and `event_types` contain
+`["unknown"]` — never silently empty. Users can filter for "rules with
+unknown platform" to spot vendor coverage gaps. `products` is the one
+list that may be empty: OS-native telemetry has no vendor product.
 
 ---
 

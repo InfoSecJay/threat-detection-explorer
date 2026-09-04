@@ -37,6 +37,11 @@ export interface Detection {
   platforms: string[];
   data_sources: string[];
   event_types: string[];
+  // Platform split (#103): platforms is the OS only; domains is the
+  // attack surface (endpoint, identity, cloud, saas, network, email,
+  // devops, data); products the vendor / application read.
+  domains: string[];
+  products: string[];
   // Vendor-preserved analytic story / use-case labels. Populated for
   // Splunk (analytic_story), Elastic (Use Case: tags), Sublime
   // (attack_types); empty on sources without a native concept.
@@ -188,6 +193,8 @@ export interface SearchFilters {
   platforms?: string[];
   event_categories?: string[];
   data_sources_normalized?: string[];
+  domains?: string[];
+  products?: string[];
   // Analytic story / vendor use-case labels
   use_cases?: string[];
   // Extracted observable filters

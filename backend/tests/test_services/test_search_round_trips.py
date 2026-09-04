@@ -136,7 +136,7 @@ async def test_filter_options_is_one_query_and_matches_per_column_facets(db_sess
     assert opts["mitre_groups"] == []
     assert set(opts) == {
         "sources", "statuses", "severities", "languages", "rule_modalities",
-        "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
+        "platforms", "domains", "products", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
         "event_type_groups",
     }
     # The nested view (#104) is built from the same counts as the flat

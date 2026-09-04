@@ -123,6 +123,10 @@ class DetectionBase(UtcTimestampsModel):
     platforms: list[str] = []
     data_sources: list[str] = []
     event_types: list[str] = []
+    # Platform split (#103): OS in `platforms`; attack surface in `domains`;
+    # vendor / application in `products`.
+    domains: list[str] = []
+    products: list[str] = []
     # Vendor-preserved analytic story / use-case labels. Populated for
     # Splunk (analytic_story), Elastic (Use Case: tags), Sublime
     # (attack_types); empty on sources without a native concept.
@@ -193,6 +197,8 @@ class DetectionResponse(DetectionBase):
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
             "event_types": getattr(detection, 'event_types', None) or [],
+            "domains": getattr(detection, 'domains', None) or [],
+            "products": getattr(detection, 'products', None) or [],
             "use_cases": getattr(detection, 'use_cases', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
@@ -254,6 +260,10 @@ class DetectionListItem(UtcTimestampsModel):
     platforms: list[str] = []
     data_sources: list[str] = []
     event_types: list[str] = []
+    # Platform split (#103): OS in `platforms`; attack surface in `domains`;
+    # vendor / application in `products`.
+    domains: list[str] = []
+    products: list[str] = []
     mitre_tactics: list[str] = []
     mitre_techniques: list[str] = []
     # Raw ATT&CK Group + Software IDs; FE resolves display names.
@@ -315,6 +325,8 @@ class DetectionListItem(UtcTimestampsModel):
             "platforms": getattr(detection, 'platforms', None) or [],
             "data_sources": getattr(detection, 'data_sources', None) or [],
             "event_types": getattr(detection, 'event_types', None) or [],
+            "domains": getattr(detection, 'domains', None) or [],
+            "products": getattr(detection, 'products', None) or [],
             "mitre_tactics": normalize_string_list(detection.mitre_tactics),
             "mitre_techniques": normalize_string_list(detection.mitre_techniques),
             "mitre_groups": getattr(detection, 'mitre_groups', None) or [],
@@ -458,6 +470,9 @@ class SearchParams(BaseModel):
     platforms: list[str] = Field(default_factory=list)
     event_categories: list[str] = Field(default_factory=list)
     data_sources_normalized: list[str] = Field(default_factory=list)
+    # Platform split (#103)
+    domains: list[str] = Field(default_factory=list)
+    products: list[str] = Field(default_factory=list)
     # Analytic story / vendor use-case labels
     use_cases: list[str] = Field(default_factory=list)
     # Extracted observable filters

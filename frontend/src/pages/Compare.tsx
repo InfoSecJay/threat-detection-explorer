@@ -31,7 +31,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const AXES: CompareDiffAxis[] = [
-  'mitre_techniques', 'mitre_tactics', 'data_sources', 'platforms', 'event_types', 'source_tables', 'fields',
+  'mitre_techniques', 'mitre_tactics', 'data_sources', 'platforms', 'domains', 'products', 'event_types', 'source_tables', 'fields',
 ];
 
 type View = 'all' | 'shared' | 'differences';

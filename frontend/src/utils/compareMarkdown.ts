@@ -12,13 +12,15 @@ export const AXIS_LABEL: Record<CompareDiffAxis, string> = {
   mitre_tactics: 'ATT&CK tactics',
   data_sources: 'Data sources',
   platforms: 'Platforms',
+  domains: 'Domains',
+  products: 'Products',
   event_types: 'Event types',
   source_tables: 'Source tables',
   fields: 'Fields tested',
 };
 
 const AXIS_ORDER: CompareDiffAxis[] = [
-  'mitre_techniques', 'mitre_tactics', 'data_sources', 'platforms', 'event_types', 'source_tables', 'fields',
+  'mitre_techniques', 'mitre_tactics', 'data_sources', 'platforms', 'domains', 'products', 'event_types', 'source_tables', 'fields',
 ];
 
 function cell(s: string): string {

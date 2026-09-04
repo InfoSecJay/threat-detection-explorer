@@ -107,7 +107,7 @@ def test_normalize_language_correlation(normalizer):
 def test_normalize_platform_from_log_type(normalizer):
     """LogTypes -> canonical platforms via the Panther resolver."""
     n = normalizer.normalize(_parsed())
-    assert "aws" in n.platforms
+    assert "aws" in n.products
 
 
 def test_normalize_data_source_from_log_type(normalizer):
@@ -125,7 +125,7 @@ def test_normalize_multi_log_type_unions(normalizer):
     n = normalizer.normalize(_parsed(
         extra={**_parsed().extra, "log_types": ["OneLogin.Events", "AWS.CloudTrail", "Zoom.Operation"]},
     ))
-    assert {"aws", "onelogin", "zoom"}.issubset(n.platforms)
+    assert {"aws", "onelogin", "zoom"}.issubset(n.products)
     assert {"aws_cloudtrail", "onelogin_events", "zoom_operation"}.issubset(n.data_sources)
 
 

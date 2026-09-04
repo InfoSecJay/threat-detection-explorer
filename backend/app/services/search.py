@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
 from app.services.taxonomy.canonical import EVENT_TYPE_GROUPS, EVENT_TYPE_PARENTS, expand_event_types
+from app.services.taxonomy.domains import LEGACY_PLATFORM_FILTERS
 from app.services.corpus_cache import corpus_cache
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
@@ -57,6 +58,9 @@ class SearchFilters:
     platforms: list[str] = field(default_factory=list)
     event_categories: list[str] = field(default_factory=list)
     data_sources_normalized: list[str] = field(default_factory=list)
+    # Platform split (#103): attack-surface domains and vendor products.
+    domains: list[str] = field(default_factory=list)
+    products: list[str] = field(default_factory=list)
 
     # Analytic story / vendor use-case labels
     use_cases: list[str] = field(default_factory=list)
@@ -351,7 +355,7 @@ class SearchService:
 
     _FILTER_OPTION_SCALARS = ("source", "status", "severity", "language", "rule_modality")
     _FILTER_OPTION_FACETS = (
-        "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
+        "platforms", "domains", "products", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
     )
 
     async def get_filter_options(self) -> dict:
@@ -461,7 +465,7 @@ class SearchService:
         grows past ~100k, swap to native JSON unnesting (Postgres
         `jsonb_array_elements_text`, SQLite `json_each`).
         """
-        allowed = {"platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software"}
+        allowed = {"platforms", "domains", "products", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software"}
         if column_name not in allowed:
             raise ValueError(f"Not a taxonomy column: {column_name!r}")
         column = getattr(Detection, column_name)
@@ -494,6 +498,8 @@ class SearchService:
         "mitre_tactics": ("mitre_tactics", "mitre_tactics", True),
         "mitre_techniques": ("mitre_techniques", "mitre_techniques", True),
         "platforms": ("platforms", "platforms", True),
+        "domains": ("domains", "domains", True),
+        "products": ("products", "products", True),
         "data_sources": ("data_sources_normalized", "data_sources", True),
         "event_types": ("event_categories", "event_types", True),
         # Extracted-observable facets (observables v2). Same own-field
@@ -786,12 +792,26 @@ class SearchService:
         # dev) and Postgres (prod); the quoted match prevents
         # substring false positives because canonical values are
         # stored as JSON strings ("windows", not windows).
+        # Platform split (#103): `platforms` holds OS values only. Old
+        # bookmarks and scripts still send `platforms=okta`; each such
+        # value re-targets the field that holds it now (products / domains).
+        # A legacy value matches EITHER field: rows re-normalized after
+        # the split hold it in products/domains, rows from before still
+        # hold it in platforms, and the filter must not go dark between
+        # the deploy and the nightly re-normalization.
+        _col = {"platforms": Detection.platforms, "domains": Detection.domains, "products": Detection.products}
         if filters.platforms:
-            plat_conds = [
-                cast(Detection.platforms, String).ilike(f'%"{v}"%')
-                for v in filters.platforms
-            ]
+            plat_conds = []
+            for v in filters.platforms:
+                plat_conds.append(cast(Detection.platforms, String).ilike(f'%"{v}"%'))
+                target = LEGACY_PLATFORM_FILTERS.get(v)
+                if target is not None:
+                    plat_conds.append(cast(_col[target[0]], String).ilike(f'%"{target[1]}"%'))
             conditions.append(or_(*plat_conds))
+        if filters.domains:
+            conditions.append(or_(*[cast(Detection.domains, String).ilike(f'%"{v}"%') for v in filters.domains]))
+        if filters.products:
+            conditions.append(or_(*[cast(Detection.products, String).ilike(f'%"{v}"%') for v in filters.products]))
 
         if filters.event_categories:
             # Filter key retained for URL backwards-compat; matches
@@ -906,7 +926,7 @@ class SearchService:
     # together before those starting with `"gcp"`. Not perfect for
     # multi-element lists but it matches what the user sees in the
     # cell's first tag, which is the intuitive expectation.
-    _JSON_LIST_SORT_FIELDS = {"platforms", "data_sources", "event_types"}
+    _JSON_LIST_SORT_FIELDS = {"platforms", "domains", "products", "data_sources", "event_types"}
 
     # Date fields where NULLs are semantically "unknown" and belong at
     # the bottom of both asc and desc sorts -- otherwise a huge cluster
@@ -978,6 +998,8 @@ class SearchService:
             "platforms": Detection.platforms,
             "data_sources": Detection.data_sources,
             "event_types": Detection.event_types,
+            "domains": Detection.domains,
+            "products": Detection.products,
         }
 
         column = sort_columns.get(sort_by, Detection.title)

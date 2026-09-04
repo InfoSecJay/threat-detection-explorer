@@ -89,6 +89,8 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
   if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
   if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+  if (filters.domains?.length) params.set('domains', filters.domains.join(','));
+  if (filters.products?.length) params.set('products', filters.products.join(','));
   if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
   // Extracted observable filters
   if (filters.event_ids?.length) params.set('event_ids', filters.event_ids.join(','));
@@ -130,6 +132,8 @@ export interface DetectionFacets {
   mitre_tactics: FacetOption[];
   mitre_techniques: FacetOption[];
   platforms: FacetOption[];
+  domains: FacetOption[];
+  products: FacetOption[];
   data_sources: FacetOption[];
   event_types: FacetOption[];
   // Extracted-observable facets (observables v2)
@@ -184,6 +188,8 @@ export const detectionsApi = {
     platforms: Array<{ value: string; count: number }>;
     data_sources: Array<{ value: string; count: number }>;
     event_types: Array<{ value: string; count: number }>;
+    domains?: Array<{ value: string; count: number }>;
+    products?: Array<{ value: string; count: number }>;
     use_cases?: Array<{ value: string; count: number }>;
     mitre_groups?: Array<{ value: string; count: number }>;
     mitre_software?: Array<{ value: string; count: number }>;
@@ -228,6 +234,8 @@ export interface CompareDiffRule {
   language: string;
   rule_modality: string | null;
   platforms: string[];
+  domains: string[];
+  products: string[];
   data_sources: string[];
   event_types: string[];
   mitre_tactics: string[];
@@ -255,7 +263,7 @@ export interface CompareDiffAxisEntry {
 }
 
 export type CompareDiffAxis =
-  | 'mitre_techniques' | 'mitre_tactics' | 'data_sources' | 'platforms' | 'event_types' | 'source_tables' | 'fields';
+  | 'mitre_techniques' | 'mitre_tactics' | 'data_sources' | 'platforms' | 'domains' | 'products' | 'event_types' | 'source_tables' | 'fields';
 
 export interface CompareDiffResponse {
   rules: CompareDiffRule[];

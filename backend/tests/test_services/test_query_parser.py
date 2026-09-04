@@ -199,7 +199,7 @@ class TestObservableFields:
             assert "extracted_file_paths" in _sql(parse_query(f"{alias}:temp"))
         for alias in ("registry", "reg", "regkey"):
             assert "extracted_registry_keys" in _sql(parse_query(f"{alias}:run"))
-        for alias in ("network", "ioc", "indicator", "ip", "domain"):
+        for alias in ("network", "ioc", "indicator", "ip"):
             assert "extracted_network_indicators" in _sql(parse_query(f"{alias}:10.0"))
         for alias in ("action", "api", "apiaction"):
             assert "extracted_api_actions" in _sql(parse_query(f"{alias}:CreateUser"))

@@ -84,8 +84,8 @@ def test_normalize_language_can_be_spl_for_splunk_rules(normalizer):
 
 def test_normalize_platform_is_always_okta(normalizer):
     n = normalizer.normalize(_parsed())
-    assert "okta" in n.platforms
-    assert "okta" in n.platforms
+    assert "okta" in n.products
+    assert "okta" in n.products
 
 
 def test_normalize_data_source_is_always_okta_system_log(normalizer):

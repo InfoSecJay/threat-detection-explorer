@@ -355,6 +355,10 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                   <Chips items={detection.data_sources} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" unknownTone
                     href={(v) => `/detections?data_sources_normalized=${encodeURIComponent(v)}`} />
                 </Row>
+                <Row label="Domains" testId="def-domains">
+                  <Chips items={detection.domains} tone="bg-purple-500/15 text-purple-300 border-purple-500/30" unknownTone
+                    href={(v) => `/detections?domains=${encodeURIComponent(v)}`} />
+                </Row>
                 <Row label="Platforms" testId="def-platforms">
                   <Chips items={detection.platforms} tone="bg-cyan-500/15 text-cyan-300 border-cyan-500/30" unknownTone
                     href={(v) => `/detections?platforms=${encodeURIComponent(v)}`} />
@@ -362,6 +366,10 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <Row label="Event types" testId="def-event-types">
                   <Chips items={detection.event_types} tone="bg-orange-500/15 text-orange-300 border-orange-500/30" unknownTone
                     href={(v) => `/detections?event_categories=${encodeURIComponent(v)}`} parentOf={eventTypeParents} />
+                </Row>
+                <Row label="Products" testId="def-products">
+                  <Chips items={detection.products} tone="bg-amber-500/15 text-amber-300 border-amber-500/30"
+                    href={(v) => `/detections?products=${encodeURIComponent(v)}`} />
                 </Row>
                 <Row label="Rule type"><span className="text-xs">{language}{detection.query_complexity ? <span className="text-gray-500"> · {detection.query_complexity} complexity</span> : null}</span></Row>
                 <div className="py-3 border-b border-void-800" data-testid="def-query">

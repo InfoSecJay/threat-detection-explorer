@@ -88,6 +88,8 @@ have multiple values per dimension.
 | `taxonomy_platforms` | `list[str]` | One or more canonical platform identifiers. |
 | `taxonomy_data_sources` | `list[str]` | One or more canonical data-source identifiers. |
 | `taxonomy_event_types` | `list[str]` | One or more canonical event-type identifiers. |
+| `domains` | `list[str]` | Attack-surface domains (#103): `endpoint`, `identity`, `cloud`, `saas`, `network`, `email`, `devops`, `data`, or `unknown`. Derived from the raw platforms + data sources by `taxonomy/domains.py`; `platforms` itself is OS-only since 2026-09. |
+| `products` | `list[str]` | Vendor / application whose telemetry the rule reads (`aws`, `okta`, `crowdstrike`, `sysmon`, `palo_alto` ...). Open vocabulary; empty for OS-native telemetry. |
 | `use_cases` | `list[str]` | Vendor-preserved analytic story / use-case labels. Populated for Splunk (`analytic_story` tag values), Elastic (`Use Case:` prefixed tags), Sublime (`attack_types` field). Empty on sources without a native concept. Casing is preserved as-is from the vendor. |
 | `taxonomy_matched` | `bool` | True iff the resolver found a real mapping. False = the rule fell through to `["unknown"]` for every dimension. Drives the per-sync drift report. **Not persisted to the DB**, exists only on the in-memory `NormalizedDetection`. |
 | `taxonomy_fingerprint` | `str` | Stable signature of the rule's logsource input. Used to group identical "unmapped" rules in drift reports. **Not persisted.** |

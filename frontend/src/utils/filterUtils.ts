@@ -27,6 +27,8 @@ export const ARRAY_FILTER_KEYS: Array<keyof SearchFilters> = [
   'mitre_software',
   'tags',
   'platforms',
+  'domains',
+  'products',
   'event_categories',
   'data_sources_normalized',
   'use_cases',

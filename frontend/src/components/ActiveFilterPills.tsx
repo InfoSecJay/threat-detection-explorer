@@ -27,6 +27,8 @@ const LABELS: Record<string, string> = {
   languages: 'Language',
   rule_modalities: 'Modality',
   platforms: 'Platform',
+  domains: 'Domain',
+  products: 'Product',
   data_sources_normalized: 'Data Source',
   event_categories: 'Event Type',
   mitre_tactics: 'Tactic',
@@ -50,6 +52,8 @@ const LABELS: Record<string, string> = {
 const ACCENTS: Record<string, string> = {
   sources: 'bg-matrix-500/15 text-matrix-500 border-matrix-500/30',
   platforms: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  domains: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  products: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   data_sources_normalized: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   event_categories: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
   severities: 'bg-red-500/15 text-red-300 border-red-500/30',

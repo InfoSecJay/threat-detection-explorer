@@ -246,14 +246,16 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
         </div>
       ))}
 
-      {/* Telemetry -- canonical taxonomy facets (Platform / Data Source /
-          Event Type). Options + counts come from the live query-scoped
+      {/* Telemetry -- canonical taxonomy facets (Domain / Platform / Data
+          Source / Event Type / Product). Options + counts come from the live query-scoped
           facets; no hardcoded lists, and counts narrow as other
           filters apply. */}
       {section(
         'telemetry',
         'Telemetry',
         (filters.platforms?.length || 0) +
+          (filters.domains?.length || 0) +
+          (filters.products?.length || 0) +
           (filters.data_sources_normalized?.length || 0) +
           (filters.event_categories?.length || 0),
         (
@@ -262,10 +264,12 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               filters={filters}
               onFiltersChange={onFiltersChange}
               options={{
+                domains: facets?.domains || [],
                 platforms: facets?.platforms || [],
                 data_sources: facets?.data_sources || [],
                 event_types: facets?.event_types || [],
                 event_type_groups: facets?.event_type_groups || [],
+                products: facets?.products || [],
               }}
             />
           </div>

@@ -93,6 +93,12 @@ class Detection(Base):
     platforms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     data_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     event_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # Platform split (#103): where the attack surface is (endpoint, identity,
+    # cloud, saas, network, email, devops, data) and whose telemetry the rule
+    # reads (aws, okta, crowdstrike, sysmon ...). Derived at normalization;
+    # see app/services/taxonomy/domains.py.
+    domains: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    products: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     # ── Use cases (analytic stories / vendor use-case tags) ──────────
     # Vendor-preserved display names. Populated for sources with an
