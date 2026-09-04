@@ -60,6 +60,17 @@
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/home"
     },
     {
+      "source": "/methodology/corpus-health",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/corpus-health"
+    },
+    {
       "source": "/((?!api/|assets/|fonts/).*)",
       "destination": "/index.html"
     }
@@ -129,6 +140,15 @@
     },
     {
       "source": "/",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/methodology/corpus-health",
       "headers": [
         {
           "key": "Vary",

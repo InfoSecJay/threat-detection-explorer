@@ -190,3 +190,43 @@ async def prerender_home(db: AsyncSession = Depends(get_db)):
 <li><a href="{ORIGIN}/digest">Weekly digest of new and updated rules</a></li>
 </ul>"""
     return _page(SITE, desc, "/", "/api/og/site.png", body, og_type="website")
+
+
+@router.get("/corpus-health", response_class=HTMLResponse)
+async def prerender_corpus_health(db: AsyncSession = Depends(get_db)):
+    """The corpus-health report (#124) as honest HTML, so the numbers are
+    indexable and citable without running the app."""
+    from app.services.corpus_cache import corpus_cache
+    from app.services.corpus_health import build_report
+
+    r = await corpus_cache.get(db, ("methodology", "corpus-health"), lambda: build_report(db))
+    as_of = (r["corpus"]["updated_at"] or "")[:10] or "latest sync"
+    fields = r["fields"]
+    meta = r["field_meta"]
+    totals = "".join(
+        f"<li><strong>{escape(meta[f]['label'])}:</strong> {r['totals_pct'][f]:.1f}% "
+        f"({r['totals'][f]:,} of {r['total_rules']:,} rules)</li>"
+        for f in fields
+    )
+    head = "".join(f"<th>{escape(meta[f]['label'])}</th>" for f in fields)
+    rows = "".join(
+        "<tr><td>" + escape(s_["source"]) + f"</td><td>{s_['total_rules']:,}</td>"
+        + "".join(f"<td>{s_['pct'][f]:.1f}% ({s_['fields'][f]:,})</td>" for f in fields)
+        + "</tr>"
+        for s_ in r["sources"]
+    )
+    defs = "".join(f"<dt>{escape(meta[f]['label'])}</dt><dd>{escape(meta[f]['definition'])}</dd>" for f in fields)
+    desc = (
+        f"Of {r['total_rules']:,} open-source detection rules, {r['totals_pct']['no_attack']:.0f}% carry no "
+        f"ATT&CK mapping, {r['totals_pct']['no_references']:.0f}% cite no references and "
+        f"{r['totals_pct']['no_false_positives']:.0f}% document no false positives. Per source, as of {as_of}, with CSV."
+    )
+    body = f"""<h1>Corpus health</h1>
+<p>{escape(desc)}</p>
+<ul>{totals}</ul>
+<table><thead><tr><th>Source</th><th>Rules</th>{head}</tr></thead><tbody>{rows}</tbody></table>
+<p><a href="{ORIGIN}/api/v1/methodology/corpus-health.csv">Download the data (CSV)</a></p>
+<h2>How each number is counted</h2>
+<dl>{defs}</dl>
+<p>Cite as: Detection Explorer, Corpus health as of {escape(as_of)}, {ORIGIN}/methodology/corpus-health</p>"""
+    return _page("Corpus health", desc, "/methodology/corpus-health", "/api/og/site.png", body)

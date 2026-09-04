@@ -30,6 +30,8 @@ type BakedSnapshot = {
   rules: number
   coverage: { covered: number; total: number; percent: number }
   last_sync: string | null
+  /** Share of the corpus with no ATT&CK mapping (corpus-health, #124); null if that fetch failed. */
+  no_attack_pct: number | null
   baked_at: string
 }
 
@@ -47,6 +49,11 @@ async function bakeSnapshot(): Promise<BakedSnapshot | null> {
       get('/repositories'),
     ])
     const s = coverage.summary
+    // Optional: the report is newer than the rest of the bake and must never block it.
+    const noAttackPct = await get('/methodology/corpus-health')
+      .then((h) => Number(h.totals_pct?.no_attack))
+      .then((v) => (Number.isFinite(v) ? v : null))
+      .catch(() => null)
     const lastSync = (repos as { last_sync_at?: string | null }[])
       .map((r) => r.last_sync_at)
       .filter((d): d is string => !!d)
@@ -60,6 +67,7 @@ async function bakeSnapshot(): Promise<BakedSnapshot | null> {
         percent: Number(s.overall_coverage_percent),
       },
       last_sync: lastSync ?? null,
+      no_attack_pct: noAttackPct,
       baked_at: new Date().toISOString(),
     }
     if (!Number.isFinite(snap.rules) || !Number.isFinite(snap.coverage.total)) throw new Error('bad shape')

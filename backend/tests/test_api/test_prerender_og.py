@@ -88,3 +88,14 @@ async def test_read_routes_get_edge_cache_headers(client):
     # health is not cacheable
     h = await client.get("/api/health")
     assert "s-maxage" not in (h.headers.get("cache-control") or "")
+
+
+@pytest.mark.asyncio
+async def test_corpus_health_prerender_is_citable_html(client):
+    r = await client.get("/api/v1/prerender/corpus-health")
+    assert r.status_code == 200
+    t = r.text
+    assert "<h1>Corpus health</h1>" in t
+    assert '<link rel="canonical" href="https://detectionexplorer.io/methodology/corpus-health">' in t
+    assert "No ATT&amp;CK mapping" in t and "corpus-health.csv" in t
+    assert r.headers["cache-control"].startswith("public, s-maxage=3600")

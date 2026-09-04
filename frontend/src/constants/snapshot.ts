@@ -13,6 +13,8 @@ export interface BakedSnapshot {
   rules: number;
   coverage: { covered: number; total: number; percent: number };
   last_sync: string | null;
+  /** Share of rules with no ATT&CK mapping (#124); null when the bake could not fetch it. */
+  no_attack_pct?: number | null;
   /** ISO timestamp of the build that produced these numbers. */
   baked_at: string;
 }

@@ -42,7 +42,7 @@ export function StatsStrip() {
   // Lead with the gap (#124 / #95): the share of the corpus with no ATT&CK
   // mapping, from the corpus-health report (edge-cached, 15 min).
   const { data: health } = useCorpusHealth();
-  const noAttack = health?.totals_pct?.no_attack;
+  const noAttack = health?.totals_pct?.no_attack ?? BAKED_SNAPSHOT?.no_attack_pct ?? undefined;
 
   const liveSync = (repos || [])
     .map((r) => r.last_sync_at)
