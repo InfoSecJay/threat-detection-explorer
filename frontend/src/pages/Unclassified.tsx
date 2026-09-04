@@ -19,6 +19,7 @@ import { clipMd, clipSm } from '../constants/style';
 
 const FIELD_LABEL: Record<string, string> = {
   platforms: 'Platform',
+  domains: 'Domain',
   data_sources: 'Data source',
   event_types: 'Event type',
   status: 'Status',
@@ -29,6 +30,7 @@ const FIELD_LABEL: Record<string, string> = {
 
 const FIELD_HINT: Record<string, string> = {
   platforms: 'Rules whose vendor logsource has no platform mapping',
+  domains: 'Rules whose platform and data sources place them in no attack-surface domain (#103); the application-domain candidates live here',
   data_sources: 'Rules whose vendor logsource has no canonical data-source mapping',
   event_types: 'Rules whose observed-event category could not be determined',
   status: 'Rules whose maturity is not published (sources with no lifecycle concept say not applicable, and are not counted)',

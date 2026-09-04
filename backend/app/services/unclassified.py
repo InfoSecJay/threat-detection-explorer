@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 # Field -> (Detection column name, is_list). Order is display order.
 UNCLASSIFIED_FIELDS: dict[str, tuple[str, bool]] = {
     "platforms": ("platforms", True),
+    # Attack-surface domain (#103 / #136). `products` is left out on
+    # purpose: an empty products list is a fact, not a gap.
+    "domains": ("domains", True),
     "data_sources": ("data_sources", True),
     "event_types": ("event_types", True),
     "status": ("status", False),
@@ -54,6 +57,7 @@ UNCLASSIFIED_FIELDS: dict[str, tuple[str, bool]] = {
 # to the offending rules (`/detections?sources=x&platforms=unknown`).
 CATALOG_FILTER_KEY: dict[str, str] = {
     "platforms": "platforms",
+    "domains": "domains",
     "data_sources": "data_sources_normalized",
     "event_types": "event_categories",
     "status": "statuses",
