@@ -167,6 +167,8 @@ class Detection(Base):
     # Rule dates (from source)
     rule_created_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rule_modified_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Upstream commit touches, newest first (#127): [{sha, author, date, subject}]
+    upstream_history: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
     # Timestamps (sync timestamps)
     created_at: Mapped[datetime] = mapped_column(

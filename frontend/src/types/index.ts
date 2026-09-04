@@ -1,3 +1,10 @@
+export interface UpstreamTouch {
+  sha: string;
+  author: string;
+  date: string;
+  subject: string;
+}
+
 // Detection types
 export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther';
 
@@ -72,6 +79,8 @@ export interface Detection {
   raw_content?: string;
   rule_created_date: string | null;
   rule_modified_date: string | null;
+  /** Upstream commit touches, newest first (#127); empty until captured by a sync. */
+  upstream_history?: UpstreamTouch[];
   // Metadata completeness (issue #10, rubric v2 per teardown F09) — NOT detection efficacy.
   quality_score?: number | null;
   quality_details?: QualityDetails | null;

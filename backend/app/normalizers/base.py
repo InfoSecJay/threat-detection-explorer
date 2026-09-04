@@ -107,6 +107,9 @@ class NormalizedDetection:
     # Rule dates from source
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
+    # Last touches of the rule file upstream, newest first (#127):
+    # [{sha, author, date, subject}], capped at 10 by the git service.
+    upstream_history: list[dict] = field(default_factory=list)
 
     # ── Canonical taxonomy fields ────────────────────────────────────────
     # Populated by `BaseNormalizer._resolve_taxonomy()`. See
@@ -282,6 +285,21 @@ class BaseNormalizer(ABC):
                 modified = git_modified
 
         return created, modified
+
+    def attach_upstream_history(self, normalized: NormalizedDetection, file_path: str) -> None:
+        """Fill `upstream_history` from git for every source (#127).
+
+        Runs after `normalize()` so vendor normalizers stay untouched.
+        Best-effort: no git service (tests, missing clone) or a shallow
+        clone leaves the list empty, never raises.
+        """
+        if self._git_service is None or not file_path:
+            normalized.upstream_history = []
+            return
+        try:
+            normalized.upstream_history = self._git_service.get_file_history(file_path, limit=10)
+        except Exception:  # noqa: BLE001 -- history is decoration, not data
+            normalized.upstream_history = []
 
     @abstractmethod
     def normalize(self, parsed: ParsedRule) -> NormalizedDetection:

@@ -272,6 +272,9 @@ class IngestionService:
             # Normalize rule
             try:
                 normalized = normalizer.normalize(parsed)
+                # Rule history timeline (#127): last upstream touches of
+                # the file, from the clone, for every source.
+                normalizer.attach_upstream_history(normalized, str(parsed.file_path))
                 stats.normalized += 1
 
                 # Taxonomy coverage telemetry (Issue 2). Records whether
@@ -682,6 +685,7 @@ class IngestionService:
             extracted_target_resources=normalized.extracted_target_resources,
             rule_created_date=self._validate_date(normalized.rule_created_date),
             rule_modified_date=self._validate_date(normalized.rule_modified_date),
+            upstream_history=list(normalized.upstream_history or [])[:10],
             # Canonical taxonomy (final names after Phase 3 -- the
             # legacy single-value `platform` / `event_category` /
             # `data_source_normalized` and the raw `log_sources` /

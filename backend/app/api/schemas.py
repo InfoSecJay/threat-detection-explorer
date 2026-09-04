@@ -85,6 +85,15 @@ def _int_or_none(value):
     return value if isinstance(value, int) else None
 
 
+def _list_or_empty(value) -> list:
+    """Legacy-shape guard for JSON list columns added later (#127): rows
+    ingested before the column existed carry NULL; anything that is not
+    a list of dicts serializes as []."""
+    if not isinstance(value, list):
+        return []
+    return [v for v in value if isinstance(v, dict)]
+
+
 def _dict_or_none(value):
     """Coerce to dict or None — pre-#10 ingests stored `[]` here."""
     return value if isinstance(value, dict) else None
@@ -144,6 +153,9 @@ class DetectionBase(UtcTimestampsModel):
     extracted_target_resources: list[str] = []
     rule_created_date: Optional[datetime] = None
     rule_modified_date: Optional[datetime] = None
+    # Upstream commit touches, newest first (#127); empty until the
+    # next sync captures them.
+    upstream_history: list[dict] = []
     # Deterministic hygiene score (issue #10) — rule hygiene, NOT
     # detection efficacy. Null until the row is (re)scored by ingest.
     quality_score: Optional[int] = None
@@ -205,6 +217,7 @@ class DetectionResponse(DetectionBase):
             "extracted_target_resources": getattr(detection, 'extracted_target_resources', None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
+            "upstream_history": _list_or_empty(getattr(detection, "upstream_history", None)),
             # Legacy rows (pre-#10 ingests) carry `[]` in quality_details
             # — coerce anything non-dict to None so serialization never
             # 500s on old data awaiting its rescore.

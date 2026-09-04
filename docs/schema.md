@@ -197,6 +197,7 @@ Approximate population rates as of v1.5 (12 031 rules):
 | --- | --- | --- |
 | `rule_created_date` | `datetime?` | Embedded vendor field if present (Sigma `date`, Splunk `date`, LOLRMM `date`); git-log fallback elsewhere (Sentinel, Sublime, Elastic Protections, Elastic Hunting). |
 | `rule_modified_date` | `datetime?` | Embedded vendor field if present (Sigma `modified`, Elastic `metadata.updated_date`, LOLRMM `modified`); git-log fallback elsewhere. Splunk has no embedded modified — always git-log. |
+| `upstream_history` | `list[dict]?` | Last 10 upstream commits that touched the rule file, newest first: `{sha, author, date, subject}` from `git log --follow` at ingest (#127). Feeds the History tab on the rule page; `null` on rows ingested before the column existed, served as `[]`. Never on the slim list. |
 | `created_at` | `datetime` | Our sync timestamp — when the row was first stored. **Not the rule's birthday.** |
 | `updated_at` | `datetime` | Our sync timestamp — refreshed on every upsert. |
 | `sync_run_id` | `str?` | Id of the ingest run (the `sync_jobs.id` for scheduled runs) that last upserted the row. The atomic-swap cleanup deletes a source's rows whose run id is not the current one; `NULL` only on rows written before the column existed. |

@@ -23,6 +23,7 @@ import { sourceTheme } from '../constants/style';
 import { downloadRuleFile, ruleFileName } from '../utils/downloadRule';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { HistoryTimeline } from './HistoryTimeline';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -93,7 +94,7 @@ function Card({ title, children, right, testId }: { title: string; children: Rea
 export function RuleDetail({ detection }: RuleDetailProps) {
   const { labels: eventIdLabels } = useEventIds();
   useDocumentMeta(detection.title, detection.description);
-  const [aboutTab, setAboutTab] = useState<'details' | 'guide'>('details');
+  const [aboutTab, setAboutTab] = useState<'details' | 'guide' | 'history'>('details');
   const [viewSource, setViewSource] = useState(false);
   const src = sourceTheme[detection.source];
   const language = LANGUAGE_LABEL[(detection.language || '').toLowerCase()] || (detection.language || 'unknown');
@@ -173,7 +174,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
           testId="about-card"
           right={
             <div className="flex gap-1 text-xs" role="tablist" aria-label="About tabs">
-              {([['details', 'Details'], ['guide', 'Investigation guide']] as const).map(([k, label]) => (
+              {([['details', 'Details'], ['guide', 'Investigation guide'], ['history', 'History']] as const).map(([k, label]) => (
                 <button key={k} role="tab" aria-selected={aboutTab === k} onClick={() => setAboutTab(k)}
                   className={`px-3 py-1 rounded-md font-medium transition-colors ${aboutTab === k ? 'bg-cyan-500/20 text-cyan-300' : 'text-gray-400 hover:text-white'}`}>
                   {label}
@@ -182,7 +183,13 @@ export function RuleDetail({ detection }: RuleDetailProps) {
             </div>
           }
         >
-          {aboutTab === 'guide' ? (
+          {aboutTab === 'history' ? (
+            <HistoryTimeline
+              touches={detection.upstream_history}
+              createdDate={detection.rule_created_date}
+              repoUrl={detection.source_repo_url}
+            />
+          ) : aboutTab === 'guide' ? (
             detection.investigation_guide ? (
               <div className="py-3 prose prose-invert prose-sm max-w-none prose-headings:font-display prose-headings:uppercase prose-headings:tracking-wider prose-a:text-cyan-400 prose-code:text-matrix-300 prose-pre:bg-void-900" data-testid="guide-markdown">
                 <p className="not-prose text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-3">Vendor-authored guide, from the upstream rule</p>

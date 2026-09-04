@@ -132,6 +132,39 @@ class GitService:
 
         return self._parse_iso_datetime(output.strip())
 
+    def get_file_history(self, relative_path: str, limit: int = 10) -> list[dict]:
+        """Return the last `limit` commits that touched a file, newest first.
+
+        Each entry is {"sha", "author", "date", "subject"} with `date` as an
+        ISO 8601 string (author date, timezone-aware as git printed it).
+        Follows renames like the date lookups. Best-effort: [] on shallow
+        clones, untracked files, or any git failure. Feeds the rule
+        history timeline (#127); the cap keeps the JSON column small.
+        """
+        output = self._run_git_log(
+            [
+                "log",
+                "--follow",
+                f"-n{int(limit)}",
+                "--format=%H%x1f%an%x1f%aI%x1f%s",
+                "--",
+                self._normalize_path(relative_path),
+            ]
+        )
+        return self._parse_history(output)
+
+    @staticmethod
+    def _parse_history(output: Optional[str]) -> list[dict]:
+        touches: list[dict] = []
+        for line in (output or "").splitlines():
+            parts = line.strip().split("")
+            if len(parts) < 3 or not parts[0]:
+                continue
+            sha, author, date = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            subject = parts[3].strip() if len(parts) > 3 else ""
+            touches.append({"sha": sha, "author": author, "date": date, "subject": subject[:200]})
+        return touches
+
     @staticmethod
     def _normalize_path(relative_path: str) -> str:
         """Normalize path separators to forward slashes for git.
