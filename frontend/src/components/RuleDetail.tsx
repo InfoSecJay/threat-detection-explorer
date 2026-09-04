@@ -26,6 +26,7 @@ import remarkGfm from 'remark-gfm';
 import { HistoryTimeline } from './HistoryTimeline';
 import { qualityBand } from './rulelist/format';
 import { useEventTypeParents } from '../hooks/useDetections';
+import { taxonomyHint } from '../constants/taxonomy';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -75,12 +76,14 @@ function Row({ label, children, testId }: { label: string; children: React.React
  * `parentOf` prefixes a leaf with its group (#104) so `process_creation`
  * reads as `process_event / process_creation`. `unknown` never links:
  * there is nothing to explore behind it. */
-function Chips({ items, tone, unknownTone = false, href, parentOf }: {
+function Chips({ items, tone, unknownTone = false, href, parentOf, hint }: {
   items: string[] | undefined | null;
   tone: string;
   unknownTone?: boolean;
   href?: (value: string) => string;
   parentOf?: Record<string, string>;
+  /** Definition shown on hover for closed vocabularies (#134). */
+  hint?: (value: string) => string | undefined;
 }) {
   if (!items || items.length === 0) return <span className="text-gray-600 text-xs italic">none</span>;
   return (
@@ -95,10 +98,12 @@ function Chips({ items, tone, unknownTone = false, href, parentOf }: {
             {v}
           </>
         );
+        const definition = hint?.(v);
+        const title = definition ? `${definition}${href && !isUnknown ? ' Click for all rules tagged ' + v + '.' : ''}` : `All rules tagged ${v}`;
         return href && !isUnknown ? (
-          <Link key={v} to={href(v)} className={`${cls} hover:brightness-125`} title={`All rules tagged ${v}`}>{body}</Link>
+          <Link key={v} to={href(v)} className={`${cls} hover:brightness-125`} title={title}>{body}</Link>
         ) : (
-          <span key={v} className={cls}>{body}</span>
+          <span key={v} className={cls} title={definition}>{body}</span>
         );
       })}
     </div>
@@ -357,11 +362,11 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 </Row>
                 <Row label="Domains" testId="def-domains">
                   <Chips items={detection.domains} tone="bg-purple-500/15 text-purple-300 border-purple-500/30" unknownTone
-                    href={(v) => `/detections?domains=${encodeURIComponent(v)}`} />
+                    href={(v) => `/detections?domains=${encodeURIComponent(v)}`} hint={(v) => taxonomyHint('domains', v)} />
                 </Row>
                 <Row label="Platforms" testId="def-platforms">
                   <Chips items={detection.platforms} tone="bg-cyan-500/15 text-cyan-300 border-cyan-500/30" unknownTone
-                    href={(v) => `/detections?platforms=${encodeURIComponent(v)}`} />
+                    href={(v) => `/detections?platforms=${encodeURIComponent(v)}`} hint={(v) => taxonomyHint('platforms', v)} />
                 </Row>
                 <Row label="Event types" testId="def-event-types">
                   <Chips items={detection.event_types} tone="bg-orange-500/15 text-orange-300 border-orange-500/30" unknownTone

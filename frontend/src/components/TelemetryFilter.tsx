@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { SearchFilters } from '../types';
+import { DOMAIN_LABELS, PLATFORM_LABELS } from '../constants/taxonomy';
 
 /**
  * Unified canonical-taxonomy filter section for the Detections page.
@@ -55,6 +56,7 @@ export function TelemetryFilter({ filters, onFiltersChange, options }: Telemetry
         accent="purple"
         options={options.domains || []}
         selected={filters.domains || []}
+        labels={DOMAIN_LABELS}
         onChange={(values) =>
           onFiltersChange({ ...filters, domains: values, offset: 0 })
         }
@@ -65,6 +67,7 @@ export function TelemetryFilter({ filters, onFiltersChange, options }: Telemetry
         accent="cyan"
         options={options.platforms}
         selected={filters.platforms || []}
+        labels={PLATFORM_LABELS}
         onChange={(values) =>
           onFiltersChange({ ...filters, platforms: values, offset: 0 })
         }

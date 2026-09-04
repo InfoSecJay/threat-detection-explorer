@@ -29,6 +29,8 @@ export const sortOptions = [
   { value: 'source:desc', label: 'Source (Z-A)' },
   { value: 'language:asc', label: 'Language (A-Z)' },
   { value: 'language:desc', label: 'Language (Z-A)' },
+  { value: 'domains:asc', label: 'Domain (A-Z)' },
+  { value: 'domains:desc', label: 'Domain (Z-A)' },
   { value: 'platforms:asc', label: 'Platform (A-Z)' },
   { value: 'platforms:desc', label: 'Platform (Z-A)' },
   { value: 'data_sources:asc', label: 'Data Source (A-Z)' },

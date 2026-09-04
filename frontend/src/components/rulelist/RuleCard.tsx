@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
 import type { Detection } from '../../types';
 import { severityColors, qualityBand, formatRelativeDate } from './format';
+import { whereItApplies } from '../../constants/taxonomy';
 
 export function RuleCard({ detection }: { detection: Detection }) {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export function RuleCard({ detection }: { detection: Detection }) {
     detection.language && detection.language !== 'unknown'
       ? detection.language.toUpperCase()
       : null;
-  const meta = [detection.platforms?.[0], detection.data_sources?.[0], formatRelativeDate(detection.rule_created_date)]
+  const meta = [whereItApplies(detection)[0], detection.data_sources?.[0], formatRelativeDate(detection.rule_created_date)]
     .filter(Boolean)
     .join(' · ');
 

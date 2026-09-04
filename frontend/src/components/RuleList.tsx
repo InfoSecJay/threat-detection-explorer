@@ -255,8 +255,8 @@ export function RuleList({
                 <SortableTh {...sortProps} field="source" label="Source"
                   title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
                 <SortableTh {...sortProps} field="severity" label="Severity" />
-                <SortableTh {...sortProps} field="platforms" label="Platform"
-                  title="Sort by first platform (alphabetical)" />
+                <SortableTh {...sortProps} field="domains" label="Domain"
+                  title="Attack-surface domain, with the OS when it is one. Sorts by first domain (alphabetical); use the SORT dropdown for platform ordering." />
                 <SortableTh {...sortProps} field="data_sources" label="Data Source"
                   title="Sort by first data source (alphabetical)" />
                 <SortableTh {...sortProps} field="event_types" label="Event Type"

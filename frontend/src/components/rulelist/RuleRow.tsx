@@ -10,6 +10,7 @@ const MODALITY_ABBR: Record<string, string> = { hunting: 'HUNT', correlation: 'C
 import type { Detection } from '../../types';
 import { severityColors, qualityBand, formatRelativeDate, formatDate } from './format';
 import { TagList } from './TagList';
+import { whereItApplies } from '../../constants/taxonomy';
 import { RulePreview } from './RulePreview';
 
 interface RuleRowProps {
@@ -110,8 +111,10 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
           </span>
         </td>
         <td className="px-3 py-2">
+          {/* Domain first, OS only when it is one (#134): "identity" says
+              more than "not_applicable" about where a rule applies. */}
           <TagList
-            items={detection.platforms}
+            items={whereItApplies(detection)}
             colorClass="bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
           />
         </td>

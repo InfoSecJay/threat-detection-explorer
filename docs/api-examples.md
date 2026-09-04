@@ -114,6 +114,32 @@ print('shared by both:', d['summary']['shared_by_all'], '| contradictions:', len
 The same matrix is the `/compare?ids=...` page, which also copies as
 Markdown for a tuning ticket.
 
+## 5. Everything the public rule set says about one attack surface
+
+`domains=` is the attack-surface axis (endpoint, identity, cloud, saas,
+network, email, devops, data); `products=` is the vendor whose telemetry
+a rule reads. Together they answer "which identity rules exist, and for
+which IdPs" across every source at once:
+
+```bash
+API="https://detectionexplorer.io/api/v1"
+
+# Identity-domain rules per vendor product, newest first
+curl -s "$API/detections/facets?domains=identity" | python3 -c "
+import sys, json
+for p in json.load(sys.stdin)['products'][:15]:
+    print(f\"{p['value']:24s} {p['count']:5d}\")"
+
+# ATT&CK coverage computed over identity rules only (the /mitre?domain=identity view)
+curl -s "$API/compare/coverage-matrix?domain=identity&include_subtechniques=false" | python3 -c "
+import sys, json
+s = json.load(sys.stdin)['summary']
+print(s['techniques_with_any_coverage'], 'of', s['total_techniques'], 'parent techniques have an identity rule')"
+
+# The Okta rules themselves, across Sigma, Elastic, Splunk, Panther and Okta's own repo
+curl -s "$API/detections?products=okta&sort_by=rule_created_date&limit=25"
+```
+
 ---
 
 Questions or a workflow these don't cover: open an issue.
