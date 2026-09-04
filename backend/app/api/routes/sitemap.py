@@ -23,12 +23,27 @@ from app.config import settings
 from app.database import get_db
 from app.models.detection import Detection
 from app.services.corpus_cache import corpus_cache
+import hashlib
 from app.services.mitre import mitre_service
 from app.services.observables import OBSERVABLE_TYPES
 
 router = APIRouter(tags=["sitemap"])
 
 STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/query", "/about", "/integrations", "/methodology", "/methodology/unclassified", "/methodology/corpus-health"]
+
+
+def _key(section: str) -> tuple[str, str]:
+    """Artifact key for one sitemap file.
+
+    Sitemaps persist across deploys keyed on the corpus fingerprint
+    (#81), which is right for the corpus-driven sections and wrong for
+    the page list: adding a page to STATIC (corpus-health, 2026-09-03)
+    changed nothing on the live sitemap until the next sync changed the
+    fingerprint. Folding a hash of STATIC into the key makes a code
+    change invalidate exactly the artifacts it affects.
+    """
+    version = hashlib.sha1("|".join(STATIC).encode("utf-8")).hexdigest()[:8]
+    return ("sitemap", section + "@" + version)
 
 _XML_HEADERS = {"Cache-Control": "public, max-age=3600"}
 
@@ -123,7 +138,7 @@ def _xml(content: str) -> Response:
 
 @router.get("/sitemap.xml")
 async def sitemap_index(db: AsyncSession = Depends(get_db)):
-    return _xml(await corpus_cache.get(db, ("sitemap", "index"), lambda: _index(db), persist=True))
+    return _xml(await corpus_cache.get(db, _key("index"), lambda: _index(db), persist=True))
 
 
 @router.get("/sitemap-{section}.xml")
@@ -131,4 +146,4 @@ async def sitemap_section(section: str, db: AsyncSession = Depends(get_db)):
     build = SECTIONS.get(section)
     if build is None:
         raise HTTPException(status_code=404, detail=f"no sitemap section '{section}'")
-    return _xml(await corpus_cache.get(db, ("sitemap", section), lambda: build(db), persist=True))
+    return _xml(await corpus_cache.get(db, _key(section), lambda: build(db), persist=True))
