@@ -221,6 +221,21 @@ class BaseNormalizer(ABC):
             GitService(repo_path) if repo_path else None
         )
 
+    def prepare_git_history(self) -> int:
+        """Build the per-repo git index once before an ingest (#132).
+
+        Dates and history for every rule then come from one `git log`
+        walk instead of three subprocesses per file. Returns the number
+        of indexed paths; 0 when there is no clone (tests) or the walk
+        failed, in which case lookups fall back to the per-file calls.
+        """
+        if self._git_service is None:
+            return 0
+        try:
+            return self._git_service.build_index()
+        except Exception:  # noqa: BLE001 -- history is decoration, not data
+            return 0
+
     def _resolve_taxonomy(
         self, parsed: ParsedRule
     ) -> tuple[list[str], list[str], list[str], bool, str]:

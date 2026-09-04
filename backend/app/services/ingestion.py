@@ -1,6 +1,7 @@
 """Detection rule ingestion service."""
 
 import logging
+import time
 import re
 
 from app.parsers.base import SkippedRule
@@ -220,12 +221,30 @@ class IngestionService:
 
         logger.info(f"Starting ingestion for {repo_name}")
 
+        # One git walk per repo for rule dates + history (#132) instead of
+        # three subprocesses per rule, which doubled the nightly sync.
+        stage_started = time.perf_counter()
+        indexed_paths = normalizer.prepare_git_history()
+        # Wall-clock per stage, logged at the end: the 2026-09-04 sync
+        # spent 2h30m inside sentinel with nothing in the log to say where.
+        timings: dict[str, float] = {
+            "git_index": time.perf_counter() - stage_started,
+            "parse": 0.0, "normalize": 0.0, "store": 0.0,
+        }
+        slow_rule_seconds = 2.0
+
         # Discover and process rules
         rules_to_store: list[Detection] = []
         batch_size = 100
 
         for relative_path in self.discovery.discover_rules(repo_name):
             stats.discovered += 1
+            rule_started = time.perf_counter()
+            if stats.discovered % 500 == 0:
+                logger.info(
+                    f"{repo_name}: {stats.discovered} files, {stats.stored} stored, "
+                    f"parse {timings['parse']:.0f}s / normalize {timings['normalize']:.0f}s / store {timings['store']:.0f}s so far"
+                )
 
             # Read file content
             content = self.discovery.get_rule_content(repo_name, relative_path)
@@ -246,7 +265,9 @@ class IngestionService:
 
             # Parse rule
             try:
+                _t = time.perf_counter()
                 parsed = parser.parse(relative_path, content)
+                timings["parse"] += time.perf_counter() - _t
                 if isinstance(parsed, SkippedRule):
                     stats.skipped_by_filter += 1
                     continue
@@ -271,10 +292,12 @@ class IngestionService:
 
             # Normalize rule
             try:
+                _t = time.perf_counter()
                 normalized = normalizer.normalize(parsed)
                 # Rule history timeline (#127): last upstream touches of
                 # the file, from the clone, for every source.
                 normalizer.attach_upstream_history(normalized, str(parsed.file_path))
+                timings["normalize"] += time.perf_counter() - _t
                 stats.normalized += 1
 
                 # Taxonomy coverage telemetry (Issue 2). Records whether
@@ -317,10 +340,18 @@ class IngestionService:
                 # Convert to database model
                 detection = self._to_detection_model(normalized, run_id)
                 rules_to_store.append(detection)
+                elapsed = time.perf_counter() - rule_started
+                if elapsed > slow_rule_seconds:
+                    logger.warning(f"{repo_name}: slow rule {relative_path} took {elapsed:.1f}s to parse + normalize")
 
                 # Batch insert
                 if len(rules_to_store) >= batch_size:
+                    _t = time.perf_counter()
                     stored_count = await self._store_rules_safe(rules_to_store, stats)
+                    batch_seconds = time.perf_counter() - _t
+                    timings["store"] += batch_seconds
+                    if batch_seconds > slow_rule_seconds * batch_size / 10:
+                        logger.warning(f"{repo_name}: slow store batch of {len(rules_to_store)} rows took {batch_seconds:.1f}s")
                     stats.stored += stored_count
                     rules_to_store = []
 
@@ -335,7 +366,9 @@ class IngestionService:
 
         # Store remaining rules
         if rules_to_store:
+            _t = time.perf_counter()
             stored_count = await self._store_rules_safe(rules_to_store, stats)
+            timings["store"] += time.perf_counter() - _t
             stats.stored += stored_count
 
         # Permalink aliases (#86): legacy path-hash ids and upstream
@@ -382,6 +415,14 @@ class IngestionService:
             f"stored={stats.stored}, errors={stats.error_count}, "
             f"warnings={stats.warning_count}, "
             f"success_rate={stats.success_rate:.1f}%"
+        )
+        total_seconds = (stats.end_time - stats.start_time).total_seconds() if stats.start_time else 0.0
+        accounted = sum(timings.values())
+        logger.info(
+            f"Ingestion timing for {repo_name}: total {total_seconds:.0f}s = "
+            f"git-index {timings['git_index']:.0f}s ({indexed_paths} paths) + "
+            f"parse {timings['parse']:.0f}s + normalize {timings['normalize']:.0f}s + "
+            f"store {timings['store']:.0f}s + other {max(total_seconds - accounted, 0):.0f}s"
         )
 
         return stats
