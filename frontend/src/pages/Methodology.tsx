@@ -48,7 +48,10 @@ export function Methodology() {
           Vendor logsources resolve to one platform / data-source / event-type vocabulary through per-vendor
           mapping files. Accepted alternate spellings (m365_* vs microsoft365_*, renamed products) collapse
           through an explicit alias table into one canonical id, and a build gate rejects new values that
-          look like spelling twins of existing ones. Rules the resolver cannot place show{' '}
+          look like spelling twins of existing ones. Event types keep the specific kind a vendor states
+          (<span className="font-mono">file_delete</span>, not a lossy <span className="font-mono">file_event</span>) and
+          sit under a parent in the sidebar; filtering the parent includes every kind beneath it. Rules the
+          resolver cannot place show{' '}
           <span className="font-mono">unknown</span> rather than a guess. The{' '}
           <a
             href="https://github.com/InfoSecJay/threat-detection-explorer/blob/master/backend/app/services/taxonomy/canonical.py"
