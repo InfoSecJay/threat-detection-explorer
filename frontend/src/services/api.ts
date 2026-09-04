@@ -998,6 +998,27 @@ export interface UnclassifiedResponse {
   history: UnclassifiedHistoryPoint[];
 }
 
+// Corpus-health report (#124): per source and in total, how many rules
+// ship with no ATT&CK mapping, references, FP notes or description.
+export interface CorpusHealthSource {
+  source: string;
+  total_rules: number;
+  fields: Record<string, number>;
+  pct: Record<string, number>;
+}
+export interface CorpusHealthResponse {
+  generated_at: string;
+  corpus: { rules: number; updated_at: string | null };
+  fields: string[];
+  field_meta: Record<string, { label: string; definition: string }>;
+  total_rules: number;
+  totals: Record<string, number>;
+  totals_pct: Record<string, number>;
+  sources: CorpusHealthSource[];
+}
+
+export const CORPUS_HEALTH_CSV_URL = `${API_BASE_URL}/methodology/corpus-health.csv`;
+
 export const methodologyApi = {
   get: async (): Promise<MethodologyResponse> => {
     const response = await api.get('/methodology');
@@ -1005,6 +1026,10 @@ export const methodologyApi = {
   },
   unclassified: async (): Promise<UnclassifiedResponse> => {
     const response = await api.get('/methodology/unclassified');
+    return response.data;
+  },
+  corpusHealth: async (): Promise<CorpusHealthResponse> => {
+    const response = await api.get('/methodology/corpus-health');
     return response.data;
   },
 };

@@ -27,6 +27,7 @@ vi.mock('../../hooks/useCompare', () => ({ useCoverageMatrix: () => (live.covera
 vi.mock('../../hooks/useRepositories', () => ({ useRepositories: () => pending }));
 vi.mock('../../hooks/useActors', () => ({ useActorsQuery: () => pending }));
 vi.mock('../../hooks/useTrending', () => ({ useSourceDeltas: () => pending }));
+vi.mock('../../hooks/useCorpusHealth', () => ({ useCorpusHealth: () => pending }));
 
 import { StatsStrip } from '../home/StatsStrip';
 import { ShowcaseCards } from '../home/ShowcaseCards';

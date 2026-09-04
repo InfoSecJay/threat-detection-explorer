@@ -133,3 +133,28 @@ async def get_unclassified(db: AsyncSession = Depends(get_db)):
     source and field, how many rules carry `unknown`, with the daily
     history for the burn-down. Cached per corpus fingerprint."""
     return await corpus_cache.get(db, ("methodology", "unclassified"), lambda: build_report(db))
+
+
+@router.get("/corpus-health")
+async def get_corpus_health(db: AsyncSession = Depends(get_db)):
+    """Corpus-health report (#124): per source and in total, how many
+    rules ship with no ATT&CK mapping, no references, no (or only
+    placeholder) false-positive notes, and no description. Cached per
+    corpus fingerprint, so it moves with the nightly sync."""
+    from app.services.corpus_health import build_report as build_health
+    return await corpus_cache.get(db, ("methodology", "corpus-health"), lambda: build_health(db))
+
+
+@router.get("/corpus-health.csv")
+async def get_corpus_health_csv(db: AsyncSession = Depends(get_db)):
+    """The same report as CSV, for citing the data rather than the page."""
+    from fastapi.responses import Response
+    from app.services.corpus_health import build_report as build_health, to_csv
+    report = await corpus_cache.get(db, ("methodology", "corpus-health"), lambda: build_health(db))
+    day = (report["corpus"]["updated_at"] or "")[:10] or "latest"
+    filename = "detection-explorer-corpus-health-" + day + ".csv"
+    return Response(
+        content=to_csv(report),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=\"" + filename + "\""},
+    )

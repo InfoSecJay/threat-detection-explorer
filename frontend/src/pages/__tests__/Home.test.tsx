@@ -69,6 +69,17 @@ vi.mock('../../hooks/useActors', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useCorpusHealth', () => ({
+  useCorpusHealth: () => ({
+    data: {
+      generated_at: '2026-09-04T00:00:00Z', corpus: { rules: 15682, updated_at: '2026-09-03 07:50:49' },
+      fields: ['no_attack'], field_meta: { no_attack: { label: 'No ATT&CK mapping', definition: 'x' } },
+      total_rules: 15682, totals: { no_attack: 4500 }, totals_pct: { no_attack: 28.7 }, sources: [],
+    },
+    isLoading: false, error: null,
+  }),
+}));
+
 vi.mock('../../contexts/MitreContext', () => ({
   useMitre: () => ({
     tactics: {}, techniques: {}, isLoading: false, error: null,

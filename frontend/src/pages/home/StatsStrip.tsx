@@ -16,6 +16,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useCorpusHealth } from '../../hooks/useCorpusHealth';
 import { useStatistics } from '../../hooks/useDetections';
 import { useCoverageMatrix } from '../../hooks/useCompare';
 import { useRepositories } from '../../hooks/useRepositories';
@@ -38,6 +39,10 @@ export function StatsStrip() {
   const { data: stats } = useStatistics();
   const { data: coverage } = useCoverageMatrix({ include_subtechniques: false });
   const { data: repos } = useRepositories();
+  // Lead with the gap (#124 / #95): the share of the corpus with no ATT&CK
+  // mapping, from the corpus-health report (edge-cached, 15 min).
+  const { data: health } = useCorpusHealth();
+  const noAttack = health?.totals_pct?.no_attack;
 
   const liveSync = (repos || [])
     .map((r) => r.last_sync_at)
@@ -60,6 +65,12 @@ export function StatsStrip() {
         testId="stat-coverage"
       />
       <Stat to="/methodology" value={lastSync ? formatRelDate(lastSync) : '—'} label="last sync" testId="stat-sync" />
+      <Stat
+        to="/methodology/corpus-health"
+        value={noAttack !== undefined ? `${Math.round(noAttack)}%` : '—'}
+        label="rules with no ATT&CK mapping"
+        testId="stat-health"
+      />
     </div>
   );
 }

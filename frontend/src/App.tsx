@@ -25,6 +25,7 @@ const DataSourceHeatmap = lazy(() => import('./pages/mitre/DataSourceHeatmap').t
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 const Methodology = lazy(() => import('./pages/Methodology').then(m => ({ default: m.Methodology })));
 const Unclassified = lazy(() => import('./pages/Unclassified').then(m => ({ default: m.Unclassified })));
+const CorpusHealth = lazy(() => import('./pages/CorpusHealth').then(m => ({ default: m.CorpusHealth })));
 // The old Compare / SideBySide pages were removed (#48); the rebuild as
 // an observable-level diff is tracked in #11. Their routes below still
 // redirect so old links do not 404.
@@ -43,6 +44,7 @@ const ROUTE_LOADERS: Record<string, () => Promise<unknown>> = {
   '/about': () => import('./pages/About'),
   '/methodology': () => import('./pages/Methodology'),
   '/methodology/unclassified': () => import('./pages/Unclassified'),
+  '/methodology/corpus-health': () => import('./pages/CorpusHealth'),
 };
 // Swallow prefetch failures: a hover on a link right after a deploy can
 // 404 the old chunk. The real navigation is covered by the route error
@@ -390,6 +392,7 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/methodology" element={<Methodology />} />
             <Route path="/methodology/unclassified" element={<Unclassified />} />
+            <Route path="/methodology/corpus-health" element={<CorpusHealth />} />
             {/* /integrations folded into /intel (#90 / teardown S4.3) */}
             <Route path="/integrations" element={<Navigate to="/intel" replace />} />
             <Route path="/digest" element={<Digest />} />

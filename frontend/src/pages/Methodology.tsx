@@ -63,7 +63,12 @@ export function Methodology() {
           <Link to="/methodology/unclassified" className="text-matrix-500 hover:text-matrix-400 underline" data-testid="unclassified-link">
             unclassified counts by source and field, trending nightly
           </Link>
-          .
+          . The documentation gaps are published the same way: the{' '}
+          <Link to="/methodology/corpus-health" className="text-matrix-500 hover:text-matrix-400 underline" data-testid="corpus-health-link">
+            corpus-health report
+          </Link>{' '}
+          counts, per source, the rules with no ATT&amp;CK mapping, no references, no false-positive notes and no
+          description, with the data as CSV.
         </Principle>
         <Principle title="Metadata completeness score">
           Deterministic checks over documentation, ATT&amp;CK mapping, specificity and testability -- scored
