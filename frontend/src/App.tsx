@@ -435,6 +435,14 @@ function App() {
               >
                 suggest a source
               </a>
+              <a
+                href="/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-4 text-matrix-500 hover:text-matrix-400 uppercase tracking-wider"
+              >
+                api docs
+              </a>
             </div>
 
             {/* Right - Social links */}

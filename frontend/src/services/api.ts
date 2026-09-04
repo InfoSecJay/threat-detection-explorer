@@ -14,7 +14,9 @@ import type {
 // backend by vercel.json, and hardcoding '/api' here keeps the backend
 // hostname out of the bundle no matter what env vars the build ran with.
 // VITE_API_URL remains as a dev-only override.
-const API_BASE_URL = import.meta.env.PROD ? '/api' : import.meta.env.VITE_API_URL || '/api';
+// /api/v1 is the versioned public surface (#92); the backend keeps bare
+// /api/* as a permanent alias, so dev overrides may point at either.
+const API_BASE_URL = import.meta.env.PROD ? '/api/v1' : import.meta.env.VITE_API_URL || '/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

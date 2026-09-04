@@ -72,7 +72,7 @@ async def client(db_session):
 async def test_legacy_id_301s_to_canonical(client):
     r = await client.get("/api/detections/legacy-hash-1")
     assert r.status_code == 301
-    assert r.headers["location"] == f"/api/detections/{client.canonical}"
+    assert r.headers["location"] == f"/api/v1/detections/{client.canonical}"
     followed = await client.get(r.headers["location"])
     assert followed.status_code == 200 and followed.json()["title"] == "Aliased rule"
 

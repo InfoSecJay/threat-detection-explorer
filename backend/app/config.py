@@ -60,7 +60,11 @@ class Settings(BaseSettings):
     pypanther_repo_url: str = "https://github.com/panther-labs/pypanther.git"
 
     # API settings
-    api_prefix: str = "/api"
+    # Versioned public surface (#92 / teardown S4.8). Routers mount here;
+    # the bare /api/<path> form is a permanent alias of the current
+    # version (see LegacyPrefixAlias in main.py), so nothing that calls
+    # /api/... breaks when this moves.
+    api_prefix: str = "/api/v1"
     # Shared secret for the admin (mutating) routes -- see
     # app/api/admin_auth.py. Unset => those routes 404 everywhere.
     admin_token: Optional[str] = None

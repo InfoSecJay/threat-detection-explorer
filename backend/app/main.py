@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.config import settings
 from app.database import get_db, init_db
@@ -66,12 +66,73 @@ async def lifespan(app: FastAPI):
         warm_task.cancel()
 
 
+API_DESCRIPTION = """
+Read-only REST API behind [detectionexplorer.io](https://detectionexplorer.io):
+15,000+ open-source detection rules from thirteen repositories, normalized
+into one schema, mapped to MITRE ATT&CK, with the observables each rule
+keys on. No authentication.
+
+**Base URL:** `https://detectionexplorer.io/api/v1`
+
+### Versioning and deprecation
+- Paths are versioned. `/api/v1` is the current version; the unversioned
+  `/api/<path>` form is a permanent alias of the current version and will
+  keep resolving for as long as v1 exists.
+- Additive changes (new endpoints, new optional fields, new enum values in
+  facets as the corpus grows) ship without a version bump.
+- Breaking changes ship as `/api/v2` with v1 kept for at least six months.
+  Deprecations are announced in the repository release notes and on a
+  GitHub issue labelled `api` at least 30 days ahead.
+
+### Fair use
+- Rate limit at the edge: **40 requests per 10 seconds per IP** on `/api/*`.
+  Over that you get `429 Too Many Requests` with `Retry-After`.
+- Read responses are edge-cached for 15 minutes and purged after the
+  nightly sync (02:00 America/Toronto), so polling faster than that
+  returns the same data.
+- Need the whole corpus? Use the export endpoints once rather than paging
+  the list endpoint, or open an issue and ask for a bulk dump.
+- No SLA; hosted on Railway behind Cloudflare and Vercel. `/api/health`
+  answers 503 when the database is unreachable.
+
+### Data and licensing
+Every rule stays under its upstream license, shown on each rule page and in
+the `source_repo_url` / `license` fields. The normalization, this API and
+its schema are Apache-2.0
+([repository](https://github.com/InfoSecJay/threat-detection-explorer)).
+
+### Worked examples and contributing
+Copy-paste workflows (weekly digest to Slack, a Navigator layer per actor,
+diffing your own rule set against the corpus) live in
+[docs/api-examples.md](https://github.com/InfoSecJay/threat-detection-explorer/blob/master/docs/api-examples.md).
+Missing a source? Use the
+[suggest-a-source template](https://github.com/InfoSecJay/threat-detection-explorer/issues/new?template=suggest-a-source.md).
+An MCP server for this API is tracked in
+[#92](https://github.com/InfoSecJay/threat-detection-explorer/issues/92).
+"""
+
 app = FastAPI(
     title=settings.app_name,
-    description="API for exploring and comparing security detection rules across vendors",
-    version="0.1.0",
+    description=API_DESCRIPTION,
+    version="1.0.0",
     lifespan=lifespan,
+    # Docs live under /api so the apex proxy (vercel.json rewrites /api/*)
+    # serves them at detectionexplorer.io/api/docs (#92 / S4.8).
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url=None,
+    servers=[{"url": settings.frontend_url, "description": "Production"}] if settings.frontend_url else None,
 )
+
+
+@app.get("/docs", include_in_schema=False)
+async def _legacy_docs():
+    return RedirectResponse("/api/docs", status_code=301)
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def _legacy_openapi():
+    return RedirectResponse("/api/openapi.json", status_code=301)
 
 # Configure CORS
 app.add_middleware(
@@ -159,10 +220,12 @@ app.include_router(og.router, prefix=settings.api_prefix)
 # Read routes are cacheable at the edge: the corpus changes once a day
 # (teardown F06 / #80). Set only where the handler did not choose its
 # own policy. Cloudflare/Vercel honour s-maxage; browsers ignore it.
-_CACHEABLE_PREFIXES = (
-    "/api/detections", "/api/mitre", "/api/actors", "/api/trending",
-    "/api/observables", "/api/digest", "/api/compare", "/api/query",
-    "/api/search", "/api/methodology", "/api/event-ids", "/api/export",
+_CACHEABLE_PREFIXES = tuple(
+    f"{settings.api_prefix}{p}" for p in (
+        "/detections", "/mitre", "/actors", "/trending", "/observables",
+        "/digest", "/compare", "/query", "/search", "/methodology",
+        "/event-ids", "/export",
+    )
 )
 
 
@@ -177,3 +240,39 @@ async def edge_cache_headers(request, call_next):
     ):
         response.headers["Cache-Control"] = "public, s-maxage=900, stale-while-revalidate=86400"
     return response
+
+
+# ── Unversioned alias (#92 / S4.8) ─────────────────────────────────────
+# Routers mount at settings.api_prefix (/api/v1). Everything that ever
+# called /api/<path> -- the frontend before it moved, vercel.json
+# rewrites, RSS readers, scripts in the wild -- keeps working: the ASGI
+# scope path is rewritten before routing, so the spec stays single and
+# the edge cache key is whatever the caller asked for. Health and the
+# docs are intentionally unversioned and stay where they are.
+_UNVERSIONED = ("/api/health", "/api/docs", "/api/openapi.json")
+
+
+class LegacyPrefixAlias:
+    def __init__(self, asgi_app, legacy: str = "/api", canonical: str = settings.api_prefix):
+        self.app = asgi_app
+        self.legacy = legacy.rstrip("/")
+        self.canonical = canonical.rstrip("/")
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if (
+                self.legacy != self.canonical
+                and path.startswith(self.legacy + "/")
+                and not path.startswith(self.canonical + "/")
+                and path != self.canonical
+                and not path.startswith(_UNVERSIONED)
+            ):
+                new_path = self.canonical + path[len(self.legacy):]
+                scope = dict(scope)
+                scope["path"] = new_path
+                scope["raw_path"] = new_path.encode("utf-8")
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(LegacyPrefixAlias)

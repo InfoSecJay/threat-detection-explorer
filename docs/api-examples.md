@@ -1,10 +1,10 @@
 # API worked examples
 
 Three copy-pasteable workflows against the live API (#92 / teardown
-S4.9). Base URL: `https://detectionexplorer.io/api` (same data as the
-site; read-only; be reasonable with request rates).
+S4.9). Base URL: `https://detectionexplorer.io/api/v1` (same data as the
+site; read-only; 40 requests per 10 seconds per IP at the edge).
 
-Interactive docs: the OpenAPI spec ships read-only at `/openapi.json`.
+Interactive docs: https://detectionexplorer.io/api/docs (spec at `/api/openapi.json`).
 
 ---
 
@@ -15,7 +15,7 @@ webhook. Works as a Monday cron.
 
 ```bash
 #!/usr/bin/env bash
-API="https://detectionexplorer.io/api"
+API="https://detectionexplorer.io/api/v1"
 WEEK=$(date -u +%G-w%V)                       # ISO week, e.g. 2026-w36
 SLACK_WEBHOOK="https://hooks.slack.com/services/XXX/YYY/ZZZ"
 
@@ -43,7 +43,7 @@ Every rule that covers the techniques a group is known for, as an
 ATT&CK Navigator layer you can open at mitre-attack.github.io:
 
 ```bash
-API="https://detectionexplorer.io/api"
+API="https://detectionexplorer.io/api/v1"
 
 # Find the actor id (APT29 = G0016)
 curl -s "$API/actors/catalog" | python3 -c '
@@ -64,7 +64,7 @@ Which ATT&CK techniques have public rules while your SIEM has none?
 Feed it the technique tags you export from your own platform:
 
 ```bash
-API="https://detectionexplorer.io/api"
+API="https://detectionexplorer.io/api/v1"
 
 # your_techniques.txt: one technique id per line (T1059.001, ...)
 python3 - <<'PY'

@@ -50,11 +50,11 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 Detection Explorer ships a public, read-only REST API. The same backend the
 frontend uses is reachable from your scripts, CI, or other tools.
 
-**Base URL:** `https://threat-detection-explorer-production.up.railway.app/api`
+**Base URL:** `https://detectionexplorer.io/api/v1`
 
-**Interactive docs:** [Swagger UI](https://threat-detection-explorer-production.up.railway.app/docs)
-— complete endpoint inventory, schemas, and a try-it-now console.
-Raw OpenAPI spec at [`/openapi.json`](https://threat-detection-explorer-production.up.railway.app/openapi.json).
+**Interactive docs:** [detectionexplorer.io/api/docs](https://detectionexplorer.io/api/docs)
+-- complete endpoint inventory, schemas, and a try-it-now console.
+Raw OpenAPI spec at [`/api/openapi.json`](https://detectionexplorer.io/api/openapi.json).
 
 No authentication required.
 
@@ -62,28 +62,35 @@ No authentication required.
 
 ```bash
 # List the first 25 Sigma rules tagged with T1059
-curl "https://threat-detection-explorer-production.up.railway.app/api/detections?sources=sigma&mitre_techniques=T1059&limit=25"
+curl "https://detectionexplorer.io/api/v1/detections?sources=sigma&mitre_techniques=T1059&limit=25"
 
 # Corpus statistics (rule count per source, severity, status)
-curl "https://threat-detection-explorer-production.up.railway.app/api/detections/statistics"
+curl "https://detectionexplorer.io/api/v1/detections/statistics"
 
 # Coverage for a MITRE technique across all 13 sources
-curl "https://threat-detection-explorer-production.up.railway.app/api/compare?technique=T1059.001"
+curl "https://detectionexplorer.io/api/v1/compare?technique=T1059.001"
 
 # All available filter facets (platforms, data sources, event types) with counts
-curl "https://threat-detection-explorer-production.up.railway.app/api/detections/filters"
+curl "https://detectionexplorer.io/api/v1/detections/filters"
 ```
 
 ### Notes for consumers
 
-- **Read-only.** The public API surface is read-only; sync and ingest
-  are driven by the project's own scheduler behind an admin token and
-  are not part of the public spec.
+- **Versioned.** `/api/v1` is the current version. The unversioned
+  `/api/<path>` form is a permanent alias of the current version. Breaking
+  changes ship as `/api/v2` with v1 kept for at least six months and a
+  30-day notice on a GitHub issue labelled `api`.
+- **Rate limited at the edge.** 40 requests per 10 seconds per IP on
+  `/api/*`; over that you get `429` with `Retry-After`. Read responses are
+  edge-cached for 15 minutes and purged after the nightly sync, so polling
+  faster than that returns the same data.
+- **Read-only.** Sync and ingest are driven by the project's own scheduler
+  behind an admin token and are not part of the public spec.
 - **Browser CORS** is allow-listed to `detectionexplorer.io`. Server-side
-  callers (scripts, MCP servers, backend integrations) aren't affected.
-- **Best-effort availability.** Hosted on Railway Pro; nightly sync in
-  the early morning America/Toronto (see `SYNC_SCHEDULE_*` settings).
-  No SLA.
+  callers (scripts, MCP servers, backend integrations) are not affected.
+- **Best-effort availability.** Hosted on Railway behind Cloudflare and
+  Vercel; nightly sync at 02:00 America/Toronto. No SLA. `/api/health`
+  answers 503 when the database is unreachable.
 
 ---
 

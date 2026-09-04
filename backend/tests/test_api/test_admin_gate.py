@@ -68,12 +68,15 @@ async def test_correct_token_passes_the_gate(client, monkeypatch):
 
 
 # POST-shaped read endpoints: complex query/selection bodies, no mutation.
-READ_SHAPED_POSTS = {"/api/detections/search", "/api/export", "/api/compare", "/api/compare/side-by-side"}
+READ_SHAPED_POSTS = {
+    "/api/v1/compare", "/api/v1/compare/side-by-side",
+    "/api/v1/detections/search", "/api/v1/export",
+}
 
 
 @pytest.mark.asyncio
 async def test_openapi_spec_carries_no_write_operations(client):
-    spec = (await client.get("/openapi.json")).json()
+    spec = (await client.get("/api/openapi.json")).json()
     for path, ops in spec["paths"].items():
         assert "post" not in ops or path in READ_SHAPED_POSTS, f"unexpected write op in public spec: {path}"
         assert "put" not in ops and "delete" not in ops and "patch" not in ops, path
