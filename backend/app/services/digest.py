@@ -28,6 +28,12 @@ from app.services.source_deltas import compute_source_deltas
 from app.services.technique_deltas import compute_technique_deltas
 from app.utils.datetime_utils import to_utc_iso, utcnow
 
+# Bump when the payload gains or renames a field. The weekly digests are
+# persisted artifacts keyed on the corpus fingerprint, so without this a
+# deploy that adds a field keeps serving the old shape until the next
+# sync -- which is how `removed_rules` crashed the page on 2026-09-04.
+_DIGEST_SHAPE_VERSION = 2
+
 _RULE_COLS = (
     Detection.id, Detection.rule_id, Detection.title, Detection.source,
     Detection.severity, Detection.status, Detection.platforms, Detection.event_types,
@@ -136,7 +142,27 @@ async def modified_rules(db: AsyncSession, *, since, limit: int, source: Optiona
 
 
 def _removed_in(since, until=None, source: Optional[str] = None):
-    cond = RemovedDetection.removed_at >= since
+    """Tombstones in the window whose rule is really gone.
+
+    A tombstone is written whenever a row is deleted, and rows get
+    deleted for reasons other than an upstream removal: the permalink
+    re-keying (#86) tombstoned every rule under its old id on
+    2026-08-31, and the 2026-09-02 volume incident tombstoned 176 live
+    Splunk rules that came back the next night. So a removal only counts
+    when no live rule carries the tombstone's id or its upstream
+    (source, rule_id).
+    """
+    live_again = select(Detection.id).where(
+        or_(
+            Detection.id == RemovedDetection.id,
+            and_(
+                RemovedDetection.rule_id.isnot(None),
+                Detection.source == RemovedDetection.source,
+                Detection.rule_id == RemovedDetection.rule_id,
+            ),
+        )
+    ).exists()
+    cond = and_(RemovedDetection.removed_at >= since, ~live_again)
     if until is not None:
         cond = and_(cond, RemovedDetection.removed_at < until)
     if source:
@@ -230,13 +256,13 @@ async def compute_digest(
     """
     if week is not None:
         start, end = parse_iso_week(week)
-        key = ("digest-week", week, limit, rules_limit)
+        key = ("digest-week", f"v{_DIGEST_SHAPE_VERSION}", week, limit, rules_limit)
         return await corpus_cache.get(
             db, key,
             lambda: _compute_digest(db, 7, limit, rules_limit, start=start, end=end, week=week.lower()),
             persist=True,
         )
-    key = ("digest", days, limit, rules_limit, utcnow().date().isoformat())
+    key = ("digest", f"v{_DIGEST_SHAPE_VERSION}", days, limit, rules_limit, utcnow().date().isoformat())
     return await corpus_cache.get(db, key, lambda: _compute_digest(db, days, limit, rules_limit), persist=True)
 
 

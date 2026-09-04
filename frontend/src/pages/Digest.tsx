@@ -126,14 +126,17 @@ function toMarkdown(d: DigestResponse, origin: string): string {
       L.push(`- [${srcName(src)}](${catalog(src)}): ${(v.delta ?? 0) > 0 ? '+' : ''}${v.delta} (now ${v.current})`);
     }
   }
-  if (d.removed_rules.length) {
+  // Older persisted digests predate the field (#91 removed section).
+  const removedRules = d.removed_rules ?? [];
+  const removedTotal = d.summary.removed ?? removedRules.length;
+  if (removedRules.length) {
     L.push('');
-    L.push(`## \u{1F5D1} Removed upstream · ${d.summary.removed}`);
+    L.push(`## \u{1F5D1} Removed upstream · ${removedTotal}`);
     L.push('');
-    for (const r of d.removed_rules) {
-      L.push(`- [${mdText(r.title)}](${origin}/detections/${r.id}) — ${srcName(r.source)} · ${fmtDate(r.removed)}${r.mitre_techniques.length ? ` · ${techLinks(r.mitre_techniques, origin)}` : ''}`);
+    for (const r of removedRules) {
+      L.push(`- [${mdText(r.title)}](${origin}/detections/${r.id}) — ${srcName(r.source)} · ${fmtDate(r.removed)}${(r.mitre_techniques ?? []).length ? ` · ${techLinks(r.mitre_techniques, origin)}` : ''}`);
     }
-    if (d.summary.removed > d.removed_rules.length) L.push(`- … and ${d.summary.removed - d.removed_rules.length} more`);
+    if (removedTotal > removedRules.length) L.push(`- … and ${removedTotal - removedRules.length} more`);
   }
   L.push('');
   L.push(`_Generated ${fmtDate(d.generated_at)} \u00B7 [${origin.replace(/^https?:\/\//, '')}/digest](${origin}/digest)_`);
@@ -433,25 +436,25 @@ export function Digest() {
           <Panel
             title="Removed upstream"
             subtitle="deleted or moved to a deprecated folder; each page keeps the last-seen rule body"
-            right={<span className="font-mono text-sm text-white tabular-nums" data-testid="digest-removed">{data.summary.removed}</span>}
+            right={<span className="font-mono text-sm text-white tabular-nums" data-testid="digest-removed">{data.summary.removed ?? (data.removed_rules ?? []).length}</span>}
           >
-            {data.removed_rules.length === 0 ? (
+            {(data.removed_rules ?? []).length === 0 ? (
               <EmptyLabel label="NO_RULES_REMOVED_IN_WINDOW" />
             ) : (
               <ul className="divide-y divide-void-800">
-                {data.removed_rules.map((r) => (
+                {(data.removed_rules ?? []).map((r) => (
                   <li key={r.id} className="flex items-center gap-3 px-2 py-1 text-xs hover:bg-void-800/50" data-testid={`digest-removed-${r.id}`}>
                     <span className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border shrink-0 ${sourceTheme[r.source]?.text || 'text-gray-400'} ${sourceTheme[r.source]?.border || 'border-void-700'}`}>
                       {srcName(r.source)}
                     </span>
                     <Link to={`/detections/${r.id}`} className="text-gray-300 hover:text-matrix-400 truncate flex-1 min-w-0">{r.title}</Link>
                     <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span>
-                    <Techniques ids={r.mitre_techniques} />
+                    <Techniques ids={r.mitre_techniques ?? []} />
                     <span className="font-mono text-gray-600 whitespace-nowrap">{fmtDate(r.removed)}</span>
                   </li>
                 ))}
-                {data.summary.removed > data.removed_rules.length && (
-                  <li className="px-2 pt-1 text-[11px] font-mono text-gray-600">{data.summary.removed - data.removed_rules.length} more not listed (window cap)</li>
+                {(data.summary.removed ?? 0) > (data.removed_rules ?? []).length && (
+                  <li className="px-2 pt-1 text-[11px] font-mono text-gray-600">{(data.summary.removed ?? 0) - (data.removed_rules ?? []).length} more not listed (window cap)</li>
                 )}
               </ul>
             )}

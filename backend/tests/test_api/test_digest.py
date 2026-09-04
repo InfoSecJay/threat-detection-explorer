@@ -140,7 +140,17 @@ async def test_digest_lists_rules_removed_upstream_in_the_window(client, db_sess
     gone.removed_at = NOW - timedelta(days=1)
     stale = make_tombstone(_rule(id="old", title="Long gone", rule_id="rid-old"))
     stale.removed_at = NOW - timedelta(days=20)
-    db_session.add_all([gone, stale])
+    # Not removals: a rule that came back under the same id (the 09-02
+    # incident) and one re-keyed to a new id (#86) but still live.
+    back = make_tombstone(_rule(id="alive", title="Came back", rule_id="rid-alive"))
+    back.removed_at = NOW - timedelta(days=2)
+    rekeyed = make_tombstone(_rule(id="old-key", title="Re-keyed", rule_id="rid-rekey"))
+    rekeyed.removed_at = NOW - timedelta(days=2)
+    db_session.add_all([
+        gone, stale, back, rekeyed,
+        _rule(id="alive", title="Came back", rule_id="rid-alive", rule_created_date=NOW - timedelta(days=100)),
+        _rule(id="new-key", title="Re-keyed", rule_id="rid-rekey", rule_created_date=NOW - timedelta(days=100)),
+    ])
     await db_session.commit()
 
     d = (await client.get("/api/digest", params={"days": 7})).json()
@@ -149,8 +159,9 @@ async def test_digest_lists_rules_removed_upstream_in_the_window(client, db_sess
     r = d["removed_rules"][0]
     assert r["source"] == "sigma" and r["severity"] == "low" and r["mitre_techniques"] == ["T1059"]
     assert r["removed"].endswith("Z")
-    # Counts elsewhere are untouched: tombstones are not live rules.
-    assert d["summary"]["total_rules"] == 3
+    # Counts elsewhere are untouched: tombstones are not live rules
+    # (3 seeded + the two live rules added above).
+    assert d["summary"]["total_rules"] == 5
 
 
 @pytest.mark.asyncio
