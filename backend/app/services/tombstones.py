@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Iterable, Optional
 
-from sqlalchemy import String, cast, select
+from sqlalchemy import String, and_, cast, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
@@ -47,6 +47,37 @@ async def record_removed(db: AsyncSession, rows: Iterable[Detection]) -> int:
         except Exception as e:  # noqa: BLE001
             logger.warning(f"tombstone failed for {d.id}: {e}")
     return n
+
+
+def shadowed_by_live_rule():
+    """EXISTS clause: a live rule carries the tombstone's id, or its
+    upstream (source, rule_id). Shared by the prune and the digest."""
+    return select(Detection.id).where(
+        or_(
+            Detection.id == RemovedDetection.id,
+            and_(
+                RemovedDetection.rule_id.isnot(None),
+                Detection.source == RemovedDetection.source,
+                Detection.rule_id == RemovedDetection.rule_id,
+            ),
+        )
+    ).exists()
+
+
+async def prune_shadowed_tombstones(db: AsyncSession) -> int:
+    """Delete tombstones whose rule is alive (#133).
+
+    Rows get deleted for reasons other than an upstream removal -- the
+    permalink re-keying (#86) tombstoned every rule under its old id,
+    and a failed store batch (2026-09-02) tombstoned 176 live rules that
+    came back the next night -- and merge() keeps the tombstone after
+    the rule reappears. Those rows are alias-shadowed on the site but
+    they bloat the table (46 MB of gzip payloads for rules that never
+    left) and mislead every consumer that reads it. Runs after each
+    source's stale-rule cleanup; returns the number of rows removed.
+    """
+    result = await db.execute(delete(RemovedDetection).where(shadowed_by_live_rule()))
+    return result.rowcount or 0
 
 
 async def get_tombstone(db: AsyncSession, identifier: str) -> Optional[dict]:

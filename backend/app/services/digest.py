@@ -152,17 +152,9 @@ def _removed_in(since, until=None, source: Optional[str] = None):
     when no live rule carries the tombstone's id or its upstream
     (source, rule_id).
     """
-    live_again = select(Detection.id).where(
-        or_(
-            Detection.id == RemovedDetection.id,
-            and_(
-                RemovedDetection.rule_id.isnot(None),
-                Detection.source == RemovedDetection.source,
-                Detection.rule_id == RemovedDetection.rule_id,
-            ),
-        )
-    ).exists()
-    cond = and_(RemovedDetection.removed_at >= since, ~live_again)
+    from app.services.tombstones import shadowed_by_live_rule
+
+    cond = and_(RemovedDetection.removed_at >= since, ~shadowed_by_live_rule())
     if until is not None:
         cond = and_(cond, RemovedDetection.removed_at < until)
     if source:
@@ -170,8 +162,16 @@ def _removed_in(since, until=None, source: Optional[str] = None):
     return cond
 
 
+def _removal_key():
+    """One removal per upstream rule: a rule re-keyed (#86) and later
+    removed leaves two tombstones (old id, new id) for one event."""
+    return func.coalesce(RemovedDetection.source + ":" + RemovedDetection.rule_id, RemovedDetection.id)
+
+
 async def count_removed(db: AsyncSession, *, since, until=None) -> int:
-    return (await db.execute(select(func.count(RemovedDetection.id)).where(_removed_in(since, until)))).scalar() or 0
+    return (
+        await db.execute(select(func.count(func.distinct(_removal_key()))).where(_removed_in(since, until)))
+    ).scalar() or 0
 
 
 async def removed_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None, until=None) -> list[dict]:
@@ -192,11 +192,18 @@ async def removed_rules(db: AsyncSession, *, since, limit: int, source: Optional
             )
             .where(_removed_in(since, until, source))
             .order_by(RemovedDetection.removed_at.desc(), RemovedDetection.title.asc())
-            .limit(limit)
+            # Over-fetch so the de-duplication below can still fill `limit`.
+            .limit(limit * 3)
         )
     ).all()
-    return [
-        {
+    out: list[dict] = []
+    seen: set[str] = set()
+    for r in rows:
+        key = f"{r[3]}:{r[1]}" if r[1] else r[0]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
             "id": r[0],
             "rule_id": r[1],
             "title": r[2],
@@ -205,9 +212,10 @@ async def removed_rules(db: AsyncSession, *, since, limit: int, source: Optional
             "mitre_techniques": [t for t in (r[5] or []) if isinstance(t, str)],
             "first_seen": to_utc_iso(r[6]),
             "removed": to_utc_iso(r[7]),
-        }
-        for r in rows
-    ]
+        })
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _themes(rules: list[dict], limit: int = 8) -> list[dict]:

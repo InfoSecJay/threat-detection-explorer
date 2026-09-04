@@ -540,6 +540,16 @@ class IngestionService:
                 f"Removed {stale_count} stale {repo_name} rule(s) "
                 f"no longer in upstream repo"
             )
+        # Tombstones of rules that are alive again (or re-keyed) are not
+        # removals; drop them so the table only says what is gone (#133).
+        try:
+            from app.services.tombstones import prune_shadowed_tombstones
+
+            pruned = await prune_shadowed_tombstones(self.db)
+            if pruned:
+                logger.info(f"Pruned {pruned} tombstone(s) shadowed by a live rule")
+        except Exception as e:  # noqa: BLE001 -- hygiene must not sink the sync
+            logger.warning(f"tombstone prune failed: {e}")
         await self.db.commit()
 
     async def _update_repository_count(self, repo_name: str, count: int) -> None:

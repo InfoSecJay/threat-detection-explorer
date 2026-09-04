@@ -153,9 +153,19 @@ async def test_digest_lists_rules_removed_upstream_in_the_window(client, db_sess
     ])
     await db_session.commit()
 
+    # A rule re-keyed (#86) and then removed upstream leaves two
+    # tombstones for one event; the digest shows it once, newest first.
+    twice_old = make_tombstone(_rule(id="twice-old", title="Removed after re-key", rule_id="rid-twice"))
+    twice_old.removed_at = NOW - timedelta(days=4)
+    twice_new = make_tombstone(_rule(id="twice-new", title="Removed after re-key", rule_id="rid-twice"))
+    twice_new.removed_at = NOW - timedelta(days=3)
+    db_session.add_all([twice_old, twice_new])
+    await db_session.commit()
+
     d = (await client.get("/api/digest", params={"days": 7})).json()
-    assert d["summary"]["removed"] == 1
-    assert [r["title"] for r in d["removed_rules"]] == ["Retired rule"]
+    assert d["summary"]["removed"] == 2
+    assert [r["title"] for r in d["removed_rules"]] == ["Retired rule", "Removed after re-key"]
+    assert d["removed_rules"][1]["id"] == "twice-new"
     r = d["removed_rules"][0]
     assert r["source"] == "sigma" and r["severity"] == "low" and r["mitre_techniques"] == ["T1059"]
     assert r["removed"].endswith("Z")
