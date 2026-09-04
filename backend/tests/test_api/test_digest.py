@@ -14,6 +14,7 @@ from app.main import app
 from app.models.detection import Detection
 from app.models.sync_job import SyncJob
 from app.services import coverage_snapshot, digest as digest_service
+from app.services.tombstones import make_tombstone
 
 NOW = datetime(2026, 8, 29, 12, 0, 0)
 
@@ -129,6 +130,27 @@ async def test_new_rule_is_not_also_counted_as_modified(client, db_session, seed
     assert d["summary"]["created"] == 3 and d["summary"]["modified"] == 1
     assert "Fresh and touched" in [r["title"] for r in d["new_rules"]]
     assert "Fresh and touched" not in [r["title"] for r in d["modified_rules"]]
+
+
+@pytest.mark.asyncio
+async def test_digest_lists_rules_removed_upstream_in_the_window(client, db_session, seeded):
+    """Deprecations reach the corpus as removals (parsers skip deprecated/
+    folders), so the digest's retired list comes from the tombstones."""
+    gone = make_tombstone(_rule(id="gone", title="Retired rule", rule_id="rid-gone", severity="low", mitre_techniques=["T1059"]))
+    gone.removed_at = NOW - timedelta(days=1)
+    stale = make_tombstone(_rule(id="old", title="Long gone", rule_id="rid-old"))
+    stale.removed_at = NOW - timedelta(days=20)
+    db_session.add_all([gone, stale])
+    await db_session.commit()
+
+    d = (await client.get("/api/digest", params={"days": 7})).json()
+    assert d["summary"]["removed"] == 1
+    assert [r["title"] for r in d["removed_rules"]] == ["Retired rule"]
+    r = d["removed_rules"][0]
+    assert r["source"] == "sigma" and r["severity"] == "low" and r["mitre_techniques"] == ["T1059"]
+    assert r["removed"].endswith("Z")
+    # Counts elsewhere are untouched: tombstones are not live rules.
+    assert d["summary"]["total_rules"] == 3
 
 
 @pytest.mark.asyncio

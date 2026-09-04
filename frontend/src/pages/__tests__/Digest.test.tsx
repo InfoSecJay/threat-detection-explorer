@@ -7,7 +7,7 @@ const DIGEST = {
   generated_at: '2026-08-29T12:00:00Z',
   period: { days: 7, start: '2026-08-22T12:00:00Z', end: '2026-08-29T12:00:00Z' },
   summary: {
-    total_rules: 15682, created: 41, modified: 120, created_by_source: { sigma: 30, splunk: 11 },
+    total_rules: 15682, created: 41, modified: 120, removed: 1, created_by_source: { sigma: 30, splunk: 11 },
     by_source: { sigma: { created: 30, modified: 100 }, splunk: { created: 11, modified: 20 } },
   },
   themes: [{ technique_id: 'T1003.001', technique_name: 'LSASS Memory', tactic: 'Credential Access', rules: 9, sources: { sigma: 6, splunk: 3 }, samples: [{ id: 'r1', title: 'Suspicious LSASS Access', source: 'sigma' }] }],
@@ -20,6 +20,9 @@ const DIGEST = {
   ],
   modified_rules: [
     { id: 'r3', rule_id: null, title: 'Mofcomp Execution', source: 'sigma', severity: 'medium', status: 'stable', platforms: ['windows'], event_types: [], mitre_techniques: ['T1047'], quality_score: 60, source_rule_url: null, created: '2025-01-01T00:00:00Z', modified: '2026-08-26T10:00:00Z', description: '' },
+  ],
+  removed_rules: [
+    { id: 'r9', rule_id: 'rid-9', title: 'Retired Rule', source: 'sigma', severity: 'low', mitre_techniques: ['T1059'], first_seen: '2026-01-01T00:00:00Z', removed: '2026-08-27T06:00:00Z' },
   ],
   emerging_data_sources: [{ data_source: 'sysmon', count: 12, sources: ['sigma'] }],
 };
@@ -88,5 +91,17 @@ describe('Digest', () => {
     expect(md).toContain('[T1651 Cloud Administration Command](http://localhost:3000/mitre/T1651)');
     expect(md).not.toMatch(/\bhttp:\/\/localhost:3000\/detections\/r1\b(?!\))/); // no bare URLs
     expect(getByText('Updated rules', { selector: 'span' })).toBeInTheDocument();
+  });
+
+  it('lists rules removed upstream, linked to their tombstone page, on the page and in the markdown', async () => {
+    const { getByTestId, getByLabelText } = renderPage();
+    await waitFor(() => expect(getByTestId('digest-removed')).toHaveTextContent('1'));
+    const row = getByTestId('digest-removed-r9');
+    expect(row).toHaveTextContent('Retired Rule');
+    expect(row).toHaveTextContent('2026-08-27');
+    expect(row.querySelector('a[href="/detections/r9"]')).not.toBeNull();
+    const md = (getByLabelText('Digest as Markdown') as HTMLTextAreaElement).value;
+    expect(md).toMatch(/## .*Removed upstream/);
+    expect(md).toContain('[Retired Rule](http://localhost:3000/detections/r9)');
   });
 });

@@ -20,6 +20,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.models.removed_detection import RemovedDetection
 from app.services.corpus_cache import corpus_cache
 from app.services.coverage_snapshot import compute_newly_covered
 from app.services.mitre import mitre_service
@@ -134,6 +135,55 @@ async def modified_rules(db: AsyncSession, *, since, limit: int, source: Optiona
     return [_rule_dict(r) for r in rows]
 
 
+def _removed_in(since, until=None, source: Optional[str] = None):
+    cond = RemovedDetection.removed_at >= since
+    if until is not None:
+        cond = and_(cond, RemovedDetection.removed_at < until)
+    if source:
+        cond = and_(cond, RemovedDetection.source == source)
+    return cond
+
+
+async def count_removed(db: AsyncSession, *, since, until=None) -> int:
+    return (await db.execute(select(func.count(RemovedDetection.id)).where(_removed_in(since, until)))).scalar() or 0
+
+
+async def removed_rules(db: AsyncSession, *, since, limit: int, source: Optional[str] = None, until=None) -> list[dict]:
+    """Rules that vanished upstream in the window (#87 tombstones).
+
+    Every parser skips `deprecated/` folders and Elastic's deprecated
+    maturity, so an upstream deprecation reaches the corpus as a
+    removal, not as `status: deprecated` -- this list is the digest's
+    "retired this week". `removed_at` is when the nightly sync noticed,
+    i.e. the morning after the upstream commit.
+    """
+    rows = (
+        await db.execute(
+            select(
+                RemovedDetection.id, RemovedDetection.rule_id, RemovedDetection.title,
+                RemovedDetection.source, RemovedDetection.severity, RemovedDetection.mitre_techniques,
+                RemovedDetection.first_seen_at, RemovedDetection.removed_at,
+            )
+            .where(_removed_in(since, until, source))
+            .order_by(RemovedDetection.removed_at.desc(), RemovedDetection.title.asc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        {
+            "id": r[0],
+            "rule_id": r[1],
+            "title": r[2],
+            "source": r[3],
+            "severity": r[4] or "unknown",
+            "mitre_techniques": [t for t in (r[5] or []) if isinstance(t, str)],
+            "first_seen": to_utc_iso(r[6]),
+            "removed": to_utc_iso(r[7]),
+        }
+        for r in rows
+    ]
+
+
 def _themes(rules: list[dict], limit: int = 8) -> list[dict]:
     """The techniques the new rules cluster on -- the data-driven "key
     takeaways": technique, tactic, how many new rules, from which
@@ -242,6 +292,8 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: 
     momentum = await compute_technique_deltas(db, days=days, limit=8)
     rules = await new_rules(db, since=start, limit=rules_limit, until=until)
     changed = await modified_rules(db, since=start, limit=rules_limit, until=until)
+    gone = await removed_rules(db, since=start, limit=rules_limit, until=until)
+    removed_total = await count_removed(db, since=start, until=until)
 
     return {
         "generated_at": to_utc_iso(end),
@@ -256,6 +308,8 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: 
             "total_rules": total_rules,
             "created": created,
             "modified": modified,
+            # Removed upstream in the window (tombstoned), all sources.
+            "removed": removed_total,
             # Kept for older clients; by_source carries both counts.
             "created_by_source": {s: v["created"] for s, v in by_source.items() if v["created"]},
             "by_source": by_source,
@@ -266,6 +320,7 @@ async def _compute_digest(db: AsyncSession, days: int, limit: int, rules_limit: 
         "momentum": momentum,
         "new_rules": rules,
         "modified_rules": changed,
+        "removed_rules": gone,
         "emerging_data_sources": emerging,
     }
 
