@@ -2,10 +2,11 @@
  * summary or technique detail on the right. Panes live in pages/mitre/. */
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useCoverageMatrix } from '../hooks/useCompare';
 import { useMitre } from '../contexts/MitreContext';
 import { clipSm as clipCornerSm, clipMd as clipCornerMd } from '../constants/style';
+import { DOMAIN_DEFINITIONS, DOMAIN_VALUES } from '../constants/taxonomy';
 import { TacticGroup } from './mitre/TacticGroup';
 import { SummaryPane } from './mitre/SummaryPane';
 import { TechniqueDetailPane } from './mitre/TechniqueDetailPane';
@@ -19,9 +20,21 @@ export function MitreCoverage() {
   const [filterCoverage, setFilterCoverage] = useState<CoverageFilter>('all');
   const [search, setSearch] = useState('');
   const [expandedTactics, setExpandedTactics] = useState<Set<string>>(new Set());
+  // Attack-surface domain (#135) lives in the URL so a coverage view
+  // is shareable: /mitre?domain=identity.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawDomain = searchParams.get('domain') || '';
+  const domain = (DOMAIN_VALUES as readonly string[]).includes(rawDomain) || rawDomain === 'unknown' ? rawDomain : '';
+  const setDomain = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('domain', value);
+    else next.delete('domain');
+    setSearchParams(next, { replace: true });
+  };
 
   const { data, isLoading, error } = useCoverageMatrix({
     include_subtechniques: includeSubtechniques,
+    domain: domain || undefined,
   });
   // The home page quotes parent-only coverage (~207); this page defaults
   // to parents + subs (~655). Name the denominator so the two agree.
@@ -79,6 +92,12 @@ export function MitreCoverage() {
             </span>
             <span className="text-gray-700">·</span>
             <span>{data.sources.length} sources</span>
+            {domain && (
+              <>
+                <span className="text-gray-700">·</span>
+                <span className="text-purple-300" data-testid="coverage-domain">{domain} rules only</span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -131,6 +150,26 @@ export function MitreCoverage() {
                 className="w-3.5 h-3.5 text-matrix-500 bg-void-900 border-void-600 rounded focus:ring-matrix-500/50"
               />
               <span>Show sub-techniques</span>
+            </label>
+
+            {/* Coverage by attack-surface domain (#135): "what does the
+                public rule set cover for identity?" */}
+            <label className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="shrink-0">Domain</span>
+              <select
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                title={domain ? DOMAIN_DEFINITIONS[domain] : 'Restrict coverage to rules of one attack-surface domain'}
+                className="flex-1 min-w-0 bg-void-900 border border-void-600 text-xs text-white px-2 py-1 focus:outline-none focus:border-matrix-500/50 font-mono"
+                aria-label="Attack-surface domain"
+                data-testid="domain-picker"
+              >
+                <option value="">all domains</option>
+                {DOMAIN_VALUES.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+                <option value="unknown">unknown</option>
+              </select>
             </label>
 
             <div className="flex items-center gap-2 pt-1 border-t border-void-700">

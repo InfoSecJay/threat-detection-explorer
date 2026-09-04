@@ -249,6 +249,10 @@ async def compare_side_by_side(
 async def get_coverage_matrix(
     tactic: Optional[str] = Query(None, description="Filter by tactic ID (e.g., TA0002)"),
     include_subtechniques: bool = Query(True, description="Include sub-techniques in the matrix"),
+    domain: Optional[str] = Query(
+        None,
+        description="Restrict to rules of one attack-surface domain (#135): endpoint, identity, cloud, saas, network, email, devops, data, unknown",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Get MITRE technique coverage matrix across all sources.
@@ -256,20 +260,35 @@ async def get_coverage_matrix(
     Returns coverage data showing which sources have detections for each technique,
     organized by tactic for matrix visualization. Corpus + catalog derived, so
     memoised on the corpus fingerprint (the Home hero and the ATT&CK browser
-    both read it on every visit).
+    both read it on every visit). `domain=` answers "what does the public
+    rule set cover for identity / cloud / ..." over the rules of that domain.
     """
+    from app.services.taxonomy.domains import is_canonical_domain
+
+    if domain is not None and not is_canonical_domain(domain):
+        raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
     await mitre_service.ensure_loaded()
-    key = ("mitre_coverage_matrix", tactic, include_subtechniques, mitre_service.get_stats()["last_fetch"])
+    key = ("mitre_coverage_matrix", tactic, include_subtechniques, domain, mitre_service.get_stats()["last_fetch"])
     return await corpus_cache.get(
-        db, key, lambda: _compute_coverage_matrix(db, tactic, include_subtechniques),
+        db, key, lambda: _compute_coverage_matrix(db, tactic, include_subtechniques, domain),
     )
 
 
-async def _compute_coverage_matrix(db: AsyncSession, tactic: Optional[str], include_subtechniques: bool) -> dict:
-    # Get all detections with their techniques
+async def coverage_rows(db: AsyncSession, domain: Optional[str] = None) -> list[tuple[str, list]]:
+    """(source, mitre_techniques) for every rule, or for the rules of one
+    domain. Split out so the domain filter is testable without ATT&CK data."""
+    from sqlalchemy import String, cast
+
     query = select(Detection.source, Detection.mitre_techniques)
-    result = await db.execute(query)
-    rows = result.all()
+    if domain:
+        query = query.where(cast(Detection.domains, String).ilike(f'%"{domain}"%'))
+    return [(source, techniques) for source, techniques in (await db.execute(query)).all()]
+
+
+async def _compute_coverage_matrix(
+    db: AsyncSession, tactic: Optional[str], include_subtechniques: bool, domain: Optional[str] = None,
+) -> dict:
+    rows = await coverage_rows(db, domain)
 
     # Build coverage map: technique_id -> {source: count}
     coverage: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -397,6 +416,7 @@ async def _compute_coverage_matrix(db: AsyncSession, tactic: Optional[str], incl
 
     return {
         "sources": sources,
+        "domain": domain,
         "tactics": tactics_data,
         "summary": {
             "total_tactics": len(tactics_data),

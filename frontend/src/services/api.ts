@@ -208,12 +208,15 @@ export const compareApi = {
   coverageMatrix: async (params?: {
     tactic?: string;
     include_subtechniques?: boolean;
+    /** Restrict to rules of one attack-surface domain (#135). */
+    domain?: string;
   }): Promise<CoverageMatrixResponse> => {
     const searchParams = new URLSearchParams();
     if (params?.tactic) searchParams.set('tactic', params.tactic);
     if (params?.include_subtechniques !== undefined) {
       searchParams.set('include_subtechniques', String(params.include_subtechniques));
     }
+    if (params?.domain) searchParams.set('domain', params.domain);
     const response = await api.get(`/compare/coverage-matrix?${searchParams.toString()}`);
     return response.data;
   },

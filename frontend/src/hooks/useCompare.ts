@@ -4,6 +4,7 @@ import { compareApi } from '../services/api';
 export function useCoverageMatrix(params?: {
   tactic?: string;
   include_subtechniques?: boolean;
+  domain?: string;
 }) {
   return useQuery({
     queryKey: ['coverageMatrix', params],
