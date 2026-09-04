@@ -204,22 +204,26 @@ async def prerender_corpus_health(db: AsyncSession = Depends(get_db)):
     fields = r["fields"]
     meta = r["field_meta"]
     totals = "".join(
-        f"<li><strong>{escape(meta[f]['label'])}:</strong> {r['totals_pct'][f]:.1f}% "
-        f"({r['totals'][f]:,} of {r['total_rules']:,} rules)</li>"
+        f"<li><strong>{escape(meta[f]['label'])}:</strong> {r['applicable'][f]['pct']:.1f}% "
+        f"({r['applicable'][f]['count']:,} of {r['applicable'][f]['of']:,} rules whose format has the field)</li>"
         for f in fields
     )
     head = "".join(f"<th>{escape(meta[f]['label'])}</th>" for f in fields)
     rows = "".join(
         "<tr><td>" + escape(s_["source"]) + f"</td><td>{s_['total_rules']:,}</td>"
-        + "".join(f"<td>{s_['pct'][f]:.1f}% ({s_['fields'][f]:,})</td>" for f in fields)
+        + "".join(
+            "<td>n/a</td>" if f in s_["not_applicable"] else f"<td>{s_['pct'][f]:.1f}% ({s_['fields'][f]:,})</td>"
+            for f in fields
+        )
         + "</tr>"
         for s_ in r["sources"]
     )
     defs = "".join(f"<dt>{escape(meta[f]['label'])}</dt><dd>{escape(meta[f]['definition'])}</dd>" for f in fields)
+    a = r["applicable"]
     desc = (
-        f"Of {r['total_rules']:,} open-source detection rules, {r['totals_pct']['no_attack']:.0f}% carry no "
-        f"ATT&CK mapping, {r['totals_pct']['no_references']:.0f}% cite no references and "
-        f"{r['totals_pct']['no_false_positives']:.0f}% document no false positives. Per source, as of {as_of}, with CSV."
+        f"Of {r['total_rules']:,} open-source detection rules, {a['no_attack']['pct']:.0f}% carry no "
+        f"ATT&CK mapping; where the format has the field, {a['no_references']['pct']:.0f}% cite no references and "
+        f"{a['no_false_positives']['pct']:.0f}% document no false positives. Per source, as of {as_of}, with CSV."
     )
     body = f"""<h1>Corpus health</h1>
 <p>{escape(desc)}</p>
@@ -228,5 +232,6 @@ async def prerender_corpus_health(db: AsyncSession = Depends(get_db)):
 <p><a href="{ORIGIN}/api/v1/methodology/corpus-health.csv">Download the data (CSV)</a></p>
 <h2>How each number is counted</h2>
 <dl>{defs}</dl>
+<p>n/a marks a field the rule format cannot express; headline percentages count only rules whose format has the field.</p>
 <p>Cite as: Detection Explorer, Corpus health as of {escape(as_of)}, {ORIGIN}/methodology/corpus-health</p>"""
     return _page("Corpus health", desc, "/methodology/corpus-health", "/api/og/site.png", body)

@@ -18,6 +18,16 @@ rule page of any listed rule:
   is a stock word (unknown, unlikely, none, n/a ...) -- a field filled to
   pass a linter, not to help an analyst
 - no description: ``description`` is null or whitespace
+
+Honesty rule: a format that has no field for something cannot be blamed
+for leaving it empty. Sentinel analytic templates and Elastic
+Protections TOML carry no references field; Sublime, Sentinel, Elastic
+Protections, Google SecOps and Elastic hunting queries carry no
+false-positives field. Those cells are reported as not applicable, and
+every headline percentage is computed twice: literally over all rules,
+and over the rules whose format can express the field ("applicable
+basis"), which is the number to quote. The capability map is the same
+one the metadata completeness score uses (quality_score.INAPPLICABLE).
 """
 
 from __future__ import annotations
@@ -31,7 +41,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
 from app.services.corpus_cache import corpus_cache
+from app.services.quality_score import INAPPLICABLE
 from app.utils.datetime_utils import utcnow
+
+try:  # the score's boilerplate list is the same "stock word" notion
+    from app.services.quality_score import _BOILERPLATE_FPS as _SCORE_BOILERPLATE
+except ImportError:  # pragma: no cover - defensive
+    _SCORE_BOILERPLATE = frozenset()
 
 # field -> (label, one-line definition shown next to the number)
 HEALTH_FIELDS: dict[str, tuple[str, str]] = {
@@ -57,9 +73,25 @@ HEALTH_FIELDS: dict[str, tuple[str, str]] = {
     ),
 }
 
+# Which quality-score capability each health field depends on. Fields
+# absent here (ATT&CK, description) apply to every format: every source
+# either declares techniques or has them derived, and every rule format
+# has a description slot.
+_FIELD_CAPABILITY: dict[str, str] = {
+    "no_references": "references",
+    "no_false_positives": "false_positives",
+    "placeholder_false_positives": "false_positives",
+}
+
 _PLACEHOLDERS = frozenset({
     "unknown", "unlikely", "none", "n/a", "na", "-", "tbd", "unkown", "not known", "likely",
-})
+}) | frozenset(str(x).strip().lower() for x in _SCORE_BOILERPLATE)
+
+
+def not_applicable_for(source: str) -> list[str]:
+    """Health fields a source's format cannot express (in HEALTH_FIELDS order)."""
+    caps = INAPPLICABLE.get(source, frozenset())
+    return [f for f in HEALTH_FIELDS if _FIELD_CAPABILITY.get(f) in caps]
 
 
 def _is_placeholder_only(values) -> bool:
@@ -69,7 +101,7 @@ def _is_placeholder_only(values) -> bool:
 
 
 def classify(mitre_techniques, references, false_positives, description) -> set[str]:
-    """Which health flags one rule trips."""
+    """Which health flags one rule trips (format capability not considered)."""
     flags: set[str] = set()
     if not mitre_techniques:
         flags.add("no_attack")
@@ -85,7 +117,7 @@ def classify(mitre_techniques, references, false_positives, description) -> set[
 
 
 async def current_counts(db: AsyncSession) -> dict[str, dict[str, int]]:
-    """{source: {"_total": n, <field>: n, ...}} from the live corpus."""
+    """{source: {"_total": n, <field>: n, ...}} from the live corpus, literal."""
     rows = (
         await db.execute(
             select(
@@ -116,16 +148,23 @@ async def build_report(db: AsyncSession) -> dict:
 
     sources = []
     totals: dict[str, int] = {f: 0 for f in fields}
+    applicable_count: dict[str, int] = {f: 0 for f in fields}
+    applicable_of: dict[str, int] = {f: 0 for f in fields}
     for source, c in sorted(counts.items(), key=lambda kv: -kv[1]["_total"]):
         total = c["_total"]
+        na = not_applicable_for(source)
         per = {f: c.get(f, 0) for f in fields}
         for f in fields:
             totals[f] += per[f]
+            if f not in na:
+                applicable_count[f] += per[f]
+                applicable_of[f] += total
         sources.append({
             "source": source,
             "total_rules": total,
-            "fields": per,
-            "pct": {f: _pct(per[f], total) for f in fields},
+            "not_applicable": na,
+            "fields": {f: (0 if f in na else per[f]) for f in fields},
+            "pct": {f: (None if f in na else _pct(per[f], total)) for f in fields},
         })
 
     return {
@@ -134,21 +173,35 @@ async def build_report(db: AsyncSession) -> dict:
         "fields": fields,
         "field_meta": {f: {"label": label, "definition": definition} for f, (label, definition) in HEALTH_FIELDS.items()},
         "total_rules": rules,
+        # Literal: every rule counted, whether or not its format has the field.
         "totals": totals,
         "totals_pct": {f: _pct(totals[f], rules) for f in fields},
+        # Applicable basis: only rules whose format can express the field. Quote these.
+        "applicable": {
+            f: {"count": applicable_count[f], "of": applicable_of[f], "pct": _pct(applicable_count[f], applicable_of[f])}
+            for f in fields
+        },
         "sources": sources,
     }
 
 
 def to_csv(report: dict) -> str:
-    """One row per source plus a TOTAL row; counts then percentages."""
+    """One row per source, then TOTAL (literal) and APPLICABLE rows."""
     fields = report["fields"]
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
-    w.writerow(["source", "total_rules", *fields, *[f"{f}_pct" for f in fields]])
+    w.writerow(["source", "total_rules", *fields, *[f"{f}_pct" for f in fields], "not_applicable"])
     for s in report["sources"]:
-        w.writerow([s["source"], s["total_rules"], *[s["fields"][f] for f in fields], *[s["pct"][f] for f in fields]])
-    w.writerow(["TOTAL", report["total_rules"], *[report["totals"][f] for f in fields], *[report["totals_pct"][f] for f in fields]])
+        w.writerow([
+            s["source"], s["total_rules"],
+            *["n/a" if f in s["not_applicable"] else s["fields"][f] for f in fields],
+            *["n/a" if f in s["not_applicable"] else s["pct"][f] for f in fields],
+            ";".join(s["not_applicable"]),
+        ])
+    w.writerow(["TOTAL", report["total_rules"], *[report["totals"][f] for f in fields], *[report["totals_pct"][f] for f in fields], ""])
+    a = report["applicable"]
+    w.writerow(["APPLICABLE_RULES", "", *[a[f]["of"] for f in fields], *["" for _ in fields], "rules whose format can express the field"])
+    w.writerow(["APPLICABLE", "", *[a[f]["count"] for f in fields], *[a[f]["pct"] for f in fields], "quote these percentages"])
     w.writerow([])
     w.writerow(["corpus_updated_at", report["corpus"]["updated_at"]])
     w.writerow(["generated_at", report["generated_at"]])

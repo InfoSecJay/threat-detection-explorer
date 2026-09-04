@@ -1003,8 +1003,10 @@ export interface UnclassifiedResponse {
 export interface CorpusHealthSource {
   source: string;
   total_rules: number;
+  /** Fields this source's format cannot express (cells are n/a, excluded from the applicable basis). */
+  not_applicable: string[];
   fields: Record<string, number>;
-  pct: Record<string, number>;
+  pct: Record<string, number | null>;
 }
 export interface CorpusHealthResponse {
   generated_at: string;
@@ -1012,8 +1014,11 @@ export interface CorpusHealthResponse {
   fields: string[];
   field_meta: Record<string, { label: string; definition: string }>;
   total_rules: number;
+  /** Literal counts over every rule, whether or not its format has the field. */
   totals: Record<string, number>;
   totals_pct: Record<string, number>;
+  /** Over rules whose format can express the field -- the numbers to quote. */
+  applicable: Record<string, { count: number; of: number; pct: number }>;
   sources: CorpusHealthSource[];
 }
 

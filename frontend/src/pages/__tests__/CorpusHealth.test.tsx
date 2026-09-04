@@ -21,9 +21,10 @@ vi.mock('../../hooks/useCorpusHealth', () => ({
       total_rules: 300,
       totals: { no_attack: 90, no_references: 150 },
       totals_pct: { no_attack: 30, no_references: 50 },
+      applicable: { no_attack: { count: 90, of: 300, pct: 30 }, no_references: { count: 100, of: 200, pct: 50 } },
       sources: [
-        { source: 'sigma', total_rules: 200, fields: { no_attack: 0, no_references: 100 }, pct: { no_attack: 0, no_references: 50 } },
-        { source: 'splunk', total_rules: 100, fields: { no_attack: 90, no_references: 50 }, pct: { no_attack: 90, no_references: 50 } },
+        { source: 'sigma', total_rules: 200, not_applicable: [], fields: { no_attack: 0, no_references: 100 }, pct: { no_attack: 0, no_references: 50 } },
+        { source: 'splunk', total_rules: 100, not_applicable: ['no_references'], fields: { no_attack: 90, no_references: 0 }, pct: { no_attack: 90, no_references: null } },
       ],
     },
     isLoading: false,
@@ -46,11 +47,14 @@ describe('CorpusHealth', () => {
     const totals = screen.getByTestId('corpus-health-totals');
     expect(totals).toHaveTextContent('30%');
     expect(totals).toHaveTextContent('90 of 300 rules');
-    expect(totals).toHaveTextContent('50%');
+    // Applicable basis when a format lacks the field, with the literal share underneath.
+    expect(totals).toHaveTextContent('100 of 200 rules whose format has the field');
+    expect(totals).toHaveTextContent('50% of all 300');
 
-    // Per-source cell carries both the share and the count; zero cells stay plain.
+    // Per-source cell carries both the share and the count; zero cells stay plain; n/a is explained.
     expect(screen.getByTitle(/90 of 100 Splunk rules: No ATT&CK mapping/)).toHaveTextContent('90% 90');
     expect(screen.getByTitle(/0 of 200 Sigma rules: No ATT&CK mapping/)).toHaveTextContent('0');
+    expect(screen.getByTitle(/Splunk: the rule format has no field for this/)).toHaveTextContent('n/a');
 
     expect(screen.getByTestId('corpus-health-csv')).toHaveAttribute('href', expect.stringContaining('/methodology/corpus-health.csv'));
     const defs = screen.getByTestId('corpus-health-definitions');

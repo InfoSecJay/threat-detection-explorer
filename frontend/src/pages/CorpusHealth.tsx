@@ -67,21 +67,28 @@ export function CorpusHealth() {
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="corpus-health-totals">
-            {data.fields.map((f) => (
-              <a
-                key={f}
-                href={`#def-${f}`}
-                className="bg-void-850 border border-void-700 p-3 hover:border-matrix-500/40 transition-colors"
-                style={clipSm}
-                title={data.field_meta[f]?.definition}
-              >
-                <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">{data.field_meta[f]?.label ?? f}</div>
-                <div className="text-2xl font-display font-bold text-white tabular-nums">{pct(data.totals_pct[f] ?? 0)}</div>
-                <div className="text-[10px] font-mono text-gray-500">
-                  {(data.totals[f] ?? 0).toLocaleString()} of {data.total_rules.toLocaleString()} rules
-                </div>
-              </a>
-            ))}
+            {data.fields.map((f) => {
+              const a = data.applicable[f];
+              const narrowed = a.of < data.total_rules;
+              return (
+                <a
+                  key={f}
+                  href={`#def-${f}`}
+                  className="bg-void-850 border border-void-700 p-3 hover:border-matrix-500/40 transition-colors"
+                  style={clipSm}
+                  title={data.field_meta[f]?.definition}
+                >
+                  <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">{data.field_meta[f]?.label ?? f}</div>
+                  <div className="text-2xl font-display font-bold text-white tabular-nums">{pct(a.pct)}</div>
+                  <div className="text-[10px] font-mono text-gray-500">
+                    {a.count.toLocaleString()} of {a.of.toLocaleString()} rules{narrowed ? ' whose format has the field' : ''}
+                  </div>
+                  {narrowed && (
+                    <div className="text-[10px] font-mono text-gray-600">{pct(data.totals_pct[f] ?? 0)} of all {data.total_rules.toLocaleString()}</div>
+                  )}
+                </a>
+              );
+            })}
           </div>
 
           <div className="bg-void-850 border border-void-700 overflow-x-auto" style={clipMd}>
@@ -109,26 +116,31 @@ export function CorpusHealth() {
                     {data.fields.map((f) => {
                       const n = s.fields[f] ?? 0;
                       const p = s.pct[f] ?? 0;
+                      const na = s.not_applicable.includes(f);
                       return (
                         <td
                           key={f}
                           className="px-3 py-2 text-right tabular-nums"
-                          title={`${n.toLocaleString()} of ${s.total_rules.toLocaleString()} ${sourceLabels[s.source] || s.source} rules: ${data.field_meta[f]?.label ?? f}`}
+                          title={na
+                            ? `${sourceLabels[s.source] || s.source}: the rule format has no field for this, so it is not counted`
+                            : `${n.toLocaleString()} of ${s.total_rules.toLocaleString()} ${sourceLabels[s.source] || s.source} rules: ${data.field_meta[f]?.label ?? f}`}
                         >
-                          {n === 0
-                            ? <span className="text-gray-700">0</span>
-                            : <><span className={p >= 50 ? 'text-breach-400' : p >= 20 ? 'text-pulse-400' : 'text-gray-300'}>{pct(p)}</span> <span className="text-gray-600">{n.toLocaleString()}</span></>}
+                          {na
+                            ? <span className="text-gray-700">n/a</span>
+                            : n === 0
+                              ? <span className="text-gray-700">0</span>
+                              : <><span className={p >= 50 ? 'text-breach-400' : p >= 20 ? 'text-pulse-400' : 'text-gray-300'}>{pct(p)}</span> <span className="text-gray-600">{n.toLocaleString()}</span></>}
                         </td>
                       );
                     })}
                   </tr>
                 ))}
                 <tr className="border-t border-void-600 text-gray-300">
-                  <td className="px-3 py-2 uppercase tracking-wider text-[10px]">All sources</td>
+                  <td className="px-3 py-2 uppercase tracking-wider text-[10px]" title="Only rules whose format can express each field">Where applicable</td>
                   <td className="px-3 py-2 text-right tabular-nums">{data.total_rules.toLocaleString()}</td>
                   {data.fields.map((f) => (
-                    <td key={f} className="px-3 py-2 text-right tabular-nums">
-                      <span className="text-white">{pct(data.totals_pct[f] ?? 0)}</span> <span className="text-gray-600">{(data.totals[f] ?? 0).toLocaleString()}</span>
+                    <td key={f} className="px-3 py-2 text-right tabular-nums" title={`${data.applicable[f].count.toLocaleString()} of ${data.applicable[f].of.toLocaleString()} rules whose format has the field`}>
+                      <span className="text-white">{pct(data.applicable[f].pct)}</span> <span className="text-gray-600">{data.applicable[f].count.toLocaleString()}</span>
                     </td>
                   ))}
                 </tr>
@@ -140,7 +152,11 @@ export function CorpusHealth() {
             <h2 className="text-sm font-display font-bold text-white uppercase tracking-wider">How each number is counted</h2>
             <p className="text-xs text-gray-400 max-w-3xl">
               Each count is a literal test on the normalized field named below, applied to every rule in the corpus. A rule
-              can trip several at once. These are the raw inputs behind the{' '}
+              can trip several at once. A format that has no field for something cannot be blamed for leaving it empty:
+              those cells read <span className="font-mono">n/a</span> (Sentinel templates and Elastic Protections have no
+              references field; Sublime, Sentinel, Elastic Protections, Google SecOps and Elastic hunting queries have no
+              false-positives field) and the headline percentages count only rules whose format has the field. The CSV
+              carries both bases. These are the raw inputs behind the{' '}
               <Link to="/methodology" className="text-matrix-500 hover:text-matrix-400 underline">metadata completeness score</Link>
               , which additionally weighs what each rule format can express; the numbers here do not.
             </p>
