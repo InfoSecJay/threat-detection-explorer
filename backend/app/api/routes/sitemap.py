@@ -29,7 +29,7 @@ from app.services.observables import OBSERVABLE_TYPES
 
 router = APIRouter(tags=["sitemap"])
 
-STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/query", "/about", "/integrations", "/methodology", "/methodology/unclassified", "/methodology/corpus-health"]
+STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/compare", "/query", "/about", "/integrations", "/methodology", "/methodology/unclassified", "/methodology/corpus-health"]
 
 
 def _key(section: str) -> tuple[str, str]:

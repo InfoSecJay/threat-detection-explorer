@@ -13,12 +13,39 @@ from app.api.schemas import (
     SideBySideRequest, SideBySideResponse
 )
 from app.models.detection import Detection
+from app.services.compare_diff import compute_observable_diff
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.search import SearchService
 from app.services.mitre import mitre_service
 from app.services.corpus_cache import corpus_cache
 
 router = APIRouter(prefix="/compare", tags=["compare"])
+
+
+@router.get("/diff")
+async def compare_observable_diff(
+    ids: str = Query(..., description="2-6 comma-separated detection ids, in display order"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Observable-level diff of 2-6 rules (#11).
+
+    One row per observable value (process name, registry key, API
+    action...) and per metadata value (technique, data source...),
+    with the rules it appears in, the rules where it is an exclusion,
+    and the source field each rule tests it on. Powers the /compare
+    page; GET so a comparison is a shareable URL.
+    """
+    id_list = list(dict.fromkeys(i.strip() for i in ids.split(",") if i.strip()))
+    if len(id_list) < 2 or len(id_list) > 6:
+        raise HTTPException(status_code=400, detail="Provide 2-6 detection ids")
+    detections = await SearchService(db).get_detections_by_ids(id_list)
+    by_id = {d.id: d for d in detections}
+    ordered = [by_id[i] for i in id_list if i in by_id]
+    if len(ordered) < 2:
+        raise HTTPException(status_code=404, detail="At least 2 of the provided detection ids must exist")
+    result = compute_observable_diff(ordered)
+    result["missing_ids"] = [i for i in id_list if i not in by_id]
+    return result
 
 
 @router.get("")

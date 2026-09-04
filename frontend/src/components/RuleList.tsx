@@ -18,6 +18,8 @@ interface RuleListProps {
   isLoading?: boolean;
   enableSelection?: boolean;
   onExportSelected?: (ids: string[]) => void;
+  /** Observable-level diff of the selection (#11); shown for 2-6 rows. */
+  onCompareSelected?: (ids: string[]) => void;
 }
 
 export function RuleList({
@@ -28,6 +30,7 @@ export function RuleList({
   isLoading,
   enableSelection = true,
   onExportSelected,
+  onCompareSelected,
 }: RuleListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Rows expanded inline to show query logic / references / FP notes.
@@ -167,6 +170,19 @@ export function RuleList({
                 >
                   EXPORT
                 </button>
+              )}
+              {onCompareSelected && selectedIds.size >= 2 && selectedIds.size <= 6 && (
+                <button
+                  onClick={() => onCompareSelected(Array.from(selectedIds))}
+                  className="px-3 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-display font-semibold uppercase hover:bg-cyan-500/30 transition-colors"
+                  title="What each selected rule keys on, side by side (2-6 rules)"
+                  data-testid="compare-selected"
+                >
+                  COMPARE
+                </button>
+              )}
+              {onCompareSelected && selectedIds.size > 6 && (
+                <span className="text-[10px] font-mono text-gray-500">compare takes up to 6</span>
               )}
             </div>
           )}

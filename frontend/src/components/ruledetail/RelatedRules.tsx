@@ -47,6 +47,14 @@ export function RelatedRules({ id }: { id: string; source?: string }) {
                 <span className="font-mono text-[10px] text-gray-500 shrink-0 max-w-[40%] truncate" title={r.reasons.join(' · ')}>
                   {r.reasons.slice(0, 2).join(' · ')}
                 </span>
+                <Link
+                  to={`/compare?ids=${encodeURIComponent(id)},${encodeURIComponent(r.id)}`}
+                  className="font-mono text-[10px] text-gray-500 hover:text-cyan-300 uppercase tracking-wider shrink-0"
+                  title="What each rule keys on, side by side (#11)"
+                  data-testid={`compare-${r.id}`}
+                >
+                  diff
+                </Link>
               </li>
             );
           })}

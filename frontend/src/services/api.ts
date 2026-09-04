@@ -211,7 +211,66 @@ export const compareApi = {
     const response = await api.get(`/compare/coverage-matrix?${searchParams.toString()}`);
     return response.data;
   },
+
+  /** Observable-level diff of 2-6 rules (#11). */
+  diff: async (ids: string[]): Promise<CompareDiffResponse> => {
+    const response = await api.get(`/compare/diff?ids=${ids.map(encodeURIComponent).join(',')}`);
+    return response.data;
+  },
 };
+
+export interface CompareDiffRule {
+  id: string;
+  title: string;
+  source: string;
+  severity: string;
+  status: string;
+  language: string;
+  rule_modality: string | null;
+  platforms: string[];
+  data_sources: string[];
+  event_types: string[];
+  mitre_tactics: string[];
+  mitre_techniques: string[];
+  quality_score: number | null;
+  query_complexity: string | null;
+  source_rule_url: string | null;
+  observable_count: number;
+}
+
+export interface CompareDiffObservable {
+  type: string;
+  subtype: string;
+  value: string;
+  present_in: string[];
+  negated_in: string[];
+  /** rule id -> the source field(s) that rule tests the value on. */
+  fields: Record<string, string[]>;
+  shared: boolean;
+}
+
+export interface CompareDiffAxisEntry {
+  value: string;
+  present_in: string[];
+}
+
+export type CompareDiffAxis =
+  | 'mitre_techniques' | 'mitre_tactics' | 'data_sources' | 'platforms' | 'event_types' | 'source_tables' | 'fields';
+
+export interface CompareDiffResponse {
+  rules: CompareDiffRule[];
+  observables: CompareDiffObservable[];
+  axes: Record<CompareDiffAxis, CompareDiffAxisEntry[]>;
+  summary: {
+    rules: number;
+    observables: number;
+    shared_by_all: number;
+    unique_by_rule: Record<string, number>;
+    shared_techniques: string[];
+    contradictions: { type: string; subtype: string; value: string; matched_in: string[]; excluded_in: string[] }[];
+  };
+  missing_ids?: string[];
+}
 
 // Export endpoints
 export const exportApi = {

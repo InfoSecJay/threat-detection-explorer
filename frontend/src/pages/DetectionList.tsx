@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ActiveFilterPills } from '../components/ActiveFilterPills';
 import { RuleList } from '../components/RuleList';
 import { ExportModal } from '../components/ExportModal';
@@ -74,6 +74,7 @@ function ApiUrlButton({ url }: { url: string }) {
 
 export function DetectionList() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
@@ -274,6 +275,10 @@ export function DetectionList() {
     setFilters(reconcileFilterChange(filters, viewFilters, next, parsedBar));
   };
 
+  const handleCompareSelected = (ids: string[]) => {
+    navigate(`/compare?ids=${ids.map(encodeURIComponent).join(',')}`);
+  };
+
   const handleExportSelected = (ids: string[]) => {
     setSelectedIdsForExport(ids);
     setIsExportModalOpen(true);
@@ -383,6 +388,7 @@ export function DetectionList() {
           onFiltersChange={setFilters}
           isLoading={isLoading}
           onExportSelected={handleExportSelected}
+          onCompareSelected={handleCompareSelected}
         />
       </div>
 

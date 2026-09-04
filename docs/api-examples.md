@@ -86,6 +86,34 @@ The observables endpoints slice the other way -- "which rules key on
 this process/event ID my telemetry already collects":
 `/api/observables/process?q=rundll32`.
 
+## 4. Diff two vendors' rules for the same behaviour
+
+Sigma and Elastic both have a rule for rundll32 running JavaScript.
+Which process names, command-line patterns and parent processes does
+each one test, and does either exclude something the other matches?
+
+```bash
+API="https://detectionexplorer.io/api/v1"
+
+# Find the two rules, then diff them by id (any 2-6 ids work).
+A=$(curl -s "$API/detections?q=rundll32+javascript&sources=sigma&limit=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
+B=$(curl -s "$API/detections?q=rundll32+javascript&sources=elastic&limit=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
+
+curl -s "$API/compare/diff?ids=$A,$B" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ids = [r['id'] for r in d['rules']]
+for o in d['observables']:
+    cells = ['NOT' if i in o['negated_in'] else 'x' if i in o['present_in'] else '-' for i in ids]
+    fields = ' / '.join(', '.join(o['fields'].get(i, [])) or '-' for i in ids)
+    print(f"{o['type']}/{o['subtype']:22s} {o['value']:40s} {' '.join(f'{c:>3s}' for c in cells)}   {fields}")
+print('shared by both:', d['summary']['shared_by_all'], '| contradictions:', len(d['summary']['contradictions']))
+"
+```
+
+The same matrix is the `/compare?ids=...` page, which also copies as
+Markdown for a tuning ticket.
+
 ---
 
 Questions or a workflow these don't cover: open an issue.

@@ -26,9 +26,10 @@ const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.N
 const Methodology = lazy(() => import('./pages/Methodology').then(m => ({ default: m.Methodology })));
 const Unclassified = lazy(() => import('./pages/Unclassified').then(m => ({ default: m.Unclassified })));
 const CorpusHealth = lazy(() => import('./pages/CorpusHealth').then(m => ({ default: m.CorpusHealth })));
-// The old Compare / SideBySide pages were removed (#48); the rebuild as
-// an observable-level diff is tracked in #11. Their routes below still
-// redirect so old links do not 404.
+// Compare is the #11 rebuild: an observable-level diff of 2-6 rules,
+// reached from the catalog's row selection and a rule page's related
+// rules. The old /compare/side-by-side bookmark redirects to it.
+const Compare         = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
 const IndustryIntel     = lazy(() => import('./pages/IndustryIntel').then(m => ({ default: m.IndustryIntel })));
 
 // Hover intent on the nav fetches the route's chunk before the click
@@ -384,11 +385,8 @@ function App() {
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
             <Route path="/intel" element={<IndustryIntel />} />
-            {/* Temporarily hidden pages — redirect to home so existing
-                bookmarks don't 404. Restore routes when the pages are
-                reworked (tracked in docs/roadmap.md). */}
-            <Route path="/compare" element={<Navigate to="/" replace />} />
-            <Route path="/compare/side-by-side" element={<Navigate to="/" replace />} />
+            <Route path="/compare" element={<Compare />} />
+            <Route path="/compare/side-by-side" element={<Navigate to="/compare" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/methodology" element={<Methodology />} />
             <Route path="/methodology/unclassified" element={<Unclassified />} />

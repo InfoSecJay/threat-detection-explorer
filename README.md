@@ -20,7 +20,7 @@ Detection Explorer ingests and normalizes detection rules from 13 open-source se
 Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
 
 - **Search & filter** across 13 sources with full-text search, severity, status, and MITRE tactic/technique filters
-- **Compare coverage** across vendors for any MITRE technique or keyword
+- **Compare rules** observable by observable -- what each of 2-6 rules keys on, on which vendor field, and what it excludes
 - **Identify gaps** — find techniques covered by one vendor but missing from another
 - **Stay current** — sync and re-ingest to pull the latest rules from each repo
 - **Export** filtered results as JSON or CSV for downstream use
@@ -69,6 +69,9 @@ curl "https://detectionexplorer.io/api/v1/detections/statistics"
 
 # Coverage for a MITRE technique across all 13 sources
 curl "https://detectionexplorer.io/api/v1/compare?technique=T1059.001"
+
+# Observable-level diff of two rules (same matrix as the /compare page)
+curl "https://detectionexplorer.io/api/v1/compare/diff?ids=<id-a>,<id-b>"
 
 # All available filter facets (platforms, data sources, event types) with counts
 curl "https://detectionexplorer.io/api/v1/detections/filters"
@@ -199,7 +202,7 @@ After syncing, ingest the rules into the database:
 #### 3. Explore Detections
 
 - **Browse**: Go to Detections page to search and filter rules
-- **Compare**: Use the Compare page to see coverage across vendors
+- **Compare**: Tick 2-6 rows and press COMPARE (or use the `diff` link next to a related rule) for an observable-level diff
 - **Export**: Download filtered results as JSON or CSV
 
 ### API Endpoints
