@@ -32,7 +32,7 @@ from app.utils.datetime_utils import to_utc_iso, utcnow
 # persisted artifacts keyed on the corpus fingerprint, so without this a
 # deploy that adds a field keeps serving the old shape until the next
 # sync -- which is how `removed_rules` crashed the page on 2026-09-04.
-_DIGEST_SHAPE_VERSION = 2
+_DIGEST_SHAPE_VERSION = 3  # 3: removals counted once per upstream rule (#133)
 
 _RULE_COLS = (
     Detection.id, Detection.rule_id, Detection.title, Detection.source,
