@@ -53,7 +53,7 @@ async def list_detections(
     mitre_software: Optional[str] = Query(None, description="Comma-separated MITRE ATT&CK Software IDs (e.g. S0002, S0154)"),
     tags: Optional[str] = Query(None, description="Comma-separated list of tags"),
     platforms: Optional[str] = Query(None, description="Comma-separated list of platforms (windows, linux, cloud, etc.)"),
-    event_categories: Optional[str] = Query(None, description="Comma-separated list of event categories (process, file, network, etc.)"),
+    event_categories: Optional[str] = Query(None, description="Comma-separated event types. A parent (process_event, powershell_event, file_event, registry_event, network_event, audit_event, sensor_event) matches itself and all of its children; see /api/v1/detections/facets event_type_groups."),
     data_sources_normalized: Optional[str] = Query(None, description="Comma-separated list of normalized data sources (sysmon, auditd, etc.)"),
     use_cases: Optional[str] = Query(None, description="Comma-separated list of analytic story / use-case labels (e.g. Ransomware, Threat Detection)"),
     event_ids: Optional[str] = Query(None, description="Comma-separated list of extracted Event IDs"),

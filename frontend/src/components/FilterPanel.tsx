@@ -265,6 +265,7 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
                 platforms: facets?.platforms || [],
                 data_sources: facets?.data_sources || [],
                 event_types: facets?.event_types || [],
+                event_type_groups: facets?.event_type_groups || [],
               }}
             />
           </div>

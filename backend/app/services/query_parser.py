@@ -214,7 +214,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["event", "eventtype"],
         kind="list",
         columns=["event_types"],
-        description="Canonical event type (process, file, network, auth, ...).",
+        description="Canonical event type; a parent such as file_event or process_event includes all of its children.",
         examples=["event:process"],
     ),
     FieldSpec(
@@ -540,6 +540,13 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
         sid = _resolve_mitre_software(value)
         return _mitre_entity_clause(spec.columns[0], sid, MITRE_SOFTWARE.get(sid))
     if spec.kind == "list":
+        if spec.columns[0] == "event_types":
+            # event:file_event matches the parent and every child (#104).
+            from app.services.taxonomy.canonical import expand_event_types
+
+            expanded = expand_event_types([value])
+            if len(expanded) > 1:
+                return or_(*[_list_clause(spec.columns[0], v) for v in expanded])
         return _list_clause(spec.columns[0], value)
     if spec.kind == "event_id":
         from app.services.taxonomy.event_ids import event_id_conditions

@@ -119,11 +119,24 @@ The ten canonical values that only this pass produces
 Security auditing categories. They must never appear in a channel
 mapping -- that would be exactly the inference this section forbids.
 
-### 2. Full granularity when the vendor IS explicit
+### 2. Full granularity when the vendor IS explicit, grouped for humans
 
 When Sigma gives us a specific `category`, we preserve it 1:1 as its
 own canonical event_type. We do NOT collapse related categories into
-a coarser parent.
+a coarser parent **in the stored value** -- but the vocabulary carries
+a two-level hierarchy on top (#104): every leaf has a parent in
+`canonical.EVENT_TYPE_PARENTS` (`file_delete` -> `file_event`,
+`ps_script` -> `powershell_event`, `network_connection` ->
+`network_event`, ...). Filtering on a parent expands to the parent
+plus its children server-side (`expand_event_types`), and the facet
+response nests children under parents (`event_type_groups`) so the
+sidebar never shows `registry_event` beside `registry_set` as if they
+were siblings. Sigma's generic categories (`file_event`,
+`registry_event`, `audit_event`) are both a valid stored leaf ("the
+rule only says file event") and the parent of their specific kinds;
+the other parents (`process_event`, `powershell_event`,
+`network_event`, `sensor_event`) exist only as groupings and are never
+stored on a rule.
 
 **Don't do this:**
 ```yaml

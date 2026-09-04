@@ -976,6 +976,76 @@ def is_canonical_event_type(value: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# EVENT_TYPE hierarchy (#104 / teardown R06, B5)
+# ---------------------------------------------------------------------------
+#
+# Stored values stay the specific leaves above (principle 2 of
+# docs/taxonomy.md). On top of them a two-level grouping makes the facet
+# and the filter behave like a hierarchy: filtering a parent matches the
+# parent and every child, and the facet response nests children under
+# their parent so `registry_event` never sits beside `registry_set` as a
+# sibling. Sigma generic categories (`file_event`, `registry_event`,
+# `audit_event`) are both a storable leaf (the rule only says that much)
+# and the parent of their specific kinds; the other parents exist only
+# as groupings and are never stored on a rule. Leaves not listed here
+# (`authentication`, `api_call`, `email_message`, `endpoint_behavior`,
+# `platform_alert`, `unknown`) are top-level on their own.
+
+EVENT_TYPE_GROUPS: dict[str, tuple[str, ...]] = {
+    "process_event": (
+        "process_creation", "process_termination", "process_access", "process_tampering",
+        "create_remote_thread", "raw_access_thread", "image_load", "driver_load",
+    ),
+    "powershell_event": ("ps_script", "ps_module", "ps_classic"),
+    "file_event": (
+        "file_change", "file_delete", "file_delete_detected", "file_executable_detected",
+        "file_block_executable", "file_block_shredding", "create_stream_hash",
+    ),
+    "registry_event": ("registry_set", "registry_add", "registry_delete", "registry_rename"),
+    "network_event": ("network_connection", "dns_query", "http_request"),
+    "audit_event": (
+        "account_management", "privilege_use", "policy_change", "log_clear", "service_install",
+        "service_event", "scheduled_task", "object_access", "share_access", "directory_service_event",
+    ),
+    "sensor_event": ("sysmon_status", "sysmon_error", "wmi_event", "clipboard_capture", "pipe_created"),
+}
+
+# leaf -> parent
+EVENT_TYPE_PARENTS: dict[str, str] = {
+    child: parent for parent, children in EVENT_TYPE_GROUPS.items() for child in children
+}
+
+
+def is_event_type_parent(value: str) -> bool:
+    return value in EVENT_TYPE_GROUPS
+
+
+def event_type_parent(value: str) -> str | None:
+    """The parent of a leaf, or None for top-level values (parents included)."""
+    return EVENT_TYPE_PARENTS.get(value)
+
+
+def event_type_children(parent: str) -> tuple[str, ...]:
+    return EVENT_TYPE_GROUPS.get(parent, ())
+
+
+def expand_event_types(values) -> list[str]:
+    """Filter expansion: a parent stands for itself plus all its children.
+
+    Order is preserved and duplicates dropped, so the expansion is stable
+    for cache keys built from the filter set.
+    """
+    out: list[str] = []
+    for v in values or []:
+        if not isinstance(v, str):
+            continue
+        for x in (v, *EVENT_TYPE_GROUPS.get(v, ())):
+            if x not in out:
+                out.append(x)
+    return out
+
+
+# ---------------------------------------------------------------------------
 # RULE_MODALITIES -- HOW the rule works, not what it observes (#105 / R06)
 # ---------------------------------------------------------------------------
 #

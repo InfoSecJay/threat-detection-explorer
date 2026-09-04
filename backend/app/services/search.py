@@ -8,6 +8,7 @@ from sqlalchemy import select, or_, and_, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
+from app.services.taxonomy.canonical import EVENT_TYPE_GROUPS, EVENT_TYPE_PARENTS, expand_event_types
 from app.services.corpus_cache import corpus_cache
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 
@@ -543,6 +544,7 @@ class SearchService:
 
         counts_by_key: dict[str, dict[str, int]] = {}
         scores: list[int] = []
+        event_type_union: dict[str, int] = {}
         for sub, keys in groups:
             columns = [
                 Detection.quality_score if k == "quality_band"
@@ -562,12 +564,27 @@ class SearchService:
                 is_json = self._FACET_DIMENSIONS[k][2]
                 counts: dict[str, int] = {}
                 if is_json:
+                    # For event types also count, per RULE, each parent
+                    # group the rule touches (#104): the parent count
+                    # is a union of distinct rules, not a sum of leaves.
+                    group_union: dict[str, int] = {}
                     for r in rows:
                         values = r[i]
                         if isinstance(values, list):
+                            touched: set[str] = set()
                             for v in values:
                                 if isinstance(v, str):
                                     counts[v] = counts.get(v, 0) + 1
+                                    if k == "event_types":
+                                        if v in EVENT_TYPE_GROUPS:
+                                            touched.add(v)
+                                        parent = EVENT_TYPE_PARENTS.get(v)
+                                        if parent:
+                                            touched.add(parent)
+                            for t in touched:
+                                group_union[t] = group_union.get(t, 0) + 1
+                    if k == "event_types":
+                        event_type_union = group_union
                 else:
                     for r in rows:
                         v = r[i]
@@ -587,6 +604,12 @@ class SearchService:
             ]
             for key in self._FACET_DIMENSIONS
         }
+        # Event types nested under their parent (#104). Leaves stay in
+        # `event_types` unchanged for older clients; the sidebar renders
+        # this instead.
+        out["event_type_groups"] = self._event_type_groups(
+            counts_by_key.get("event_types", {}), event_type_union,
+        )
         # Hygiene bands: cumulative "at least N" counts for the sheet's
         # threshold control. Value is the threshold so the FE can pass
         # it straight back as min_quality.
@@ -595,6 +618,30 @@ class SearchService:
             for threshold in (80, 60, 40)
         ]
         return out
+
+    @staticmethod
+    def _event_type_groups(counts: dict[str, int], union: dict[str, int]) -> list[dict]:
+        """[{value, count, children: [{value, count}]}] for the sidebar.
+
+        Parents come first in vocabulary order with their children by
+        count; leaves with no parent follow as childless groups; then
+        the whole list sorts by count with `unknown` last. A parent
+        with nothing under it in the current result set is omitted.
+        """
+        groups: list[dict] = []
+        for parent, children in EVENT_TYPE_GROUPS.items():
+            kids = [{"value": c, "count": counts[c]} for c in children if c in counts]
+            kids.sort(key=lambda d: (-d["count"], d["value"]))
+            count = union.get(parent, 0)
+            if not kids and parent not in counts:
+                continue
+            groups.append({"value": parent, "count": count, "children": kids})
+        for v, c in counts.items():
+            if v in EVENT_TYPE_PARENTS or v in EVENT_TYPE_GROUPS:
+                continue
+            groups.append({"value": v, "count": c, "children": []})
+        groups.sort(key=lambda g: (g["value"] == "unknown", -g["count"], g["value"]))
+        return groups
 
     def _build_conditions(self, filters: SearchFilters) -> list:
         """Build SQLAlchemy filter conditions from search filters."""
@@ -723,10 +770,11 @@ class SearchService:
 
         if filters.event_categories:
             # Filter key retained for URL backwards-compat; matches
-            # the renamed `event_types` column.
+            # the renamed `event_types` column. A parent value stands
+            # for itself plus every child (#104 hierarchy).
             et_conds = [
                 cast(Detection.event_types, String).ilike(f'%"{v}"%')
-                for v in filters.event_categories
+                for v in expand_event_types(filters.event_categories)
             ]
             conditions.append(or_(*et_conds))
 

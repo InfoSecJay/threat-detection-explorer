@@ -115,6 +115,8 @@ export interface DetectionFacets {
   building_block: FacetOption[];
   // Cumulative "score >= value" counts for thresholds 80 / 60 / 40 (#39).
   quality_band: FacetOption[];
+  /** Event types nested under their parent (#104); `event_types` keeps the flat leaves. */
+  event_type_groups?: FacetGroup[];
   languages: FacetOption[];
   rule_modalities: FacetOption[];
   mitre_tactics: FacetOption[];
@@ -996,6 +998,13 @@ export interface UnclassifiedResponse {
   totals: Record<string, number>;
   sources: UnclassifiedSource[];
   history: UnclassifiedHistoryPoint[];
+}
+
+// Event-type hierarchy (#104): a parent with its union count and children.
+export interface FacetGroup {
+  value: string;
+  count: number;
+  children: FacetOption[];
 }
 
 // Corpus-health report (#124): per source and in total, how many rules
