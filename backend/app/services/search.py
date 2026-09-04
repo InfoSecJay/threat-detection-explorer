@@ -373,6 +373,10 @@ class SearchService:
         n_scalar = len(scalar_cols)
         distinct: list[set[str]] = [set() for _ in scalar_cols]
         counts: list[dict[str, int]] = [{} for _ in facet_cols]
+        # Rules per event-type PARENT (a rule with two leaves under one
+        # parent counts once) -- the group count the sidebar shows.
+        et_col = self._FILTER_OPTION_FACETS.index("event_types")
+        parent_union: dict[str, int] = {}
         for row in rows:
             for i in range(n_scalar):
                 v = row[i]
@@ -385,6 +389,13 @@ class SearchService:
                 for v in values:
                     if isinstance(v, str):
                         bucket[v] = bucket.get(v, 0) + 1
+                if j == et_col:
+                    parents = {
+                        EVENT_TYPE_PARENTS.get(v, v) for v in values
+                        if isinstance(v, str) and (v in EVENT_TYPE_PARENTS or v in EVENT_TYPE_GROUPS)
+                    }
+                    for p in parents:
+                        parent_union[p] = parent_union.get(p, 0) + 1
 
         plural = {"source": "sources", "status": "statuses", "severity": "severities", "language": "languages", "rule_modality": "rule_modalities"}
         out: dict = {
@@ -395,6 +406,10 @@ class SearchService:
                 {"value": v, "count": c}
                 for v, c in sorted(counts[j].items(), key=lambda kv: (-kv[1], kv[0]))
             ]
+        # Event types nested under their parent (#104), the same shape the
+        # facets endpoint returns, so pages that never load facets (the
+        # rule page) can still say which group a leaf belongs to.
+        out["event_type_groups"] = self._event_type_groups(counts[et_col], parent_union)
         return out
 
     async def get_unique_values(self, field_name: str) -> list[str]:

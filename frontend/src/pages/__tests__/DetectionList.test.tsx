@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -104,5 +104,24 @@ describe('DetectionList', () => {
     // the whole page chain mounted: DetectionList → FilterPanel →
     // RuleList without throwing.
     expect(await findByText(/no detections found/i)).toBeInTheDocument();
+  });
+
+  it('opens the shortcut overlay on ? and closes it on Escape', async () => {
+    const { findByText, queryByTestId, findByTestId } = renderPage();
+    await findByText(/no detections found/i);
+    expect(queryByTestId('shortcuts-help')).toBeNull();
+    fireEvent.keyDown(window, { key: '?' });
+    const dialog = await findByTestId('shortcuts-help');
+    expect(dialog).toHaveTextContent('Focus the search bar');
+    expect(dialog).toHaveTextContent('Open the filter sheet');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(queryByTestId('shortcuts-help')).toBeNull());
+  });
+
+  it('offers the current query as a curl-able API URL', async () => {
+    const { findByTestId } = renderPage();
+    const btn = await findByTestId('copy-api-url');
+    // jsdom origin + the versioned prefix + the page's pagination defaults.
+    expect(btn.getAttribute('title')).toMatch(/^http:\/\/localhost(:\d+)?\/api\/v1\/detections\?/);
   });
 });

@@ -137,7 +137,15 @@ async def test_filter_options_is_one_query_and_matches_per_column_facets(db_sess
     assert set(opts) == {
         "sources", "statuses", "severities", "languages", "rule_modalities",
         "platforms", "data_sources", "event_types", "use_cases", "mitre_groups", "mitre_software",
+        "event_type_groups",
     }
+    # The nested view (#104) is built from the same counts as the flat
+    # list: every leaf under a parent is also a flat event_types value.
+    flat = {o["value"] for o in opts["event_types"]}
+    assert isinstance(opts["event_type_groups"], list)
+    for group in opts["event_type_groups"]:
+        for child in group["children"]:
+            assert child["value"] in flat
 
 
 @pytest.mark.asyncio

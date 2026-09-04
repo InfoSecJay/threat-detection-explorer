@@ -24,6 +24,8 @@ import { downloadRuleFile, ruleFileName } from '../utils/downloadRule';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { HistoryTimeline } from './HistoryTimeline';
+import { qualityBand } from './rulelist/format';
+import { useEventTypeParents } from '../hooks/useDetections';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -68,13 +70,37 @@ function Row({ label, children, testId }: { label: string; children: React.React
   );
 }
 
-function Chips({ items, tone, unknownTone = false }: { items: string[] | undefined | null; tone: string; unknownTone?: boolean }) {
+/** Taxonomy chips. `href` turns a chip into a catalog link -- the value
+ * is a filter, so a click answers "which other rules share this?".
+ * `parentOf` prefixes a leaf with its group (#104) so `process_creation`
+ * reads as `process_event / process_creation`. `unknown` never links:
+ * there is nothing to explore behind it. */
+function Chips({ items, tone, unknownTone = false, href, parentOf }: {
+  items: string[] | undefined | null;
+  tone: string;
+  unknownTone?: boolean;
+  href?: (value: string) => string;
+  parentOf?: Record<string, string>;
+}) {
   if (!items || items.length === 0) return <span className="text-gray-600 text-xs italic">none</span>;
   return (
     <div className="flex flex-wrap gap-1.5">
-      {items.map((v) => (
-        <span key={v} className={`inline-flex px-2 py-0.5 rounded text-xs font-mono border ${unknownTone && v === 'unknown' ? 'bg-gray-500/20 text-gray-400 border-gray-500/30 italic' : tone}`}>{v}</span>
-      ))}
+      {items.map((v) => {
+        const isUnknown = unknownTone && v === 'unknown';
+        const cls = `inline-flex items-baseline gap-1 px-2 py-0.5 rounded text-xs font-mono border ${isUnknown ? 'bg-gray-500/20 text-gray-400 border-gray-500/30 italic' : tone}`;
+        const parent = parentOf?.[v];
+        const body = (
+          <>
+            {parent && <span className="opacity-60" data-testid="chip-parent">{parent} /</span>}
+            {v}
+          </>
+        );
+        return href && !isUnknown ? (
+          <Link key={v} to={href(v)} className={`${cls} hover:brightness-125`} title={`All rules tagged ${v}`}>{body}</Link>
+        ) : (
+          <span key={v} className={cls}>{body}</span>
+        );
+      })}
     </div>
   );
 }
@@ -99,6 +125,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
   const src = sourceTheme[detection.source];
   const language = LANGUAGE_LABEL[(detection.language || '').toLowerCase()] || (detection.language || 'unknown');
   const hasObservables = (detection.extracted_observables?.length ?? 0) > 0 || (detection.extracted_source_tables?.length ?? 0) > 0;
+  const eventTypeParents = useEventTypeParents();
 
   return (
     <div className="space-y-4">
@@ -118,6 +145,19 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold">{language}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity] || severityColors.unknown}`}>{detection.severity}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>{detection.status.replace(/_/g, ' ')}</span>
+                {/* The same completeness chip the list rows carry, so the
+                    number a visitor clicked through on is still in view;
+                    it jumps to the per-dimension breakdown below. */}
+                {typeof detection.quality_score === 'number' && (
+                  <a
+                    href="#hygiene"
+                    className={`px-2 py-0.5 rounded text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
+                    title="Metadata completeness (0-100): documentation, ATT&CK mapping, specificity, testability. Not detection accuracy."
+                    data-testid="completeness-chip"
+                  >
+                    completeness {detection.quality_score}
+                  </a>
+                )}
                 {/* Modality (#105): how the rule works. Plain detection
                     rules are the baseline and get no badge. */}
                 {detection.rule_modality && detection.rule_modality !== 'rule' && (
@@ -230,7 +270,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               <Row label="Status"><span className="capitalize">{detection.status}</span></Row>
               <Row label="Rule ID"><span className="font-mono text-xs break-all">{detection.rule_id || 'N/A'}</span></Row>
               {detection.quality_details && (
-                <div className="py-3 border-b border-void-800"><HygieneBars details={detection.quality_details} /></div>
+                <div id="hygiene" className="py-3 border-b border-void-800 scroll-mt-24"><HygieneBars details={detection.quality_details} /></div>
               )}
               <Row label="Reference URLs">
                 {detection.references && detection.references.length > 0 ? (
@@ -268,7 +308,22 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                   </div>
                 ) : <span className="text-gray-600 text-xs italic">none</span>}
               </Row>
-              <Row label="Source file"><span className="font-mono text-xs text-gray-400 break-all">{detection.source_file}</span></Row>
+              <Row label="Source file">
+                {detection.source_rule_url ? (
+                  <a href={detection.source_rule_url} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-gray-400 hover:text-cyan-300 break-all" data-testid="source-file-link">
+                    {detection.source_file} &#8599;
+                  </a>
+                ) : (
+                  <span className="font-mono text-xs text-gray-400 break-all">{detection.source_file}</span>
+                )}
+              </Row>
+              {detection.source_repo_url && (
+                <Row label="Repository">
+                  <a href={detection.source_repo_url} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-gray-400 hover:text-cyan-300 break-all" data-testid="source-repo-link">
+                    {detection.source_repo_url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\.git$/, '')} &#8599;
+                  </a>
+                </Row>
+              )}
             </div>
           )}
         </Card>
@@ -290,10 +345,24 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
             ) : (
               <div>
-                <Row label="Source tables / indices" testId="def-tables"><Chips items={detection.extracted_source_tables} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" /></Row>
-                <Row label="Data sources"><Chips items={detection.data_sources} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" unknownTone /></Row>
-                <Row label="Platforms"><Chips items={detection.platforms} tone="bg-cyan-500/15 text-cyan-300 border-cyan-500/30" unknownTone /></Row>
-                <Row label="Event types"><Chips items={detection.event_types} tone="bg-orange-500/15 text-orange-300 border-orange-500/30" unknownTone /></Row>
+                {/* Every taxonomy chip is a catalog filter: the page is
+                    an entry point into "everything else tagged this". */}
+                <Row label="Source tables / indices" testId="def-tables">
+                  <Chips items={detection.extracted_source_tables} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                    href={(v) => `/detections?source_tables=${encodeURIComponent(v)}`} />
+                </Row>
+                <Row label="Data sources" testId="def-data-sources">
+                  <Chips items={detection.data_sources} tone="bg-emerald-500/15 text-emerald-300 border-emerald-500/30" unknownTone
+                    href={(v) => `/detections?data_sources_normalized=${encodeURIComponent(v)}`} />
+                </Row>
+                <Row label="Platforms" testId="def-platforms">
+                  <Chips items={detection.platforms} tone="bg-cyan-500/15 text-cyan-300 border-cyan-500/30" unknownTone
+                    href={(v) => `/detections?platforms=${encodeURIComponent(v)}`} />
+                </Row>
+                <Row label="Event types" testId="def-event-types">
+                  <Chips items={detection.event_types} tone="bg-orange-500/15 text-orange-300 border-orange-500/30" unknownTone
+                    href={(v) => `/detections?event_categories=${encodeURIComponent(v)}`} parentOf={eventTypeParents} />
+                </Row>
                 <Row label="Rule type"><span className="text-xs">{language}{detection.query_complexity ? <span className="text-gray-500"> · {detection.query_complexity} complexity</span> : null}</span></Row>
                 <div className="py-3 border-b border-void-800" data-testid="def-query">
                   <div className="text-xs font-semibold text-gray-400 mb-2">Query</div>

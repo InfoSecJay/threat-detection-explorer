@@ -400,6 +400,23 @@ class IngestionService:
 
         Returns the number of rules successfully stored.
         """
+        # `created_at` is "first seen by the site". The fresh row carries
+        # utcnow(), and merge() copies every column, so until this ran
+        # every rule looked first-seen at the LAST sync (and tombstones
+        # inherited that as first_seen_at). Carry the stored value over.
+        ids = [r.id for r in rules if r.id]
+        first_seen: dict[str, datetime] = {}
+        if ids:
+            rows = (
+                await self.db.execute(
+                    select(Detection.id, Detection.created_at).where(Detection.id.in_(ids))
+                )
+            ).all()
+            first_seen = {rid: seen for rid, seen in rows if seen is not None}
+        for rule in rules:
+            if rule.id in first_seen:
+                rule.created_at = first_seen[rule.id]
+
         stored = 0
         for rule in rules:
             try:

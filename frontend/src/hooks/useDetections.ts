@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { detectionsApi, exportApi } from '../services/api';
 import type { SearchFilters, ExportRequest } from '../types';
@@ -37,6 +38,20 @@ export function useFilterOptions() {
     staleTime: Infinity,
     gcTime: 24 * 60 * 60 * 1000,
   });
+}
+
+/** leaf event type -> parent group (#104), from the daily-static filter
+ * vocabulary. Empty until the options load (chips simply show no
+ * parent), so callers never wait on it. */
+export function useEventTypeParents(): Record<string, string> {
+  const { data } = useFilterOptions();
+  return useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const group of data?.event_type_groups ?? []) {
+      for (const child of group.children ?? []) out[child.value] = group.value;
+    }
+    return out;
+  }, [data]);
 }
 
 /** Facet counts scoped to the active query — powers the filter

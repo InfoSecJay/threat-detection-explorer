@@ -25,6 +25,14 @@ const api = axios.create({
   },
 });
 
+/** Absolute URL for an API path -- what a curl of the same query looks
+ * like. Same-origin bases get the page origin prefixed; a dev override
+ * that is already absolute passes through. */
+export function apiUrl(pathWithQuery: string): string {
+  const base = /^https?:\/\//i.test(API_BASE_URL) ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
+  return `${base.replace(/\/$/, '')}${pathWithQuery}`;
+}
+
 // Repository endpoints
 export const repositoriesApi = {
   list: async (): Promise<Repository[]> => {
@@ -145,6 +153,11 @@ export const detectionsApi = {
     return response.data;
   },
 
+  /** The list query as a shareable, curl-able API URL (#92): the same
+   * filters, pagination and sort the page is showing. */
+  listUrl: (filters: SearchFilters = {}): string =>
+    apiUrl(`/detections?${buildFilterParams(filters).toString()}`),
+
   getFacets: async (filters: SearchFilters = {}): Promise<DetectionFacets> => {
     const params = buildFilterParams(filters, false);
     const response = await api.get(`/detections/facets?${params.toString()}`);
@@ -174,6 +187,8 @@ export const detectionsApi = {
     use_cases?: Array<{ value: string; count: number }>;
     mitre_groups?: Array<{ value: string; count: number }>;
     mitre_software?: Array<{ value: string; count: number }>;
+    /** Event types nested under their parent (#104); same shape as the facets endpoint. */
+    event_type_groups?: FacetGroup[];
   }> => {
     const response = await api.get('/detections/filters');
     return response.data;
@@ -1074,6 +1089,18 @@ export interface DigestTheme {
   sources: Record<string, number>;
   samples: { id: string; title: string; source: string }[];
 }
+/** A rule that vanished upstream in the window (tombstone, #87). */
+export interface DigestRemovedRule {
+  id: string;
+  rule_id: string | null;
+  title: string;
+  source: string;
+  severity: string;
+  mitre_techniques: string[];
+  first_seen: string | null;
+  removed: string | null;
+}
+
 export interface DigestResponse {
   generated_at: string;
   period: { days: number; start: string; end: string; week?: string | null; this_week?: string };
@@ -1082,6 +1109,8 @@ export interface DigestResponse {
     created: number;
     /** Changed in the window and created before it. */
     modified: number;
+    /** Removed upstream in the window (deleted, or moved to a deprecated folder). */
+    removed: number;
     created_by_source: Record<string, number>;
     by_source: Record<string, { created: number; modified: number }>;
   };
@@ -1092,6 +1121,7 @@ export interface DigestResponse {
   momentum: TechniqueDeltasResponse;
   new_rules: DigestRule[];
   modified_rules: DigestRule[];
+  removed_rules: DigestRemovedRule[];
   emerging_data_sources: { data_source: string; count: number; sources: string[] }[];
 }
 

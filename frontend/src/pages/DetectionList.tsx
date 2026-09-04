@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 import { ActiveFilterPills } from '../components/ActiveFilterPills';
 import { RuleList } from '../components/RuleList';
 import { ExportModal } from '../components/ExportModal';
+import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { SearchBar } from '../components/SearchBar';
 import { FilterSheet } from '../components/FilterSheet';
 import { useDetections } from '../hooks/useDetections';
 import type { SearchFilters } from '../types';
-import { extractQueryParseError } from '../services/api';
+import { detectionsApi, extractQueryParseError } from '../services/api';
 import { countActiveFilters } from '../utils/filterUtils';
 import {
   mergeTokensIntoFilters,
@@ -43,9 +44,38 @@ function FilterButton({ activeCount, onClick }: { activeCount: number; onClick: 
   );
 }
 
+/** Copies the page's query as a curl-able /api/v1 URL (#92): the API is
+ * the product for scripts and MCP clients, and the catalog page is
+ * where people discover the filters they want to automate. */
+function ApiUrlButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* clipboard blocked: the tooltip still shows the URL to copy by hand */
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={url}
+      className="hidden sm:flex items-center gap-2 px-3 py-2 text-xs font-display font-semibold uppercase tracking-wider border bg-void-900 text-gray-400 border-void-700 hover:text-white hover:border-void-600 transition-colors"
+      style={clipSm}
+      data-testid="copy-api-url"
+    >
+      {copied ? 'Copied' : 'API URL'}
+    </button>
+  );
+}
+
 export function DetectionList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [selectedIdsForExport, setSelectedIdsForExport] = useState<string[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   // Pinned means the filter panel docks as a persistent side panel on
@@ -84,6 +114,11 @@ export function DetectionList() {
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           (target as HTMLElement).isContentEditable);
+      if (e.key === '?' && !isTyping) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (e.key === '/' && !isTyping) {
         e.preventDefault();
         const bar = document.querySelector<HTMLInputElement>(
@@ -274,18 +309,31 @@ export function DetectionList() {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => setIsExportModalOpen(true)}
-          className="px-4 py-2 bg-pulse-500 text-void-950 font-display font-semibold text-sm uppercase tracking-wider hover:bg-pulse-400 transition-colors"
-          style={clipSm}
-        >
-          <span className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Export
-          </span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShortcutsOpen(true)}
+            className="hidden sm:flex items-center justify-center w-9 h-9 text-sm font-mono border bg-void-900 text-gray-400 border-void-700 hover:text-white hover:border-void-600 transition-colors"
+            style={clipSm}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+          <ApiUrlButton url={detectionsApi.listUrl(filters)} />
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="px-4 py-2 bg-pulse-500 text-void-950 font-display font-semibold text-sm uppercase tracking-wider hover:bg-pulse-400 transition-colors"
+            style={clipSm}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Search bar + Filter button. Lucene-syntax bar is the primary
@@ -337,6 +385,8 @@ export function DetectionList() {
           onExportSelected={handleExportSelected}
         />
       </div>
+
+      <KeyboardShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
       <ExportModal
         isOpen={isExportModalOpen}

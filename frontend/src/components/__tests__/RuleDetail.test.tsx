@@ -7,6 +7,12 @@ vi.mock('../../hooks/useEventIds', () => ({
   useEventIds: () => ({ labels: {}, entries: {} }),
 }));
 
+// Event-type parents come from the daily-static filter vocabulary
+// (#104); the component only needs the leaf -> parent map.
+vi.mock('../../hooks/useDetections', () => ({
+  useEventTypeParents: () => ({ process: 'process_event' }),
+}));
+
 vi.mock('../../contexts/MitreContext', () => ({
   useMitre: () => ({
     techniques: {},
@@ -140,5 +146,32 @@ describe('RuleDetail', () => {
       <MemoryRouter><RuleDetail detection={{ ...detection, rule_modality: 'hunting' } as Detection} /></MemoryRouter>,
     );
     expect(getByTestId('rule-modality')).toHaveTextContent('Hunting query');
+  });
+
+  it('links every taxonomy chip into the catalog and names the event-type parent', () => {
+    const { getByTestId, getAllByTestId } = render(
+      <MemoryRouter><RuleDetail detection={{ ...detection, quality_score: 72 } as unknown as Detection} /></MemoryRouter>,
+    );
+    // Header carries the same completeness number as the list row.
+    expect(getByTestId('completeness-chip')).toHaveTextContent('completeness 72');
+    expect(getByTestId('completeness-chip')).toHaveAttribute('href', '#hygiene');
+    // Chips are filters: platform -> platforms=, data source -> data_sources_normalized=,
+    // event type -> event_categories= with its parent group in front.
+    expect(getByTestId('def-platforms').querySelector('a')).toHaveAttribute('href', '/detections?platforms=windows');
+    expect(getByTestId('def-data-sources').querySelector('a')).toHaveAttribute('href', '/detections?data_sources_normalized=process_creation');
+    const eventChip = getByTestId('def-event-types').querySelector('a');
+    expect(eventChip).toHaveAttribute('href', '/detections?event_categories=process');
+    expect(getAllByTestId('chip-parent')[0]).toHaveTextContent('process_event /');
+    // Provenance: the file links to the upstream blob, the repo to its root.
+    expect(getByTestId('source-file-link')).toHaveAttribute('href', detection.source_rule_url);
+    expect(getByTestId('source-file-link')).toHaveTextContent('rules/windows/proc.yml');
+  });
+
+  it('never links an unknown chip: there is nothing behind it', () => {
+    const { getByTestId } = render(
+      <MemoryRouter><RuleDetail detection={{ ...detection, platforms: ['unknown'] } as unknown as Detection} /></MemoryRouter>,
+    );
+    expect(getByTestId('def-platforms').querySelector('a')).toBeNull();
+    expect(getByTestId('def-platforms')).toHaveTextContent('unknown');
   });
 });
