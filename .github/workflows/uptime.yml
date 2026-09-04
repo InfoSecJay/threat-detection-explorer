@@ -1,0 +1,73 @@
+name: Uptime
+
+# External uptime check for #97: /api/health runs a real database query
+# and answers 503 when Postgres is out (9dae1d3), so a non-200 here is a
+# user-visible outage. Probes through the public edge every 10 minutes,
+# opens one issue labelled `uptime` on failure, closes it on recovery.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /api/health through the edge
+        id: probe
+        shell: bash
+        run: |
+          set +e
+          code=000
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o body.json -w "%{http_code}" --max-time 20 \
+              -H "User-Agent: detectionexplorer-uptime/1.0" \
+              https://detectionexplorer.io/api/health)
+            [ "$code" = "200" ] && break
+            sleep 20
+          done
+          body=$(tr -d '\n' < body.json 2>/dev/null | head -c 400)
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "body=$body" >> "$GITHUB_OUTPUT"
+          if [ "$code" = "200" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; fi
+          echo "health -> $code $body"
+
+      - name: Open the outage issue (once)
+        if: steps.probe.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.probe.outputs.code }}
+          BODY: ${{ steps.probe.outputs.body }}
+        shell: bash
+        run: |
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label uptime --json number --jq '.[0].number')
+          when=$(date -u +"%Y-%m-%d %H:%M UTC")
+          if [ -z "$n" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label uptime \
+              --title "[uptime] detectionexplorer.io /api/health failing" \
+              --body "$(printf 'First seen: %s\nHTTP %s after 3 attempts 20 s apart.\n\n```\n%s\n```\n\nThe probe runs every 10 minutes and closes this issue on recovery. Start with `railway logs --service threat-detection-explorer` and the Postgres volume (see #97).' "$when" "$CODE" "$BODY")"
+          else
+            echo "issue #$n already open; still failing at $when (HTTP $CODE)"
+          fi
+
+      - name: Close the outage issue on recovery
+        if: steps.probe.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ steps.probe.outputs.body }}
+        shell: bash
+        run: |
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label uptime --json number --jq '.[0].number')
+          if [ -n "$n" ]; then
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" \
+              --comment "Recovered at $(date -u +'%Y-%m-%d %H:%M UTC'): /api/health 200 \`$BODY\`"
+          fi
