@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { RuleDetail } from '../components/RuleDetail';
+import { HistoryTimeline } from '../components/HistoryTimeline';
+import type { UpstreamTouch } from '../types';
 import { useDetection } from '../hooks/useDetections';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 
@@ -23,6 +25,11 @@ function TombstonePage({ t }: { t: Tombstone }) {
   useDocumentMeta(`${t.title} (removed)`, `This ${t.source} rule was removed upstream.`);
   const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '?');
   const lastLogic = typeof t.last_seen.detection_logic === 'string' ? t.last_seen.detection_logic : '';
+  // Rule history (#127) survives on the preserved row: the last upstream
+  // touches plus the removal itself as the newest entry.
+  const touches = Array.isArray(t.last_seen.upstream_history) ? (t.last_seen.upstream_history as UpstreamTouch[]) : [];
+  const createdDate = typeof t.last_seen.rule_created_date === 'string' ? t.last_seen.rule_created_date : t.first_seen_at;
+  const repoUrl = typeof t.last_seen.source_repo_url === 'string' ? t.last_seen.source_repo_url : null;
   return (
     <div className="max-w-4xl space-y-5" data-testid="tombstone">
       <Link to="/detections" className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1">
@@ -45,6 +52,10 @@ function TombstonePage({ t }: { t: Tombstone }) {
             ))}
           </p>
         )}
+      </div>
+      <div className="bg-void-850 border border-void-700 p-5" data-testid="tombstone-history">
+        <h2 className="text-sm font-display font-bold text-white uppercase tracking-wider mb-1">History</h2>
+        <HistoryTimeline touches={touches} createdDate={createdDate} repoUrl={repoUrl} removedAt={t.removed_at} />
       </div>
       {t.successors.length > 0 && (
         <div className="bg-void-850 border border-void-700 p-5">
