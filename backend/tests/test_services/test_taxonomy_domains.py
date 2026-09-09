@@ -94,3 +94,22 @@ def test_normalized_detection_applies_the_split():
     assert n.platforms == ["cross_platform"]
     assert n.domains == ["endpoint", "cloud"]
     assert n.products == ["crowdstrike", "aws"]
+
+
+def test_edr_any_os_is_broader_than_a_container_audit_log():
+    # A Panther indicator-match rule reads sixteen log types: SaaS, cloud,
+    # identity, CrowdStrike and Kubernetes audit. The EDR sensor runs on
+    # any OS, so `cross_platform` is the honest platform; `container`
+    # would claim the rule is Kubernetes-only.
+    platforms, domains, products = split_platforms(
+        ["aws", "okta", "crowdstrike", "kubernetes", "notion"],
+        ["aws_cloudtrail", "okta_system_log", "crowdstrike_event_streams", "aws_eks_audit"],
+    )
+    assert platforms == ["cross_platform"]
+    assert domains == ["endpoint", "identity", "cloud", "saas"]
+    assert products == ["aws", "okta", "crowdstrike", "kubernetes", "notion"]
+    # Without the EDR product the same rule is a container rule.
+    assert split_platforms(["aws", "kubernetes"], ["aws_eks_audit"])[0] == ["container"]
+    # A stated OS still beats both hints.
+    assert split_platforms(["linux", "crowdstrike", "kubernetes"], [])[0] == ["linux"]
+

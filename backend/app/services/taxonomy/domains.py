@@ -61,9 +61,10 @@ DOMAIN_DEFINITIONS: dict[str, str] = {
 }
 
 # raw platform value -> (OS platform or precedence hint, domains, product)
-# Hints: a specific OS wins; then container; then cross_platform (EDR
-# telemetry with no OS stated applies wherever the sensor runs); then
-# not_applicable; unknown when nothing at all was said.
+# Hints: a specific OS wins; then cross_platform (EDR telemetry with no
+# OS stated applies wherever the sensor runs, which is broader than a
+# container audit log); then container; then not_applicable; unknown
+# when nothing at all was said.
 _S = "not_applicable"
 LEGACY_PLATFORM_SPLIT: dict[str, tuple[Optional[str], tuple[str, ...], Optional[str]]] = {
     "windows": ("windows", ("endpoint",), None),
@@ -304,10 +305,15 @@ def split_platforms(raw_platforms, data_sources) -> tuple[list[str], list[str], 
 
     if os_values:
         platforms = _dedupe(os_values, _SPECIFIC_OS)
+    elif "cross_platform" in hints:
+        # Broader than container: the Panther indicator-match rules that
+        # read every log type (VirusTotal, OTX, GreyNoise) pair an EDR
+        # product with Kubernetes audit and used to collapse to
+        # `container` because kubernetes was the only OS-bearing product
+        # among sixteen. An AKS / EKS rule with no EDR stays `container`.
+        platforms = ["cross_platform"]
     elif "container" in hints:
         platforms = ["container"]
-    elif "cross_platform" in hints:
-        platforms = ["cross_platform"]
     elif "not_applicable" in hints:
         platforms = ["not_applicable"]
     elif passthrough:
