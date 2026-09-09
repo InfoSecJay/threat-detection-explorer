@@ -68,6 +68,11 @@ class TestBaseNormalizer:
         assert self.normalizer.normalize_status("experimental") == "experimental"
         assert self.normalizer.normalize_status("development") == "experimental"
         assert self.normalizer.normalize_status("deprecated") == "deprecated"
+        # Azure-Sentinel template lifecycle: `Available` is the published
+        # state; 65 upstream files carry trailing whitespace on the value.
+        assert self.normalizer.normalize_status("Available") == "stable"
+        assert self.normalizer.normalize_status("Available  ") == "stable"
+        assert self.normalizer.normalize_status("Experimental") == "experimental"
         assert self.normalizer.normalize_status("unknown_status") == "unknown"
         assert self.normalizer.normalize_status(None) == "unknown"
         assert self.normalizer.normalize_status("") == "unknown"

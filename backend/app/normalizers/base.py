@@ -378,8 +378,12 @@ class BaseNormalizer(ABC):
         if not status:
             return "unknown"
 
-        status_lower = status.lower()
-        if status_lower in ["stable", "production", "released"]:
+        # strip(): Azure-Sentinel templates carry `status: Available ` with
+        # trailing whitespace on 65 files, which would otherwise miss.
+        status_lower = status.strip().lower()
+        if status_lower in ["stable", "production", "released", "available"]:
+            # `available` is Azure-Sentinel's published-template state
+            # (1,816 rules read as `unknown` until it was mapped).
             return "stable"
         elif status_lower in ["test", "testing"]:
             return "test"

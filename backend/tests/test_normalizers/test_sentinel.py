@@ -224,3 +224,13 @@ def test_unknown_cl_data_type_does_not_inject_cross_platform(normalizer):
     ))
     assert "cross_platform" not in n.platforms
     assert "siem_alert" in n.data_sources
+
+
+def test_available_template_status_is_stable(normalizer):
+    # Azure-Sentinel templates say `status: Available` (65 of them with
+    # trailing whitespace); 1,827 rules read as `unknown` until the
+    # vocabulary learned the word (#137).
+    assert normalizer.normalize(_parsed(status="Available")).status == "stable"
+    assert normalizer.normalize(_parsed(status="Available  ")).status == "stable"
+    assert normalizer.normalize(_parsed(status="Experimental")).status == "experimental"
+

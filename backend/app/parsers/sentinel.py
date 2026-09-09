@@ -260,11 +260,12 @@ class SentinelParser(BaseParser):
             # Extract severity
             severity = data.get("severity", "unknown")
 
-            # Extract status. Azure-Sentinel analytic-rule templates carry
-            # no maturity field; they are published as production
-            # templates, so default to `stable` like the other sources
-            # with no maturity concept (Okta, Sublime, Elastic hunting /
-            # protections) rather than `unknown` (#47).
+            # Extract status. Azure-Sentinel templates carry a lifecycle
+            # value -- `Available` (1,816 files, 65 with trailing
+            # whitespace) or `Experimental` -- which the normalizer maps
+            # to stable / experimental (#137). A template with no
+            # `status` key is a published one, so the default is
+            # `stable` rather than `unknown` (#47).
             status = data.get("status", "stable")
 
             # Description handling
