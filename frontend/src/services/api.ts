@@ -87,8 +87,10 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.tags?.length) params.set('tags', filters.tags.join(','));
   // Canonical taxonomy filters
   if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
-  if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));
-  if (filters.data_sources_normalized?.length) params.set('data_sources_normalized', filters.data_sources_normalized.join(','));
+  // The UI keeps its legacy URL keys; the API is called with the documented
+  // names (#139) so a copied API URL uses them too.
+  if (filters.event_categories?.length) params.set('event_types', filters.event_categories.join(','));
+  if (filters.data_sources_normalized?.length) params.set('data_sources', filters.data_sources_normalized.join(','));
   if (filters.domains?.length) params.set('domains', filters.domains.join(','));
   if (filters.products?.length) params.set('products', filters.products.join(','));
   if (filters.use_cases?.length) params.set('use_cases', filters.use_cases.join(','));
