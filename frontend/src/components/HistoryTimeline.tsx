@@ -8,6 +8,7 @@
  */
 
 import type { UpstreamTouch } from '../types';
+import { parseApiDate } from '../utils/dates';
 
 function commitUrl(repoUrl: string | null | undefined, sha: string): string | null {
   if (!repoUrl) return null;
@@ -16,7 +17,7 @@ function commitUrl(repoUrl: string | null | undefined, sha: string): string | nu
 }
 
 function relDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const days = Math.round((Date.now() - d.getTime()) / 86_400_000);
   if (days < 1) return 'today';
@@ -26,7 +27,7 @@ function relDate(iso: string): string {
 }
 
 function absDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
 }
 
@@ -51,7 +52,7 @@ export function HistoryTimeline({ touches, createdDate, repoUrl, removedAt }: Hi
 
   const oldestTouch = list.length ? list[list.length - 1] : null;
   const createdBeforeHistory =
-    !!createdDate && (!oldestTouch || new Date(createdDate).getTime() < new Date(oldestTouch.date).getTime() - 60_000);
+    !!createdDate && (!oldestTouch || parseApiDate(createdDate).getTime() < parseApiDate(oldestTouch.date).getTime() - 60_000);
   const truncated = list.length >= 10 && createdBeforeHistory;
 
   type Entry = { key: string; label: string; date: string; who?: string; subject?: string; href?: string | null; tone: string };

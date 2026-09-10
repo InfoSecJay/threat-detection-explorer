@@ -3,6 +3,13 @@ import { render, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Detection } from '../../types';
 
+// The backend serializes date-only fields as naive datetimes with no
+// zone designator (`2021-09-20T00:00:00`, no `Z`). Run this file west
+// of UTC so a regression (rendering that string in the viewer's local
+// zone instead of as a UTC calendar date) actually rolls the day back
+// and fails (DX-09).
+process.env.TZ = 'America/Toronto';
+
 vi.mock('../../hooks/useEventIds', () => ({
   useEventIds: () => ({ labels: {}, entries: {} }),
 }));
@@ -173,5 +180,19 @@ describe('RuleDetail', () => {
     );
     expect(getByTestId('def-platforms').querySelector('a')).toBeNull();
     expect(getByTestId('def-platforms')).toHaveTextContent('unknown');
+  });
+
+  it('does not render Created/Updated a day early for a viewer west of UTC (DX-09)', () => {
+    const naive = {
+      ...detection,
+      rule_created_date: '2021-09-20T00:00:00',
+      rule_modified_date: '2025-11-03T00:00:00',
+    } as unknown as Detection;
+    const { getByTestId } = render(<MemoryRouter><RuleDetail detection={naive} /></MemoryRouter>);
+    const byline = getByTestId('rule-byline');
+    expect(byline).toHaveTextContent('2021-09-20');
+    expect(byline).toHaveTextContent('2025-11-03');
+    expect(byline).not.toHaveTextContent('9/19/2021');
+    expect(byline).not.toHaveTextContent('2021-09-19');
   });
 });

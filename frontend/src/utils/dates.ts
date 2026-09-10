@@ -28,3 +28,19 @@ export function daysSince(value: string | null | undefined, now: number = Date.n
   if (isNaN(d.getTime())) return null;
   return Math.max(0, Math.floor((now - d.getTime()) / 86_400_000));
 }
+
+/** Format a date-only API value (a calendar date, not an instant --
+ * upstream `date`/`modified`/`creation_date`/`updated_date` fields) as
+ * ISO `YYYY-MM-DD`, read from UTC components. `parseApiDate` already
+ * anchors these to UTC midnight; `toLocaleDateString()` on that Date
+ * re-renders in the viewer's zone and rolls the day back for anyone
+ * west of UTC. Do not use this for true timestamps (e.g. sync time),
+ * which should keep rendering in the viewer's own zone. */
+export function formatCalendarDate(value: string | null | undefined): string {
+  const d = parseApiDate(value);
+  if (isNaN(d.getTime())) return 'unknown';
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}

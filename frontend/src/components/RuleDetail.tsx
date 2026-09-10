@@ -5,7 +5,7 @@
  * swaps the definition for the upstream file as-is. Sections live in
  * components/ruledetail/. */
 
-import { parseApiDate } from '../utils/dates';
+import { parseApiDate, formatCalendarDate } from '../utils/dates';
 import { MODALITY_LABELS, MODALITY_OPTIONS } from './filterpanel/options';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -178,7 +178,7 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
               <h1 className="text-xl font-bold text-white">{detection.title}</h1>
               <p className="text-xs text-gray-500 mt-1 font-mono" data-testid="rule-byline">
-                Created by {detection.author || sourceTheme[detection.source]?.name || detection.source} on {fmt(detection.rule_created_date)} · Updated {fmt(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
+                Created by {detection.author || sourceTheme[detection.source]?.name || detection.source} on {formatCalendarDate(detection.rule_created_date)} · Updated {formatCalendarDate(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">

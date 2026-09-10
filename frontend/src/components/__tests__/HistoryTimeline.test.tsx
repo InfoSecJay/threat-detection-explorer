@@ -8,6 +8,12 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { HistoryTimeline } from '../HistoryTimeline';
 
+// The backend serializes date-only fields as naive datetimes with no
+// zone designator (`2021-09-20T00:00:00`, no `Z`). Run this file west
+// of UTC so a regression (parsing that string as local time instead of
+// UTC midnight) actually rolls the calendar day back and fails (DX-09).
+process.env.TZ = 'America/Toronto';
+
 const REPO = 'https://github.com/SigmaHQ/sigma.git';
 const touch = (i: number, date: string) => ({ sha: `abc${i}`.padEnd(8, '0'), author: `Author ${i}`, date, subject: `change ${i}` });
 
@@ -52,5 +58,12 @@ describe('HistoryTimeline', () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveTextContent('Created');
     expect(items[0]).toHaveTextContent('2024-02-02');
+  });
+
+  it('does not roll a naive (no-Z) created date back a day for a viewer west of UTC (DX-09)', () => {
+    render(<HistoryTimeline touches={undefined} createdDate="2021-09-20T00:00:00" repoUrl={null} />);
+    const items = within(screen.getByTestId('history-timeline')).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('2021-09-20');
+    expect(items[0]).not.toHaveTextContent('2021-09-19');
   });
 });
