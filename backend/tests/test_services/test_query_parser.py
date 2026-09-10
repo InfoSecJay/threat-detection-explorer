@@ -140,14 +140,32 @@ class TestMitreAliasResolution:
         s = _sql(parse_query("tool:S0154"))
         assert '"s0154"' in s
 
-    def test_unknown_actor_name_passes_through_uppercased(self):
-        """Unknown names are used verbatim — no silent miss.
+    def test_actor_by_name_with_multiple_aliases_resolves(self):
+        """`actor:"Mustang Panda"` and its MISP alias both resolve to G0129
+        (DX-04): the query bar used to only know G0129 by ID, so a name
+        lookup silently built a clause that could never match -- read as
+        "no coverage" for an actor the /actors page shows 12 rules for."""
+        s = _sql(parse_query('actor:"Mustang Panda"'))
+        assert '"g0129"' in s
+        s2 = _sql(parse_query('actor:"Bronze President"'))
+        assert '"g0129"' in s2
 
-        A rule tagged with an obscure actor name we haven't registered
-        can still be found by typing that exact name.
-        """
-        s = _sql(parse_query("actor:UnknownGroup"))
-        assert "unknowngroup" in s
+    def test_unknown_actor_name_raises_value_error(self):
+        """DX-04: an actor name that resolves to neither a known alias nor
+        a G-ID shape must fail loud, not build a clause that can only
+        ever match zero rows. `actor:UnknownGroup` used to silently pass
+        the raw string through to an ID-only column and read as a real
+        coverage gap."""
+        with pytest.raises(QueryParseError) as exc:
+            parse_query("actor:UnknownGroup")
+        assert exc.value.error_code == "query_value_error"
+        assert "UnknownGroup" in exc.value.message
+
+    def test_unknown_actor_id_shape_still_passes_through(self):
+        """A syntactically valid but nonexistent G-ID is not a lookup
+        failure -- it is a real query that correctly matches nothing."""
+        s = _sql(parse_query("actor:G9999"))
+        assert '"g9999"' in s
 
 
 class TestErrorHandling:
@@ -155,6 +173,7 @@ class TestErrorHandling:
         with pytest.raises(QueryParseError) as exc:
             parse_query("priority:high")
         assert "unknown field" in str(exc.value)
+        assert exc.value.error_code == "query_parse_error"
 
     def test_unknown_field_offers_suggestion(self):
         """Typo 'severty' should suggest 'severity'."""
@@ -166,6 +185,33 @@ class TestErrorHandling:
     def test_malformed_query_raises(self):
         with pytest.raises(QueryParseError):
             parse_query('title:"unclosed')
+
+    def test_bad_enum_value_raises_value_error_with_suggestion(self):
+        """DX-04: `severity:hgih` used to return 200 with zero results,
+        indistinguishable from a legitimately unused severity. It is a
+        typo, not a gap."""
+        with pytest.raises(QueryParseError) as exc:
+            parse_query("severity:hgih")
+        assert exc.value.error_code == "query_value_error"
+        assert exc.value.suggestion == "high"
+
+    def test_valid_enum_values_still_work(self):
+        for value in ("critical", "high", "medium", "low", "unknown", "HIGH"):
+            assert "severity" in _sql(parse_query(f"severity:{value}"))
+
+    def test_enum_wildcard_bypasses_strict_validation(self):
+        """A deliberate wildcard still falls back to substring ILIKE
+        instead of being rejected as an unknown enum value."""
+        s = _sql(parse_query("severity:hig*"))
+        assert "severity" in s
+
+    def test_bad_status_and_modality_values_raise(self):
+        with pytest.raises(QueryParseError) as exc:
+            parse_query("status:bogus")
+        assert exc.value.error_code == "query_value_error"
+        with pytest.raises(QueryParseError) as exc2:
+            parse_query("modality:bogus")
+        assert exc2.value.error_code == "query_value_error"
 
 
 class TestFieldReference:
@@ -225,8 +271,8 @@ class TestObservableFields:
 
 
 class TestMitreEntityDedicatedSemantics:
-    """`actor:` matches like the actor page's DEDICATED mode: ID tag, or
-    the name/alias in the title, or a use-case label equal to it."""
+    """`actor:` matches like the actor page's Named mode (DX-08): ID tag,
+    or the name/alias in the title, or a use-case label equal to it."""
 
     def test_actor_clause_includes_title_and_story_matches(self):
         s = _sql(parse_query("actor:APT29"))
@@ -234,6 +280,9 @@ class TestMitreEntityDedicatedSemantics:
         assert "title" in s and "use_cases" in s
         assert "cozy_bear" in s  # alias, separator-tolerant pattern
 
-    def test_unknown_actor_stays_id_tag_only(self):
-        s = _sql(parse_query("actor:UnknownGroup"))
+    def test_unresolvable_id_shape_stays_id_tag_only(self):
+        """A well-formed but unregistered G-ID has no name/alias info to
+        match on, so it correctly stays ID-tag-only -- this is not the
+        DX-04 case (that one now raises; see TestMitreAliasResolution)."""
+        s = _sql(parse_query("actor:G9999"))
         assert "title" not in s

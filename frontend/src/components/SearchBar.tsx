@@ -251,12 +251,21 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
         />
       )}
 
-      {/* Inline error */}
+      {/* Inline error: query_parse_error (bad syntax / unknown field) and
+          query_value_error (DX-04: an actor/software/enum value that
+          does not resolve, e.g. actor:"Mustang Panda") render the same
+          way. Only the unknown-field case gets an auto-fix button --
+          fixUnknownField replaces a field NAME, and the value-error's
+          suggestion is a VALUE for a field name we already recognized,
+          so there is nothing here to safely auto-apply for it. */}
       {error && (
         <div className="mt-1.5 text-xs font-mono text-breach-400 flex items-center gap-2 flex-wrap">
           <span className="text-breach-500">⚠</span>
           <span>{error.message}</span>
-          {error.suggestion && (
+          {error.suggestion && error.error === 'query_value_error' && (
+            <span className="text-gray-500">did you mean &quot;{error.suggestion}&quot;?</span>
+          )}
+          {error.suggestion && error.error !== 'query_value_error' && (
             <button
               onClick={() => {
                 const suggested = fixUnknownField(draft, fields, error.suggestion as string);

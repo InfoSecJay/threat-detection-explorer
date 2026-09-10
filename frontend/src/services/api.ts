@@ -742,7 +742,12 @@ export const queryApi = {
 
 // Parse a backend query-parse error response into a normalized shape
 // the SearchBar can render inline. Backend returns 400 with detail =
-// {error, message, position, suggestion}.
+// {error, message, position, suggestion} for both `query_parse_error`
+// (bad syntax / unknown field) and `query_value_error` (DX-04: an
+// actor/software/enum value that does not resolve, e.g.
+// actor:"Mustang Panda" -- previously a silent 0 results, now the
+// same inline treatment as a syntax error instead of reading as "no
+// coverage").
 export interface QueryParseErrorDetail {
   error: string;
   message: string;
@@ -750,12 +755,14 @@ export interface QueryParseErrorDetail {
   suggestion: string | null;
 }
 
+const INLINE_QUERY_ERROR_CODES = new Set(['query_parse_error', 'query_value_error']);
+
 export function extractQueryParseError(err: unknown): QueryParseErrorDetail | null {
   // axios error shape
   const anyErr = err as { response?: { status?: number; data?: { detail?: unknown } } };
   if (!anyErr?.response || anyErr.response.status !== 400) return null;
   const detail = anyErr.response.data?.detail;
-  if (detail && typeof detail === 'object' && 'error' in detail && (detail as { error: string }).error === 'query_parse_error') {
+  if (detail && typeof detail === 'object' && 'error' in detail && INLINE_QUERY_ERROR_CODES.has((detail as { error: string }).error)) {
     return detail as QueryParseErrorDetail;
   }
   return null;

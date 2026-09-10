@@ -65,12 +65,26 @@ from app.services.mitre_lookup import SOFTWARE as MITRE_SOFTWARE
 
 
 class QueryParseError(ValueError):
-    """Raised when a query string is malformed or references unknown fields."""
+    """Raised when a query string is malformed, references unknown fields,
+    or (DX-04) names an actor/software/enum value that does not resolve.
 
-    def __init__(self, message: str, position: Optional[int] = None, suggestion: Optional[str] = None):
+    `error_code` distinguishes the last case (`query_value_error`) from
+    everything else (`query_parse_error`) for the route handler and the
+    FE: a bad field name is a syntax problem, an unresolved actor name
+    is "we understood the query, this value does not exist."
+    """
+
+    def __init__(
+        self,
+        message: str,
+        position: Optional[int] = None,
+        suggestion: Optional[str] = None,
+        error_code: str = "query_parse_error",
+    ):
         self.message = message
         self.position = position
         self.suggestion = suggestion
+        self.error_code = error_code
         parts = [message]
         if position is not None:
             parts.append(f"(near position {position})")
@@ -102,6 +116,10 @@ class FieldSpec:
     columns: list[str]
     description: str
     examples: list[str] = field(default_factory=list)
+    # DX-04: closed vocabularies get validated (case-insensitive exact
+    # match, skipped for wildcard values) instead of silently ILIKE-ing
+    # to zero rows on a typo. Leave None for open-ended text fields.
+    values: Optional[list[str]] = None
 
 
 QUERYABLE_FIELDS: list[FieldSpec] = [
@@ -139,6 +157,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         columns=["severity"],
         description="critical, high, medium, low, unknown.",
         examples=["sev:high", "severity:critical"],
+        values=["critical", "high", "medium", "low", "unknown"],
     ),
     FieldSpec(
         aliases=["status"],
@@ -146,9 +165,10 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         columns=["status"],
         description=(
             "Rule maturity, Sigma vocabulary: stable, test, experimental, "
-            "deprecated, unsupported, unknown."
+            "deprecated, unsupported, not_applicable, unknown."
         ),
         examples=["status:stable", "status:test"],
+        values=["stable", "test", "experimental", "deprecated", "unsupported", "not_applicable", "unknown"],
     ),
     FieldSpec(
         aliases=["modality", "kind"],
@@ -159,6 +179,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
             "indicator_match, building_block."
         ),
         examples=["modality:hunting", "modality:correlation"],
+        values=["rule", "hunting", "ml_job", "correlation", "indicator_match", "building_block"],
     ),
     FieldSpec(
         aliases=["building_block", "bb", "signal_only"],
@@ -379,10 +400,18 @@ def _build_mitre_reverse() -> tuple[dict[str, str], dict[str, str]]:
 _MITRE_GROUP_REVERSE, _MITRE_SOFTWARE_REVERSE = _build_mitre_reverse()
 
 
+def _is_group_id(v: str) -> bool:
+    return v.upper().startswith("G") and v[1:].isdigit()
+
+
+def _is_software_id(v: str) -> bool:
+    return v.upper().startswith("S") and v[1:].isdigit()
+
+
 def _resolve_mitre_group(value: str) -> str:
     """Turn 'APT29' / 'Cozy Bear' into 'G0016'; pass IDs through."""
     v = value.strip()
-    if v.upper().startswith("G") and v[1:].isdigit():
+    if _is_group_id(v):
         return v.upper()
     return _MITRE_GROUP_REVERSE.get(v.lower(), v)
 
@@ -390,7 +419,7 @@ def _resolve_mitre_group(value: str) -> str:
 def _resolve_mitre_software(value: str) -> str:
     """Turn 'Mimikatz' into 'S0002'; pass IDs through."""
     v = value.strip()
-    if v.upper().startswith("S") and v[1:].isdigit():
+    if _is_software_id(v):
         return v.upper()
     return _MITRE_SOFTWARE_REVERSE.get(v.lower(), v)
 
@@ -549,9 +578,21 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
         return _list_substring_clause(spec.columns[0], value)
     if spec.kind == "list_mitre_group":
         gid = _resolve_mitre_group(value)
+        if not _is_group_id(gid):
+            raise QueryParseError(
+                f"'{spec.aliases[0]}' does not recognize {value!r}",
+                suggestion=_closest_value(value, list(_MITRE_GROUP_REVERSE.keys())),
+                error_code="query_value_error",
+            )
         return _mitre_entity_clause(spec.columns[0], gid, MITRE_GROUPS.get(gid))
     if spec.kind == "list_mitre_software":
         sid = _resolve_mitre_software(value)
+        if not _is_software_id(sid):
+            raise QueryParseError(
+                f"'{spec.aliases[0]}' does not recognize {value!r}",
+                suggestion=_closest_value(value, list(_MITRE_SOFTWARE_REVERSE.keys())),
+                error_code="query_value_error",
+            )
         return _mitre_entity_clause(spec.columns[0], sid, MITRE_SOFTWARE.get(sid))
     if spec.kind == "list":
         if spec.columns[0] == "event_types":
@@ -570,6 +611,12 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
             raise QueryParseError(f"empty value for field '{spec.aliases[0]}'")
         return or_(*conds)
     if spec.kind == "text":
+        if spec.values and not _wildcard_to_like(value)[1] and value.lower() not in spec.values:
+            raise QueryParseError(
+                f"'{spec.aliases[0]}' has no value {value!r}. Known values: {', '.join(spec.values)}.",
+                suggestion=_closest_value(value, spec.values),
+                error_code="query_value_error",
+            )
         return _text_clause(spec.columns[0], value)
     if spec.kind == "text_multi":
         return or_(*[_text_clause(c, value) for c in spec.columns])
@@ -639,6 +686,14 @@ def _closest_field(name: str) -> Optional[str]:
     """Levenshtein-ish suggestion for typos. Only suggests if very close."""
     from difflib import get_close_matches
     matches = get_close_matches(name.lower(), list(_ALIAS_INDEX.keys()), n=1, cutoff=0.7)
+    return matches[0] if matches else None
+
+
+def _closest_value(value: str, choices: list[str]) -> Optional[str]:
+    """Same idea as `_closest_field`, for an enum's known values or the
+    MITRE alias reverse index (DX-04)."""
+    from difflib import get_close_matches
+    matches = get_close_matches(value.lower(), choices, n=1, cutoff=0.6)
     return matches[0] if matches else None
 
 

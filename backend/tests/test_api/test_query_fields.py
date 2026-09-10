@@ -90,3 +90,23 @@ async def test_facets_share_the_q_error_contract(client):
     r = await client.get("/api/detections/facets", params={"q": "sourc:sigma"})
     assert r.status_code == 400
     assert r.json()["detail"]["suggestion"] == "source"
+
+
+@pytest.mark.asyncio
+async def test_q_unresolvable_actor_returns_400_query_value_error(client):
+    """DX-04: previously a 200 with zero results, indistinguishable from
+    an actor the corpus genuinely has no rules for."""
+    r = await client.get("/api/detections", params={"q": 'actor:"Not A Real Actor"'})
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert detail["error"] == "query_value_error"
+    assert set(detail) == {"error", "message", "position", "suggestion"}
+
+
+@pytest.mark.asyncio
+async def test_q_bad_severity_value_returns_400_query_value_error(client):
+    r = await client.get("/api/detections", params={"q": "severity:hgih"})
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert detail["error"] == "query_value_error"
+    assert detail["suggestion"] == "high"

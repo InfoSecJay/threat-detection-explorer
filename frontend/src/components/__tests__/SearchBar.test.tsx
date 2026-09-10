@@ -55,11 +55,11 @@ vi.mock('../../contexts/MitreContext', () => ({
   useMitre: () => ({ techniques: {} }),
 }));
 
-function setup(initial = '') {
+function setup(initial = '', error?: Parameters<typeof SearchBar>[0]['error']) {
   const onSubmit = vi.fn();
   render(
     <MemoryRouter>
-      <SearchBar value={initial} onSubmit={onSubmit} />
+      <SearchBar value={initial} onSubmit={onSubmit} error={error} />
     </MemoryRouter>
   );
   const input = screen.getByRole('textbox') as HTMLInputElement;
@@ -130,6 +130,33 @@ describe('SearchBar keyboard interaction', () => {
     type(input, 'malw');
     const list = screen.getByRole('listbox').textContent ?? '';
     expect(list).toContain('malware:');
+  });
+});
+
+describe('inline query errors (DX-04)', () => {
+  it('offers a clickable fix for an unknown FIELD name', () => {
+    setup('sevrity:high', {
+      error: 'query_parse_error',
+      message: "unknown field 'sevrity'",
+      position: null,
+      suggestion: 'severity',
+    });
+    expect(screen.getByText(/unknown field/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /use "severity"/ })).toBeInTheDocument();
+  });
+
+  it('shows a value suggestion as plain text, not a button, for query_value_error', () => {
+    // DX-04: the suggestion here is a VALUE ("high"), not a field name --
+    // fixUnknownField only knows how to replace a field, so offering it
+    // as a clickable fix would silently do nothing.
+    setup('severity:hgih', {
+      error: 'query_value_error',
+      message: "'severity' has no value 'hgih'",
+      position: null,
+      suggestion: 'high',
+    });
+    expect(screen.getByText(/did you mean "high"/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /use "high"/ })).not.toBeInTheDocument();
   });
 });
 

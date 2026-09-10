@@ -120,8 +120,10 @@ async def list_detections(
         # Surface query-parse errors as 400s so the FE can inline them.
         from app.services.query_parser import QueryParseError
         if isinstance(e, QueryParseError):
+            # DX-04: query_value_error (unresolved actor/software/enum
+            # value) is distinct from query_parse_error (bad syntax).
             raise HTTPException(status_code=400, detail={
-                "error": "query_parse_error",
+                "error": e.error_code,
                 "message": e.message,
                 "position": e.position,
                 "suggestion": e.suggestion,
@@ -302,8 +304,10 @@ async def get_facets(
     except Exception as e:
         from app.services.query_parser import QueryParseError
         if isinstance(e, QueryParseError):
+            # DX-04: query_value_error (unresolved actor/software/enum
+            # value) is distinct from query_parse_error (bad syntax).
             raise HTTPException(status_code=400, detail={
-                "error": "query_parse_error",
+                "error": e.error_code,
                 "message": e.message,
                 "position": e.position,
                 "suggestion": e.suggestion,

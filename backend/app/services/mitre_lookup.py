@@ -50,6 +50,7 @@ GROUPS: dict[str, dict] = {
     "G0119": {"name": "Indrik Spider", "aliases": ["Evil Corp"]},
     "G0125": {"name": "HAFNIUM", "aliases": []},
     "G0128": {"name": "ZIRCONIUM", "aliases": ["APT31"]},
+    "G0129": {"name": "Mustang Panda", "aliases": ["Bronze President", "Red Lich", "TA416", "RedDelta"]},
     "G0130": {"name": "Ajax Security Team", "aliases": ["Rocket Kitten"]},
     "G0132": {"name": "BlackTech", "aliases": ["Circuit Panda"]},
     "G0134": {"name": "Transparent Tribe", "aliases": ["APT36", "COPPER FIELDSTONE"]},
