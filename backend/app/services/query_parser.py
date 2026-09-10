@@ -421,10 +421,10 @@ def _text_clause(column_name: str, raw_value: str) -> ColumnElement:
 
 
 def _mitre_entity_clause(column_name: str, entity_id: str, info: Optional[dict]) -> ColumnElement:
-    """`actor:` / `software:` with the actor page's DEDICATED semantics
-    (issue #34): the raw ATT&CK ID in the tag column, OR an analytic
-    story / use-case label equal to the name or an alias, OR the name
-    or an alias in the rule title.
+    """`actor:` / `software:` with the actor page's Named-tier semantics
+    (issue #34, DX-08): the raw ATT&CK ID in the tag column, OR an
+    analytic story / use-case label equal to the name or an alias, OR
+    the name or an alias in the rule title.
 
     Only the ID tag matched before, which returned nothing for actors
     vendors write rules for but tag by name -- `actor:"Salt Typhoon"`

@@ -5,13 +5,14 @@
  * cross-references) with our rule-coverage overlaid on top.
  *
  * The value-add over the MITRE site is the match-mode toggle. Modes
- * are DISJOINT tiers of attribution strength (issue #34): DEDICATED
- * (wire value `exact`) = rules built for the actor (ID tag, analytic
- * story named after it, or its name in the title); COVERAGE = rules
- * tagging any technique it uses; REFERENCED (wire value `mention`) =
- * rules that only cite it in prose/tags/references. All three counts
- * are always displayed, and each dedicated/referenced rule carries
- * match-reason chips saying why it counted.
+ * are DISJOINT tiers of attribution strength (issue #34), shown under
+ * one vocabulary everywhere (DX-08): Named (wire value `exact`) =
+ * rules built for the actor (ID tag, analytic story named after it,
+ * or its name in the title); Technique overlap (wire value
+ * `coverage`) = rules tagging any technique it uses; Mentions (wire
+ * value `mention`) = rules that only cite it in prose/tags/references.
+ * All three counts are always displayed, and each Named/Mentions rule
+ * carries match-reason chips saying why it counted.
  */
 
 import { useState } from 'react';

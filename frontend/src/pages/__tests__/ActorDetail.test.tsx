@@ -55,7 +55,10 @@ describe('ActorDetail', () => {
     );
     expect(getByText('APT29')).toBeInTheDocument();
     expect(getByText(/Cozy Bear/)).toBeInTheDocument();
-    expect(getByText('60%')).toBeInTheDocument(); // weighted coverage
+    // DX-01: the named rule count leads; raw/weighted coverage are secondary text.
+    expect(getByTestId('hero-named-rules')).toHaveTextContent('1');
+    expect(getByTestId('hero-raw-coverage')).toHaveTextContent('2/3');
+    expect(getByTestId('hero-weighted-coverage')).toHaveTextContent('60%');
     expect(getByTestId('cov-sigma')).toHaveTextContent('2/3');
     expect(getByTestId('cov-splunk')).toHaveTextContent('gap');
     expect(getByText('Weaken Encryption')).toBeInTheDocument();
@@ -63,7 +66,8 @@ describe('ActorDetail', () => {
     expect(getByText('APT29 Tooling Seen')).toBeInTheDocument();
     expect(getByText('id-tag')).toBeInTheDocument();
 
-    fireEvent.click(getByRole('radio', { name: /coverage/ }));
+    // DX-08: the toggle uses "Technique overlap", not the raw wire value "coverage".
+    fireEvent.click(getByRole('radio', { name: /technique overlap/i }));
     expect(modes[modes.length - 1]).toBe('coverage');
   });
 });

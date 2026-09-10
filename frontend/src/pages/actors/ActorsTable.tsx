@@ -15,6 +15,7 @@ const TABLE_COLUMNS: {
   sort?: string;
   groupsOnly?: boolean;
   softwareOnly?: boolean;
+  title?: string;
 }[] = [
   { key: 'name', label: 'Name', sort: 'name' },
   { key: 'aliases', label: 'Aliases' },
@@ -25,9 +26,13 @@ const TABLE_COLUMNS: {
   { key: 'sectors', label: 'Sectors', groupsOnly: true },
   { key: 'technique_count', label: 'Techniques', sort: 'technique_count' },
   { key: 'gap_count', label: 'Gaps', sort: 'gap_count' },
-  { key: 'weighted_coverage', label: 'Weighted cov.', sort: 'weighted_coverage' },
-  { key: 'our_rule_count', label: 'Dedicated', sort: 'our_rule_count' },
-  { key: 'mention_count', label: 'Referenced', sort: 'mention_count' },
+  {
+    key: 'weighted_coverage', label: 'Weighted cov.', sort: 'weighted_coverage',
+    title: 'Techniques with >=1 public rule from any of the 13 tracked sources, weighted so rare TTPs count more than ones nearly every actor uses',
+  },
+  // DX-08: same vocabulary as the detail page's toggle (Named / Mentions).
+  { key: 'our_rule_count', label: 'Named', sort: 'our_rule_count', title: 'Rules built for this actor: ATT&CK-ID tagged, story-labeled, or named in the title' },
+  { key: 'mention_count', label: 'Mentions', sort: 'mention_count', title: 'Rules that only cite this actor in prose, tags or references' },
   { key: 'modified', label: 'Modified', sort: 'modified' },
 ];
 
@@ -56,7 +61,7 @@ export function ActorsTable({
         <thead className="bg-void-900 text-gray-500 uppercase tracking-wider">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} scope="col" className="px-3 py-2 text-left font-display font-semibold whitespace-nowrap">
+              <th key={c.key} scope="col" title={c.title} className="px-3 py-2 text-left font-display font-semibold whitespace-nowrap">
                 {c.sort ? (
                   <button
                     onClick={() => onSort(c.sort!)}

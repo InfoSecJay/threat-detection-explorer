@@ -1,10 +1,13 @@
 /** Actor / software hero: kind, name, origin + motivations + sectors,
- * aliases, and the three headline numbers (gaps, weighted coverage,
- * rule count under the active match mode). */
+ * aliases, and the three headline numbers. Named rule count leads
+ * (DX-01) -- it is what the corpus can actually back -- ahead of
+ * detection gaps and the techniques-with-a-rule ratio, whose weighted
+ * percentage is secondary text, not the headline (DX-01, DX-08). */
 
 import { Link } from 'react-router-dom';
 import { countryFlag, countryName, MOTIVATION_STYLE } from '../../../utils/actorDisplay';
 import { clipMd } from '../../../constants/style';
+import { MATCH_MODE_LABEL } from './matchMode';
 import type { ActorMatchMode } from '../../../services/api';
 import type { ActorDetail as ActorDetailData } from '../../../services/api';
 
@@ -120,6 +123,17 @@ export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchM
       </div>
       <div className="flex gap-6 shrink-0">
         <div>
+          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
+            Rules ({MATCH_MODE_LABEL[matchMode]})
+          </div>
+          <div className="text-3xl font-display font-bold text-white tabular-nums" data-testid="hero-named-rules">
+            {actor.rules.length}
+            {actor.match_counts[matchMode] > actor.rules.length && (
+              <span className="text-sm text-gray-500 ml-1">of {actor.match_counts[matchMode]}</span>
+            )}
+          </div>
+        </div>
+        <div>
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Detection gaps</div>
           <div className={`text-3xl font-display font-bold tabular-nums ${actor.gap_count > 0 ? 'text-white' : 'text-gray-500'}`}>
             {actor.gap_count}
@@ -130,24 +144,15 @@ export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchM
           </div>
         </div>
         <div>
-          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Weighted coverage</div>
-          <div className="text-3xl font-display font-bold text-white tabular-nums">
-            {weightedPct === null ? '—' : `${weightedPct}%`}
+          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
+            Techniques with &ge;1 rule (any vendor)
           </div>
-          <div
-            className="text-[10px] font-mono text-gray-500 mt-1"
-            title="Raw coverage counts every technique equally; the weighted score discounts TTPs nearly every actor uses"
-          >
-            raw: {actor.covered_technique_count}/{actor.technique_count} ({coveredPct}%)
+          <div className="text-xl font-display font-bold text-gray-200 tabular-nums" data-testid="hero-raw-coverage">
+            {actor.covered_technique_count}/{actor.technique_count}
+            <span className="text-sm text-gray-500 ml-1">({coveredPct}%)</span>
           </div>
-        </div>
-        <div>
-          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">Rules ({matchMode})</div>
-          <div className="text-3xl font-display font-bold text-white tabular-nums">
-            {actor.rules.length}
-            {actor.match_counts[matchMode] > actor.rules.length && (
-              <span className="text-sm text-gray-500 ml-1">of {actor.match_counts[matchMode]}</span>
-            )}
+          <div className="text-[10px] font-mono text-gray-500 mt-1" data-testid="hero-weighted-coverage">
+            weighted (rare TTPs count more): {weightedPct === null ? 'n/a' : `${weightedPct}%`}
           </div>
         </div>
       </div>

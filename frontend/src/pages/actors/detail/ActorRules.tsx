@@ -1,7 +1,8 @@
-/** Rules section with the match-mode toggle (issue #34): DEDICATED
- * (wire `exact`) = rules built for the actor; COVERAGE = rules tagging
- * any technique it uses; REFERENCED (wire `mention`) = rules that only
- * cite it. Also hosts the Navigator export and open-in-catalog. */
+/** Rules section with the match-mode toggle (issue #34, DX-08): Named
+ * (wire `exact`) = rules built for the actor; Technique overlap (wire
+ * `coverage`) = rules tagging any technique it uses; Mentions (wire
+ * `mention`) = rules that only cite it. Also hosts the Navigator
+ * export and open-in-catalog. */
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,19 +10,12 @@ import { actorsApi } from '../../../services/api';
 import { sourceTheme as sourceConfig, clipSm } from '../../../constants/style';
 import { severityColor } from '../../intel/lib';
 import { SectionHead } from './SectionHead';
+import { MATCH_MODE_LABEL, MATCH_MODE_DEFINITION } from './matchMode';
 import type { ActorMatchMode } from '../../../services/api';
 import type { ActorDetail as ActorDetailData } from '../../../services/api';
 
-// Wire values stay exact/coverage/mention (URL + API stability);
-// the UI names the disjoint tiers for what they are (issue #34).
-const MATCH_MODE_LABEL: Record<ActorMatchMode, string> = {
-  exact: 'dedicated',
-  coverage: 'coverage',
-  mention: 'referenced',
-};
-
-// Chip styling per match reason: dedicated signals get the matrix
-// accent, referenced signals stay neutral.
+// Chip styling per match reason: Named signals get the matrix
+// accent, Mentions signals stay neutral.
 const REASON_STYLE: Record<string, string> = {
   'id-tag': 'text-matrix-400 border-matrix-500/40',
   story: 'text-matrix-400 border-matrix-500/40',
@@ -68,7 +62,7 @@ export function ActorRules({ actor, matchMode, setMatchMode }: {
       title="Rules"
       subtitle="detection rules from our catalog · pick a match mode to change which count"
     />
-    <div className="flex items-center gap-2 mb-3 flex-wrap">
+    <div className="flex items-center gap-2 mb-1 flex-wrap">
       <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mr-1">match mode:</span>
       {(['exact', 'coverage', 'mention'] as ActorMatchMode[]).map((m) => (
         <button
@@ -81,13 +75,7 @@ export function ActorRules({ actor, matchMode, setMatchMode }: {
               ? 'bg-matrix-500/20 text-matrix-400 border-matrix-500/40'
               : 'bg-void-900 text-gray-500 border-void-700 hover:text-white'
           }`}
-          title={
-            m === 'exact'
-              ? 'Rules built FOR this actor: ATT&CK ID tag, analytic story named after it, or its name in the rule title'
-              : m === 'coverage'
-                ? 'Rules tagged with any technique this actor is known to use'
-                : 'Rules that only cite the actor: name/alias in description, tags, use cases, or reference URLs (excludes dedicated rules)'
-          }
+          title={MATCH_MODE_DEFINITION[m]}
         >
           {MATCH_MODE_LABEL[m]} <span className="ml-1 tabular-nums text-gray-500">{actor.match_counts[m]}</span>
         </button>
@@ -118,6 +106,9 @@ export function ActorRules({ actor, matchMode, setMatchMode }: {
           [ open in catalog ]
         </button>
       )}
+    </div>
+    <div className="text-[10px] font-mono text-gray-500 mb-3" data-testid="match-mode-definition">
+      {MATCH_MODE_DEFINITION[matchMode]}
     </div>
     {actor.rules.length === 0 ? (
       <div className="text-center py-8 text-gray-500 font-mono text-xs">

@@ -7,19 +7,22 @@ picks a `match_mode` that decides which rules count as "this actor's":
 The three modes are DISJOINT tiers of attribution strength (issue #34).
 Wire values keep their historical names (`exact` / `coverage` /
 `mention`) so URLs and deployed frontends never skew; the UI renders
-them as DEDICATED / COVERAGE / REFERENCED.
+them under one vocabulary -- Named / Technique overlap / Mentions
+(DX-08) -- instead of the three different names (a stat label, a
+toggle chip and a docs term) that used to describe the same tier.
 
-- **exact** ("Dedicated") — the rule was built FOR this actor:
+- **exact** ("Named") — the rule was built FOR this actor:
   tagged with the raw ATT&CK ID (`mitre_groups` / `mitre_software`),
   OR a `use_cases` label (vendor analytic story) equal to the actor's
   name or an alias, OR the actor's name/alias in the rule TITLE.
   A rule titled "APT29 2018 Phishing Campaign ..." is an APT29 rule.
-- **coverage** — rules tagged with ANY of the techniques this actor
-  is known to use (from MITRE STIX relationships). Reveals rules that
-  would catch the actor's TTPs even without citing them.
-- **mention** ("Referenced") — the name or an alias appears only in
+- **coverage** ("Technique overlap") — rules tagged with ANY of the
+  techniques this actor is known to use (from MITRE STIX
+  relationships). Reveals rules that would catch the actor's TTPs
+  even without citing them.
+- **mention** ("Mentions") — the name or an alias appears only in
   description prose, non-story tags, longer use_cases labels, or
-  reference URLs — MINUS everything Dedicated. Separator-tolerant
+  reference URLs — MINUS everything Named. Separator-tolerant
   matching throughout (see app.services.actor_matching).
 
 Every rule returned in exact/mention mode carries `match_reasons`
@@ -770,7 +773,11 @@ async def actor_navigator_layer(
     actor_id: str,
     match_mode: MatchMode = Query(
         "coverage",
-        description="Which rules count toward each technique's score.",
+        description=(
+            "Which rules count toward each technique's score: `exact` "
+            "(\"Named\"), `coverage` (\"Technique overlap\"), or `mention` "
+            "(\"Mentions\")."
+        ),
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -885,10 +892,12 @@ async def get_actor(
     match_mode: MatchMode = Query(
         "exact",
         description=(
-            "How to find rules for this actor. `exact` = tagged with the "
-            "raw ATT&CK ID. `coverage` = tagged with any technique the "
-            "actor is known to use. `mention` = actor name or alias "
-            "appears as a whole word in title/description/tags."
+            "How to find rules for this actor. `exact` (\"Named\") = tagged "
+            "with the raw ATT&CK ID, a story named after the actor, or the "
+            "actor's name in the rule title. `coverage` (\"Technique "
+            "overlap\") = tagged with any technique the actor is known to "
+            "use. `mention` (\"Mentions\") = actor name or alias appears "
+            "as a whole word in title/description/tags, minus Named rules."
         ),
     ),
     db: AsyncSession = Depends(get_db),

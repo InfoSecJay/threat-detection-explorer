@@ -6,16 +6,18 @@ that actor (MuddyWater 96%, Winnti 100%, everything flat). Scores here
 weight each technique by distinctiveness (`weight_t = log(N / n_t)`,
 computed by the MITRE service from the actor->technique matrix):
 
-    covered(t)        = >=1 rule in the corpus tags technique t
-                        (COVERAGE match mode)
+    covered(t)        = >=1 rule in the corpus tags technique t, from
+                        ANY of the 13 tracked sources ("Technique
+                        overlap" match mode -- see DX-08 for why the
+                        UI no longer calls this tier "coverage" bare)
     weighted_coverage = covered weight mass / total weight mass
     gap_count         = uncovered technique count (human-readable)
     weighted_gap      = uncovered weight mass — the primary ranking
                         key: how much detection work is outstanding,
                         weighted by how much it matters
-    exact_rule_count  = DEDICATED rules: tagged with the actor's own
+    exact_rule_count  = "Named" rules: tagged with the actor's own
                         ATT&CK ID, story-labeled with its name, or
-                        naming it in the title (issue #34)
+                        naming it in the title (issue #34, DX-08)
 
 Everything is materialized in ONE corpus scan and cached in-memory.
 Cache validity is probed per request with a cheap fingerprint query
@@ -59,11 +61,11 @@ class EntityScores:
     weighted_coverage: Optional[float]
     gap_count: int
     weighted_gap: float
-    # REFERENCED rules: name/alias appears in description, non-story
+    # "Mentions" rules: name/alias appears in description, non-story
     # tags, longer use_cases labels, or references — minus everything
-    # dedicated (disjoint tiers, issue #34; same matcher as the detail
-    # page — app.services.actor_matching). Zero dedicated + many
-    # referenced = intel chatter but no actor-specific content.
+    # Named (disjoint tiers, issue #34, DX-08; same matcher as the
+    # detail page — app.services.actor_matching). Zero Named + many
+    # Mentions = intel chatter but no actor-specific content.
     mention_count: int = 0
 
 
@@ -267,9 +269,9 @@ class ActorScoreService:
         story_labels.pop("", None)
 
         technique_rule_counts: dict[str, int] = {}
-        # entity id -> row indices qualifying as DEDICATED (id-tag or
+        # entity id -> row indices qualifying as "Named" (id-tag or
         # story label; title hits merge in below). Disjoint-tier
-        # bookkeeping per issue #34.
+        # bookkeeping per issue #34, DX-08.
         dedicated_idx: dict[str, set[int]] = {}
         rule_sources: list[str] = []
         title_texts: list[str] = []
