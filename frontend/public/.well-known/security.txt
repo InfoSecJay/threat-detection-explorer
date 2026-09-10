@@ -1,0 +1,5 @@
+Contact: https://github.com/InfoSecJay/threat-detection-explorer/security/advisories/new
+Contact: https://github.com/InfoSecJay/threat-detection-explorer/issues/new
+Preferred-Languages: en
+Canonical: https://detectionexplorer.io/.well-known/security.txt
+Expires: 2027-09-10T00:00:00.000Z

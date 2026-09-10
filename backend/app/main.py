@@ -14,7 +14,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import get_db, init_db
@@ -43,6 +44,17 @@ from app.api.routes import (
 )
 
 logger = logging.getLogger(__name__)
+
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+# DX-13: pinned to an exact swagger-ui-dist release with Subresource
+# Integrity, instead of FastAPI's default floating "@5" CDN major, so
+# /api/docs can run under a CSP with no 'unsafe-inline'/'unsafe-eval'.
+# Hashes are sha384 of the fetched file; bump both together when the
+# pinned version changes.
+SWAGGER_UI_VERSION = "5.32.15"
+SWAGGER_JS_SRI = "sha384-m7zaGj7MPzU+G4lz2eyy73GxK9bbRDr9bB2CSdj8wodg2wu/Wnt6wsoLP3JD+RS9"
+SWAGGER_CSS_SRI = "sha384-fgyWYkUAamzuI8mJFu/xpRP0JWCJRwkwUwsYDoOYVHUJ8NQE5cENn8ib3ppwFFSX"
 
 
 @asynccontextmanager
@@ -126,12 +138,36 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     # Docs live under /api so the apex proxy (vercel.json rewrites /api/*)
-    # serves them at detectionexplorer.io/api/docs (#92 / S4.8).
-    docs_url="/api/docs",
+    # serves them at detectionexplorer.io/api/docs (#92 / S4.8). docs_url
+    # is disabled here; a custom route below replaces it with pinned,
+    # SRI-checked assets (DX-13).
+    docs_url=None,
     openapi_url="/api/openapi.json",
     redoc_url=None,
     servers=[{"url": settings.frontend_url, "description": "Production"}] if settings.frontend_url else None,
 )
+
+app.mount("/api/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/api/docs", include_in_schema=False)
+async def api_docs() -> HTMLResponse:
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@{SWAGGER_UI_VERSION}/swagger-ui.css" integrity="{SWAGGER_CSS_SRI}" crossorigin="anonymous">
+<link rel="icon" href="/favicon.svg">
+<title>{settings.app_name} - API docs</title>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@{SWAGGER_UI_VERSION}/swagger-ui-bundle.js" integrity="{SWAGGER_JS_SRI}" crossorigin="anonymous"></script>
+<script src="/api/static/swagger-init.js"></script>
+</body>
+</html>
+"""
+    return HTMLResponse(html)
 
 
 @app.get("/docs", include_in_schema=False)
@@ -256,9 +292,10 @@ async def edge_cache_headers(request, call_next):
 # called /api/<path> -- the frontend before it moved, vercel.json
 # rewrites, RSS readers, scripts in the wild -- keeps working: the ASGI
 # scope path is rewritten before routing, so the spec stays single and
-# the edge cache key is whatever the caller asked for. Health and the
-# docs are intentionally unversioned and stay where they are.
-_UNVERSIONED = ("/api/health", "/api/docs", "/api/openapi.json")
+# the edge cache key is whatever the caller asked for. Health, the
+# docs and the static assets they load (DX-13) are intentionally
+# unversioned and stay where they are.
+_UNVERSIONED = ("/api/health", "/api/docs", "/api/openapi.json", "/api/static")
 
 
 class LegacyPrefixAlias:
