@@ -147,19 +147,24 @@ def test_normalize_query_string_lands_as_detection_logic(normalizer):
     assert "ForwardingSmtpAddress" in n.detection_logic
 
 
-def test_security_alert_maps_to_microsoft_platforms_not_cross_platform(normalizer):
-    """SecurityAlert is Sentinel's central alert table -- sources are
-    overwhelmingly Microsoft Defender services (XDR, MDC, MDE, MDI,
-    MCAS). Audit Phase 2 surfaced this as the dominant cross_platform
-    contributor; the correct mapping is the actual Microsoft platforms."""
+def test_security_alert_takes_its_product_from_provider_name(normalizer):
+    """SecurityAlert is Sentinel's central alert table. The product behind
+    an alert is the ProviderName filter (#141); nothing is asserted by
+    default any more, so the old blanket microsoft_365 + azure + windows
+    platforms are gone and cross_platform never appears either."""
     n = normalizer.normalize(_parsed(
         detection_logic_raw="SecurityAlert | where ProviderName == 'MDATP'",
-        extra={"id": "x", "kql_tables": ["SecurityAlert"]},
+        extra={"id": "x", "kql_tables": ["SecurityAlert"], "kql_filters": {"providername": ["mdatp"]}},
     ))
     assert "cross_platform" not in n.platforms
-    assert "microsoft_365" in n.products
-    assert "azure" in n.products
-    assert "windows" in n.platforms
+    assert n.platforms == ["windows"]
+    assert n.data_sources == ["defender_endpoint"]
+    assert n.products == ["microsoft_defender"]
+    bare = normalizer.normalize(_parsed(
+        detection_logic_raw="SecurityAlert | where Severity == 'High'",
+        extra={"id": "y", "kql_tables": ["SecurityAlert"]},
+    ))
+    assert bare.data_sources == ["siem_alert"] and bare.platforms == ["unknown"]
 
 
 def test_behavior_analytics_maps_to_azure_not_cross_platform(normalizer):

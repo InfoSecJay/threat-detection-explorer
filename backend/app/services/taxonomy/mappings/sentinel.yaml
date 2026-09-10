@@ -58,8 +58,11 @@ kql_tables:
     data_sources: [azure_activity]
     event_types: [api_call]
   azurediagnostics:
+    # Resource diagnostic logs of many Azure services; ResourceType /
+    # Category discriminators pick azure_firewall, kubernetes_audit ...
+    generic: true
     platforms: [azure]
-    data_sources: [azure_activity]
+    data_sources: [azure_audit]
     event_types: [api_call]
   # ── Microsoft 365 / Office ───────────────────────────────────────────
   officeactivity:
@@ -125,22 +128,32 @@ kql_tables:
     data_sources: [windows_security_event_log]
     event_types: [audit_event]
   windowsevent:
+    # Any Windows channel; the Provider discriminator picks sysmon,
+    # security auditing or PowerShell.
+    generic: true
     platforms: [windows]
-    data_sources: [windows_security_event_log]
+    data_sources: [windows_event_logs]
     event_types: [audit_event]
   windowsfirewall:
     platforms: [windows]
     data_sources: [windows_security_event_log]
     event_types: [network_connection]
   syslog:
+    # Shared by Linux daemons and every appliance that ships syslog. A
+    # ProcessName discriminator (sshd, sudo ...) confirms Linux; an
+    # appliance solution folder names the vendor; else this fallback.
+    generic: true
     platforms: [linux]
     data_sources: [linux_syslog]
     event_types: [audit_event]
   # ── CEF / Azure Monitor Agent ingest ─────────────────────────────────
   commonsecuritylog:
-    # CEF pipe. Wide variety of appliances; platform left broad.
+    # CEF pipe shared by every vendor that speaks CEF. The vendor comes
+    # from the query (DeviceVendor / DeviceProduct discriminators) or the
+    # solution folder; this entry is only the generic fallback (#141).
+    generic: true
     platforms: [network_appliance]
-    data_sources: [cisco_firewall, palo_alto_firewall, fortinet_firewall]
+    data_sources: [network_traffic_logs]
     event_types: [network_connection]
   # ── AWS ──────────────────────────────────────────────────────────────
   awscloudtrail:
@@ -171,11 +184,16 @@ kql_tables:
   # (microsoft_365). AWS Security Hub findings can land here too via
   # connector but the overwhelmingly common case is Microsoft.
   securityalert:
-    platforms: [microsoft_365, azure, windows]
+    # Sentinel's central alert table: the product behind an alert is the
+    # ProviderName discriminator (MDATP, IoTSecurity ...). No platform is
+    # asserted by default; three Microsoft platforms used to be (#141).
+    generic: true
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   securityincident:
-    platforms: [microsoft_365, azure, windows]
+    generic: true
+    platforms: []
     data_sources: [siem_alert]
     event_types: [alert_correlation]
   # Defender for Cloud security recommendations (Azure-resident).
@@ -365,6 +383,7 @@ kql_tables:
     event_types: [audit_event]
   # Log Analytics agent generic Windows event channel table.
   event:
+    generic: true
     platforms: [windows]
     data_sources: [windows_event_logs]
     event_types: [audit_event]
@@ -538,6 +557,7 @@ kql_tables:
     data_sources: [third_party_security_alerts]
     event_types: [platform_alert]
   "*_cl":
+    generic: true
     platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
@@ -691,12 +711,17 @@ connectors:
     event_types: [network_connection]
   # ── Network / Syslog / Generic ───────────────────────────────────────
   syslog:
+    # Shared by Linux daemons and every appliance that ships syslog. A
+    # ProcessName discriminator (sshd, sudo ...) confirms Linux; an
+    # appliance solution folder names the vendor; else this fallback.
+    generic: true
     platforms: [linux]
     data_sources: [linux_syslog]
     event_types: [audit_event]
   cef:  # Common Event Format ingest — generic, often network appliances
+    generic: true
     platforms: [network_appliance]
-    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    data_sources: [network_traffic_logs]
     event_types: [network_connection]
   paloaltonetworks:
     platforms: [network_appliance]
@@ -724,18 +749,21 @@ connectors:
   # is high (83 rules) because many third-party appliances fall back to
   # syslog when a native CEF/OCSF path doesn't exist.
   syslogama:
+    generic: true
     platforms: [linux]
     data_sources: [linux_syslog]
     event_types: [audit_event]
   # CEF via AMA goes to the `CommonSecurityLog` table — dataType mapping
   # below carries the real telemetry signal.
   cefama:
+    generic: true
     platforms: [network_appliance]
-    data_sources: [palo_alto_firewall, fortinet_firewall, cisco_firewall]
+    data_sources: [network_traffic_logs]
     event_types: [network_connection]
   # Custom Logs via AMA is the catch-all for any custom-schema ingestion.
   # We don't know the shape, so cross_platform / application_logs.
   customlogsama:
+    generic: true
     platforms: [cross_platform]
     data_sources: [application_logs]
     event_types: [audit_event]
@@ -825,6 +853,7 @@ connectors:
 # something we don't have a specific mapping for yet.
 data_types:
   securityalert:
+    generic: true
     data_sources: [siem_alert]
     event_types: [audit_event]
   awssecurityhubfindings:
@@ -843,11 +872,13 @@ data_types:
     data_sources: [m365_audit]
     event_types: [audit_event]
   commonsecuritylog:  # CEF data pipe — usually firewall/proxy/NDR
+    generic: true
     platforms: [network_appliance]
     event_types: [network_connection]
   azurediagnostics:  # Azure resource diagnostic logs
+    generic: true
     platforms: [azure]
-    data_sources: [azure_activity]
+    data_sources: [azure_audit]
     event_types: [api_call]
   dataverseactivity:
     platforms: [microsoft_365]
@@ -879,7 +910,7 @@ solution_folders:
     data_sources: [network_traffic_logs]
     event_types: [network_connection]
   "corelight":
-    platforms: [network_appliance]
+    platforms: [corelight]
     data_sources: [zeek]
     event_types: [network_connection]
   "iboss":
@@ -1057,8 +1088,78 @@ solution_folders:
     event_types: [audit_event]
   # ── Acronis ─────────────────────────────────────────────────────────
   "acronis cyber protect cloud":
-    platforms: [cross_platform]
+    platforms: [acronis]
     data_sources: [antivirus_logs]
+    event_types: [platform_alert]
+  # -- #141: vendors whose rules read a generic table (CEF, Syslog,
+  # SecurityAlert). The folder names the vendor when the query does not.
+  "aristaawakesecurity":
+    platforms: [arista]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  "vectra ai detect":
+    platforms: [vectra]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  "vectra xdr":
+    platforms: [vectra]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  "claroty":
+    platforms: [claroty]
+    data_sources: [network_traffic_logs]
+    event_types: [platform_alert]
+  "infoblox":
+    platforms: [infoblox]
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  "infoblox cloud data connector":
+    platforms: [infoblox]
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  "infoblox nios":
+    platforms: [infoblox]
+    data_sources: [dns_query_logs]
+    event_types: [dns_query]
+  "infoblox soc insights":
+    platforms: [infoblox]
+    data_sources: [dns_query_logs]
+    event_types: [platform_alert]
+  "pingfederate":
+    platforms: [pingfederate]
+    data_sources: [pingfederate_audit]
+    event_types: [authentication]
+  "silverfort":
+    platforms: [silverfort]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "ciscoseg":
+    platforms: [cisco_seg]
+    data_sources: [email_message_metadata]
+    event_types: [email_message]
+  "trend micro apex one":
+    platforms: [trend_micro]
+    data_sources: [antivirus_logs]
+    event_types: [platform_alert]
+  "paloaltocdl":
+    platforms: [network_appliance]
+    data_sources: [palo_alto_firewall]
+    event_types: [network_connection]
+  "contrast protect":
+    platforms: [contrast_security]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "contrastadr":
+    platforms: [contrast_security]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "iototthreatmonitoringwithdefenderforiot":
+    platforms: [microsoft_defender_iot]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  "syslog":
+    platforms: [linux]
+    data_sources: [linux_syslog]
     event_types: [audit_event]
   # ── Azure DevOps ────────────────────────────────────────────────────
   "azuredevopsauditing":
@@ -1228,3 +1329,231 @@ entity_types:
 # is examining audit/api activity at minimum.
 always_includes:
   event_types: []
+
+# -------------------------------------------------------------------------
+# DISCRIMINATORS (#141) -- the vendor or channel a GENERIC table carries,
+# read from the query's own filters (parser: extra["kql_filters"]).
+# Keys are lowercase substrings of the filter value; the longest key
+# wins. `tables:` lists the generic tables a field belongs to, so the
+# same field name on another table is ignored (Category on AuditLogs).
+# -------------------------------------------------------------------------
+discriminators:
+  devicevendor:
+    tables: [commonsecuritylog]
+    "palo alto":
+      platforms: [network_appliance]
+      data_sources: [palo_alto_firewall]
+      event_types: [network_connection]
+    "fortinet":
+      platforms: [network_appliance]
+      data_sources: [fortinet_firewall]
+      event_types: [network_connection]
+    "cisco":
+      platforms: [network_appliance]
+      data_sources: [cisco_firewall]
+      event_types: [network_connection]
+    "check point":
+      platforms: [network_appliance]
+      data_sources: [network_traffic_logs]
+      event_types: [network_connection]
+    "checkpoint":
+      platforms: [network_appliance]
+      data_sources: [network_traffic_logs]
+      event_types: [network_connection]
+    "zscaler":
+      platforms: [zscaler]
+      data_sources: [proxy_logs]
+      event_types: [http_request]
+    "acronis":
+      platforms: [acronis]
+      data_sources: [antivirus_logs]
+      event_types: [platform_alert]
+    "vectra":
+      platforms: [vectra]
+      data_sources: [network_traffic_logs]
+      event_types: [platform_alert]
+    "arista":
+      platforms: [arista]
+      data_sources: [network_traffic_logs]
+      event_types: [platform_alert]
+    "contrast":
+      platforms: [contrast_security]
+      data_sources: [third_party_security_alerts]
+      event_types: [platform_alert]
+    "trend micro":
+      platforms: [trend_micro]
+      data_sources: [antivirus_logs]
+      event_types: [platform_alert]
+    "varmour":
+      platforms: [network_appliance]
+      data_sources: [network_traffic_logs]
+      event_types: [network_connection]
+    "ridgesecurity":
+      platforms: [network_appliance]
+      data_sources: [third_party_security_alerts]
+      event_types: [platform_alert]
+  deviceproduct:
+    tables: [commonsecuritylog]
+    "acronis":
+      platforms: [acronis]
+      data_sources: [antivirus_logs]
+      event_types: [platform_alert]
+    "fortigate":
+      platforms: [network_appliance]
+      data_sources: [fortinet_firewall]
+      event_types: [network_connection]
+    "pan-os":
+      platforms: [network_appliance]
+      data_sources: [palo_alto_firewall]
+      event_types: [network_connection]
+    "asa":
+      platforms: [network_appliance]
+      data_sources: [cisco_firewall]
+      event_types: [network_connection]
+  providername:
+    tables: [securityalert, securityincident]
+    "iotsecurity":
+      platforms: [microsoft_defender_iot]
+      data_sources: [third_party_security_alerts]
+      event_types: [platform_alert]
+    "mdatp":
+      platforms: [windows]
+      data_sources: [defender_endpoint]
+      event_types: [platform_alert]
+    "azure security center":
+      platforms: [azure]
+      data_sources: [defender_cloud]
+      event_types: [platform_alert]
+    "azure advanced threat protection":
+      platforms: [windows]
+      data_sources: [defender_endpoint]
+      event_types: [platform_alert]
+    "office 365 advanced threat protection":
+      platforms: [microsoft_365]
+      data_sources: [m365_defender]
+      event_types: [platform_alert]
+    "microsoft cloud app security":
+      platforms: [microsoft_365]
+      data_sources: [m365_defender]
+      event_types: [platform_alert]
+    "mcas":
+      platforms: [microsoft_365]
+      data_sources: [m365_defender]
+      event_types: [platform_alert]
+  resourcetype:
+    tables: [azurediagnostics]
+    "azurefirewalls":
+      platforms: [azure]
+      data_sources: [azure_firewall]
+      event_types: [network_connection]
+    "managedclusters":
+      platforms: [kubernetes]
+      data_sources: [kubernetes_audit]
+      event_types: [api_call]
+    "applicationgateways":
+      platforms: [azure]
+      data_sources: [network_traffic_logs]
+      event_types: [http_request]
+    "networksecuritygroups":
+      platforms: [azure]
+      data_sources: [network_traffic_logs]
+      event_types: [network_connection]
+    "vaults":
+      platforms: [azure]
+      data_sources: [azure_audit]
+      event_types: [api_call]
+  category:
+    tables: [azurediagnostics]
+    "kube-audit":
+      platforms: [kubernetes]
+      data_sources: [kubernetes_audit]
+      event_types: [api_call]
+    "azurefirewallapplicationrule":
+      platforms: [azure]
+      data_sources: [azure_firewall]
+      event_types: [network_connection]
+    "azurefirewallnetworkrule":
+      platforms: [azure]
+      data_sources: [azure_firewall]
+      event_types: [network_connection]
+    "azurefirewalldnsproxy":
+      platforms: [azure]
+      data_sources: [azure_firewall]
+      event_types: [dns_query]
+    "applicationgatewayfirewalllog":
+      platforms: [azure]
+      data_sources: [network_traffic_logs]
+      event_types: [http_request]
+    "applicationgatewayaccesslog":
+      platforms: [azure]
+      data_sources: [network_traffic_logs]
+      event_types: [http_request]
+  provider:
+    tables: [windowsevent]
+    "microsoft-windows-sysmon":
+      platforms: [windows]
+      data_sources: [sysmon]
+    "microsoft-windows-security-auditing":
+      platforms: [windows]
+      data_sources: [windows_security_event_log]
+    "microsoft-windows-powershell":
+      platforms: [windows]
+      data_sources: [windows_powershell]
+    "powershellcore":
+      platforms: [windows]
+      data_sources: [windows_powershell]
+    "microsoft-windows-windows defender":
+      platforms: [windows]
+      data_sources: [windows_defender_event_log]
+  source:
+    tables: [event]
+    "microsoft-windows-sysmon":
+      platforms: [windows]
+      data_sources: [sysmon]
+    "microsoft-windows-powershell":
+      platforms: [windows]
+      data_sources: [windows_powershell]
+  eventsourcename:
+    tables: [securityevent, windowsevent, event]
+    "microsoft-windows-sysmon":
+      platforms: [windows]
+      data_sources: [sysmon]
+  processname:
+    tables: [syslog]
+    "sshd":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [authentication]
+    "sudo":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+    "su":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [authentication]
+    "cron":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+    "systemd":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+    "auditd":
+      platforms: [linux]
+      data_sources: [auditd]
+      event_types: [audit_event]
+    "kernel":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+    "useradd":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+    "passwd":
+      platforms: [linux]
+      data_sources: [linux_syslog]
+      event_types: [audit_event]
+

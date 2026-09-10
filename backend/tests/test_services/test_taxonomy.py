@@ -519,7 +519,9 @@ def test_sentinel_aws_security_hub_connector():
 
 
 def test_sentinel_security_alert_data_type():
-    """SecurityAlert dataType always contributes the siem_alert data source."""
+    """SecurityAlert is a generic data type (#141): when the rule names no
+    table, the connector that declares it supplies the product, and the
+    generic siem_alert bucket is only the fallback when nothing does."""
     parsed = _make_parsed(
         source="sentinel",
         extra={
@@ -532,7 +534,13 @@ def test_sentinel_security_alert_data_type():
         },
     )
     result = resolve_for_repo("sentinel", parsed)
-    assert "siem_alert" in result["data_sources"]
+    assert "defender_endpoint" in result["data_sources"]
+    assert "siem_alert" not in result["data_sources"]
+    bare = resolve_for_repo(
+        "sentinel",
+        _make_parsed(source="sentinel", extra={"requiredDataConnectors": [{"connectorId": "NoSuchConnector", "dataTypes": ["SecurityAlert"]}]}),
+    )
+    assert "siem_alert" in bare["data_sources"]
     assert "defender_endpoint" in result["data_sources"]
 
 
@@ -1109,7 +1117,10 @@ def test_sentinel_solution_folder_fallback_when_table_unmapped():
         },
     )
     result = resolve_for_repo("sentinel", parsed)
-    assert "cross_platform" in result["platforms"]
+    # The folder names the vendor (#141): Acronis is a product with an
+    # endpoint domain, not a cross_platform smear.
+    assert "acronis" in result["platforms"]
+    assert "cross_platform" not in result["platforms"]
     assert "antivirus_logs" in result["data_sources"]
 
 

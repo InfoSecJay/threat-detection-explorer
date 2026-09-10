@@ -125,6 +125,19 @@ PLATFORMS: frozenset[str] = frozenset(
         "42crunch",          # API security
         "cynerio",           # healthcare IoT device security
         "cyfirma",           # external threat landscape (no telemetry domain)
+        # -- CEF / syslog / alert vendors named by a query discriminator or
+        # a Sentinel solution folder (#141).
+        "acronis",           # Acronis Cyber Protect (backup + antivirus)
+        "trend_micro",       # Trend Micro Apex One (endpoint)
+        "vectra",            # Vectra AI NDR
+        "arista",            # Arista Awake NDR
+        "claroty",           # Claroty OT / IoT security
+        "infoblox",          # Infoblox DNS security
+        "corelight",         # Corelight (Zeek) sensors
+        "microsoft_defender_iot",  # Defender for IoT alerts
+        "pingfederate",      # PingFederate SSO audit
+        "silverfort",        # Silverfort identity protection
+        "cisco_seg",         # Cisco Secure Email Gateway
         # ── Network appliance class (broad — covers firewalls, proxies, IDS)
         "network_appliance",
         # ── Email — Sublime and other email-security tooling lives here ─────
@@ -188,6 +201,7 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "m365_sharepoint_audit",     # SharePoint Online audit
         "m365_defender",             # Microsoft Defender for O365 / M365 Defender threat feeds
         "okta_system_log",
+        "pingfederate_audit",
         "onelogin_events",           # OneLogin event feed
         "duo_activity",
         "google_workspace_audit",

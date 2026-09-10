@@ -145,6 +145,18 @@ LEGACY_PLATFORM_SPLIT: dict[str, tuple[Optional[str], tuple[str, ...], Optional[
     "cynerio": (_S, ("network",), "cynerio"),
     "veeam": (_S, (), "veeam"),
     "cyfirma": (_S, (), "cyfirma"),
+    # CEF / syslog / alert vendors (#141)
+    "acronis": (_S, ("endpoint",), "acronis"),
+    "trend_micro": (_S, ("endpoint",), "trend_micro"),
+    "vectra": (_S, ("network",), "vectra"),
+    "arista": (_S, ("network",), "arista"),
+    "claroty": (_S, ("network",), "claroty"),
+    "infoblox": (_S, ("network",), "infoblox"),
+    "corelight": (_S, ("network",), "corelight"),
+    "microsoft_defender_iot": (_S, ("network",), "microsoft_defender"),
+    "pingfederate": (_S, ("identity",), "pingfederate"),
+    "silverfort": (_S, ("identity",), "silverfort"),
+    "cisco_seg": (_S, ("email",), "cisco"),
     # network SaaS and appliances
     "cloudflare": (_S, ("network",), "cloudflare"),
     "zscaler": (_S, ("network",), "zscaler"),
@@ -182,6 +194,7 @@ _DOMAIN_SOURCES: dict[str, frozenset[str]] = {
     "identity": frozenset({
         "entra_id_signin", "entra_id_audit", "azure_pim", "azure_risk_detection", "okta_system_log",
         "okta_scheduled_query", "onelogin_events", "duo_activity", "duo_administrator", "duo_authentication",
+        "pingfederate_audit",
         "auth0_logs", "teleport_audit", "push_security_audit", "sailpoint_idn_audit", "cyberark_audit",
         "crowdstrike_identity_protection",
     }) | _prefixed("onepassword_"),
@@ -233,6 +246,7 @@ for _domain in DOMAINS:
 _PRODUCT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("aws_", "aws"), ("azure_", "azure"), ("entra_id_", "azure"), ("gcp_", "gcp"), ("m365_", "microsoft_365"),
     ("microsoft_intune_", "microsoft_intune"), ("okta_", "okta"), ("duo_", "duo"), ("onepassword_", "onepassword"),
+    ("pingfederate_", "pingfederate"),
     ("github_", "github"), ("gitlab_", "gitlab"), ("snyk_", "snyk"), ("slack_", "slack"), ("notion_", "notion"),
     ("asana_", "asana"), ("zoom_", "zoom"), ("salesforce_", "salesforce"), ("snowflake_", "snowflake"),
     ("mongodb_", "mongodb"), ("wiz_", "wiz"), ("crowdstrike_", "crowdstrike"), ("cloudflare_", "cloudflare"),
