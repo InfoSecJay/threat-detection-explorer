@@ -34,7 +34,7 @@ interface TelemetryFilterProps {
   filters: SearchFilters;
   onFiltersChange: (filters: SearchFilters) => void;
   options: {
-    /** Attack-surface domains (#103): endpoint, identity, cloud, saas, network, email, devops, data. */
+    /** Attack-surface domains (#103): endpoint, identity, cloud, saas, network, email, devops, data, application. */
     domains?: FacetOption[];
     platforms: FacetOption[];
     data_sources: FacetOption[];

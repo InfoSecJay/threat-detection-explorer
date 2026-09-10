@@ -30,7 +30,7 @@ const FIELD_LABEL: Record<string, string> = {
 
 const FIELD_HINT: Record<string, string> = {
   platforms: 'Rules whose vendor logsource has no platform mapping',
-  domains: 'Rules whose platform and data sources place them in no attack-surface domain (#103); the application-domain candidates live here',
+  domains: 'Rules whose platform and data sources place them in no attack-surface domain (#103); alert streams and vendor feeds with no telemetry domain live here',
   data_sources: 'Rules whose vendor logsource has no canonical data-source mapping',
   event_types: 'Rules whose observed-event category could not be determined',
   status: 'Rules whose maturity is not published (sources with no lifecycle concept say not applicable, and are not counted)',

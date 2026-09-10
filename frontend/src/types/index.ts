@@ -39,7 +39,7 @@ export interface Detection {
   event_types: string[];
   // Platform split (#103): platforms is the OS only; domains is the
   // attack surface (endpoint, identity, cloud, saas, network, email,
-  // devops, data); products the vendor / application read.
+  // devops, data, application); products the vendor / application read.
   domains: string[];
   products: string[];
   // Vendor-preserved analytic story / use-case labels. Populated for

@@ -34,6 +34,7 @@ export const DOMAIN_LABELS: Record<string, string> = {
   email: 'mail flow',
   devops: 'source control, CI',
   data: 'warehouses, databases',
+  application: 'SAP, ERP, app servers',
   unknown: 'unplaced',
 };
 
@@ -46,11 +47,12 @@ export const DOMAIN_DEFINITIONS: Record<string, string> = {
   email: 'Mail flow and message security: email metadata, Sublime, Proofpoint, Exchange audit.',
   devops: 'Source control and delivery tooling: GitHub, GitLab, Bitbucket, Atlassian, Snyk.',
   data: 'Data platforms and databases: Snowflake, Databricks, MongoDB, RDBMS audit logs.',
-  unknown: 'No domain could be derived: framework or application logs, alert streams.',
+  application: 'Business applications and app servers: SAP audit, ERP / GRC monitoring, runtime application security, generic application logs.',
+  unknown: 'No domain could be derived: alert streams and vendor feeds with no telemetry domain.',
 };
 
-/** The eight closed domain values in display order. */
-export const DOMAIN_VALUES = ['endpoint', 'identity', 'cloud', 'saas', 'network', 'email', 'devops', 'data'] as const;
+/** The nine closed domain values in display order. */
+export const DOMAIN_VALUES = ['endpoint', 'identity', 'cloud', 'saas', 'network', 'email', 'devops', 'data', 'application'] as const;
 
 /** OS values worth showing next to a domain; the rest add nothing. */
 export const OS_PLATFORMS = new Set(['windows', 'linux', 'macos', 'container']);
