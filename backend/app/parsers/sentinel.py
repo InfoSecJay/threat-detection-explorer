@@ -13,69 +13,135 @@ from app.services.mitre_tactic_inference import infer_tactics
 logger = logging.getLogger(__name__)
 
 
-# First token in a KQL query is the table name (or a `let` binding /
-# comment). We extract the first identifier that isn't a KQL keyword.
-# KQL table names follow the pattern `[A-Za-z][A-Za-z0-9_]*`; custom
-# logs end in `_CL`. The resolver uses this as the authoritative
-# data-source signal.
+# KQL table names follow `[A-Za-z_][A-Za-z0-9_]*`; custom logs end in
+# `_CL`. The resolver uses the tables as its authoritative data-source
+# signal, so only real statement heads may land here: an identifier that
+# opens a statement or a parenthesised sub-query and is followed by a
+# pipe. Continuation lines (`and X == 1`), `extend` targets and let-bound
+# variable names used to slip through as "tables" and pushed real tables
+# out of the old three-entry cap (#141).
 _KQL_LEADING_KEYWORDS = frozenset({
-    "let", "print", "search", "find", "union", "range",
-    "//", "#", "exec",
+    "let", "print", "search", "find", "union", "range", "exec", "set",
+    "alias", "declare", "restrict", "pattern", "materialize", "toscalar",
+    "datatable", "externaldata", "evaluate", "invoke", "where", "extend",
+    "project", "summarize", "join", "lookup", "on", "by", "in", "and", "or",
+    "not", "true", "false", "null",
 })
+_KQL_IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
 
 # Strip KQL comments (`// ...` to end of line, `/* ... */` blocks) and
-# `let X = ...;` bindings so we can find the first actual table query.
+# `let X = ...;` bindings so the statement scan sees only query text.
 _KQL_LINE_COMMENT = re.compile(r"//[^\n]*")
 _KQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _KQL_LET_BINDING = re.compile(
     r"\blet\s+\w+\s*=\s*[^;]*;",
     re.IGNORECASE | re.DOTALL,
 )
-_KQL_TABLE_IDENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
+_KQL_LET_NAME = re.compile(r"\blet\s+(\w+)\s*[=(]")
+# `let x = Table | ...;` and `materialize(Table | ...)`: the RHS head is a
+# table only when a pipe follows it (calls like `dynamic(...)` are not).
+_KQL_LET_HEAD = re.compile(rf"\blet\s+\w+\s*=\s*({_KQL_IDENT})\s*(?=\||;)")
+_KQL_WRAPPED_HEAD = re.compile(rf"\b(?:materialize|toscalar)\s*\(\s*({_KQL_IDENT})\s*(?=\|)")
+# A statement head: the identifier that opens the text or follows a `;`,
+# itself followed by a pipe or the end of the statement.
+_KQL_STATEMENT_HEAD = re.compile(rf"(?:^|;)\s*({_KQL_IDENT})\s*(?=\||;|\Z)")
+# `( Table | ...)` opens a sub-query in join / union / lookup / in ().
+_KQL_PAREN_HEAD = re.compile(rf"\(\s*({_KQL_IDENT})\s*(?=\|)")
+# `union [isfuzzy=true] T1, T2` and `search in (T1, T2)` list their tables.
+_KQL_UNION_LIST = re.compile(
+    rf"\bunion\b(?:\s+(?:isfuzzy|withsource|kind)\s*=\s*\w+)*\s+({_KQL_IDENT}(?:\s*,\s*{_KQL_IDENT})*)"
+)
+_KQL_SEARCH_IN = re.compile(r"\bsearch\s+in\s*\(([^)]*)\)")
+# `| join [kind=x] Table on Key` without parentheses.
+_KQL_JOIN_BARE = re.compile(
+    rf"\b(?:join|lookup)\b(?:\s+kind\s*=\s*\w+)?(?:\s+hint\.\w+\s*=\s*\w+)*\s+({_KQL_IDENT})\s+on\b"
+)
+_KQL_MAX_TABLES = 12
+
+# Query filters that say WHICH vendor or channel a multi-vendor table is
+# carrying: `CommonSecurityLog | where DeviceVendor == "Acronis"`,
+# `SecurityAlert | where ProviderName == "IoTSecurity"`,
+# `WindowsEvent | where Provider == "Microsoft-Windows-Sysmon"`. The
+# resolver reads these before it believes the table (#141). Negated
+# operators are not discriminators and are skipped on purpose.
+_KQL_DISCRIMINATOR_FIELDS = (
+    "DeviceVendor", "DeviceProduct", "ProviderName", "ProductName", "ResourceType",
+    "ResourceProvider", "Category", "Provider", "Source", "EventSourceName", "ProcessName", "Facility",
+)
+_KQL_QUOTED = r"(?:\"[^\"\n]*\"|'[^'\n]*')"
+_KQL_DISCRIMINATOR = re.compile(
+    r"(?:\b(?:tolower|toupper|tostring)\s*\(\s*)?\b(" + "|".join(_KQL_DISCRIMINATOR_FIELDS) + r")\b\s*\)?\s*"
+    r"(==|=~|has_cs|has_any|has_all|has|contains_cs|contains|startswith_cs|startswith|in~|in)\s*"
+    r"(\(?\s*" + _KQL_QUOTED + r"(?:\s*,\s*" + _KQL_QUOTED + r")*)",
+    re.IGNORECASE,
+)
+
+
+def _strip_kql(query: str) -> str:
+    cleaned = _KQL_BLOCK_COMMENT.sub("", query)
+    return _KQL_LINE_COMMENT.sub("", cleaned)
 
 
 def _extract_kql_tables(query: str) -> list[str]:
-    """Return up to 3 distinct table names referenced at statement heads.
+    """Return the distinct table names a query reads, in first-seen order.
 
-    KQL statements begin with a table name followed by `|`. We find
-    identifiers that appear at the start of a line and are NOT KQL
-    keywords like `let` or `print`. Duplicates removed, order preserved.
+    A table is an identifier that heads a statement, a `let` binding, a
+    parenthesised sub-query, a `union` / `search in` list or a bare
+    `join ... on`, and is followed by a pipe (or ends the statement).
+    KQL keywords, let-bound names and function calls never qualify.
     """
     if not query or not isinstance(query, str):
         return []
-    # Strip comments + let bindings so we don't pick up `let` target names.
-    cleaned = _KQL_BLOCK_COMMENT.sub("", query)
-    cleaned = _KQL_LINE_COMMENT.sub("", cleaned)
-    # A rule structured entirely as let-bindings (`let x = Table | ...;`)
-    # hides its tables inside the stripped bindings -- ThreatIntel and
-    # ASIM rules lost their table signal this way. Recover the RHS head
-    # identifier of each binding (skipping calls like dynamic(...) and
-    # datatable(...): the identifier is a table only when not followed
-    # by an open paren).
-    let_heads = re.findall(
-        r"\blet\s+\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b(?!\s*\()", cleaned
-    )
-    cleaned = _KQL_LET_BINDING.sub("", cleaned)
+    cleaned = _strip_kql(query)
+    let_names = {m.group(1) for m in _KQL_LET_NAME.finditer(cleaned)}
+
+    # Collect (offset, identifier) so the result keeps document order:
+    # the head table of the main statement stays first.
+    found: list[tuple[int, str]] = []
+    for rx in (_KQL_LET_HEAD, _KQL_WRAPPED_HEAD, _KQL_PAREN_HEAD, _KQL_JOIN_BARE):
+        found.extend((m.start(1), m.group(1)) for m in rx.finditer(cleaned))
+    # Statement heads are scanned with the let bindings blanked out so a
+    # binding body cannot pose as the main statement; blanking (rather
+    # than deleting) keeps the offsets aligned with `cleaned`.
+    body = _KQL_LET_BINDING.sub(lambda m: " " * len(m.group(0)), cleaned)
+    found.extend((m.start(1), m.group(1)) for m in _KQL_STATEMENT_HEAD.finditer(body))
+    for rx in (_KQL_UNION_LIST, _KQL_SEARCH_IN):
+        for m in rx.finditer(cleaned):
+            group, base = m.group(1), m.start(1)
+            for part in group.split(","):
+                found.append((base + group.index(part), part.strip()))
+    candidates = [ident for _, ident in sorted(found)]
 
     seen: set[str] = set()
     tables: list[str] = []
-    for ident in let_heads:
-        if ident.lower() in _KQL_LEADING_KEYWORDS:
+    for ident in candidates:
+        if not ident or not re.fullmatch(_KQL_IDENT, ident):
+            continue
+        if ident.lower() in _KQL_LEADING_KEYWORDS or ident in let_names:
             continue
         if ident not in seen:
             seen.add(ident)
             tables.append(ident)
-    for match in _KQL_TABLE_IDENT.finditer(cleaned):
-        ident = match.group(1)
-        if ident.lower() in _KQL_LEADING_KEYWORDS:
-            continue
-        if ident not in seen:
-            seen.add(ident)
-            tables.append(ident)
-        if len(tables) >= 3:
+        if len(tables) >= _KQL_MAX_TABLES:
             break
     return tables
 
+
+def _extract_kql_discriminators(query: str) -> dict[str, list[str]]:
+    """Return `{field: [values]}` for the vendor / channel filters in a
+    query (fields in `_KQL_DISCRIMINATOR_FIELDS`, values lower-cased,
+    first-seen order). Only affirmative operators count."""
+    if not query or not isinstance(query, str):
+        return {}
+    found: dict[str, list[str]] = {}
+    for match in _KQL_DISCRIMINATOR.finditer(_strip_kql(query)):
+        field = match.group(1).lower()
+        values = found.setdefault(field, [])
+        for quoted in re.findall(_KQL_QUOTED, match.group(3)):
+            value = quoted[1:-1].strip().lower()
+            if value and value not in values:
+                values.append(value)
+    return {k: v for k, v in found.items() if v}
 
 def _extract_solution_folder(file_path: str) -> str:
     """Return the vendor folder under `Solutions/<vendor>/...`, else "".
@@ -300,6 +366,9 @@ class SentinelParser(BaseParser):
                     # Taxonomy-resolver inputs (Sentinel-specific tiers):
                     # Tier 1 — first KQL table names in the query head.
                     "kql_tables": _extract_kql_tables(query),
+                    # Vendor / channel filters inside the query (#141):
+                    # read before the table when the table is generic.
+                    "kql_filters": _extract_kql_discriminators(query),
                     # Tier 4 — `Solutions/<vendor>/...` folder name.
                     "solution_folder": _extract_solution_folder(str(file_path)),
                     # Tier 5 — entity types (last-resort event_type hint).
