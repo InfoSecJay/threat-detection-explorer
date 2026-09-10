@@ -67,7 +67,9 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     "sigma":               {"sigma"},
     # Elastic rules can be query (kql/kuery/lucene), eql, esql, ml
     # (Machine Learning jobs), threat_match, threshold, new_terms.
-    "elastic":             {"eql", "esql", "kql", "kuery", "lucene", "ml", "threat_match", "threshold", "new_terms"},
+    # Machine-learning jobs have no query language at all: the modality
+    # (ml_job) says what they are and language is "none" by design (#105).
+    "elastic":             {"eql", "esql", "kql", "kuery", "lucene", "none", "threat_match", "threshold", "new_terms"},
     # `osquery` is the canonical token for Elastic OSQuery Manager hunts
     # (raw TOML carries language=["SQL"]; normalizer maps to `osquery`).
     "elastic_hunting":     {"esql", "eql", "kql", "lucene", "osquery"},
@@ -144,6 +146,9 @@ def fetch_page(api_base: str, source: str, offset: int) -> dict:
         "sources": source,
         "limit": PAGE_SIZE,
         "offset": offset,
+        # The list endpoint is slim by default since #113; the audit needs
+        # the extracted_* fields, so ask for the verbose rows.
+        "verbose": "true",
     })
     url = f"{api_base}/detections?{q}"
     with urllib.request.urlopen(url, timeout=60) as resp:
