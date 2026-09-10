@@ -1557,3 +1557,55 @@ discriminators:
       data_sources: [linux_syslog]
       event_types: [audit_event]
 
+# -------------------------------------------------------------------------
+# SOLUTION METADATA (#138) -- `Solutions/<vendor>/SolutionMetadata.json`
+# carries the vendor package's `providers` and `categories.domains`. The
+# parser attaches them per rule; the resolver turns providers into
+# products (alias table, else a slug) and content-hub domains into ours.
+# Categories with no telemetry meaning are deliberately absent from the
+# crosswalk: Threat Protection, Threat Intelligence, SOAR, Compliance,
+# Vulnerability Management, Platform, Others.
+# -------------------------------------------------------------------------
+solution_metadata:
+  domains:
+    "security - network": [network]
+    "networking": [network]
+    "internet of things (iot)": [network]
+    "security - cloud security": [cloud]
+    "cloud provider": [cloud]
+    "identity": [identity]
+    "security - insider threat": [identity]
+    "user behavior (ueba)": [identity]
+    "application": [application]
+    "it operations": [application]
+    "devops": [devops]
+    "security - information protection": [data]
+    "storage": [data]
+  # Publishers that say nothing about whose telemetry the rule reads.
+  skip_providers: [microsoft, community, azure sentinel community, microsoft sentinel community, google]
+  providers:
+    "amazon web services": aws
+    "amazon": aws
+    "aws": aws
+    "palo alto networks": palo_alto
+    "palo alto": palo_alto
+    "check point": check_point
+    "checkpoint": check_point
+    "trend micro": trend_micro
+    "cyfirma": cyfirma
+    "data443 risk mitigation, inc.": data443
+    "f5 networks": f5
+    "contrast security": contrast_security
+    "vectra ai": vectra
+    "vectra": vectra
+    "arista networks": arista
+    "cisco systems": cisco
+    "ping identity": pingfederate
+    "sailpoint": sailpoint
+    "1password": onepassword
+    "one identity": one_identity
+    "crowdstrike": crowdstrike
+    "sentinelone": sentinelone
+    "carbon black": carbon_black
+    "vmware carbon black": carbon_black
+

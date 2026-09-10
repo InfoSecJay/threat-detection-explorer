@@ -44,6 +44,7 @@ Tier 4 (late) -- folder fallback when nothing above resolved a source.
 Tier 5 -- `entityMappings[].entityType`: last-resort event_type hint.
 """
 
+import re
 from typing import TYPE_CHECKING
 
 from app.services.taxonomy._loader import load_mapping
@@ -77,6 +78,39 @@ def _match_discriminators(kql_filters: dict, disc_map: dict) -> list[tuple[str, 
                     matches.append((field, field_map[key]))
                     break
     return matches
+
+
+def _slug(name: str) -> str:
+    text = re.sub(r",?\s*(inc\.?|ltd\.?|llc|corp\.?|corporation|gmbh|co\.)$", "", name.strip().lower())
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", text)).strip("_")
+
+
+def _metadata_hints(meta: dict, meta_map: dict) -> tuple[list[str], list[str]]:
+    """(products, domains) from a solution's SolutionMetadata.json.
+
+    Providers become product ids through the `providers` alias table or a
+    slug; publishers listed in `skip_providers` (Microsoft, Community) say
+    nothing about the telemetry. Sentinel's content-hub domains map to
+    ours through the `domains` crosswalk; categories with no telemetry
+    meaning (Threat Protection, SOAR, Compliance ...) are left out.
+    """
+    aliases = {str(k).lower(): v for k, v in (meta_map.get("providers") or {}).items()}
+    skip = {str(v).lower() for v in (meta_map.get("skip_providers") or [])}
+    crosswalk = {str(k).lower(): v for k, v in (meta_map.get("domains") or {}).items()}
+    products: list[str] = []
+    for provider in meta.get("providers") or []:
+        key = str(provider).strip().lower()
+        if not key or key in skip:
+            continue
+        product = aliases[key] if key in aliases else _slug(key)
+        if product and product not in products:
+            products.append(product)
+    domains: list[str] = []
+    for category in meta.get("domains") or []:
+        for domain in crosswalk.get(str(category).strip().lower()) or []:
+            if domain not in domains:
+                domains.append(domain)
+    return products, domains
 
 
 def resolve(parsed: "ParsedRule") -> dict:
@@ -192,8 +226,18 @@ def resolve(parsed: "ParsedRule") -> dict:
 
     event_types = authoritative_ets if authoritative_ets else capability_ets
 
+    # -- Solution metadata: the vendor package's own providers and domains.
+    # Products always join the derived ones; domains only fill a rule
+    # whose telemetry gave none (the normalizer applies both after the
+    # platform split, #138).
+    products_hint, domains_hint = _metadata_hints(
+        extra.get("solution_metadata") or {}, _MAPPING.get("solution_metadata") or {}
+    )
+
     return {
         "platforms": platforms,
         "data_sources": data_sources,
         "event_types": event_types,
+        "products": products_hint,
+        "domains": domains_hint,
     }

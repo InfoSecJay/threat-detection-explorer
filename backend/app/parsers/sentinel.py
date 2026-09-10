@@ -1,6 +1,7 @@
 """Microsoft Sentinel detection rule parser."""
 
 import logging
+import json
 import re
 from pathlib import Path
 from typing import Optional
@@ -143,6 +144,51 @@ def _extract_kql_discriminators(query: str) -> dict[str, list[str]]:
                 values.append(value)
     return {k: v for k, v in found.items() if v}
 
+# `Solutions/<vendor>/SolutionMetadata.json` carries the vendor package's
+# own `providers` (vendor names) and `categories.domains` (Sentinel's
+# content-hub taxonomy). The sync fetches it for every solution (#138):
+# cached once per repo root, attached to each rule as
+# extra["solution_metadata"] = {"providers": [...], "domains": [...]}.
+_SOLUTION_METADATA_CACHE: dict[str, dict[str, dict]] = {}
+_RULE_TREE_MARKERS = ("/solutions/", "/detections/", "/asim/", "/summary rules/")
+
+
+def _normalize_solution_domain(value: str) -> str:
+    """Lower-case, and repair the mojibake dash some files carry
+    (`Security � Network` -> `security - network`)."""
+    text = re.sub(r"\s*[^\x00-\x7f]+\s*", " - ", str(value))
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _load_solution_metadata(root: Path) -> dict[str, dict]:
+    loaded: dict[str, dict] = {}
+    solutions = root / "Solutions"
+    if not solutions.is_dir():
+        return loaded
+    for meta_file in solutions.glob("*/SolutionMetadata.json"):
+        try:
+            data = json.loads(meta_file.read_text(encoding="utf-8-sig"))
+        except Exception:  # a malformed vendor file must not stop the sync
+            continue
+        if not isinstance(data, dict):
+            continue
+        categories = data.get("categories") if isinstance(data.get("categories"), dict) else {}
+        providers = [p.strip() for p in (data.get("providers") or []) if isinstance(p, str) and p.strip()]
+        domains = [
+            _normalize_solution_domain(d) for d in (categories.get("domains") or []) if isinstance(d, str) and d.strip()
+        ]
+        loaded[meta_file.parent.name.lower()] = {"providers": providers, "domains": domains}
+    return loaded
+
+
+def _repo_root_of(file_path: str) -> str:
+    """The clone root for an absolute rule path, `""` for a relative one."""
+    text = str(file_path).replace("\\", "/")
+    lower = text.lower()
+    cut = min((i for i in (lower.find(m) for m in _RULE_TREE_MARKERS) if i > 0), default=-1)
+    return text[:cut] if cut > 0 else ""
+
+
 def _extract_solution_folder(file_path: str) -> str:
     """Return the vendor folder under `Solutions/<vendor>/...`, else "".
 
@@ -236,6 +282,22 @@ class SentinelParser(BaseParser):
     def source_name(self) -> str:
         return "sentinel"
 
+    def _remember_repo_root(self, file_path: str) -> None:
+        """Ingestion calls can_parse with the absolute path: learn the
+        clone root from it and load the solution metadata once."""
+        root = _repo_root_of(file_path)
+        if not root:
+            return
+        self._repo_root = root
+        if root not in _SOLUTION_METADATA_CACHE:
+            _SOLUTION_METADATA_CACHE[root] = _load_solution_metadata(Path(root))
+
+    def _solution_metadata_for(self, folder: str) -> dict:
+        root = getattr(self, "_repo_root", "")
+        if not folder or not root:
+            return {}
+        return dict(_SOLUTION_METADATA_CACHE.get(root, {}).get(folder.lower(), {}))
+
     def can_parse(self, file_path: Path) -> bool:
         """Check if this is a Sentinel detection rule file.
 
@@ -249,6 +311,7 @@ class SentinelParser(BaseParser):
         directories; we explicitly skip those because they're not detections.
         """
         path_str = str(file_path).replace("\\", "/").lower()
+        self._remember_repo_root(str(file_path))
 
         # Must be YAML
         if not (path_str.endswith(".yml") or path_str.endswith(".yaml")):
@@ -371,6 +434,10 @@ class SentinelParser(BaseParser):
                     "kql_filters": _extract_kql_discriminators(query),
                     # Tier 4 — `Solutions/<vendor>/...` folder name.
                     "solution_folder": _extract_solution_folder(str(file_path)),
+                    # Tier 4 -- the solution's own providers + domains (#138).
+                    "solution_metadata": self._solution_metadata_for(
+                        _extract_solution_folder(str(file_path))
+                    ),
                     # Tier 5 — entity types (last-resort event_type hint).
                     "entity_types": _extract_entity_types(
                         data.get("entityMappings", [])

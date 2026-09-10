@@ -363,6 +363,15 @@ def split_platforms(raw_platforms, data_sources) -> tuple[list[str], list[str], 
     return platforms, _dedupe(domains, DOMAINS) or [UNKNOWN], _dedupe(products)
 
 
+def finalize_platforms(platforms: list[str], domains: list[str]) -> list[str]:
+    """`unknown` platform next to a known, OS-less domain is `not_applicable`:
+    a vendor alert feed or a SaaS audit stream has no OS to name (#138).
+    Endpoint telemetry with no OS stated stays `unknown`, honestly."""
+    if platforms == [UNKNOWN] and domains and domains != [UNKNOWN] and "endpoint" not in domains:
+        return ["not_applicable"]
+    return platforms
+
+
 def is_canonical_domain(value: str) -> bool:
     return value in DOMAINS or value == UNKNOWN
 
@@ -370,5 +379,5 @@ def is_canonical_domain(value: str) -> bool:
 __all__ = [
     "OS_PLATFORMS", "DOMAINS", "DOMAIN_DEFINITIONS", "LEGACY_PLATFORM_SPLIT", "LEGACY_PLATFORM_FILTERS",
     "DATA_SOURCE_DOMAINS", "DATA_SOURCE_PRODUCTS", "NO_DOMAIN_SOURCES", "PLATFORMS",
-    "split_platforms", "product_for_data_source", "is_canonical_domain",
+    "split_platforms", "finalize_platforms", "product_for_data_source", "is_canonical_domain",
 ]

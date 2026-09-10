@@ -211,12 +211,19 @@ class NormalizedDetection:
         # above reads the resolver's raw platform vocabulary. Explicit
         # domains/products passed by a caller (tests, re-normalization)
         # are kept when the raw list is already OS-only.
-        from app.services.taxonomy.domains import split_platforms
+        from app.services.taxonomy.domains import finalize_platforms, split_platforms
 
         platforms, domains, products = split_platforms(self.platforms, self.data_sources)
-        self.platforms = platforms
         self.domains = domains if domains != ["unknown"] or not self.domains else self.domains
-        self.products = products or self.products
+        # Products named by the caller (Sentinel solution metadata
+        # providers, #138) join the derived ones; a derived product that
+        # already carries the vendor prefix (cisco_umbrella vs cisco) wins.
+        extra_products = [
+            p for p in self.products
+            if p and p not in products and not any(q == p or q.startswith(p + "_") for q in products)
+        ]
+        self.products = products + extra_products
+        self.platforms = finalize_platforms(platforms, self.domains)
 
 
 class BaseNormalizer(ABC):
@@ -285,6 +292,13 @@ class BaseNormalizer(ABC):
             result["matched"],
             result["fingerprint"],
         )
+
+    def _resolve_taxonomy_full(self, parsed: ParsedRule) -> dict:
+        """Like `_resolve_taxonomy` but the whole resolver dict, including
+        the optional `products` / `domains` hints (#138)."""
+        from app.services.taxonomy import resolve_for_repo
+
+        return resolve_for_repo(parsed.source, parsed)
 
     def _resolve_rule_dates(
         self,

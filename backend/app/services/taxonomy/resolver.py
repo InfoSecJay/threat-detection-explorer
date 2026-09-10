@@ -142,6 +142,11 @@ def resolve_for_repo(repo_name: str, parsed: "ParsedRule") -> dict:
         "data_sources": _ensure_list(narrowed_data_sources),
         "event_types": _ensure_list(raw_event_types),
         "matched": matched,
+        # Hints a vendor resolver may add (Sentinel solution metadata,
+        # #138): plain lists, no unknown fallback, applied by the
+        # normalizer after the platform split.
+        "products": list(_iter_strings(result.get("products") or [])),
+        "domains": list(_iter_strings(result.get("domains") or [])),
         "fingerprint": _compute_fingerprint(repo_name, parsed),
     }
 

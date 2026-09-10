@@ -69,6 +69,9 @@ SPARSE_CHECKOUT_PATTERNS = {
         "Solutions/*/Analytic Rules/*",
         "Solutions/*/Hunting Queries/*",
         "Solutions/*/Detection Queries/*",
+        # Per-solution metadata: `providers` and `categories.domains`
+        # (the vendor package's own product and domain claim, #138).
+        "Solutions/*/SolutionMetadata.json",
         # Root-level Detections/ — 483+ rules grouped by KQL table
         # (AuditLogs, AWSCloudTrail, Syslog, etc.). Previously missed
         # entirely; these are older-style rules still in active use.

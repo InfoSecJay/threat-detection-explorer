@@ -465,10 +465,18 @@ the resolver (`vendors/sentinel.py`) reads them in this order:
    syslog. Keys are lowercase substrings, longest wins, and each field is
    scoped to its tables so `Category` on `AuditLogs` is never read as an
    Azure diagnostics category.
-3. **`solution_folders`** -- `Solutions/<vendor>/` names the vendor of a
-   generic table that no discriminator refined (a CEF rule under
-   `Acronis Cyber Protect Cloud` with no `DeviceVendor` filter is still
-   Acronis), and is the fallback when nothing else resolved.
+3. **`solution_folders` and `solution_metadata`** -- `Solutions/<vendor>/`
+   names the vendor of a generic table that no discriminator refined (a
+   CEF rule under `Acronis Cyber Protect Cloud` with no `DeviceVendor`
+   filter is still Acronis), and is the fallback when nothing else
+   resolved. Every solution also ships `SolutionMetadata.json` with
+   `providers` and `categories.domains`; the sync fetches it, the parser
+   attaches it per rule, and the resolver turns providers into
+   `products` (alias table, else a slug; Microsoft / Community are
+   skipped) and the content-hub domain into a fallback `domains` value
+   through the `solution_metadata.domains` crosswalk. A rule that ends
+   with an OS-less domain and no OS stated reads `platforms =
+   not_applicable`.
 4. **`connectors` / `data_types`** -- `requiredDataConnectors`, the
    author's declaration. Platform and data source only when no table
    matched at all (rules built on custom functions or ASIM parsers);

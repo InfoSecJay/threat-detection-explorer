@@ -37,7 +37,7 @@ BACKEND = HERE.parent / "backend"
 sys.path.insert(0, str(BACKEND))
 
 from app.parsers.sentinel import SentinelParser  # noqa: E402
-from app.services.taxonomy.domains import split_platforms  # noqa: E402
+from app.services.taxonomy.domains import finalize_platforms, split_platforms  # noqa: E402
 from app.services.taxonomy.vendors import sentinel as vsentinel  # noqa: E402
 
 CLONE = BACKEND / "data" / "repos" / "sentinel"
@@ -81,6 +81,13 @@ def load_rules():
         platforms, domains, products = split_platforms(
             list(resolved.get("platforms") or []), list(resolved.get("data_sources") or [])
         )
+        # Same merge the normalizer does with the solution-metadata hints.
+        if domains == ["unknown"] and resolved.get("domains"):
+            domains = list(resolved["domains"])
+        for p in resolved.get("products") or []:
+            if p not in products and not any(q.startswith(p + "_") for q in products):
+                products.append(p)
+        platforms = finalize_platforms(platforms, domains)
         rows.append({
             "path": str(rel),
             "tables": [t.lower() for t in extra.get("kql_tables") or []],

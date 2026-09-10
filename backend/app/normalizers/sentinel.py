@@ -21,7 +21,7 @@ class SentinelNormalizer(BaseNormalizer):
         rule_created, rule_modified = self._resolve_rule_dates(parsed.file_path)
 
         # Canonical taxonomy
-        platforms, data_sources, event_types, matched, fingerprint = self._resolve_taxonomy(parsed)
+        taxonomy = self._resolve_taxonomy_full(parsed)
 
         return NormalizedDetection(
             id=self.generate_id(parsed.source, parsed.file_path),
@@ -61,9 +61,13 @@ class SentinelNormalizer(BaseNormalizer):
             extracted_target_resources=extracted.target_resources,
             rule_created_date=rule_created,
             rule_modified_date=rule_modified,
-            platforms=platforms,
-            data_sources=data_sources,
-            event_types=event_types,
-            taxonomy_matched=matched,
-            taxonomy_fingerprint=fingerprint,
+            platforms=taxonomy["platforms"],
+            data_sources=taxonomy["data_sources"],
+            event_types=taxonomy["event_types"],
+            # Solution metadata hints (#138): providers as products, the
+            # content-hub domain as the fallback domain.
+            products=taxonomy.get("products") or [],
+            domains=taxonomy.get("domains") or [],
+            taxonomy_matched=taxonomy["matched"],
+            taxonomy_fingerprint=taxonomy["fingerprint"],
         )
