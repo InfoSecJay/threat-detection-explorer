@@ -1,7 +1,5 @@
 """Microsoft Sentinel detection rule normalizer."""
 
-from typing import Any
-
 from app.normalizers.base import BaseNormalizer, NormalizedDetection
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_sentinel_fields
@@ -69,91 +67,3 @@ class SentinelNormalizer(BaseNormalizer):
             taxonomy_matched=matched,
             taxonomy_fingerprint=fingerprint,
         )
-
-    def _extract_data_sources(self, parsed: ParsedRule) -> list[str]:
-        """Extract data sources from Sentinel rule connectors."""
-        raw_sources = []
-        extra = parsed.extra or {}
-        log_source = parsed.log_source or {}
-
-        # Add product
-        product = log_source.get("product", "")
-        if product:
-            raw_sources.append(product)
-
-        # Add data types from connectors
-        data_types = log_source.get("data_types", [])
-        for dt in data_types:
-            if isinstance(dt, str):
-                raw_sources.append(dt.lower())
-
-        # Add connector-based sources
-        connectors = extra.get("requiredDataConnectors", [])
-        for connector in connectors:
-            if isinstance(connector, dict):
-                connector_id = connector.get("connectorId", "")
-                if connector_id:
-                    raw_sources.append(connector_id.lower())
-
-        # Add Sentinel-specific source
-        raw_sources.append("sentinel")
-
-        # Use base normalizer's mapping
-        return self.normalize_data_sources(raw_sources)
-
-    def _determine_platform(self, extra: dict) -> str:
-        """Determine platform from connector information."""
-        connectors = extra.get("requiredDataConnectors", [])
-        if not connectors:
-            return "azure"
-
-        connector_ids = []
-        for connector in connectors:
-            if isinstance(connector, dict):
-                connector_id = connector.get("connectorId", "")
-                if connector_id:
-                    connector_ids.append(connector_id.lower())
-
-        connector_str = " ".join(connector_ids)
-
-        if "aws" in connector_str:
-            return "aws"
-        elif "gcp" in connector_str or "google" in connector_str:
-            return "gcp"
-        elif "office" in connector_str or "o365" in connector_str:
-            return "office365"
-        elif "azuread" in connector_str or "entra" in connector_str:
-            return "azure_ad"
-        elif "windows" in connector_str:
-            return "windows"
-        elif "linux" in connector_str:
-            return "linux"
-
-        return "azure"
-
-    def _get_data_source_from_connectors(self, extra: dict) -> str:
-        """Get normalized data source from connector information."""
-        connectors = extra.get("requiredDataConnectors", [])
-        if not connectors:
-            return "sentinel"
-
-        # Map common connectors to data sources
-        connector_map = {
-            "aws": "cloudtrail",
-            "azuread": "azure_ad",
-            "office365": "office365",
-            "defender": "defender",
-            "securityevents": "windows_event",
-            "syslog": "syslog",
-            "windowsfirewall": "windows_firewall",
-            "azureactivity": "azure_activity",
-        }
-
-        for connector in connectors:
-            if isinstance(connector, dict):
-                connector_id = connector.get("connectorId", "").lower()
-                for key, value in connector_map.items():
-                    if key in connector_id:
-                        return value
-
-        return "sentinel"

@@ -289,6 +289,7 @@ For taxonomy-resolution depth (the tier system), see
 | `severity` | `severity` | direct |
 | `query` | `detection_logic` + `extracted_*` | Always KQL — `language = "kql"` |
 | KQL table names extracted from `query` | `taxonomy_*` (Tier 1) | `OfficeActivity` → `microsoft_365` + `audit_event`, etc. |
+| `where DeviceVendor / ProviderName / Provider / ResourceType == ...` | `taxonomy_*` (discriminators, #141) | the vendor of a generic table (`CommonSecurityLog`, `SecurityAlert`, `WindowsEvent`, `AzureDiagnostics`, `Syslog`) comes from the query filter, then the solution folder, never from a fixed vendor list |
 | `requiredDataConnectors[].connectorId` | `taxonomy_*` (Tier 2) | |
 | `requiredDataConnectors[].dataTypes` | `taxonomy_*` (Tier 3) | |
 | `Solutions/<vendor>/` folder name | `taxonomy_*` (Tier 4) | |

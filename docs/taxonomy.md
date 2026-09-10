@@ -445,24 +445,62 @@ Splunk's `data_source` field carries free-form labels like
 `"Sysmon EventID 10"` or `"ASL AWS CloudTrail"`. The resolver does
 exact match first, then substring match.
 
-### `sentinel.yaml` — keyed by connector ID + data type
+### `sentinel.yaml` -- five tiers, the query first
+
+Sentinel rules say where their telemetry comes from in five places, and
+the resolver (`vendors/sentinel.py`) reads them in this order:
+
+1. **`kql_tables`** -- the tables the query reads (parser: statement
+   heads, `let` bindings, sub-queries, `union` lists). A table that names
+   one vendor (`AWSCloudTrail`, `OktaSSO`) supplies platform, data source
+   and event type. A table shared by many vendors (`CommonSecurityLog`,
+   `Syslog`, `SecurityAlert`, `SecurityIncident`, `AzureDiagnostics`,
+   `WindowsEvent`, `Event`, the `*_cl` catch-all) is `generic: true`: it
+   supplies the event type and a generic fallback source, never a vendor.
+2. **`discriminators`** -- the vendor or channel of a generic table, read
+   from the query's own filters (parser: `extra["kql_filters"]`):
+   `DeviceVendor` / `DeviceProduct` for CEF, `ProviderName` for alerts,
+   `ResourceType` / `Category` for Azure diagnostics, `Provider` /
+   `Source` / `EventSourceName` for Windows channels, `ProcessName` for
+   syslog. Keys are lowercase substrings, longest wins, and each field is
+   scoped to its tables so `Category` on `AuditLogs` is never read as an
+   Azure diagnostics category.
+3. **`solution_folders`** -- `Solutions/<vendor>/` names the vendor of a
+   generic table that no discriminator refined (a CEF rule under
+   `Acronis Cyber Protect Cloud` with no `DeviceVendor` filter is still
+   Acronis), and is the fallback when nothing else resolved.
+4. **`connectors` / `data_types`** -- `requiredDataConnectors`, the
+   author's declaration. Platform and data source only when no table
+   matched at all (rules built on custom functions or ASIM parsers);
+   otherwise event-type capability. Generic connectors (`CEF`, `Syslog`,
+   `CustomLogsAma`) never assert a vendor.
+5. **`entity_types`** -- `entityMappings[].entityType`, an event-type
+   hint of last resort; never a platform or data source.
 
 ```yaml
-connectors:
-  awssecurityhub:
-    platforms: [aws]
-    data_sources: [aws_security_hub]
-    event_types: [audit_event]
+kql_tables:
+  commonsecuritylog:                    # every CEF vendor lands here
+    generic: true
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
 
-data_types:                             # cross-cutting overrides
-  securityalert:                        # SecurityAlert table from any connector
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+discriminators:
+  devicevendor:
+    tables: [commonsecuritylog]
+    "palo alto":
+      data_sources: [palo_alto_firewall]
+    "acronis":
+      platforms: [acronis]
+      data_sources: [antivirus_logs]
 ```
 
-Sentinel rules carry `requiredDataConnectors` with `connectorId` +
-`dataTypes`. We map by both. `data_types` overrides apply on top of
-`connectors` matches.
+Nothing is unioned across tiers. Until #141 (2026-09-10) it was, and a
+CEF rule for Acronis carried the Cisco, Fortinet and Palo Alto sources of
+the table entry plus the same triple from the `CEF` connector; 126 rules
+read as three firewall vendors at once and 255 carried three or more
+data sources. `scripts/audit_sentinel_attribution.py` measures this
+against the local clone and fails when the pattern comes back.
 
 ### `sublime.yaml` — always email
 

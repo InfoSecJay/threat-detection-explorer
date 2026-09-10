@@ -1,6 +1,6 @@
 # Pipeline audits
 
-Three scripts, three questions:
+Four scripts, four questions:
 
 - [`scripts/audit_coverage.py`](../scripts/audit_coverage.py) -- *are we
   ingesting everything upstream has?* (Phase 1)
@@ -9,6 +9,9 @@ Three scripts, three questions:
 - [`scripts/audit_extraction.py`](../scripts/audit_extraction.py) -- *are
   the observables we extract from rule logic real and precise?*
   (issue #6 baseline)
+- [`scripts/audit_sentinel_attribution.py`](../scripts/audit_sentinel_attribution.py)
+  -- *is each Sentinel rule attributed to the vendor its query names?*
+  (issue #141 gate; runs offline against the local clone)
 
 All are read-only, exit 0 always, run any time.
 
@@ -535,3 +538,51 @@ SecurityEvent) and Sublime `$named_list` references as an observable
   fixture corpora that the rebuild arc (issue #6) builds.
 - Same production-API caveat as the other audits: it measures what
   production has now, not `master`.
+
+# Sentinel attribution audit (issue #141)
+
+[`scripts/audit_sentinel_attribution.py`](../scripts/audit_sentinel_attribution.py)
+answers *is each Sentinel rule attributed to the vendor its query
+names?* It exists because the 2026-09-10 review found the Sentinel
+resolver unioning vendors across tiers: every `CommonSecurityLog` rule
+carried Cisco, Fortinet and Palo Alto at once (126 of 2,173 upstream
+rules), 255 rules carried three or more data sources, and 192 rules had
+a KQL keyword or a let-bound name extracted as a table.
+
+## What it does
+
+Runs the real parser, the taxonomy resolver and the platform split over
+every analytic-rule YAML in `backend/data/repos/sentinel` (no network,
+no database) and reports:
+
+| check | gate |
+| --- | --- |
+| rules with two or more firewall sources whose query names none of those vendors, unless the rule declares three or more connectors (ASIM multi-source by design) | 0 |
+| rules with three or more data sources | at most 3% of rules |
+| rules with a KQL keyword extracted as a table | 0 |
+
+plus the resolution of each generic table (`CommonSecurityLog`,
+`SecurityAlert`, `AzureDiagnostics`, `Syslog`, `WindowsEvent`, `Event`)
+and the unknown-domain / unknown-platform counts for the burn-down.
+
+## Usage
+
+```
+cd backend
+venv\Scripts\python.exe ..\scripts\audit_sentinel_attribution.py
+```
+
+Exit code 1 when a gate fails, 0 otherwise (and 0 with a message when
+the clone is absent). Run it after any change to
+`mappings/sentinel.yaml`, `vendors/sentinel.py` or the KQL extractor in
+`parsers/sentinel.py`, and refresh the clone first when the numbers look
+stale (the clone is whatever the last local sync or `git pull` left).
+
+## Limitations
+
+- It measures the local clone, which lags upstream and prod; the
+  prod-side check is the Sentinel facet counts after the next sync.
+- The firewall gate keys on the DeviceVendor / DeviceProduct filter
+  words; a rule that names a firewall vendor in a `has_any` list of
+  twenty vendors passes the gate and still reads as that vendor.
+
