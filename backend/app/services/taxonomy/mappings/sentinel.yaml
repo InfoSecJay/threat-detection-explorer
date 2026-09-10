@@ -262,10 +262,10 @@ kql_tables:
     platforms: [cross_platform]
     data_sources: [siem_alert]
     event_types: [audit_event]
-  cloudflare:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [network_connection]
+  cloudflare:                     # every Cloudflare log type lands in one table
+    platforms: [cloudflare]
+    data_sources: [cloudflare_http, cloudflare_firewall]
+    event_types: [http_request]
   veeamonetriggeredalarms_cl:
     platforms: [cross_platform]
     data_sources: [application_logs]
@@ -423,6 +423,86 @@ kql_tables:
 
   # If no tier resolves a platform, the rule lands on `[unknown]`
   # which is more honest and easier to triage.
+  # -- #138 list A (2026-09-10): tables that fell to the siem_alert
+  # catch-all although a canonical source already exists. Platforms use
+  # the raw product vocabulary (okta, box, zscaler ...) so split_platforms
+  # turns them into not_applicable + product + domain.
+  oktasso:                        # Okta SSO connector table (System Log)
+    platforms: [okta]
+    data_sources: [okta_system_log]
+    event_types: [authentication]
+  boxevents:
+    platforms: [box]
+    data_sources: [box_event]
+    event_types: [audit_event]
+  slackaudit:
+    platforms: [slack]
+    data_sources: [slack_audit]
+    event_types: [audit_event]
+  cisco_umbrella:                 # Umbrella DNS / proxy / IP logs
+    platforms: [cisco_umbrella]
+    data_sources: [cisco_umbrella_dns]
+    event_types: [dns_query]
+  zpaevent:                       # Zscaler Private Access user activity
+    platforms: [zscaler]
+    data_sources: [network_traffic_logs]
+    event_types: [network_connection]
+  proofpointpod:                  # Proofpoint on Demand mail logs
+    platforms: [email]
+    data_sources: [proofpoint_event]
+    event_types: [email_message]
+  mimecastsiem_cl:
+    platforms: [email]
+    data_sources: [email_message_metadata]
+    event_types: [email_message]
+  apachehttpserver:               # web-server logs, like w3ciislog
+    platforms: [cross_platform]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  nginxhttpserver:
+    platforms: [cross_platform]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  tomcatevent:
+    platforms: [cross_platform]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  oracleweblogicserverevent:
+    platforms: [cross_platform]
+    data_sources: [webserver_logs]
+    event_types: [http_request]
+  tailscale_audit_cl:
+    platforms: [tailscale]
+    data_sources: [tailscale_audit]
+    event_types: [audit_event]
+  tailscale_devices_cl:
+    platforms: [tailscale]
+    data_sources: [tailscale_audit]
+    event_types: [audit_event]
+  tailscale_network_cl:
+    platforms: [tailscale]
+    data_sources: [tailscale_audit]
+    event_types: [network_connection]
+  netskopewebtransactions_cl:
+    platforms: [netskope]
+    data_sources: [netskope_audit]
+    event_types: [http_request]
+  unifi_sitemanager_sites_cl:     # Ubiquiti UniFi Site Manager API
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [audit_event]
+  unifi_sitemanager_devices_cl:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [audit_event]
+  unifi_sitemanager_ispmetrics_cl:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [audit_event]
+  ubiquitiauditevent:
+    platforms: [network_appliance]
+    data_sources: [network_traffic_logs]
+    event_types: [audit_event]
   "*_cl":
     platforms: []
     data_sources: [siem_alert]
