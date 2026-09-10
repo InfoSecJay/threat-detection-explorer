@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import { MitreProvider } from './contexts/MitreContext'
 import { reloadForStaleChunk } from './utils/staleChunk'
@@ -36,6 +37,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <App />
         </MitreProvider>
       </BrowserRouter>
+      {/* Vercel Web Analytics: cookieless page-view beacon to /_vercel/insights;
+          Jay enabled it 2026-09-10 (reverses the 08-31 skip decision on #96). */}
+      <Analytics />
     </QueryClientProvider>
   </React.StrictMode>,
 )
