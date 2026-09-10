@@ -84,6 +84,11 @@ keys on. No authentication.
   into `platforms` (OS only), `domains` (attack surface) and `products`
   (vendor / application); a `platforms=` filter using a pre-split value
   such as `okta` is re-targeted at the field that holds it now.
+- Filter parameter names: `data_sources=` and `event_types=` are the
+  documented names on `/detections`, `/detections/facets` and the export
+  routes (2026-09); `data_sources_normalized=` and `event_categories=`
+  remain as aliases. Unknown query parameters are ignored, so check the
+  spelling when a filter appears to do nothing.
 - Breaking changes ship as `/api/v2` with v1 kept for at least six months.
   Deprecations are announced in the repository release notes and on a
   GitHub issue labelled `api` at least 30 days ahead.

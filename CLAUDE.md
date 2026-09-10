@@ -24,9 +24,10 @@ differ (Jay's decision, 2026-09-10).
 - Anything that changes normalization lands in the data only at the next
   nightly sync. Verify on prod after that sync, then close the issue.
 - Prod probes go through the public API with curl (Cloudflare blocks
-  Python urllib's user agent). The data-source and event-type filters are
-  `data_sources_normalized` and `event_categories` until #139 lands;
-  unknown params are silently ignored.
+  Python urllib's user agent). Filter params: `data_sources` and
+  `event_types` (documented since #139); `data_sources_normalized` and
+  `event_categories` still work as aliases. Unknown params are silently
+  ignored.
 - Read-only prod Postgres: `railway run --service Postgres -- <absolute
   path to backend\venv\Scripts\python.exe> <script.py>` with asyncpg on
   `DATABASE_PUBLIC_URL`. `railway ssh ... psql` does not work from here.

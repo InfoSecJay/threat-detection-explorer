@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from app.utils.datetime_utils import to_utc_iso
 
@@ -470,6 +470,18 @@ class SearchParams(BaseModel):
     platforms: list[str] = Field(default_factory=list)
     event_categories: list[str] = Field(default_factory=list)
     data_sources_normalized: list[str] = Field(default_factory=list)
+    # Documented names (#139); the two above are their legacy aliases and
+    # are filled from these when a caller uses the documented ones.
+    event_types: list[str] = Field(default_factory=list)
+    data_sources: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _merge_filter_aliases(self):
+        if self.event_types and not self.event_categories:
+            self.event_categories = list(self.event_types)
+        if self.data_sources and not self.data_sources_normalized:
+            self.data_sources_normalized = list(self.data_sources)
+        return self
     # Platform split (#103)
     domains: list[str] = Field(default_factory=list)
     products: list[str] = Field(default_factory=list)

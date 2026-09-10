@@ -55,8 +55,10 @@ async def list_detections(
     platforms: Optional[str] = Query(None, description="Comma-separated OS platforms: windows, linux, macos, container, cross_platform, not_applicable, unknown. Pre-2026-09 values such as okta or crowdstrike are re-targeted at products= / domains= automatically."),
     domains: Optional[str] = Query(None, description="Comma-separated attack-surface domains: endpoint, identity, cloud, saas, network, email, devops, data, application (or unknown)"),
     products: Optional[str] = Query(None, description="Comma-separated vendor / application products whose telemetry the rule reads (aws, okta, crowdstrike, sysmon, palo_alto ...)"),
-    event_categories: Optional[str] = Query(None, description="Comma-separated event types. A parent (process_event, powershell_event, file_event, registry_event, network_event, audit_event, sensor_event) matches itself and all of its children; see /api/v1/detections/facets event_type_groups."),
-    data_sources_normalized: Optional[str] = Query(None, description="Comma-separated list of normalized data sources (sysmon, auditd, etc.)"),
+    event_types: Optional[str] = Query(None, description="Comma-separated event types. A parent (process_event, powershell_event, file_event, registry_event, network_event, audit_event, sensor_event) matches itself and all of its children; see /api/v1/detections/facets event_type_groups."),
+    data_sources: Optional[str] = Query(None, description="Comma-separated canonical data sources (sysmon, auditd, okta_system_log, aws_cloudtrail ...); values as listed by /api/v1/detections/facets data_sources."),
+    event_categories: Optional[str] = Query(None, deprecated=True, description="Legacy alias of event_types (#139)."),
+    data_sources_normalized: Optional[str] = Query(None, deprecated=True, description="Legacy alias of data_sources (#139)."),
     use_cases: Optional[str] = Query(None, description="Comma-separated list of analytic story / use-case labels (e.g. Ransomware, Threat Detection)"),
     event_ids: Optional[str] = Query(None, description="Comma-separated list of extracted Event IDs"),
     process_names: Optional[str] = Query(None, description="Comma-separated list of extracted process names"),
@@ -93,8 +95,8 @@ async def list_detections(
         platforms=_parse_csv(platforms),
         domains=_parse_csv(domains),
         products=_parse_csv(products),
-        event_categories=_parse_csv(event_categories),
-        data_sources_normalized=_parse_csv(data_sources_normalized),
+        event_categories=_parse_csv(_first(event_types, event_categories)),
+        data_sources_normalized=_parse_csv(_first(data_sources, data_sources_normalized)),
         use_cases=_parse_csv(use_cases),
         event_ids=_parse_csv(event_ids),
         process_names=_parse_csv(process_names),
@@ -239,8 +241,10 @@ async def get_facets(
     platforms: Optional[str] = Query(None),
     domains: Optional[str] = Query(None),
     products: Optional[str] = Query(None),
-    event_categories: Optional[str] = Query(None),
-    data_sources_normalized: Optional[str] = Query(None),
+    event_types: Optional[str] = Query(None),
+    data_sources: Optional[str] = Query(None),
+    event_categories: Optional[str] = Query(None, deprecated=True, description="Legacy alias of event_types (#139)."),
+    data_sources_normalized: Optional[str] = Query(None, deprecated=True, description="Legacy alias of data_sources (#139)."),
     use_cases: Optional[str] = Query(None),
     event_ids: Optional[str] = Query(None),
     process_names: Optional[str] = Query(None),
@@ -278,8 +282,8 @@ async def get_facets(
         platforms=_parse_csv(platforms),
         domains=_parse_csv(domains),
         products=_parse_csv(products),
-        event_categories=_parse_csv(event_categories),
-        data_sources_normalized=_parse_csv(data_sources_normalized),
+        event_categories=_parse_csv(_first(event_types, event_categories)),
+        data_sources_normalized=_parse_csv(_first(data_sources, data_sources_normalized)),
         use_cases=_parse_csv(use_cases),
         event_ids=_parse_csv(event_ids),
         process_names=_parse_csv(process_names),
@@ -351,6 +355,15 @@ async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
         )
     return DetectionResponse.from_detection(detection)
 
+
+def _first(*values: Optional[str]) -> Optional[str]:
+    """The documented filter name wins over its legacy alias when a caller
+    sends both (#139): `data_sources=` over `data_sources_normalized=`,
+    `event_types=` over `event_categories=`."""
+    for value in values:
+        if value:
+            return value
+    return None
 
 def _parse_csv(value: Optional[str]) -> list[str]:
     """Parse a comma-separated string into a list."""
