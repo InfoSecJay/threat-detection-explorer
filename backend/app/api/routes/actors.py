@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.detection import Detection
+from app.models.repository import Repository
 from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_matching import (
     compile_name_regex,
@@ -826,12 +827,20 @@ async def actor_navigator_layer(
         }
 
     weighted = scores_entry.weighted_coverage
+    repos = {
+        r.name: r.last_commit_hash
+        for r in (await db.execute(select(Repository))).scalars().all()
+    }
+    sync_shas = "; ".join(
+        f"{name}@{sha[:7]}" for name, sha in sorted(repos.items()) if sha
+    ) or "unavailable"
     layer = _build_layer(
         name=f"{entity['name']} ({actor_id}) — detection coverage",
         description=(
             f"Techniques used by {entity['name']} per MITRE ATT&CK, scored by "
-            f"detection-rule count in the Detection Explorer corpus "
-            f"({match_mode} match mode)."
+            f"detection-rule count in the Detection Explorer corpus, across "
+            f"all {len(repos)} tracked sources ({match_mode} match mode -- "
+            f"see the match_mode and sync_shas metadata below)."
         ),
         technique_scores=technique_scores,
         technique_comments={
@@ -842,10 +851,12 @@ async def actor_navigator_layer(
             {"name": "source", "value": "detectionexplorer.io"},
             {"name": "actor", "value": f"{entity['name']} ({actor_id})"},
             {"name": "match_mode", "value": match_mode},
+            {"name": "source_scope", "value": f"all {len(repos)} tracked sources (no per-source filter yet)"},
             {
                 "name": "weighted_coverage",
                 "value": f"{weighted:.4f}" if weighted is not None else "n/a",
             },
+            {"name": "sync_shas", "value": sync_shas},
             {"name": "generated", "value": to_utc_iso(utcnow())},
         ],
     )

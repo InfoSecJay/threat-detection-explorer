@@ -16,8 +16,27 @@ from app.services.mitre import mitre_service
 
 NAVIGATOR_VERSION = "5.1.0"
 LAYER_FORMAT = "4.5"
-# gap -> partial -> max, on the site's palette.
-LAYER_GRADIENT = ["#ff0040", "#ffaa33", "#00ffcc"]
+
+# DX-03: a linear gradient across the whole corpus painted a technique
+# with 55 rules almost the same red as a true zero-rule gap, because
+# the scale ran to whatever the single best-covered technique scored
+# (829, in one case). Bin instead: each technique gets an explicit
+# `color` (Navigator honors a per-technique color over the gradient),
+# so "some coverage" can never render in the "no coverage" band.
+_SCORE_BINS: list[tuple[int, int | None, str, str]] = [
+    (0, 0, "#ff0040", "0 rules - detection gap"),
+    (1, 1, "#ff6b35", "1 rule"),
+    (2, 5, "#ffaa33", "2-5 rules"),
+    (6, 20, "#8ecc6b", "6-20 rules"),
+    (21, None, "#00ffcc", "21+ rules"),
+]
+
+
+def _bin_color(score: int) -> str:
+    for lo, hi, color, _label in _SCORE_BINS:
+        if score >= lo and (hi is None or score <= hi):
+            return color
+    return _SCORE_BINS[-1][2]  # unreachable; last bin's hi is None
 
 
 def build_layer(
@@ -33,6 +52,7 @@ def build_layer(
         {
             "techniqueID": tid,
             "score": score,
+            "color": _bin_color(score),
             "comment": technique_comments.get(tid, ""),
             "enabled": True,
             "showSubtechniques": False,
@@ -49,12 +69,15 @@ def build_layer(
         "domain": "enterprise-attack",
         "description": description,
         "techniques": techniques,
-        "gradient": {"colors": LAYER_GRADIENT, "minValue": 0, "maxValue": max(max_score, 1)},
-        "legendItems": [
-            {"color": LAYER_GRADIENT[0], "label": "0 rules - detection gap"},
-            {"color": LAYER_GRADIENT[1], "label": "partial rule coverage"},
-            {"color": LAYER_GRADIENT[2], "label": f"{max(max_score, 1)} rules (max observed)"},
-        ],
+        # Every technique above carries an explicit `color`, so this
+        # gradient is only Navigator's own legend-bar decoration, not
+        # what colors a cell -- kept monotonic gap -> max for that bar.
+        "gradient": {
+            "colors": [b[2] for b in _SCORE_BINS],
+            "minValue": 0,
+            "maxValue": max(max_score, 1),
+        },
+        "legendItems": [{"color": color, "label": label} for _lo, _hi, color, label in _SCORE_BINS],
         "metadata": metadata,
         "sorting": 0,
         "layout": {"layout": "side", "aggregateFunction": "max", "showID": True, "showName": True},
