@@ -44,6 +44,21 @@ CASES = {
     "Unifi_SiteManager_Devices_CL": ("network_traffic_logs", "network", None),
     "Unifi_SiteManager_ISPMetrics_CL": ("network_traffic_logs", "network", None),
     "UbiquitiAuditEvent": ("network_traffic_logs", "network", None),
+    # list B: vendor feeds take the domain of what the vendor watches
+    "Pathlock_TDnR_CL": ("application_logs", "application", "pathlock"),
+    "SAPBTPAuditLog_CL": ("application_logs", "application", "sap"),
+    "SAPETDAlerts_CL": ("application_logs", "application", "sap"),
+    "ContrastADRAttackEvents_CL": ("third_party_security_alerts", "application", "contrast_security"),
+    "Authomize_v2_CL": ("third_party_security_alerts", "identity", "authomize"),
+    "UniqkeyEvents_CL": ("third_party_security_alerts", "identity", "uniqkey"),
+    "BHEAttackPathsData_CL": ("third_party_security_alerts", "identity", "bloodhound"),
+    "TheomAlerts_CL": ("third_party_security_alerts", "data", "theom"),
+    "CognniIncidents_CL": ("third_party_security_alerts", "data", "cognni"),
+    "SenservaPro_CL": ("third_party_security_alerts", "cloud", "senserva"),
+    "Sonrai_Tickets_CL": ("third_party_security_alerts", "cloud", "sonrai"),
+    "FortyTwoCrunchAPIProtection": ("third_party_security_alerts", "network", "42crunch"),
+    "CynerioEvent_CL": ("third_party_security_alerts", "network", "cynerio"),
+    "Veeam_GetSecurityEvents": ("application_logs", "application", "veeam"),
 }
 
 
@@ -68,3 +83,14 @@ def test_unlisted_custom_table_still_takes_the_catch_all():
     # narrows what reaches it, it does not remove it.
     r = vsentinel.resolve(_stub(extra={"kql_tables": ["SomeVendorNobodyMapped_CL"]}))
     assert "siem_alert" in set(r["data_sources"])
+
+
+def test_cyfirma_is_a_product_with_no_domain():
+    # External threat-landscape feeds make no attack-surface claim, so
+    # the product is recorded and the domain stays unknown on purpose.
+    r = vsentinel.resolve(_stub(extra={"kql_tables": ["CyfirmaIndicators_CL"]}))
+    platforms, domains, products = split_platforms(list(r["platforms"]), list(r["data_sources"]))
+    assert "siem_alert" not in set(r["data_sources"])
+    assert products == ["cyfirma"]
+    assert domains == ["unknown"]
+

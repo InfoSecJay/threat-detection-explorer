@@ -15,9 +15,9 @@ Three public fields, each with ONE meaning:
                not_applicable (SaaS / cloud / email / network telemetry
                where an OS is meaningless), unknown.
 - `domains`    where the attack surface is: endpoint, identity, cloud,
-               saas, network, email, devops, data (+ unknown). A rule
-               can have several. Extending the list is a table edit
-               here plus a line in docs/taxonomy.md.
+               saas, network, email, devops, data, application
+               (+ unknown). A rule can have several. Extending the list
+               is a table edit here plus a line in docs/taxonomy.md.
 - `products`   the vendor / application whose telemetry the rule reads
                (aws, okta, crowdstrike, sysmon, palo_alto ...). Open
                vocabulary; empty when the telemetry is OS-native.
@@ -45,9 +45,12 @@ OS_PLATFORMS: tuple[str, ...] = (
 _SPECIFIC_OS = ("windows", "linux", "macos")
 
 # Order is display order (facets, chips). Crosswalk to Devo's certified
-# data-source catalogue in docs/taxonomy.md; `application` (framework
-# and app-server logs) is the first candidate for a ninth value.
-DOMAINS: tuple[str, ...] = ("endpoint", "identity", "cloud", "saas", "network", "email", "devops", "data")
+# data-source catalogue in docs/taxonomy.md. `application` (ninth, #138)
+# holds business applications and app servers: SAP, ERP / GRC monitoring,
+# runtime application security, generic application logs.
+DOMAINS: tuple[str, ...] = (
+    "endpoint", "identity", "cloud", "saas", "network", "email", "devops", "data", "application",
+)
 
 DOMAIN_DEFINITIONS: dict[str, str] = {
     "endpoint": "Host telemetry: OS event logs, Sysmon, auditd, EDR sensors, device management.",
@@ -58,6 +61,7 @@ DOMAIN_DEFINITIONS: dict[str, str] = {
     "email": "Mail flow and message security: email metadata, Sublime, Proofpoint, Exchange audit.",
     "devops": "Source control and delivery tooling: GitHub, GitLab, Bitbucket, Atlassian, Snyk.",
     "data": "Data platforms and databases: Snowflake, Databricks, MongoDB, RDBMS audit logs.",
+    "application": "Business applications and app servers: SAP audit, ERP / GRC monitoring, runtime application security, generic application logs.",
 }
 
 # raw platform value -> (OS platform or precedence hint, domains, product)
@@ -124,6 +128,23 @@ LEGACY_PLATFORM_SPLIT: dict[str, tuple[Optional[str], tuple[str, ...], Optional[
     "crowdstrike": ("cross_platform", ("endpoint",), "crowdstrike"),
     "carbon_black": ("cross_platform", ("endpoint",), "carbon_black"),
     "sentinelone": ("cross_platform", ("endpoint",), "sentinelone"),
+    # vendor feeds from Sentinel solutions (#138 list B): the domain is
+    # what the vendor watches; cyfirma and veeam carry a product only
+    # (external threat landscape / backup logs: no attack-surface claim)
+    "pathlock": (_S, ("application",), "pathlock"),
+    "sap": (_S, ("application",), "sap"),
+    "contrast_security": (_S, ("application",), "contrast_security"),
+    "authomize": (_S, ("identity",), "authomize"),
+    "uniqkey": (_S, ("identity",), "uniqkey"),
+    "bloodhound": (_S, ("identity",), "bloodhound"),
+    "theom": (_S, ("data",), "theom"),
+    "cognni": (_S, ("data",), "cognni"),
+    "senserva": (_S, ("cloud",), "senserva"),
+    "sonrai": (_S, ("cloud",), "sonrai"),
+    "42crunch": (_S, ("network",), "42crunch"),
+    "cynerio": (_S, ("network",), "cynerio"),
+    "veeam": (_S, (), "veeam"),
+    "cyfirma": (_S, (), "cyfirma"),
     # network SaaS and appliances
     "cloudflare": (_S, ("network",), "cloudflare"),
     "zscaler": (_S, ("network",), "zscaler"),
@@ -190,12 +211,16 @@ _DOMAIN_SOURCES: dict[str, frozenset[str]] = {
     "devops": frozenset({"bitbucket_audit", "atlassian_audit", "gitlab_production"})
     | _prefixed("github_", "gitlab_audit", "snyk_"),
     "data": frozenset({"databricks_audit", "database_logs"}) | _prefixed("snowflake_", "mongodb_"),
+    # Generic application logs (Sigma app frameworks, SAP, Sentinel custom
+    # logs via AMA) are the application surface since #138.
+    "application": frozenset({"application_logs"}),
 }
 
-# Sources that carry no domain on their own: alert streams and generic
-# application logs. They keep whatever the raw platform said.
+# Sources that carry no domain on their own: alert streams. They keep
+# whatever the raw platform said (a vendor feed's platform value supplies
+# the domain of what that vendor watches, #138).
 NO_DOMAIN_SOURCES: frozenset[str] = frozenset({
-    "application_logs", "siem_alert", "elastic_siem_alerts", "elastic_ml", "third_party_security_alerts", UNKNOWN,
+    "siem_alert", "elastic_siem_alerts", "elastic_ml", "third_party_security_alerts", UNKNOWN,
 })
 
 DATA_SOURCE_DOMAINS: dict[str, tuple[str, ...]] = {}

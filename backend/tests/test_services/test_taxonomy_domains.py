@@ -39,7 +39,7 @@ def test_every_data_source_has_a_domain_or_is_explicitly_domainless():
 
 def test_platform_vocabulary_is_os_only_and_seven_values():
     assert len(OS_PLATFORMS) == 7
-    assert len(DOMAINS) == 8
+    assert len(DOMAINS) == 9
     # The done-when of #103: crowdstrike (and every other product) exists
     # only as a product, never as a platform.
     for value, (os_hint, _domains, product) in LEGACY_PLATFORM_SPLIT.items():
@@ -63,7 +63,13 @@ def test_platform_vocabulary_is_os_only_and_seven_values():
         (["network_appliance"], ["palo_alto_firewall"], (["not_applicable"], ["network"], ["palo_alto"])),
         (["email"], ["email_message_metadata"], (["not_applicable"], ["email"], [])),
         (["microsoft_365"], ["m365_exchange_audit"], (["not_applicable"], ["saas", "email"], ["microsoft_365"])),
-        (["cross_platform"], ["application_logs"], (["cross_platform"], [UNKNOWN], [])),
+        # Generic application logs are the application surface (#138).
+        (["cross_platform"], ["application_logs"], (["cross_platform"], ["application"], [])),
+        # Vendor feeds: the platform value names the product and the domain
+        # of what the vendor watches; an OS stated alongside still wins.
+        (["pathlock", "sap"], ["application_logs"], (["not_applicable"], ["application"], ["pathlock", "sap"])),
+        (["windows", "bloodhound"], ["third_party_security_alerts"], (["windows"], ["endpoint", "identity"], ["bloodhound"])),
+        (["cyfirma"], ["third_party_security_alerts"], (["not_applicable"], [UNKNOWN], ["cyfirma"])),
         ([UNKNOWN], [UNKNOWN], ([UNKNOWN], [UNKNOWN], [])),
         # A Panther rule that says only windows_event_logs keeps windows via the raw platform.
         (["windows"], ["windows_event_logs"], (["windows"], ["endpoint"], [])),

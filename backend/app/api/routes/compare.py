@@ -251,7 +251,7 @@ async def get_coverage_matrix(
     include_subtechniques: bool = Query(True, description="Include sub-techniques in the matrix"),
     domain: Optional[str] = Query(
         None,
-        description="Restrict to rules of one attack-surface domain (#135): endpoint, identity, cloud, saas, network, email, devops, data, unknown",
+        description="Restrict to rules of one attack-surface domain (#135): endpoint, identity, cloud, saas, network, email, devops, data, application, unknown",
     ),
     db: AsyncSession = Depends(get_db),
 ):

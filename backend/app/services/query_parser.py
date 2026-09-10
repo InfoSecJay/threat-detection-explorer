@@ -207,7 +207,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["domain"],
         kind="list",
         columns=["domains"],
-        description="Attack-surface domain: endpoint, identity, cloud, saas, network, email, devops, data.",
+        description="Attack-surface domain: endpoint, identity, cloud, saas, network, email, devops, data, application.",
         examples=["domain:identity", "domain:cloud"],
     ),
     FieldSpec(

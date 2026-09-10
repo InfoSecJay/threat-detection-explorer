@@ -226,14 +226,14 @@ kql_tables:
     data_sources: [okta_system_log]
     event_types: [authentication]
   # ── Dedicated third-party tables (avoid `_cl` fallback genericness) ──
-  bheattackpathsdata_cl:
-    platforms: [windows]
-    data_sources: [siem_alert]
+  bheattackpathsdata_cl:  # BloodHound Enterprise attack paths (AD / Entra)
+    platforms: [windows, bloodhound]
+    data_sources: [third_party_security_alerts]
     event_types: [alert_correlation]
-  cyfirmaindicators_cl:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+  cyfirmaindicators_cl:  # external threat landscape: product only, no domain
+    platforms: [cyfirma]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   cyblevisionalerts_cl:
     platforms: [cross_platform]
     data_sources: [siem_alert]
@@ -247,34 +247,34 @@ kql_tables:
     data_sources: [siem_alert]
     event_types: [audit_event]
   theomalerts_cl:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+    platforms: [theom]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   authomize_v2_cl:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+    platforms: [authomize]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   senservapro_cl:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+    platforms: [senserva]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   cognniincidents_cl:
-    platforms: [cross_platform]
-    data_sources: [siem_alert]
-    event_types: [audit_event]
+    platforms: [cognni]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   cloudflare:                     # every Cloudflare log type lands in one table
     platforms: [cloudflare]
     data_sources: [cloudflare_http, cloudflare_firewall]
     event_types: [http_request]
   veeamonetriggeredalarms_cl:
-    platforms: [cross_platform]
+    platforms: [veeam]
     data_sources: [application_logs]
-    event_types: [audit_event]
+    event_types: [platform_alert]
   # Veeam backup's own ingested syslog stream — Veeam server runs
   # on Windows; the syslog IS application_logs, NOT linux_syslog.
   # (Previously also tagged cross_platform; redundant -- dropped.)
   veeam_getsecurityevents:
-    platforms: [windows]
+    platforms: [windows, veeam]
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── Miscellaneous vendor tables we saw in the review ─────────────────
@@ -283,7 +283,7 @@ kql_tables:
     data_sources: [application_logs]
     event_types: [audit_event]
   sapbtpauditlog_cl:
-    platforms: [cross_platform]
+    platforms: [sap]
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── Custom log catch-all (any `*_CL` table not listed above) ────────
@@ -503,6 +503,40 @@ kql_tables:
     platforms: [network_appliance]
     data_sources: [network_traffic_logs]
     event_types: [audit_event]
+  # -- #138 list B (2026-09-10): vendor feeds take the domain of what the
+  # vendor watches, through the raw platform value (see domains.py).
+  pathlock_tdnr_cl:                # SAP threat detection and response
+    platforms: [pathlock, sap]
+    data_sources: [application_logs]
+    event_types: [audit_event]
+  sapetdalerts_cl:
+    platforms: [sap]
+    data_sources: [application_logs]
+    event_types: [platform_alert]
+  cyfirmavulnerabilities_cl:
+    platforms: [cyfirma]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  sonrai_tickets_cl:
+    platforms: [sonrai]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  uniqkeyevents_cl:                # password-manager audit stream
+    platforms: [uniqkey]
+    data_sources: [third_party_security_alerts]
+    event_types: [audit_event]
+  fortytwocrunchapiprotection:
+    platforms: [42crunch]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  contrastadrattackevents_cl:
+    platforms: [contrast_security]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
+  cynerioevent_cl:
+    platforms: [cynerio]
+    data_sources: [third_party_security_alerts]
+    event_types: [platform_alert]
   "*_cl":
     platforms: []
     data_sources: [siem_alert]
@@ -723,8 +757,8 @@ connectors:
     event_types: [audit_event]
   # ── Third-party attack-path / AD security tools ──────────────────────
   bloodhoundenterprise:
-    platforms: [windows]
-    data_sources: [siem_alert]
+    platforms: [windows, bloodhound]
+    data_sources: [third_party_security_alerts]
     event_types: [alert_correlation]
   alsidforad:
     platforms: [windows]

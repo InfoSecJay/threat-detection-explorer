@@ -53,7 +53,7 @@ async def list_detections(
     mitre_software: Optional[str] = Query(None, description="Comma-separated MITRE ATT&CK Software IDs (e.g. S0002, S0154)"),
     tags: Optional[str] = Query(None, description="Comma-separated list of tags"),
     platforms: Optional[str] = Query(None, description="Comma-separated OS platforms: windows, linux, macos, container, cross_platform, not_applicable, unknown. Pre-2026-09 values such as okta or crowdstrike are re-targeted at products= / domains= automatically."),
-    domains: Optional[str] = Query(None, description="Comma-separated attack-surface domains: endpoint, identity, cloud, saas, network, email, devops, data (or unknown)"),
+    domains: Optional[str] = Query(None, description="Comma-separated attack-surface domains: endpoint, identity, cloud, saas, network, email, devops, data, application (or unknown)"),
     products: Optional[str] = Query(None, description="Comma-separated vendor / application products whose telemetry the rule reads (aws, okta, crowdstrike, sysmon, palo_alto ...)"),
     event_categories: Optional[str] = Query(None, description="Comma-separated event types. A parent (process_event, powershell_event, file_event, registry_event, network_event, audit_event, sensor_event) matches itself and all of its children; see /api/v1/detections/facets event_type_groups."),
     data_sources_normalized: Optional[str] = Query(None, description="Comma-separated list of normalized data sources (sysmon, auditd, etc.)"),

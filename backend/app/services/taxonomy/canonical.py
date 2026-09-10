@@ -108,6 +108,23 @@ PLATFORMS: frozenset[str] = frozenset(
         "axonius",
         "appomni",
         "salesforce",
+        # -- Vendor feeds seen in Sentinel solutions (#138 list B). Each is a
+        # product; its domain is what the vendor watches (LEGACY_PLATFORM_SPLIT
+        # in domains.py). Add one only for a vendor with 5+ rules.
+        "pathlock",          # SAP threat detection (Pathlock TDnR)
+        "sap",               # SAP BTP audit, SAP ETD alerts
+        "contrast_security", # application runtime security (ADR)
+        "authomize",         # identity security posture
+        "uniqkey",           # password manager audit
+        "bloodhound",        # BloodHound Enterprise attack paths
+        "theom",             # data security posture
+        "cognni",            # information classification incidents
+        "veeam",             # backup platform security events
+        "senserva",          # Azure / M365 posture
+        "sonrai",            # cloud identity and data security (CIEM)
+        "42crunch",          # API security
+        "cynerio",           # healthcare IoT device security
+        "cyfirma",           # external threat landscape (no telemetry domain)
         # ── Network appliance class (broad — covers firewalls, proxies, IDS)
         "network_appliance",
         # ── Email — Sublime and other email-security tooling lives here ─────

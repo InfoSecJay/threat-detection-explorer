@@ -181,7 +181,7 @@ source. We model each as a separate multi-value field on the
 | Field | Question | Values |
 |---|---|---|
 | `platforms` | **Which operating system** does the telemetry come from? | `windows`, `linux`, `macos`, `container`, `cross_platform`, `not_applicable`, `unknown` (closed, 7) |
-| `domains` | **Where is the attack surface?** | `endpoint`, `identity`, `cloud`, `saas`, `network`, `email`, `devops`, `data` (closed, 8, + `unknown`) |
+| `domains` | **Where is the attack surface?** | `endpoint`, `identity`, `cloud`, `saas`, `network`, `email`, `devops`, `data`, `application` (closed, 9, + `unknown`) |
 | `products` | **Whose telemetry** does the rule read? | `aws`, `okta`, `crowdstrike`, `sysmon`, `palo_alto` ... (open; may be empty) |
 | `data_sources` | **What product / integration / feed** produces it? | `sysmon`, `aws_cloudtrail`, `crowdstrike_fdr` |
 | `event_types` | **Which activity** is being detected? | `process_creation`, `network_connection`, `authentication` |
@@ -204,10 +204,14 @@ working.
 Domains are the future-proofing axis. The list is a crosswalk of Devo's
 certified-data-source categories (Authentication and IAM -> `identity`;
 Endpoint, EDR and Operating Systems -> `endpoint`; Firewall, Network,
-IDS, Proxy, VPN and WAF -> `network`; Database -> `data`; Application ->
-`saas`). Adding a ninth value is a table edit in `domains.py` plus a row
-here; `application` (framework and app-server logs, today domain
-`unknown`) is the first candidate.
+IDS, Proxy, VPN and WAF -> `network`; Database -> `data`; SaaS
+application audit -> `saas`; business applications and app servers
+(SAP, ERP / GRC monitoring, runtime application security, generic
+`application_logs`) -> `application`, added 2026-09-10 (#138). Vendor
+alert feeds (Authomize, Sonrai, Theom, 42Crunch ...) take the domain of
+what the vendor watches through their raw platform value; alert streams
+with no such claim (`siem_alert`, Cyfirma) stay `unknown`. Adding a
+value is a table edit in `domains.py` plus a row here.
 
 All lists are `list[str]` so a rule can span multiple sources. Elastic's
 cross-platform Node.js rule, for example, lists six index patterns and
