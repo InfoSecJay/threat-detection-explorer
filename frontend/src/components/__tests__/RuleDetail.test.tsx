@@ -8,6 +8,9 @@ import type { Detection } from '../../types';
 // of UTC so a regression (rendering that string in the viewer's local
 // zone instead of as a UTC calendar date) actually rolls the day back
 // and fails (DX-09).
+// (No @types/node in this frontend; declare just enough of `process`
+// to set it under Vitest's Node runtime.)
+declare const process: { env: Record<string, string> };
 process.env.TZ = 'America/Toronto';
 
 vi.mock('../../hooks/useEventIds', () => ({

@@ -12,6 +12,9 @@ import { HistoryTimeline } from '../HistoryTimeline';
 // zone designator (`2021-09-20T00:00:00`, no `Z`). Run this file west
 // of UTC so a regression (parsing that string as local time instead of
 // UTC midnight) actually rolls the calendar day back and fails (DX-09).
+// (No @types/node in this frontend; declare just enough of `process`
+// to set it under Vitest's Node runtime.)
+declare const process: { env: Record<string, string> };
 process.env.TZ = 'America/Toronto';
 
 const REPO = 'https://github.com/SigmaHQ/sigma.git';
