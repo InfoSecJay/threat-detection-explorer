@@ -5,15 +5,18 @@ import path from 'path'
 import { execSync } from 'child_process'
 
 // Version shown in the header/footer must move with deploys (teardown R25).
-// Vercel builds from a shallow clone, so fall back to its commit env var.
+// On Vercel the commit env var is the truth: its shallow clone has git,
+// but the install step touches tracked files, so `git describe --dirty`
+// shipped "1903fed-dirty" to prod. Local builds keep the git form.
 function buildVersion(): string {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA
+  if (sha) return sha.slice(0, 7)
   try {
     return execSync('git describe --tags --always --dirty', { stdio: ['ignore', 'pipe', 'ignore'] })
       .toString()
       .trim()
   } catch {
-    const sha = process.env.VERCEL_GIT_COMMIT_SHA
-    return sha ? sha.slice(0, 8) : 'dev'
+    return 'dev'
   }
 }
 
