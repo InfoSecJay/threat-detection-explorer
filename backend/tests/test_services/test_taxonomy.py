@@ -1028,16 +1028,18 @@ def test_elastic_query_fieldset_needs_a_token_boundary():
     assert "email" not in result["platforms"]
 
 
-def test_elastic_alerts_security_has_cross_platform_now():
-    """Higher-order rules querying `.alerts-security-*` used to show
-    platforms=[unknown] because no signal set a platform. The index
-    pattern now provides cross_platform explicitly."""
+def test_elastic_alerts_security_has_no_os():
+    """Higher-order rules querying `.alerts-security-*` read an alert
+    stream: no OS at all. cross_platform (agent telemetry on any OS) was
+    asserted here until #142; unknown is the honest value, and the
+    normalizer turns it into not_applicable once a domain is known."""
     parsed = _make_parsed(
         source="elastic",
         extra={"index": [".alerts-security.alerts-default"]},
     )
     result = resolve_for_repo("elastic", parsed)
-    assert "cross_platform" in result["platforms"]
+    assert "cross_platform" not in result["platforms"]
+    assert result["platforms"] == ["unknown"]
     assert "alert_correlation" in result["event_types"]
 
 
@@ -1079,7 +1081,8 @@ def test_splunk_risk_datamodel_is_alert_correlation():
         },
     )
     result = resolve_for_repo("splunk", parsed)
-    assert "cross_platform" in result["platforms"]
+    # Alert-on-alert has no OS (#142): not cross_platform.
+    assert "cross_platform" not in result["platforms"]
     assert "siem_alert" in result["data_sources"]
     assert "alert_correlation" in result["event_types"]
 

@@ -253,7 +253,7 @@ kql_tables:
     data_sources: [third_party_security_alerts]
     event_types: [platform_alert]
   cyblevisionalerts_cl:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   aishield:  # table (no _CL suffix in this case)
@@ -803,15 +803,15 @@ connectors:
   # ── Third-party SIEM alert feeds (long tail — `*_cl` dataType fallback
   # in the resolver catches anything not explicitly listed here) ───────
   cloudflaredataconnector:
-    platforms: [cross_platform]
+    platforms: [cloudflare]
     data_sources: [siem_alert]
     event_types: [network_connection]
   cyblevisionalerts:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   cyfirmacyberintelligencedc:
-    platforms: [cross_platform]
+    platforms: [cyfirma]
     data_sources: [siem_alert]
     event_types: [audit_event]
   boschaishield:
@@ -819,31 +819,31 @@ connectors:
     data_sources: [siem_alert]
     event_types: [audit_event]
   authomize:
-    platforms: [cross_platform]
+    platforms: [authomize]
     data_sources: [siem_alert]
     event_types: [audit_event]
   theom:
-    platforms: [cross_platform]
+    platforms: [theom]
     data_sources: [siem_alert]
     event_types: [audit_event]
   cognnisentineldataconnector:
-    platforms: [cross_platform]
+    platforms: [cognni]
     data_sources: [siem_alert]
     event_types: [audit_event]
   senservapro:
-    platforms: [cross_platform]
+    platforms: [senserva]
     data_sources: [siem_alert]
     event_types: [audit_event]
   sapbtpauditevents:
-    platforms: [cross_platform]
+    platforms: [sap]
     data_sources: [application_logs]
     event_types: [audit_event]
   42crunchapiprotection:
-    platforms: [cross_platform]
+    platforms: [42crunch]
     data_sources: [siem_alert]
     event_types: [api_call]
   veeamcustomtablesdataconnector:
-    platforms: [cross_platform]
+    platforms: [veeam]
     data_sources: [siem_alert]
     event_types: [audit_event]
 
@@ -1083,7 +1083,7 @@ solution_folders:
   # ── Maturity Model for Event Log Management (M-21-31) ──────────────
   # Rules carry no connector at all; they audit the SIEM's own coverage.
   "maturitymodelforeventlogmanagementm2131":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   # ── Acronis ─────────────────────────────────────────────────────────
@@ -1202,11 +1202,11 @@ solution_folders:
     event_types: [audit_event]
   # ── Threat intelligence groups ──────────────────────────────────────
   "threat intelligence":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   "threat intelligence (new)":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   # ── AWS ─────────────────────────────────────────────────────────────
@@ -1225,19 +1225,19 @@ solution_folders:
     data_sources: [siem_alert]
     event_types: [alert_correlation]
   "cyble vision":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   "cyfirma cyber intelligence":
-    platforms: [cross_platform]
+    platforms: [cyfirma]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "cyfirma digital risk":
-    platforms: [cross_platform]
+    platforms: [cyfirma]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "cyfirma attack surface":
-    platforms: [cross_platform]
+    platforms: [cyfirma]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "aishield ai security monitoring":
@@ -1245,19 +1245,19 @@ solution_folders:
     data_sources: [siem_alert]
     event_types: [audit_event]
   "authomize":
-    platforms: [cross_platform]
+    platforms: [authomize]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "theom":
-    platforms: [cross_platform]
+    platforms: [theom]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "senservapro":
-    platforms: [cross_platform]
+    platforms: [senserva]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "cognni":
-    platforms: [cross_platform]
+    platforms: [cognni]
     data_sources: [siem_alert]
     event_types: [audit_event]
   "alsid for ad":
@@ -1286,7 +1286,7 @@ solution_folders:
     event_types: [api_call]
   # ── SAP BTP ─────────────────────────────────────────────────────────
   "sap btp":
-    platforms: [cross_platform]
+    platforms: [sap]
     data_sources: [application_logs]
     event_types: [audit_event]
   # ── IoT / OT ────────────────────────────────────────────────────────

@@ -80,14 +80,14 @@ datamodels:
   # raw feed. Rules `tstats ... datamodel=Risk` correlate scored events
   # into higher-confidence detections — that's alert_correlation territory.
   risk:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [alert_correlation]
   updates:
     platforms: [windows, linux, macos]
     event_types: [audit_event]
   ueba:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   email:
@@ -181,11 +181,11 @@ macros:
     data_sources: [application_logs]
     event_types: [platform_alert]
   splunkda:  # Splunk platform REST / web audit ("Splunk Vulnerabilities")
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [splunk_internal_logs]
     event_types: [audit_event]
   audit_searches:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [splunk_internal_logs]
     event_types: [audit_event]
   zoom_index:
@@ -573,7 +573,7 @@ data_source_labels:
   # _internal, splunkd, REST audit). The bare key deliberately catches
   # every "Splunk ..." platform label.
   "splunk":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [splunk_internal_logs]
     event_types: [audit_event]
   # ── Drift 2026-08-30 (#55) ───────────────────────────────────────────

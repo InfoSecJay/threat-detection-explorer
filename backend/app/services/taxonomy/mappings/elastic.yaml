@@ -170,7 +170,7 @@ index_patterns:
 
   # ── IBM QRadar (external SIEM connector) ─────────────────────────────
   "logs-ibm_qradar.offense-*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [alert_correlation]
 
@@ -185,15 +185,15 @@ index_patterns:
   # an alert-on-alert rule may correlate alerts from Windows, Linux,
   # cloud, etc. Without this the rules show platforms=[unknown].
   ".alerts-security.alerts-*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
   ".alerts-security*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
   ".alerts-*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [elastic_siem_alerts]
     event_types: [alert_correlation]
 
@@ -422,19 +422,19 @@ index_patterns:
   # `platform_alert` inputs, NOT alert_correlation (which is reserved
   # for the SIEM consuming its OWN alert stream).
   "logs-elastic_security.alert*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [platform_alert]
   "logs-google_secops.alert*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [platform_alert]
   "logs-microsoft_sentinel.alert*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   "logs-splunk.alert*":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
 
@@ -635,23 +635,23 @@ integrations:
 
   # ── Alert aggregation / SIEM ─────────────────────────────────────────
   elastic_security:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   google_secops:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   microsoft_sentinel:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   splunk:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [audit_event]
   ibm_qradar:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [alert_correlation]
   wiz:

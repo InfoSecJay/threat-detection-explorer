@@ -47,7 +47,7 @@ by_platform:
   # SAP is a platform-agnostic enterprise app (runs on Windows / Linux /
   # cloud). cross_platform is the honest answer.
   sap:
-    platforms: [cross_platform]
+    platforms: [sap]
 
 # Tier 2: explicit `data_source` meta value -> canonical data_source.
 by_data_source:
@@ -194,11 +194,11 @@ by_folder:
     platforms: [network_appliance]
   threat_intel:
     # TI feeds describe IOCs that apply across platforms.
-    platforms: [cross_platform]
+    platforms: []
   authentication:
     # `authentication/` is a small generic-auth folder (~2 rules).
     event_types: [authentication]
   sap:
-    platforms: [cross_platform]
+    platforms: [sap]
     data_sources: [application_logs]
     event_types: [audit_event]

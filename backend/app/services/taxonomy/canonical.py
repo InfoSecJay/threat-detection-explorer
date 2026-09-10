@@ -150,6 +150,10 @@ PLATFORMS: frozenset[str] = frozenset(
         # ── Cross-platform marker — rule targets multiple OSes generically ──
         # Also used for application-framework rules (Django, Spring, JVM, etc.)
         # and product-agnostic categories (webserver, antivirus, database).
+        # Never for alert streams, threat-intel feeds or SaaS audit: those
+        # have no OS at all and take a product value or nothing, which the
+        # platform split turns into not_applicable / unknown
+        # (tests/test_services/test_taxonomy_cross_platform_gate.py).
         "cross_platform",
         UNKNOWN,
     }

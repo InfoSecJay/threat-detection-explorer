@@ -369,7 +369,7 @@ by_log_type:
     data_sources: [tracebit_alert]
     event_types: [platform_alert]
   SOCRadar.Incidents:
-    platforms: [cross_platform]
+    platforms: [socradar]
     data_sources: [socradar_incidents]
     event_types: [platform_alert]
 
@@ -429,7 +429,7 @@ by_log_type:
 
   # ── Panther meta ─────────────────────────────────────────────────
   Panther.Audit:
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [panther_audit]
     event_types: [audit_event]
 
@@ -628,7 +628,7 @@ by_prefix:
     data_sources: [tracebit_alert]
     event_types: [platform_alert]
   "SOCRadar.":
-    platforms: [cross_platform]
+    platforms: [socradar]
     data_sources: [socradar_incidents]
     event_types: [platform_alert]
   "Anthropic.":
@@ -663,7 +663,7 @@ by_prefix:
     data_sources: [okta_scheduled_query]
     event_types: [audit_event]
   "Query.":
-    platforms: [cross_platform]
+    platforms: []
     data_sources: [siem_alert]
     event_types: [alert_correlation]
   "OCSF.":
@@ -683,6 +683,6 @@ by_prefix:
 # back to this default so we don't emit [unknown] for the 3 correlation
 # rules in the corpus.
 correlation_rule_default:
-  platforms: [cross_platform]
+  platforms: []
   data_sources: [siem_alert]
   event_types: [alert_correlation]
