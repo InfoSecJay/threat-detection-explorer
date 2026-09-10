@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detection Explorer Panel Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,600..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --ground:#F2F4F7; --surface:#FFFFFF; --sunk:#E8ECF2;
+  --ink:#161B26; --ink-2:#4A5365; --ink-3:#6B7385; --rule:#D6DBE4;
+  --accent:#1D5C8F; --accent-soft:#E3EDF6;
+  --p0:#B42318; --p0-bg:#FDECEA; --p1:#B54708; --p1-bg:#FEF0E3;
+  --p2:#8A6100; --p2-bg:#FBF3DC; --p3:#526077; --p3-bg:#EBEEF3;
+  --good:#1F7A4D; --good-bg:#E4F3EB;
+  --a:#6941C6; --b:#0E7090;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F131A; --surface:#161B24; --sunk:#1C2230;
+    --ink:#E6E9EF; --ink-2:#A9B1BF; --ink-3:#8791A2; --rule:#2A3140;
+    --accent:#86B8E0; --accent-soft:#1B2A3A;
+    --p0:#F97066; --p0-bg:#3A1A18; --p1:#FDA15C; --p1-bg:#3A2515;
+    --p2:#E7BC4F; --p2-bg:#33290F; --p3:#A6B0C2; --p3-bg:#232A36;
+    --good:#5FCB93; --good-bg:#15301F;
+    --a:#B69CF5; --b:#5FC3DC;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F131A; --surface:#161B24; --sunk:#1C2230;
+  --ink:#E6E9EF; --ink-2:#A9B1BF; --ink-3:#8791A2; --rule:#2A3140;
+  --accent:#86B8E0; --accent-soft:#1B2A3A;
+  --p0:#F97066; --p0-bg:#3A1A18; --p1:#FDA15C; --p1-bg:#3A2515;
+  --p2:#E7BC4F; --p2-bg:#33290F; --p3:#A6B0C2; --p3-bg:#232A36;
+  --good:#5FCB93; --good-bg:#15301F;
+  --a:#B69CF5; --b:#5FC3DC;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{background:var(--ground);color:var(--ink);font:400 15px/1.6 var(--body);padding-inline:20px;padding-block:0 80px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+code,.mono{font-family:var(--mono);font-size:.86em;font-variant-ligatures:none}
+code{background:var(--sunk);padding:.08em .35em;border-radius:3px;overflow-wrap:anywhere}
+h1,h2,h3{font-family:var(--display);font-stretch:78%;text-wrap:balance;margin:0;line-height:1.1}
+h2{font-size:30px;font-weight:750;letter-spacing:-.005em}
+h3{font-size:19px;font-weight:700;font-stretch:88%;line-height:1.25}
+p{margin:0}
+.wrap{max-width:1180px;margin-inline:auto;display:grid;grid-template-columns:1fr;gap:40px}
+@media (min-width:1100px){.wrap{grid-template-columns:210px minmax(0,1fr)}}
+
+/* masthead */
+.mast{max-width:1180px;margin-inline:auto;padding-block:44px 30px;border-bottom:1px solid var(--rule);margin-bottom:36px;display:grid;gap:18px}
+.eyebrow{font:500 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.mast h1{font-size:clamp(34px,5.4vw,56px);font-weight:800;font-stretch:72%;letter-spacing:-.01em}
+.mast h1 span{color:var(--accent)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;font:400 13px/1.4 var(--mono);color:var(--ink-2)}
+.meta b{font-weight:500;color:var(--ink)}
+.panel{display:flex;flex-wrap:wrap;gap:10px}
+.who{display:flex;gap:10px;align-items:baseline;font-size:13.5px;color:var(--ink-2);max-width:520px}
+.tag{font:600 10.5px/1 var(--mono);letter-spacing:.06em;padding:4px 7px;border-radius:3px;white-space:nowrap}
+.tag.a{color:var(--a);background:color-mix(in srgb,var(--a) 13%,transparent)}
+.tag.b{color:var(--b);background:color-mix(in srgb,var(--b) 13%,transparent)}
+
+/* toc */
+nav.toc{display:none}
+@media (min-width:1100px){nav.toc{display:block;position:sticky;top:24px;align-self:start;font-size:13px}}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:2px;border-left:1px solid var(--rule)}
+nav.toc a{display:block;padding:5px 12px;color:var(--ink-2);text-decoration:none;margin-left:-1px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);border-left-color:var(--accent)}
+nav.toc .cnt{font:500 11px var(--mono);color:var(--ink-3);margin-left:4px}
+
+main{min-width:0;display:grid;gap:64px}
+section{display:grid;gap:20px;scroll-margin-top:20px}
+.sec-head{display:grid;gap:6px;padding-bottom:10px;border-bottom:2px solid var(--ink)}
+.sec-head p{color:var(--ink-2);font-size:14px;max-width:70ch}
+.prose{max-width:70ch;display:grid;gap:12px}
+
+/* verdict */
+.verdict{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:760px){.verdict{grid-template-columns:1fr 1fr}}
+.vcard{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:20px 22px;display:grid;gap:10px;align-content:start}
+.vcard .ans{font:750 22px/1.15 var(--display);font-stretch:80%}
+.vcard .ans.yes{color:var(--good)} .vcard .ans.split{color:var(--p1)}
+.vcard p{font-size:14.5px}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--rule)}
+tr:last-child td{border-bottom:0}
+th{font:600 10.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);background:var(--sunk);white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.dim{white-space:nowrap;font-weight:500}
+.score{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;font:600 13px var(--mono)}
+.pips{display:inline-flex;gap:2px}
+.pips i{width:9px;height:9px;border-radius:1px;background:var(--rule)}
+.pips i.on{background:var(--accent)}
+.pips.lo i.on{background:var(--p0)}
+.pips.mid i.on{background:var(--p2)}
+.pips.hi i.on{background:var(--good)}
+.w-dim{min-width:190px} .w-just{min-width:340px}
+
+/* findings */
+.sev-legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--ink-2)}
+.pill{display:inline-block;font:600 11px/1 var(--mono);letter-spacing:.04em;padding:4px 7px;border-radius:3px;white-space:nowrap}
+.pill.p0{color:var(--p0);background:var(--p0-bg)} .pill.p1{color:var(--p1);background:var(--p1-bg)}
+.pill.p2{color:var(--p2);background:var(--p2-bg)} .pill.p3{color:var(--p3);background:var(--p3-bg)}
+.group-label{font:600 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:10px;margin-top:8px}
+.group-label::after{content:"";flex:1;height:1px;background:var(--rule)}
+.finding{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--sevc);border-radius:4px;padding:18px 20px 20px;display:grid;gap:14px;scroll-margin-top:20px}
+.finding.p0{--sevc:var(--p0)} .finding.p1{--sevc:var(--p1)} .finding.p2{--sevc:var(--p2)} .finding.p3{--sevc:var(--p3)}
+.f-head{display:grid;gap:8px}
+.f-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fid{font:500 12px/1 var(--mono);color:var(--ink-3)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.chip{font:500 11px/1 var(--mono);padding:4px 7px;border:1px solid var(--rule);border-radius:3px;color:var(--ink-2);white-space:nowrap}
+dl.f{margin:0;display:grid;grid-template-columns:1fr;gap:4px 18px}
+@media (min-width:640px){dl.f{grid-template-columns:104px minmax(0,1fr)}}
+dl.f dt{font:600 10.5px/1.9 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+dl.f dd{margin:0 0 8px;font-size:14px;max-width:78ch;overflow-wrap:anywhere}
+dl.f dd.url{font:400 12.5px/1.6 var(--mono)}
+dl.f dd ul{margin:4px 0 0;padding-left:18px;display:grid;gap:4px}
+.voice{display:grid;gap:6px;margin-top:4px}
+.voice div{display:flex;gap:8px;align-items:baseline;font-size:13.5px}
+
+/* tasks */
+.tasks{display:grid;gap:12px}
+.task{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px 18px;display:grid;gap:10px}
+.task-top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.task-top h3{font-size:17px}
+.tid{font:600 12px var(--mono);color:var(--accent)}
+.stats{display:flex;flex-wrap:wrap;gap:6px 16px;font:400 12px var(--mono);color:var(--ink-2)}
+.stats b{color:var(--ink);font-weight:500}
+.outcome{font:600 11px/1 var(--mono);padding:4px 7px;border-radius:3px;margin-left:auto}
+.outcome.win{color:var(--good);background:var(--good-bg)}
+.outcome.lose{color:var(--p0);background:var(--p0-bg)}
+.outcome.mixed{color:var(--p2);background:var(--p2-bg)}
+.task p{font-size:14px;max-width:80ch}
+
+.callout{background:var(--accent-soft);border-radius:6px;padding:14px 18px;font-size:13.5px;display:grid;gap:6px;max-width:82ch}
+.callout b{font-weight:600}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:8px;max-width:82ch}
+.good-list{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:760px){.good-list{grid-template-columns:1fr 1fr}}
+.good{background:var(--surface);border:1px solid var(--rule);border-top:3px solid var(--good);border-radius:4px;padding:16px 18px;display:grid;gap:8px;align-content:start}
+.good h3{font-size:16px}
+.good p{font-size:13.5px;color:var(--ink-2)}
+.status{font:600 10.5px/1 var(--mono);padding:3px 6px;border-radius:3px;white-space:nowrap}
+.status.miss{color:var(--p0);background:var(--p0-bg)} .status.part{color:var(--p2);background:var(--p2-bg)} .status.has{color:var(--good);background:var(--good-bg)}
+footer{max-width:1180px;margin:64px auto 0;border-top:1px solid var(--rule);padding-top:18px;font-size:12.5px;color:var(--ink-3);display:grid;gap:6px}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="eyebrow">Two-person product review · build 7f51b8a · corpus synced 2026-09-10</div>
+  <h1>Detection Explorer <span>panel review</span></h1>
+  <div class="meta">
+    <span>Target <b>detectionexplorer.io</b></span>
+    <span>Corpus <b>15,662 rules · 13 repos</b></span>
+    <span>Reviewed <b>2026-09-10</b></span>
+    <span>Findings <b>3 P0 · 5 P1 · 13 P2 · 1 P3 bundle</b></span>
+  </div>
+  <div class="panel">
+    <div class="who"><span class="tag a">A · DESIGN</span><span>Principal product designer. Judges IA, interaction cost, state handling, accessibility, performance.</span></div>
+    <div class="who"><span class="tag b">B · DETECTION</span><span>Staff detection engineer. Judges whether it survives triage, coverage assessment, gap analysis and porting.</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Report sections">
+  <ol>
+    <li><a href="#verdict">Verdict</a></li>
+    <li><a href="#scorecard">Scorecard</a></li>
+    <li><a href="#tasks">Task runs T1–T5</a></li>
+    <li><a href="#findings">Findings <span class="cnt">22</span></a></li>
+    <li><a href="#tablestakes">Missing table stakes</a></li>
+    <li><a href="#devalue">DE value gaps</a></li>
+    <li><a href="#backlog">Backlog <span class="cnt">10</span></a></li>
+    <li><a href="#good">Protect in a redesign</a></li>
+    <li><a href="#method">Method &amp; limits</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="verdict">
+  <div class="sec-head"><h2>1 · Verdict</h2><p>Would each reviewer bookmark it and use it in a real workweek?</p></div>
+  <div class="verdict">
+    <div class="vcard">
+      <span class="tag a" style="justify-self:start">A · DESIGN</span>
+      <div class="ans yes">Yes — bookmarked.</div>
+      <p>The query bar and the facets are one model serialized into <code>?q=</code>, and the rule page holds provenance, license, history and logic without a second click. That beats most peer tools. What stops it scoring higher is fixable: numbers that disagree between surfaces, and small-text contrast.</p>
+    </div>
+    <div class="vcard">
+      <span class="tag b" style="justify-self:start">B · DETECTION</span>
+      <div class="ans split">Yes for lookup. No for coverage.</div>
+      <p>I'd use it weekly to vet a rule (T4) and read the Digest. I wouldn't let it near a leadership slide: <code>/actors/G0016</code> headlines “98% weighted coverage” for APT29, which means 65 of 66 techniques have at least one rule in <em>any</em> of 13 repos, and “Same behaviour, other vendors” is ATT&amp;CK tag overlap. Until coverage is scoped to my stack and equivalence requires shared observables, it finds rules; it can't back claims.</p>
+    </div>
+  </div>
+</section>
+
+<section id="scorecard">
+  <div class="sec-head"><h2>2 · Scorecard</h2><p>1 = broken or absent · 2 = present but routed around · 3 = works · 4 = better than most peers · 5 = a reason to choose this over grepping the upstream repos.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th class="w-dim">Dimension</th><th>Score</th><th class="w-just">Justification</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td class="dim">Positioning &amp; first-run</td><td><span class="score"><span class="pips hi"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>4</span></td><td>Subtitle states count, repos, schema and ATT&amp;CK mapping in one line; “Last sync today” and “10% rules with no ATT&amp;CK mapping” earn trust. Audience is implied, never stated.</td></tr>
+      <tr><td class="num">2</td><td class="dim">Information architecture</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Detections is clearly primary and every surface deep-links into it. Intel and Digest overlap; <code>/integrations</code> is a redirect to <code>/intel</code>; seven top-level items.</td></tr>
+      <tr><td class="num">3</td><td class="dim">Search &amp; query UX</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>URL-addressable facets, typeahead and inline parse errors are 4-grade. Silent zero results on bad actor, enum and wildcard values (DX-04, DX-07) and docs that don't match behaviour (DX-12) pull it down.</td></tr>
+      <tr><td class="num">4</td><td class="dim">Result density</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Inline expand shows formatted logic without leaving the table. No ATT&amp;CK technique or modified-date column (DX-17).</td></tr>
+      <tr><td class="num">5</td><td class="dim">Rule detail completeness</td><td><span class="score"><span class="pips hi"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>4</span></td><td>Upstream link, license with plain-English restriction, created/updated/synced, raw source, git history, FPs, required fields. Drops deploy prerequisites (DX-16); dates render a day early (DX-09).</td></tr>
+      <tr><td class="num">6</td><td class="dim">Data integrity &amp; normalization</td><td><span class="score"><span class="pips lo"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>2</span></td><td>855 Splunk rules tagged Linux, at least 626 of them Windows rules (DX-06); 588 Panther/PyPanther title pairs uncounted as duplicates; upstream mis-tags passed through; three counts for T1055.</td></tr>
+      <tr><td class="num">7</td><td class="dim">Coverage claim honesty</td><td><span class="score"><span class="pips lo"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>2</span></td><td>The three match modes exist but are labelled three different ways, defined only in hover tooltips, headlined as “98%”, and contradicted by the Navigator export (DX-01, 02, 03, 08).</td></tr>
+      <tr><td class="num">8</td><td class="dim">Practitioner value</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Beats grep on T1 (when the CVE is known), T4 and T5. Loses T2 outright. T3 is fast and wrong.</td></tr>
+      <tr><td class="num">9</td><td class="dim">Performance at scale</td><td><span class="score"><span class="pips hi"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>4</span></td><td>Server pagination (25/50/100), list ≈200 ms, facets ≈440 ms, offset 15,650 ≈260 ms, rows painted ≈0.7 s warm; 391 KB JS decoded, code-split. <code>content:</code> ≈1.4 s; four API calls duplicated per load.</td></tr>
+      <tr><td class="num">10</td><td class="dim">Accessibility</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Real checkboxes, skip link, visible focus ring. Facet counts at 2.5:1, sub-24px targets, key definitions only in <code>title</code> attributes (DX-20).</td></tr>
+      <tr><td class="num">11</td><td class="dim">Crawlability</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Sitemaps for all 15,662 rules, 697 techniques, 1,001 actors plus bot prerender with canonical and OG per rule. Soft 404s, one frozen <code>lastmod</code>, no JSON-LD, UA-gated rendering (DX-18).</td></tr>
+      <tr><td class="num">12</td><td class="dim">Programmatic access</td><td><span class="score"><span class="pips hi"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>4</span></td><td>Versioned OpenAPI with deprecation policy and a published rate limit; JSON/CSV/Navigator/observables export; “API URL” button. No <code>license</code> field, no source-scoped layers, no native-format bundle.</td></tr>
+      <tr><td class="num">13</td><td class="dim">Site security posture</td><td><span class="score"><span class="pips lo"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>2</span></td><td>No CSP, Referrer-Policy or Permissions-Policy; HSTS only on <code>/api</code>; floating <code>swagger-ui-dist@5</code> script with no SRI; no security.txt (DX-13).</td></tr>
+      <tr><td class="num">14</td><td class="dim">Mobile &amp; responsive</td><td><span class="score"><span class="pips mid"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>3</span></td><td>Table-to-cards is the right call. Search input shrinks to 53 px; actor page scrolls sideways at 390 px (DX-21).</td></tr>
+      <tr><td class="num">15</td><td class="dim">Trust &amp; content ops</td><td><span class="score"><span class="pips hi"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>4</span></td><td>Methodology page is exemplary (pinned SHAs, globs, drift alerting, severity provenance). It contradicts the headline count (DX-10); no site changelog; contact is GitHub or LinkedIn only.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="tasks">
+  <div class="sec-head"><h2>Task runs</h2><p>Each run end to end in the site's own UI, with the API used only to confirm counts. Times are estimates for a practitioner on the same path; my runs were agent-driven. {{product}} for T1 was set to Citrix NetScaler (CVE-2025-5777, “CitrixBleed 2”).</p></div>
+  <div class="tasks">
+    <div class="task">
+      <div class="task-top"><span class="tid">T1</span><h3>New CVE for Citrix NetScaler: which rules, which SIEM?</h3><span class="outcome win">BEATS GREP · IF YOU HAVE THE CVE</span></div>
+      <div class="stats"><span>Path <b>/detections → type CVE-2025-5777 → Enter</b></span><span>Interactions <b>3</b></span><span>Time <b>&lt; 30 s</b></span><span>Dead ends <b>1</b></span></div>
+      <p>Two results, both <code>SPLUNK · SPL</code>: “Citrix ADC and Gateway CitrixBleed 2 Memory Disclosure” and “Cisco Secure Firewall – Citrix NetScaler Memory Overread Attempt”. The source badge answers “which SIEM” in the row. Searching the product instead (<code>citrix</code>) returns 63; the first dozen are right, then Elastic Protections rules where Citrix appears only in an exclusion list (DX-12). There is no <code>cve:</code> field and no product facet, so Sigma's <code>cve.2021-38647</code> tags and Splunk's CVE fields aren't normalized.</p>
+    </div>
+    <div class="task">
+      <div class="task-top"><span class="tid">T2</span><h3>Elastic shop: Sigma rules for T1055 with no Elastic equivalent</h3><span class="outcome lose">DEAD END</span></div>
+      <div class="stats"><span>Path <b>tech:T1055 source:sigma → per-rule “Same behaviour” panel → /compare</b></span><span>Interactions <b>40+</b></span><span>Time <b>&gt; 30 min</b></span><span>Dead ends <b>3</b></span></div>
+      <p><code>tech:T1055 source:sigma</code> gives 37 (parent only). <code>tech:T1055*</code> silently gives 0. The per-rule equivalence panel matches on technique tags (DX-02), <code>/compare</code> needs hand-picked IDs, and <code>/api/v1/compare/coverage-gap</code> answers at technique level only. Two cloned repos plus grep on pipe names and process names is faster.</p>
+    </div>
+    <div class="task">
+      <div class="task-top"><span class="tid">T3</span><h3>Leadership: our APT29 coverage story from public rules</h3><span class="outcome lose">FAST · MISLEADING</span></div>
+      <div class="stats"><span>Path <b>/actors → APT29 → Export Navigator layer</b></span><span>Interactions <b>2</b></span><span>Time <b>≈ 15 s</b></span><span>Dead ends <b>0</b></span></div>
+      <p>The page says 98%, 1 gap of 66, 33 exact rules. The exported layer paints 47 of those 66 techniques near the “0 rules – detection gap” red (DX-03). The query bar says <code>actor:APT29</code> = 31, not 33 (DX-04). Nothing scopes the story to the SIEM the org actually runs.</p>
+    </div>
+    <div class="task">
+      <div class="task-top"><span class="tid">T4</span><h3>Deploy one rule: source, license, last sync, FPs</h3><span class="outcome win">BEATS THE UPSTREAM REPO</span></div>
+      <div class="stats"><span>Path <b>result row → rule page</b></span><span>Interactions <b>1–2</b></span><span>Time <b>≈ 30 s</b></span><span>Dead ends <b>0</b></span></div>
+      <p>On the OMIGOD Sigma rule, every answer sits on one page: View source, License “DRL 1.1”, “Synced 9/10/2026”, false-positive notes, and a History tab of upstream commits. Three defects: the header dates are a day early (DX-09), Upstream links to a moving branch (DX-15), and the Zeek prerequisite in <code>logsource.definition</code> never appears outside the raw view (DX-16).</p>
+    </div>
+    <div class="task">
+      <div class="task-top"><span class="tid">T5</span><h3>What changed upstream in 30 days that I should care about?</h3><span class="outcome mixed">DIGEST WINS · INTEL MISLEADS</span></div>
+      <div class="stats"><span>Path <b>/digest → 30D → Copy as markdown</b></span><span>Interactions <b>2</b></span><span>Time <b>≈ 1 min</b></span><span>Dead ends <b>1</b></span></div>
+      <p>The Digest splits new vs updated per source and themes them by technique, with week permalinks and RSS. <code>/intel</code> “Trending techniques” leads with T1219 at 599 because LOLRMM accounts for 597 of 1,176 modifications (DX-14). Neither separates a logic change from a metadata edit.</p>
+    </div>
+  </div>
+</section>
+<section id="findings">
+  <div class="sec-head"><h2>3 · Findings</h2><p>Ordered by severity, then by reach. Every block cites the page and the element or response observed.</p></div>
+  <div class="sev-legend"><span><span class="pill p0">P0</span> credibility-damaging or actively misleading</span><span><span class="pill p1">P1</span> blocks a core task</span><span><span class="pill p2">P2</span> friction users route around</span><span><span class="pill p3">P3</span> polish</span></div>
+
+  <div class="group-label">P0 · coverage claims</div>
+
+  <article class="finding p0" id="dx-01">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-01</span><span class="pill p0">P0</span><div class="chips"><span class="chip">Effort S / M</span><span class="chip">Confidence High</span></div></div>
+    <h3>Actor pages headline a “weighted coverage” percentage the data can't support</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/actors/G0016 · /actors/S0154 · /actors</dd>
+      <dt>Observed</dt><dd>The APT29 header renders <b>“WEIGHTED COVERAGE 98%”</b> at display size beside “DETECTION GAPS 1/66”. The only definition is a <code>title</code> tooltip on the small “raw: 65/66 (98%)” line: “Raw coverage counts every technique equally; the weighted score discounts TTPs nearly every actor uses.” Nothing says that “covered” means one rule in any of 13 repos carries the technique tag. “Coverage by source” rows read “SUBLIME 3/66 · 1226 rules”; the COVERAGE match mode counts 5,063 rules for APT29. Cobalt Strike shows 97% and 4,028. The <code>/actors</code> table sorts by this column (APT29 98%, Lazarus 94%, Scattered Spider 94%).</dd>
+      <dt>Impact</dt><dd>The T3 answer that gets pasted into a deck is “98% APT29 coverage”. It measures technique-tag presence across products the org doesn't run, including hunting queries, alert passthroughs and hash lists (DX-05), and says nothing about procedure-level detection. That's the exact overstatement ATT&amp;CK heatmaps are criticised for, published under a security-engineering brand.</dd>
+      <dt>Fix</dt><dd><ul>
+        <li>Rename to “Techniques with ≥1 public rule (any vendor)”; demote the percentage to secondary text; print the definition under it, visibly.</li>
+        <li>Make the dedicated (named) rule count the primary stat.</li>
+        <li>Add a “My stack” source selector, persisted as <code>?sources=</code>, that recomputes gaps and coverage for the chosen repos.</li>
+        <li>Exclude hunting, building-block and passthrough rules from coverage by default, with a visible toggle.</li>
+      </ul></dd>
+      <dt>Unverified</dt><dd>The weighting formula; only the tooltip text is exposed.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p0" id="dx-02">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-02</span><span class="pill p0">P0</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>“Same behaviour, other vendors” is ATT&amp;CK tag overlap, not behaviour</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections/3cfc23e0-7022-51ac-8e05-04cb43afff19 (Sigma, OMIGOD)<br>https://detectionexplorer.io/detections/4dd04229-e9e2-5e95-b1c0-7622a02bf8c6 (Sigma, CobaltStrike Named Pipe)</dd>
+      <dt>Observed</dt><dd>The OMIGOD panel lists “12 rules · 4 other sources”, including Sentinel “GitHub Security Vulnerability in Repository”, “Apache 2.4.49 flaw CVE-2021-41773” and “Sentinel One – Same custom rule triggered on different hosts”, each justified only by “technique T1190, T1210”. For CobaltStrike Named Pipe, which keys on <code>\MSSE-</code> and <code>\postex_</code>, <code>/api/v1/detections/{id}/related</code> returns one other-vendor match: “Memory Threat – Detected – Elastic Defend”, reason “technique T1055”. Meanwhile <code>content:"MSSE-"</code> finds Sentinel “Suspicious named pipes”, which keys on the same pipe, and it isn't surfaced.</dd>
+      <dt>Impact</dt><dd><span class="tag b">B</span> This panel is the porting workflow. It tells an Elastic shop that an alert-forwarding rule is the equivalent of a Sigma named-pipe rule. A DE who trusts it closes a gap that is still open.</dd>
+      <dt>Fix</dt><dd>Label a row “same behaviour” only when at least one non-negated observable overlaps (pipe or file name, process, registry key, API action, event ID), and print it on the row: “both key on <code>\MSSE-</code>”. Move technique-only matches to a collapsed “Shares an ATT&amp;CK technique” group.</dd>
+      <dt>Unverified</dt><dd>Why the Sentinel rule was missed (extraction on that rule or the scorer).</dd>
+    </dl>
+  </article>
+
+  <article class="finding p0" id="dx-03">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-03</span><span class="pill p0">P0</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>The Navigator layer export paints covered techniques in the “gap” colour</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/api/v1/actors/G0016/navigator-layer (the [ EXPORT NAVIGATOR LAYER ] button on /actors/G0016)</dd>
+      <dt>Observed</dt><dd>Linear gradient <code>#ff0040 → #ffaa33 → #00ffcc</code> over 0–829, where 829 is T1566.002. Legend: red = “0 rules – detection gap”. 47 of 66 techniques score below 83 (10% of max); the median is 30. T1003.002 with 55 rules renders effectively as a gap. The page it came from says 98%. The endpoint takes only <code>actor_id</code> and <code>match_mode</code>, so there's no “Elastic only” layer.</dd>
+      <dt>Impact</dt><dd>The one artifact built for leadership contradicts the page in the opposite direction. Whichever view gets presented, someone is misinformed.</dd>
+      <dt>Fix</dt><dd>Score in bins (0 · 1 · 2–5 · 6–20 · 21+) with one legend entry per bin, or cap <code>maxValue</code> at 20. Add <code>sources=</code> and <code>exclude_modalities=</code>. Write the match mode, source scope and sync SHAs into the layer <code>description</code>.</dd>
+    </dl>
+  </article>
+
+  <div class="group-label">P1 · blocks a core task</div>
+
+  <article class="finding p1" id="dx-04">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-04</span><span class="pill p1">P1</span><div class="chips"><span class="chip">Effort S–M</span><span class="chip">Confidence High</span></div></div>
+    <h3>Actor lookup returns silent zeros and disagrees with the actor page</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections?q=actor:%22Mustang%20Panda%22 · /actors/G0129 · /actors/G1014 · /actors/G0016</dd>
+      <dt>Observed</dt><dd><code>actor:"Mustang Panda"</code> → 0. <code>actor:G0129</code> → 1. The <code>/actors</code> table shows Mustang Panda with 3 dedicated and 9 referenced. LuminousMoth (G1014) lists “MUSTANG PANDA · BRONZE PRESIDENT” among its MISP aliases, and <code>actor:"BRONZE PRESIDENT"</code> → 0 as well. <code>actor:APT29</code> → 31; the APT29 page says 33. Typos (<code>actor:"Salt Typoon"</code>, <code>actor:APT-29</code>) and bad enum values (<code>severity:hgih</code>) return 200 with “NO DETECTIONS FOUND”, while an unknown field (<code>foo:bar</code>) does raise <code>query_parse_error</code>. Validation exists; it just stops at field names.</dd>
+      <dt>Impact</dt><dd>T3 run from the query bar reports “no public rules for Mustang Panda”: a false gap, and it reads as missing coverage rather than a lookup failure.</dd>
+      <dt>Fix</dt><dd>One resolver for the query bar and actor pages. When an alias maps to more than one group, show a chip: “Mustang Panda → G0129 (also an alias of G1014)”. Return <code>query_value_error</code> with a suggestion for unknown actor, software and enum values, rendered inline like the parse error. Add a test asserting equal counts for the top 50 groups.</dd>
+      <dt>Unverified</dt><dd>That the alias collision is the root cause (inferred from the alias data).</dd>
+    </dl>
+  </article>
+
+  <article class="finding p1" id="dx-05">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-05</span><span class="pill p1">P1</span><div class="chips"><span class="chip">Effort M</span><span class="chip">Confidence High</span></div></div>
+    <h3>Alert passthroughs, hash lists and upstream mis-tags count as technique coverage</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/mitre/T1055</dd>
+      <dt>Observed</dt><dd>Sentinel's T1055 list includes “TrendAI Vision One – Create Incident for Workbench Alerts”, “Google SecOps – Multi-Event Correlated Alert” and “CYFIRMA – Medium severity File Hash Indicators with Block Action and Malware”. Elastic's includes “Memory Threat – Detected – Elastic Defend”. Splunk's includes six “AWS Bedrock Claude …” rules (e.g. “Hostile Prompt Sentiment”); the upstream YAML does say <code>mitre_attack_id: T1055</code>, and the site passes it through unflagged.</dd>
+      <dt>Impact</dt><dd>Process-injection “coverage” includes rules that forward another product's alert or match hashes, and these feed the DX-01 percentages.</dd>
+      <dt>Fix</dt><dd>Classify rules whose event type is <code>platform_alert</code>/<code>siem_alert</code>, or whose only observables are indicators, as modality <code>passthrough</code>/<code>indicator</code>; exclude them from coverage by default. Add a build lint that flags technique-platform vs rule-domain mismatches (T1055 is Linux/macOS/Windows; the Bedrock rules are cloud/application) with a “suspect mapping” badge and a count on corpus-health.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p1" id="dx-06">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-06</span><span class="pill p1">P1</span><div class="chips"><span class="chip">Effort M</span><span class="chip">Confidence High</span></div></div>
+    <h3>Splunk rules inherit every OS their data sources support</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections?q=platform:linux%20source:splunk · /detections/d27b3d4a-8681-5039-8131-5c0f72e76963</dd>
+      <dt>Observed</dt><dd>“Windows SQLCMD Execution” (<code>detections/endpoint/windows_sqlcmd_execution.yml</code>) carries platforms <code>windows, linux, macos</code>, alongside data sources <code>carbon_black, crowdstrike_fdr, elastic_defend, sysmon, windows_security_event_log</code>. <code>sources=splunk&amp;platforms=linux</code> → 855 of 2,166 Splunk rules; adding <code>search=windows</code> → 626 of those. The Linux facet total is 2,202, so Splunk is 39% of it and at least 28% of it is Windows rules.</dd>
+      <dt>Impact</dt><dd>A Linux-focused team filtering <code>platform:linux</code> triages hundreds of Windows rules; the “Linux” and trending-platform counts are inflated.</dd>
+      <dt>Fix</dt><dd>For Splunk endpoint rules, derive OS from OS-specific sources in the rule's own <code>data_source</code> list (Sysmon, Windows Event Log → windows; Sysmon for Linux, auditd → linux), fall back to the <code>windows_/linux_/macos_</code> filename prefix, and stop unioning across CIM datamodel sources.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p1" id="dx-07">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-07</span><span class="pill p1">P1</span><div class="chips"><span class="chip">Effort M–L</span><span class="chip">Confidence High</span></div></div>
+    <h3>T2 — “Sigma for T1055 we don't have in Elastic” — has no path</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections?q=tech:T1055%20source:sigma · /compare · /api/v1/compare/coverage-gap?base_source=sigma&amp;compare_source=elastic</dd>
+      <dt>Observed</dt><dd><code>tech:T1055 source:sigma</code> → 37, parent only (<code>/query</code>: “tech:T1059 matches only T1059, never T1059.001”). <code>tech:T1055*</code> → 0 with no error, though <code>/query</code> lists <code>*</code> as a wildcard. <code>/compare</code> needs 2–6 hand-picked IDs. The coverage-gap endpoint returns technique IDs only (Sigma 398, Elastic 450, overlap 327) and isn't in the UI. In the query bar <code>source:elastic</code> returns 213 for T1055 (Elastic + Protections + Hunting); the “Elastic” facet returns 27.</dd>
+      <dt>Impact</dt><dd>The most common porting question ends in a manual per-rule loop, slower than grepping two repos.</dd>
+      <dt>Fix</dt><dd>Support <code>tech:T1055.*</code> or an “include sub-techniques” toggle, and error on unsupported wildcards. Add a <code>no_equivalent_in=elastic</code> filter backed by the observable-overlap scorer from DX-02, exposed as a facet “Has equivalent in…”. Make <code>source:elastic</code> exact and offer <code>source:elastic*</code> for the family.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p1" id="dx-08">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-08</span><span class="pill p1">P1</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>The three match modes are named three different ways</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/actors/S0154</dd>
+      <dt>Observed</dt><dd>Header stat “RULES (EXACT) 45”. Toggle “DEDICATED 45 · COVERAGE 4028 · REFERENCED 43”. The page requests <code>?match_mode=exact</code>. Row chips read TITLE, STORY, ID-TAG (tooltips “Matched via title”, “Matched via story”); of the first 16 Cobalt Strike rows, one is ID-TAG. Only REFERENCED has an explanatory tooltip.</dd>
+      <dt>Impact</dt><dd>“Exact” promises tag-level precision; most matches are title substrings and Splunk analytic stories. The mechanism the site relies on for honesty is illegible to anyone who doesn't already know it exists.</dd>
+      <dt>Fix</dt><dd>One vocabulary on stat, toggle, API and docs: <b>Named</b> (tag / title / story), <b>Technique overlap</b>, <b>Mentions</b>. A visible one-line definition under the toggle. Break the named count down by reason, in the form “33 named · <i>n</i> tag · <i>n</i> title · <i>n</i> story”.</dd>
+    </dl>
+  </article>
+
+  <div class="group-label">P2 · friction users route around</div>
+
+  <article class="finding p2" id="dx-09">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-09</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>Every rule date renders one day early west of UTC</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections/3cfc23e0-7022-51ac-8e05-04cb43afff19 · /detections/a4523ea0-7463-5d7c-b67f-dfbe27037abe</dd>
+      <dt>Observed</dt><dd>Sigma raw <code>date: 2021-09-20</code>, <code>modified: 2025-11-03</code> → header “Created … on 9/19/2021 · Updated 11/2/2025”. Elastic raw <code>creation_date = "2026/08/20"</code>, <code>updated_date = "2026/08/26"</code> → “8/19/2026 · 8/25/2026”. Viewer in America/Toronto. The git History tab shows 2021-09-20 correctly, so the page disagrees with itself.</dd>
+      <dt>Impact</dt><dd>T4's “when was it last updated” is wrong for every viewer in the Americas, on a page whose raw source is one click away.</dd>
+      <dt>Fix</dt><dd>Date-only values are calendar dates: format with <code>timeZone: 'UTC'</code> or split <code>YYYY-MM-DD</code> into local components. Print ISO (<code>2025-11-03</code>); DEs compare against the YAML.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-10">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-10</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S (copy) / M (dedup)</span><span class="chip">Confidence High</span></div></div>
+    <h3>The headline count includes what the methodology says it excludes</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/ · /methodology</dd>
+      <dt>Observed</dt><dd>Landing: “15,662 detection rules”. Methodology: “hunting content is not counted as detection rules.” The facets put 407 hunting, 239 building-block, 152 correlation and 106 ML-job items inside the 15,662, and Elastic Hunting (141) is a listed source. Panther (877) and PyPanther (595) share 588 exact titles (e.g. “axonius api key reset”) with no shared rule IDs and no cross-link.</dd>
+      <dt>Impact</dt><dd>The methodology page is the trust anchor, and the first number on the site contradicts it. Duplicate pairs double-count in coverage and in the equivalence panel.</dd>
+      <dt>Fix</dt><dd>Change the sentence to “hunting queries are indexed and tagged <code>modality:hunting</code>”, or split the headline (“15,255 rules + 407 hunting queries”). Add <code>duplicate_of</code> for Panther↔PyPanther pairs and count each pair once in coverage.</dd>
+      <dt>Unverified</dt><dd>Whether all 588 pairs have identical logic.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-11">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-11</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>One technique, three rule counts</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/mitre/T1055</dd>
+      <dt>Observed</dt><dd>Matrix cell “T1055 Process Injection 365” (294 tagged exactly + 71 on sub-techniques). Catalog <code>tech:T1055</code> → 294. The “Matching detection rules” list shows SIGMAHQ (10), ELASTIC (9), ELASTIC PROT. (158), SENTINEL (8), SPLUNK (13), ELASTIC HUNT (2) = 200, while the vendor summary on the same page says Elastic “27 rules” and the catalog gives Sigma 37, Splunk 32, Sentinel 12, Elastic Protections 184.</dd>
+      <dt>Impact</dt><dd><span class="tag b">B</span> Which number goes in the report? On a reference site, unexplained disagreement reads as a bug even when each count is defensible.</dd>
+      <dt>Fix</dt><dd>Label each count with its scope (“365 incl. sub-techniques”, “294 tagged T1055”). If the vendor list is truncated, say “showing 10 of 37 · open all in catalog”.</dd>
+      <dt>Unverified</dt><dd>What filters produce the 200.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-12">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-12</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>Bare-word search hits rule bodies, including exclusion lists</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections?q=citrix · /query</dd>
+      <dt>Observed</dt><dd><code>/query</code>: a bare word is a “substring across title + description + tags”. <code>citrix</code> returns 63, including Elastic Protections “Shellcode API behavior from a signed module”, where “citrix” appears only in <code>detection_logic</code> inside a list of excluded code-signing vendors. Matching is token-based, not substring: <code>m</code> → 135, <code>a</code> → 0.</dd>
+      <dt>Impact</dt><dd>T1 by product name returns about a dozen relevant rules, then a tail of rules that explicitly ignore the product.</dd>
+      <dt>Fix</dt><dd>Scope bare words to title/description/tags as documented and keep <code>content:</code> for bodies. For <code>content:</code> hits, show a highlighted snippet and mark matches inside negated observables using the existing <code>negated</code> flag. Correct “substring” to “word” in the docs.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-13">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-13</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>A security site without security headers, running a floating CDN script on its origin</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/ · /api/docs · /.well-known/security.txt</dd>
+      <dt>Observed</dt><dd>HTML responses send <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code> and the deprecated <code>X-XSS-Protection</code>. No <code>Content-Security-Policy</code>, no <code>Strict-Transport-Security</code> (API responses do send <code>max-age=63072000</code>), no <code>Referrer-Policy</code>, no <code>Permissions-Policy</code>. <code>/api/docs</code> loads <code>cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js</code>, a floating major with no <code>integrity</code>. <code>/.well-known/security.txt</code> returns the SPA shell as 200 text/html. Pages load both Cloudflare RUM and Vercel Insights; neither is mentioned on /about.</dd>
+      <dt>Impact</dt><dd>This audience runs header scanners on sites they cite. A weak grade becomes the story, not the rules.</dd>
+      <dt>Fix</dt><dd><code>vercel.json</code> headers: CSP (<code>default-src 'self'; script-src 'self' static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'</code>), HSTS with <code>includeSubDomains</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, a minimal <code>Permissions-Policy</code>. Pin swagger-ui to an exact version with SRI or self-host it. Publish a real security.txt. One sentence on analytics in /about.</dd>
+      <dt>Unverified</dt><dd>Headers read via same-origin fetch from a browser (all non-cookie headers are exposed). Bundle dependency versions not audited.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-14">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-14</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort M</span><span class="chip">Confidence High</span></div></div>
+    <h3>Intel “trending” is one repo's bulk rewrite</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/intel · /api/v1/trending/summary?days=30</dd>
+      <dt>Observed</dt><dd>30-day pulse: 196 new, 1,176 modified. LOLRMM accounts for 597 of the modifications (51%). Trending #1 is “T1219 Remote Access Tools 599”; #2 is T1566.002 at 90.</dd>
+      <dt>Impact</dt><dd>T5's answer from /intel is “LOLRMM regenerated its files”. The signal a DE wants (new logic for a technique they care about) is buried.</dd>
+      <dt>Fix</dt><dd>Rank trending on new rules plus logic-changed rules. Classify each modification as logic, metadata or cosmetic by hashing normalized <code>detection_logic</code> between syncs, and collapse commits touching more than N files into one line.</dd>
+      <dt>Unverified</dt><dd>That the LOLRMM modifications are cosmetic.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-15">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-15</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>Upstream links point at moving branches, and the branches disagree with the methodology</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections/a4523ea0-7463-5d7c-b67f-dfbe27037abe · /methodology</dd>
+      <dt>Observed</dt><dd>Methodology lists <code>elastic/detection-rules @master</code> (pinned <code>ffc8ad66</code>) and <code>splunk/security_content @master</code> (pinned <code>4cd62e81</code>). The Elastic rule's “Upstream ↗” goes to <code>…/detection-rules/blob/main/…</code>; Splunk <code>source_rule_url</code> values go to <code>…/security_content/blob/develop/…</code>.</dd>
+      <dt>Impact</dt><dd>T4 license review and diffing happen against a file that may be newer than the one indexed.</dd>
+      <dt>Fix</dt><dd>Primary link to <code>/blob/&lt;pinned-sha&gt;/path</code> labelled “as indexed”; secondary “latest on &lt;branch&gt;”. Print the real branch name in the methodology table.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-16">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-16</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S–M</span><span class="chip">Confidence High (Sigma)</span></div></div>
+    <h3>Normalization drops the deploy prerequisites</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections/3cfc23e0-7022-51ac-8e05-04cb43afff19</dd>
+      <dt>Observed</dt><dd>Raw Sigma <code>logsource.definition</code>: “Enable the builtin Zeek script that logs all HTTP header names by adding <code>@load policy/protocols/http/header-names</code>…”. The Definition panel shows source tables, data source, required fields; the prerequisite appears only in raw view. The Elastic rule's <code>integration = ["network_traffic", "fortinet_fortigate", "zeek"]</code> isn't presented as setup either.</dd>
+      <dt>Impact</dt><dd><span class="tag b">B</span> Without that Zeek script, <code>client_header_names</code> never exists and the OMIGOD rule never fires. Missing prerequisites are the most common reason a public rule is silently dead in production.</dd>
+      <dt>Fix</dt><dd>A “Before you deploy” block built from Sigma <code>logsource.definition</code>, Elastic <code>integration</code>/<code>setup</code>/<code>min_stack_version</code>, Splunk <code>how_to_implement</code>. Index it for search.</dd>
+      <dt>Unverified</dt><dd>Elastic <code>setup</code> field handling on that rule.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-17">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-17</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>The rule table omits the two columns DEs triage on</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections</dd>
+      <dt>Observed</dt><dd>Columns: Title, Source, Severity, Domain, Data Source, Event Type, Created, Completeness. No ATT&amp;CK technique, no Modified. The inline expand shows logic but not techniques.</dd>
+      <dt>Impact</dt><dd>Coverage and recency triage cost a detail-page round trip per row.</dd>
+      <dt>Fix</dt><dd>Add “Techniques” (first two IDs + “+n”, monospace, linked to <code>/mitre/</code>) and “Modified” (relative, ISO on hover). Fold Domain into the Data Source cell as a prefix to hold width.</dd>
+      <dt>Panel split</dt><dd><div class="voice"><div><span class="tag a">A</span><span>Nine columns crowd the 692 px breakpoint; swap Completeness for Techniques rather than add both.</span></div><div><span class="tag b">B</span><span>Techniques is non-negotiable; Completeness can move to the expand row. Agreed resolution: swap.</span></div></div></dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-18">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-18</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort M</span><span class="chip">Confidence Med</span></div></div>
+    <h3>Crawl hygiene: soft 404s, a frozen lastmod, UA-gated rendering</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">/sitemap-detections.xml · /nonexistent-page-xyz · /detections/not-a-real-id-xyz · /integrations · /api/v1/prerender/detection/{id}</dd>
+      <dt>Observed</dt><dd>Every unknown path returns 200 with the 2,495-byte shell. All 15,662 detection URLs share one <code>lastmod</code> (2026-09-10). <code>/integrations</code> is in the sitemap and redirects client-side to <code>/intel</code>. Prerender covers detection, technique, actor, home and corpus-health: per-rule title, canonical, OG and logic, but no JSON-LD and no license or upstream link. A generic fetcher receives the empty shell. <code>/detections</code>, <code>/actors</code>, <code>/intel</code>, <code>/about</code>, <code>/actors/heatmap</code> all title as “Detection Explorer”. A <code>site:</code> query in my search tool returned no pages (not Google; check Search Console).</dd>
+      <dt>Impact</dt><dd>Search engines discount a lastmod that changes daily for every URL; soft 404s waste crawl budget and deleted rules never drop out. Individual rule pages are the organic-growth engine.</dd>
+      <dt>Fix</dt><dd>Serve the SPA with status 404 for unknown routes and missing IDs at the edge. Set <code>lastmod</code> from <code>rule_modified_date</code>. Drop <code>/integrations</code> or 301 it. Prerender <code>/methodology</code>, <code>/digest/*</code>, <code>/query</code>, <code>/observables/*</code>. Add JSON-LD (<code>TechArticle</code> with <code>license</code>, <code>dateModified</code>, <code>isBasedOn</code> = upstream URL). Route-level titles.</dd>
+      <dt>Unverified</dt><dd>What Googlebot receives; the browser can't set a crawler User-Agent, so the prerender endpoint was fetched directly.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-19">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-19</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort M (tombstones) / S (copy)</span><span class="chip">Confidence High</span></div></div>
+    <h3>Removed or unknown rules show a raw client error</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections/00000000-0000-5000-8000-000000000000</dd>
+      <dt>Observed</dt><dd>Body: “Error loading detection: Request failed with status code 404”; title stays “Detection Explorer”; HTTP 200. The empty-results state reads “Try adjusting filters or sync repositories”, and syncing is an admin action. Vendor-ID permalinks do work: <code>/api/v1/detections/ab6b1a39-…</code> redirects to the canonical rule.</dd>
+      <dt>Impact</dt><dd>The permalink guarantee holds for live rules, but a rule deleted upstream becomes a dead end with developer copy.</dd>
+      <dt>Fix</dt><dd>Keep tombstones (id, title, source, last-seen SHA, removal date) and render “Removed upstream on YYYY-MM-DD (commit …) — last indexed version · similar rules”. Empty state: “No rules match. Remove a filter or check the query syntax.”</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-20">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-20</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>Small secondary text fails AA contrast on the dark theme</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections</dd>
+      <dt>Observed</dt><dd>Facet counts: <code>#4B5563</code> on <code>#0D1117</code> at 10 px = 2.50:1. “SORT:” and header sub-labels: <code>#6B7280</code> on <code>#010409</code> at 10–12 px = 4.25:1. Row titles are fine (14.6:1). Focus ring is visible, facet options are real checkboxes, skip link present. Rows have three tab stops each, so 75 Tabs to reach pagination. Coverage definitions live in <code>title</code> attributes.</dd>
+      <dt>Fix</dt><dd>Facet counts to <code>#8B94A3</code> at 11 px (≥5:1); secondary labels to <code>#9AA3B2</code>. One tab stop per row with arrow-key roving, or <kbd>j</kbd>/<kbd>k</kbd>. Replace definition tooltips with visible text or a disclosure.</dd>
+    </dl>
+  </article>
+
+  <article class="finding p2" id="dx-21">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-21</span><span class="pill p2">P2</span><div class="chips"><span class="chip">Effort S</span><span class="chip">Confidence High</span></div></div>
+    <h3>At 390 px the search box is 53 px wide and the actor page scrolls sideways</h3></div>
+    <dl class="f">
+      <dt>URL</dt><dd class="url">https://detectionexplorer.io/detections?q=tech:T1055 · /actors/G0016 (390 × 844)</dd>
+      <dt>Observed</dt><dd>The table correctly becomes cards with filter chips. The search input measures 53 px (“tech:T” visible) beside ★ and SYNTAX. Clear-query is 10 × 16 px and “clear all” 59 × 15 px, under WCAG 2.2's 24 px target minimum. On <code>/actors/G0016</code> the “Rules (exact)” stat spans x = 344–428, widening the layout to 429 px.</dd>
+      <dt>Fix</dt><dd>Below 480 px, move ★ and SYNTAX under the input or into its menu; input full width. Stat row as a 2 × 2 grid. 24 × 24 minimum hit areas.</dd>
+    </dl>
+  </article>
+
+  <div class="group-label">P3 · polish</div>
+
+  <article class="finding p3" id="dx-22">
+    <div class="f-head"><div class="f-top"><span class="fid">DX-22</span><span class="pill p3">P3</span><div class="chips"><span class="chip">Effort S each</span><span class="chip">Confidence High unless noted</span></div></div>
+    <h3>Polish bundle</h3></div>
+    <dl class="f">
+      <dt>Items</dt><dd><ul>
+        <li><b>/detections inline logic:</b> JetBrains Mono ligatures render SPL <code>Processes.action!="blocked"</code> as ≠ (copied text is correct). Set <code>font-variant-ligatures: none</code> on code.</li>
+        <li><b>/intel:</b> pulse bars label three Elastic sources “ELA” (37, 17, 1); What's New truncates severity to “MEDI”; upstream releases repeat the tag (“v6.6.0 v6.6.0”).</li>
+        <li><b>Severity vocabulary:</b> table “UNKNOWN”, facet “Not Specified”, methodology “not specified”. Pick one.</li>
+        <li><b>/observables/process:</b> “Top process values” is ordered by source count, not rules (msedge.exe 62 sits above cmd.exe 374). Label the sort.</li>
+        <li><b>Request fan-out:</b> each /detections load makes 10 API calls; <code>/mitre</code>, <code>/query/fields</code>, <code>/detections/filters</code>, <code>/query/event-ids</code> each fire twice. Against 40 req/10 s per IP, a SOC behind one NAT hits the limit sooner.</li>
+        <li><b>Tabs:</b> Details / Investigation guide / History on rule pages aren't in the URL.</li>
+        <li><b>OG images</b> live under <code>/api/og/</code>, which robots.txt disallows; crawlers that honour robots for card images may drop previews. Confidence Med.</li>
+        <li><b>Theme:</b> dark-only, no <code>color-scheme</code> declaration.
+          <div class="voice"><div><span class="tag a">A</span><span>Deliberate and right for a scanning tool; don't build a light theme.</span></div><div><span class="tag b">B</span><span>The leadership export gets projected and printed. Resolution: make exports and a print stylesheet light, leave the app dark.</span></div></div></li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <div class="callout">
+    <b>Choices that look wrong but hold up</b>
+    <span><b>Empty-query “Relevance” interleaves sources round-robin</b> (Splunk, Sublime, Sentinel, Elastic…). Correct as a first-visit sampler that shows breadth. Keep it limited to the empty query, as it appears to be now (<code>q=citrix</code> ranks title matches first).</span>
+    <span><b>UA-based prerender instead of SSR.</b> Correct for a solo maintainer on a Vite SPA, as long as the bot list includes Google, Bing and the AI crawlers you want citing you, and content parity holds.</span>
+    <span><b>Enter-to-submit, no live search.</b> Correct while <code>content:</code> queries take ≈1.4 s.</span>
+  </div>
+</section>
+
+<section id="tablestakes">
+  <div class="sec-head"><h2>4 · Missing table stakes</h2><p>What a professional security reference tool is expected to have, judged against a named peer that has it.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Gap on detectionexplorer.io</th><th>Peer that has it</th><th>Why it matters here</th></tr></thead>
+    <tbody>
+      <tr><td>Convert a displayed Sigma rule to the reader's backend (ES|QL, KQL, SPL)</td><td>SigmaHQ's sigconverter.io (pySigma backends)</td><td>T2 ends with “now write it in Elastic”. The site already holds 4,406 Sigma-language rules.</td></tr>
+      <tr><td>Import your own layer or rule inventory and diff against it</td><td>MITRE ATT&amp;CK Navigator (open existing layer, layer-by-operation)</td><td>“Coverage” without “ours” is the DX-01 problem.</td></tr>
+      <tr><td>Per-rule setup: required integrations, prerequisites, minimum version</td><td>Elastic detection rule docs (Setup and related integrations per rule)</td><td>DX-16: the rule page shows fields but not what must be switched on.</td></tr>
+      <tr><td>“How to implement” and linked test data</td><td>Splunk Research detection pages (implementation notes, attack_data test datasets)</td><td>The completeness score reads testability (17/20 on Windows SQLCMD Execution) but the page shows no test-data link.</td></tr>
+      <tr><td>Match highlighting in results</td><td>Sourcegraph (highlighted line matches per result)</td><td>DX-12: you can't tell an exclusion from a detection without opening the rule.</td></tr>
+      <tr><td>Inline diff between indexed versions of a rule</td><td>Sourcegraph / GitHub commit diffs</td><td>The History tab lists commits; T5 needs “what changed in the logic”.</td></tr>
+      <tr><td>Product changelog</td><td>Grafana “What's new”, Sourcegraph changelog</td><td><code>/changelog</code> is a soft 404; API changes are only announced on GitHub.</td></tr>
+      <tr><td>Shareable, named saved searches</td><td>Sourcegraph saved searches</td><td>★ saves to this browser only (<code>tde.search.recent</code> in localStorage).</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="devalue">
+  <div class="sec-head"><h2>5 · Detection-engineering value gaps</h2><p><span class="tag b">B · DETECTION</span> leads. What turns a bookmark into a daily driver.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Capability</th><th>State</th><th>What exists</th><th>What makes it daily-driver</th></tr></thead>
+    <tbody>
+      <tr><td class="dim">Gap vs. my stack</td><td><span class="status miss">MISSING</span></td><td>Technique-level <code>/compare/coverage-gap</code> in the API only.</td><td>A “My stack” source set stored in the URL and applied to actor, MITRE, heatmap and Navigator views, plus paste-or-upload of my rule IDs (Sigma <code>id</code>, Elastic <code>rule_id</code>) returning the public rules I don't have.</td></tr>
+      <tr><td class="dim">Rule diffing across sources</td><td><span class="status part">PARTIAL</span></td><td><code>/compare?ids=</code> observable diff with exclusions marked. Good.</td><td>Pre-select the pair from an observable-gated equivalence finder (DX-02) so nobody has to already know both IDs.</td></tr>
+      <tr><td class="dim">ATT&amp;CK Navigator export</td><td><span class="status part">PARTIAL</span></td><td>Per actor, per software and from catalog export.</td><td>Binned scoring, source scope, provenance in <code>description</code> (DX-03).</td></tr>
+      <tr><td class="dim">Data-source requirement filtering</td><td><span class="status has">STRONG</span></td><td>146 data sources, parent/child event types, 212 products as facets.</td><td>Invert it: save “I have Sysmon + CloudTrail + Okta” as a profile and show what I can run today.</td></tr>
+      <tr><td class="dim">False-positive intelligence</td><td><span class="status part">PARTIAL</span></td><td>Upstream FP text per rule; corpus-health counts rules with no FP notes.</td><td>FP themes per technique and a “no FP guidance” filter in the catalog.</td></tr>
+      <tr><td class="dim">Deploy-ready export per SIEM</td><td><span class="status part">PARTIAL</span></td><td>JSON, CSV, Navigator, observables CSV, optional raw content.</td><td>Zip of native files with upstream paths plus a LICENSES manifest. <code>license</code> is absent from both the API detail object and the CSV columns today.</td></tr>
+      <tr><td class="dim">Saved queries</td><td><span class="status part">PARTIAL</span></td><td>Star and recent, per browser.</td><td>Named, shareable collections (a URL list is enough) and an RSS feed per saved query.</td></tr>
+      <tr><td class="dim">Coverage export for leadership</td><td><span class="status miss">MISSING</span></td><td>Nothing beyond the layer.</td><td>A one-page, print-light export stating source set, match mode, exclusions, sync date and pinned SHAs. The methodology page already has every number it needs.</td></tr>
+      <tr><td class="dim">Change classification</td><td><span class="status miss">MISSING</span></td><td>New vs modified.</td><td>Logic / metadata / cosmetic per modification (DX-14), filterable in Digest.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="backlog">
+  <div class="sec-head"><h2>6 · Prioritized backlog</h2><p>Ranked by (practitioner impact × reach) ÷ effort for one maintainer. Items 1–6 fit in about a week of evenings.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th class="num">Rank</th><th>Item</th><th>Dimension</th><th>Impact</th><th>Effort</th><th>Why now</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Relabel actor coverage: “techniques with ≥1 public rule”, visible definition, named count as primary stat (DX-01, DX-08)</td><td>7 Coverage honesty</td><td>High</td><td>S</td><td>Copy and layout only, and it's on every actor and software page today.</td></tr>
+      <tr><td class="num">2</td><td>Gate “Same behaviour” on shared observables; move tag-only matches to their own group (DX-02)</td><td>7 · 6</td><td>High</td><td>S</td><td>The scorer already returns reasons; this is a threshold and a label on every rule page.</td></tr>
+      <tr><td class="num">3</td><td>Fix date-only parsing (DX-09)</td><td>5 Rule detail</td><td>Med</td><td>S</td><td>One formatter, all 15,662 rule pages, and it's the first thing a DE checks against the raw YAML.</td></tr>
+      <tr><td class="num">4</td><td>Navigator layer: binned scores, <code>sources=</code>, provenance in description (DX-03)</td><td>7 · 12</td><td>High</td><td>S</td><td>It's the artifact that leaves the site.</td></tr>
+      <tr><td class="num">5</td><td>One actor resolver + <code>query_value_error</code> for unknown actor, software and enum values (DX-04)</td><td>3 Search</td><td>High</td><td>S–M</td><td>Silent zeros read as “no coverage”; the error path already exists for unknown fields.</td></tr>
+      <tr><td class="num">6</td><td>Security headers, pinned Swagger UI with SRI, security.txt (DX-13)</td><td>13 Security</td><td>Med</td><td>S</td><td>One <code>vercel.json</code> change; the audience will scan it.</td></tr>
+      <tr><td class="num">7</td><td>Techniques and Modified columns in the table (DX-17)</td><td>4 Density</td><td>Med</td><td>S</td><td>Removes a round trip from every triage session.</td></tr>
+      <tr><td class="num">8</td><td>Splunk OS derivation from rule data sources and filename (DX-06)</td><td>6 Integrity</td><td>Med</td><td>M</td><td>Corrects the platform facet, trending platforms and every OS-scoped coverage number at once.</td></tr>
+      <tr><td class="num">9</td><td>Crawl hygiene: real 404s, real <code>lastmod</code>, JSON-LD, prerender for methodology/digest/query (DX-18)</td><td>11 Crawlability</td><td>Med</td><td>M</td><td>Rule pages are the growth engine and the sitemap currently tells crawlers everything changed today.</td></tr>
+      <tr><td class="num">10</td><td>T2 workflow: sub-technique rollup in <code>tech:</code> and a “has equivalent in…” facet (DX-07)</td><td>8 Value</td><td>High</td><td>M–L</td><td>Depends on #2's scorer; it's the feature that makes an Elastic or Sentinel shop open the site every week.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="good">
+  <div class="sec-head"><h2>7 · Protect in a redesign</h2><p>Specific things both reviewers would fight to keep.</p></div>
+  <div class="good-list">
+    <div class="good"><h3>Facets and query are one model</h3><p>Ticking Sigma and High writes <code>?q=source:sigma severity:high</code>; refresh, back and share preserve it, and sort lands in the URL too. “API URL” copies the exact call (<code>/api/v1/detections?q=…&amp;sort_by=…</code>). Don't let a redesign split filter state from the query.</p></div>
+    <div class="good"><h3>Provenance on the rule page</h3><p>License with its consequence spelled out (“ELv2 — Elastic License 2.0: no managed-service redistribution”), Created / Updated / Synced, raw source, a History tab of upstream commits, and vendor-ID URLs that redirect to the canonical page.</p></div>
+    <div class="good"><h3>The methodology page</h3><p>Per-source include globs, excluded directories, pinned SHA, 5% drift alerting and severity provenance (“never a default dressed as data”). Almost no aggregator publishes this; it's the right place to also state the coverage definition.</p></div>
+    <div class="good"><h3>The weekly Digest</h3><p>Week permalinks (<code>2026-w37</code>), 7 / 14 / 30-day windows, new vs updated per source, technique themes, copy-as-markdown and RSS. The best T5 surface on the site; a better home for “what changed” than the Intel trend panels.</p></div>
+    <div class="good"><h3>An API contract a DaC pipeline can depend on</h3><p><code>/api/v1</code> with a six-month deprecation window and 30-day notice, a published rate limit (40 req / 10 s), stated cache and sync timing, and an OpenAPI schema. Plus a completeness score explicitly framed as “not whether it catches the attacker”.</p></div>
+  </div>
+</section>
+
+<section id="method">
+  <div class="sec-head"><h2>Method &amp; limits</h2><p>What was assessed, and what couldn't be checked from this position.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Surface</th><th>URLs assessed</th></tr></thead>
+    <tbody>
+      <tr><td class="dim">Landing &amp; nav</td><td class="mono">/ · /about · /methodology · /query · /compare · /integrations (→ /intel)</td></tr>
+      <tr><td class="dim">Catalog</td><td class="mono">/detections · ?q=cve-2025-5777 · ?q=citrix · ?q=tech:T1055 · ?q=(source:sigma%20AND · ?q=tech:T1055%20source:okta · ?q=source:sigma+severity:high&amp;offset=25</td></tr>
+      <tr><td class="dim">Rule detail, 3 sources in UI</td><td class="mono">Sigma /detections/3cfc23e0-7022-51ac-8e05-04cb43afff19 · Splunk /detections/d27b3d4a-8681-5039-8131-5c0f72e76963 · Elastic /detections/a4523ea0-7463-5d7c-b67f-dfbe27037abe · via API: Okta 53c73733-…, Sentinel 0f616728-…, Sigma 4dd04229-…</td></tr>
+      <tr><td class="dim">Actors &amp; ATT&amp;CK</td><td class="mono">/actors · /actors/G0016 · /actors/S0154 · /actors/heatmap · /mitre/T1055 · /observables/process</td></tr>
+      <tr><td class="dim">Intel</td><td class="mono">/intel · /digest</td></tr>
+      <tr><td class="dim">Technical</td><td class="mono">/robots.txt · /sitemap.xml + 4 children · /api/docs · /api/openapi.json · /api/v1/prerender/detection/{id} · /.well-known/security.txt · response headers on / and /detections</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="plain">
+    <li>The cloud sandbox's egress policy blocks detectionexplorer.io, so everything ran in the in-app Chromium pane on the user's machine: UI interaction, same-origin <code>fetch</code> for headers and API, computed-style contrast, <code>PerformanceObserver</code> timings.</li>
+    <li>Viewports tested: 692 px native pane, 1280 × 800 emulated, 390 × 844 mobile emulation; <code>prefers-color-scheme: light</code> emulated.</li>
+    <li>Not verified: what Googlebot receives (User-Agent can't be set from page JS); cold-cache load times (warm cache only); Lighthouse, screen-reader output and <code>prefers-reduced-motion</code> behaviour (one reduced-motion rule found in CSS). No 429s were hit across well over 100 API calls.</li>
+    <li>No finding relies on a guess. Where a cause is inferred rather than observed, the finding says so under “Unverified”.</li>
+  </ul>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <span>Detection Explorer panel review · assessed against build 7f51b8a and the 2026-09-10 corpus sync.</span>
+  <span>Counts quoted from the live site and <code>/api/v1</code> on the same day; they will drift with the nightly sync.</span>
+</footer>
+
+</body>
+</html>
