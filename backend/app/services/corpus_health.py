@@ -73,7 +73,7 @@ HEALTH_FIELDS: dict[str, tuple[str, str]] = {
     ),
     "suspect_mapping": (
         "Suspect ATT&CK mapping",
-        "No tagged technique applies to any platform or domain the rule observes (a Windows/Linux/macOS technique on a cloud-API rule): the upstream tag is passed through, but it is probably wrong.",
+        "No upstream-tagged technique applies to any platform or domain the rule observes (a Windows/Linux/macOS technique on a cloud-API rule): the tag is passed through, but it is probably wrong. Mappings this site derived itself (tagged mitre-mapping:derived) are not judged.",
     ),
 }
 
@@ -138,11 +138,20 @@ def _suspect_mapping(mitre_techniques, platforms, domains) -> bool:
     return bool(verdicts) and not any(verdicts)
 
 
-def classify(mitre_techniques, references, false_positives, description, platforms=None, domains=None) -> set[str]:
+def classify(
+    mitre_techniques, references, false_positives, description,
+    platforms=None, domains=None, tags=None,
+) -> set[str]:
     """Which health flags one rule trips (format capability not considered)."""
     flags: set[str] = set()
     if not mitre_techniques:
         flags.add("no_attack")
+    elif "mitre-mapping:derived" in (tags or []):
+        # The site derived this mapping itself (Sublime attack_types ->
+        # T1204.002 etc., #108) and says so on /methodology. The lint
+        # judges upstream tags; it must not call our own derivation a
+        # suspect upstream tag (311 Sublime rules on first measurement).
+        pass
     elif _suspect_mapping(mitre_techniques, platforms, domains):
         flags.add("suspect_mapping")
     if not references:
@@ -168,13 +177,14 @@ async def current_counts(db: AsyncSession) -> dict[str, dict[str, int]]:
                 Detection.description,
                 Detection.platforms,
                 Detection.domains,
+                Detection.tags,
             )
         )
     ).all()
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for source, mt, refs, fps, desc, platforms, domains in rows:
+    for source, mt, refs, fps, desc, platforms, domains, tags in rows:
         out[source]["_total"] += 1
-        for flag in classify(mt, refs, fps, desc, platforms=platforms, domains=domains):
+        for flag in classify(mt, refs, fps, desc, platforms=platforms, domains=domains, tags=tags):
             out[source][flag] += 1
     return {s: dict(v) for s, v in out.items()}
 

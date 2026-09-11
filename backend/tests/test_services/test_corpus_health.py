@@ -163,6 +163,26 @@ def test_suspect_mapping_needs_evidence_on_both_sides(attack_catalog):
     assert "suspect_mapping" not in classify(["T0000"], ["u"], ["fp"], "d", platforms=["windows"], domains=["endpoint"])
 
 
+def test_suspect_mapping_never_judges_the_sites_own_derived_mappings(attack_catalog):
+    """Sublime email rules carry T1204.002 (Malicious File) because #108
+    derived it from attack_types and says so on /methodology -- 311
+    rules flagged on first measurement. The lint is for upstream tags."""
+    kw = dict(platforms=["not_applicable"], domains=["email"])
+    assert "suspect_mapping" in classify(["T1055"], ["u"], ["fp"], "d", **kw)
+    assert "suspect_mapping" not in classify(["T1055"], ["u"], ["fp"], "d", tags=["mitre-mapping:derived"], **kw)
+
+
+@pytest.mark.asyncio
+async def test_current_counts_skip_derived_mappings(db_session, attack_catalog):
+    db_session.add_all([
+        _rule(1, source="sublime", mitre_techniques=["T1055"], platforms=["not_applicable"], domains=["email"], tags=["mitre-mapping:derived"]),
+        _rule(2, source="sublime", mitre_techniques=["T1055"], platforms=["not_applicable"], domains=["email"], tags=[]),
+    ])
+    await db_session.commit()
+    c = await current_counts(db_session)
+    assert c["sublime"]["_total"] == 2 and c["sublime"]["suspect_mapping"] == 1
+
+
 def test_suspect_mapping_is_the_last_report_field(attack_catalog):
     # Appended last so existing CSV column positions (and the citations
     # built on them) do not move.
