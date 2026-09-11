@@ -166,8 +166,15 @@ def resolve(parsed: "ParsedRule") -> dict:
             if best_key is not None:
                 entry = label_map[best_key]
         if entry:
-            label_platforms.update(entry.get("platforms") or [])
-            platforms.update(entry.get("platforms") or [])
+            entry_platforms = set(entry.get("platforms") or [])
+            # Only a label that names exactly ONE OS is OS evidence. An
+            # EDR feed that runs everywhere ("CrowdStrike ProcessRollup2"
+            # -> [windows, linux, macos]) is a capability list, and must
+            # not smear the "Sysmon EventID 1" beside it back to three.
+            entry_os = entry_platforms & _SPECIFIC_OS
+            if len(entry_os) == 1:
+                label_platforms |= entry_os
+            platforms.update(entry_platforms)
             data_sources.update(entry.get("data_sources") or [])
             # data_source labels are capability-level for event_types —
             # a coarse feed like "Windows Security Event Log" can produce

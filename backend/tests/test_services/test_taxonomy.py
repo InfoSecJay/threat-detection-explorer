@@ -550,6 +550,34 @@ def test_splunk_filename_prefix_disambiguates_multi_os_datamodel():
     assert _os(result) == {"linux"}
 
 
+def test_splunk_single_os_label_beats_cross_os_edr_label():
+    """The residual the first cut missed: 262 windows_ rules declare
+    'Sysmon EventID 1' AND 'CrowdStrike ProcessRollup2'. The EDR label
+    maps to [windows, linux, macos] as a capability list; unioning it
+    into the evidence smeared the Windows feed back to three OSes."""
+    parsed = _make_parsed(
+        source="splunk",
+        file_path="detections/endpoint/windows_adfind_exe.yml",
+        extra={"data_source": ["Sysmon EventID 1", "Windows Event Log Security 4688", "CrowdStrike ProcessRollup2"]},
+        detection_logic_raw=_ENDPOINT_PROCESSES,
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"windows"}
+
+
+def test_splunk_only_cross_os_label_falls_back_to_filename():
+    """A rule whose only label is the cross-OS EDR feed has no single-OS
+    evidence; the filename prefix disambiguates instead."""
+    parsed = _make_parsed(
+        source="splunk",
+        file_path="detections/endpoint/macos_launchd_persistence.yml",
+        extra={"data_source": ["CrowdStrike ProcessRollup2"]},
+        detection_logic_raw=_ENDPOINT_PROCESSES,
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"macos"}
+
+
 def test_splunk_non_os_label_does_not_empty_the_os_set():
     """A label that carries a non-OS platform (aws) is not OS evidence;
     it must neither narrow the datamodel's OS set nor be dropped."""
