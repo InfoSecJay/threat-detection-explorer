@@ -34,3 +34,29 @@ async def test_domain_filter_selects_rules_carrying_that_domain(db_session):
 
     assert [ts for _, ts in await coverage_rows(db_session, "unknown")] == [["T1190"]]
     assert await coverage_rows(db_session, "email") == []
+
+
+@pytest.mark.asyncio
+async def test_coverage_rows_skip_rules_that_are_not_coverage(db_session):
+    """DX-05 / #147: a hunting query, a building block, a forwarded alert,
+    an indicator list and a deprecated rule all carry technique tags;
+    none of them is a detection of that technique."""
+    def tagged(id_, **kw):
+        d = _rule(id_, "sentinel", ["endpoint"], ["T1055"])
+        for k, v in kw.items():
+            setattr(d, k, v)
+        return d
+
+    db_session.add_all([
+        tagged("plain"),
+        tagged("hunt", rule_modality="hunting"),
+        tagged("bb", rule_modality="building_block"),
+        tagged("pass", rule_modality="passthrough"),
+        tagged("ioc", rule_modality="indicator_match"),
+        tagged("old", status="deprecated"),
+        tagged("corr", rule_modality="correlation"),  # alert-on-alert still counts
+    ])
+    await db_session.commit()
+    rows = await coverage_rows(db_session)
+    assert len(rows) == 2  # plain + corr
+    assert all(ts == ["T1055"] for _, ts in rows)

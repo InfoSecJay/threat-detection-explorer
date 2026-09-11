@@ -71,6 +71,10 @@ HEALTH_FIELDS: dict[str, tuple[str, str]] = {
         "No description",
         "description is empty: nothing beyond the title explains what the rule looks for.",
     ),
+    "suspect_mapping": (
+        "Suspect ATT&CK mapping",
+        "No tagged technique applies to any platform or domain the rule observes (a Windows/Linux/macOS technique on a cloud-API rule): the upstream tag is passed through, but it is probably wrong.",
+    ),
 }
 
 # Which quality-score capability each health field depends on. Fields
@@ -100,11 +104,47 @@ def _is_placeholder_only(values) -> bool:
     return all(str(v).strip().lower().rstrip(".") in _PLACEHOLDERS for v in values)
 
 
-def classify(mitre_techniques, references, false_positives, description) -> set[str]:
+def _suspect_mapping(mitre_techniques, platforms, domains) -> bool:
+    """DX-05 / #147: every tagged technique's ATT&CK platforms share
+    nothing with what the rule observes. Needs the catalog (loaded at
+    warmup) and a rule with a known platform or domain; anything
+    unknown on either side is not evidence, so it is not flagged."""
+    from app.services.mitre import mitre_service
+    from app.services.taxonomy.canonical import ATTACK_PLATFORM_SCOPE
+
+    observed = {v for v in (platforms or []) if isinstance(v, str)} | {
+        v for v in (domains or []) if isinstance(v, str)
+    }
+    observed -= {"unknown", "not_applicable", "cross_platform"}
+    if not observed:
+        return False
+    verdicts: list[bool] = []
+    for tid in mitre_techniques or []:
+        info = mitre_service.get_technique(str(tid).upper()) if isinstance(tid, str) else None
+        if not info:
+            continue
+        scope: set[str] = set()
+        unmapped = False
+        for p in info.get("platforms") or []:
+            if p == "PRE":
+                return False  # pre-compromise: any surface applies
+            if p in ATTACK_PLATFORM_SCOPE:
+                scope |= ATTACK_PLATFORM_SCOPE[p]
+            else:
+                unmapped = True
+        if unmapped or not scope:
+            return False  # a platform we cannot judge: give the benefit of the doubt
+        verdicts.append(bool(scope & observed))
+    return bool(verdicts) and not any(verdicts)
+
+
+def classify(mitre_techniques, references, false_positives, description, platforms=None, domains=None) -> set[str]:
     """Which health flags one rule trips (format capability not considered)."""
     flags: set[str] = set()
     if not mitre_techniques:
         flags.add("no_attack")
+    elif _suspect_mapping(mitre_techniques, platforms, domains):
+        flags.add("suspect_mapping")
     if not references:
         flags.add("no_references")
     if not false_positives:
@@ -126,13 +166,15 @@ async def current_counts(db: AsyncSession) -> dict[str, dict[str, int]]:
                 Detection.references,
                 Detection.false_positives,
                 Detection.description,
+                Detection.platforms,
+                Detection.domains,
             )
         )
     ).all()
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for source, mt, refs, fps, desc in rows:
+    for source, mt, refs, fps, desc, platforms, domains in rows:
         out[source]["_total"] += 1
-        for flag in classify(mt, refs, fps, desc):
+        for flag in classify(mt, refs, fps, desc, platforms=platforms, domains=domains):
             out[source][flag] += 1
     return {s: dict(v) for s, v in out.items()}
 

@@ -237,6 +237,8 @@ class ActorScoreService:
         return self._bundle
 
     async def _compute(self, db: AsyncSession, fp: tuple) -> ScoreBundle:
+        from app.services.coverage_scope import counts_as_coverage
+
         q = select(
             Detection.source,
             Detection.mitre_groups,
@@ -247,6 +249,8 @@ class ActorScoreService:
             Detection.tags,
             Detection.use_cases,
             Detection.references,
+            Detection.status,
+            Detection.rule_modality,
         )
         rows = (await db.execute(q)).all()
 
@@ -277,8 +281,15 @@ class ActorScoreService:
         title_texts: list[str] = []
         rule_texts: list[str] = []
         for idx, (source, rgroups, rsoftware, rtechs, title, description,
-                  tags, use_cases, references) in enumerate(rows):
+                  tags, use_cases, references, status, modality) in enumerate(rows):
             rule_sources.append(source)
+            if status == "deprecated":
+                # Vendor-retired content pads nothing (#109): not the
+                # Named/Mentions tiers, not coverage. Keep the parallel
+                # lists aligned with `idx` and move on.
+                title_texts.append("")
+                rule_texts.append("")
+                continue
             tagged = {g.upper() for g in rgroups or []}
             tagged |= {s.upper() for s in rsoftware or []}
             for uc in use_cases or []:
@@ -286,9 +297,14 @@ class ActorScoreService:
                     tagged |= story_labels.get(normalize_label(uc), set())
             for eid in tagged:
                 dedicated_idx.setdefault(eid, set()).add(idx)
-            for tid in rtechs or []:
-                tid_u = tid.upper()
-                technique_rule_counts[tid_u] = technique_rule_counts.get(tid_u, 0) + 1
+            # Technique overlap = coverage (DX-05 / #147): a passthrough,
+            # hunting, building-block or indicator rule still counts as a
+            # Named rule for the actor it names, but it is not evidence
+            # that its technique is detected.
+            if counts_as_coverage(status, modality):
+                for tid in rtechs or []:
+                    tid_u = tid.upper()
+                    technique_rule_counts[tid_u] = technique_rule_counts.get(tid_u, 0) + 1
             title_texts.append(title or "")
             rule_texts.append(" ".join([
                 title or "",

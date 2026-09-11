@@ -177,10 +177,11 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         columns=["rule_modality"],
         description=(
             "How the rule works: rule, hunting, ml_job, correlation, "
-            "indicator_match, building_block."
+            "indicator_match, building_block, passthrough (forwards another "
+            "product's alert)."
         ),
-        examples=["modality:hunting", "modality:correlation"],
-        values=["rule", "hunting", "ml_job", "correlation", "indicator_match", "building_block"],
+        examples=["modality:hunting", "modality:correlation", "NOT modality:passthrough"],
+        values=["rule", "hunting", "ml_job", "correlation", "indicator_match", "building_block", "passthrough"],
     ),
     FieldSpec(
         aliases=["building_block", "bb", "signal_only"],

@@ -125,3 +125,57 @@ async def test_routes_serve_json_and_csv(db_session):
             assert x.text.splitlines()[0].startswith("source,total_rules,")
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+# -- DX-05 / #147: suspect technique-platform mappings ----------------------------
+
+
+@pytest.fixture
+def attack_catalog(monkeypatch):
+    from app.services.mitre import mitre_service
+
+    monkeypatch.setattr(mitre_service, "_techniques", {
+        "T1055": {"id": "T1055", "name": "Process Injection", "platforms": ["Windows", "Linux", "macOS"]},
+        "T1078.004": {"id": "T1078.004", "name": "Cloud Accounts", "platforms": ["IaaS", "SaaS", "Identity Provider", "Office Suite"]},
+        "T1598": {"id": "T1598", "name": "Phishing for Information", "platforms": ["PRE"]},
+        "T9999": {"id": "T9999", "name": "Future platform", "platforms": ["Quantum"]},
+    })
+
+
+def test_suspect_mapping_flags_an_os_technique_on_a_cloud_rule(attack_catalog):
+    # The review's example: six "AWS Bedrock Claude" Splunk rules tagged T1055.
+    assert "suspect_mapping" in classify(["T1055"], ["u"], ["fp"], "d", platforms=["not_applicable"], domains=["cloud", "application"])
+    # The same tag on a Windows endpoint rule is fine.
+    assert "suspect_mapping" not in classify(["T1055"], ["u"], ["fp"], "d", platforms=["windows"], domains=["endpoint"])
+    # A cloud technique on the cloud rule is fine.
+    assert "suspect_mapping" not in classify(["T1078.004"], ["u"], ["fp"], "d", platforms=["not_applicable"], domains=["cloud"])
+
+
+def test_suspect_mapping_needs_evidence_on_both_sides(attack_catalog):
+    # One applicable technique among several clears the rule.
+    assert "suspect_mapping" not in classify(["T1055", "T1078.004"], ["u"], ["fp"], "d", platforms=[], domains=["cloud"])
+    # Unknown rule surface: nothing to judge against.
+    assert "suspect_mapping" not in classify(["T1055"], ["u"], ["fp"], "d", platforms=["unknown"], domains=["unknown"])
+    # PRE techniques apply anywhere; an ATT&CK platform we cannot map gets the benefit of the doubt.
+    assert "suspect_mapping" not in classify(["T1598"], ["u"], ["fp"], "d", platforms=[], domains=["cloud"])
+    assert "suspect_mapping" not in classify(["T9999"], ["u"], ["fp"], "d", platforms=[], domains=["cloud"])
+    # A technique the catalog does not know is skipped, not flagged.
+    assert "suspect_mapping" not in classify(["T0000"], ["u"], ["fp"], "d", platforms=["windows"], domains=["endpoint"])
+
+
+def test_suspect_mapping_is_the_last_report_field(attack_catalog):
+    # Appended last so existing CSV column positions (and the citations
+    # built on them) do not move.
+    assert list(HEALTH_FIELDS)[-1] == "suspect_mapping"
+    assert not_applicable_for("sentinel") == ["no_references", "no_false_positives", "placeholder_false_positives"]
+
+
+@pytest.mark.asyncio
+async def test_current_counts_include_suspect_mapping(db_session, attack_catalog):
+    db_session.add_all([
+        _rule(1, source="splunk", mitre_techniques=["T1055"], platforms=["not_applicable"], domains=["cloud", "application"]),
+        _rule(2, source="splunk", mitre_techniques=["T1055"], platforms=["windows"], domains=["endpoint"]),
+    ])
+    await db_session.commit()
+    c = await current_counts(db_session)
+    assert c["splunk"]["_total"] == 2 and c["splunk"]["suspect_mapping"] == 1

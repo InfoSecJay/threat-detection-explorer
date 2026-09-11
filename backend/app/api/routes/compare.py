@@ -279,7 +279,10 @@ async def coverage_rows(db: AsyncSession, domain: Optional[str] = None) -> list[
     domain. Split out so the domain filter is testable without ATT&CK data."""
     from sqlalchemy import String, cast
 
-    query = select(Detection.source, Detection.mitre_techniques)
+    from app.services.coverage_scope import coverage_conditions
+
+    # Only rules that count as coverage (DX-05 / #147).
+    query = select(Detection.source, Detection.mitre_techniques).where(*coverage_conditions())
     if domain:
         query = query.where(cast(Detection.domains, String).ilike(f'%"{domain}"%'))
     return [(source, techniques) for source, techniques in (await db.execute(query)).all()]

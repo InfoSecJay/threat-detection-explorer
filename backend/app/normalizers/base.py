@@ -146,6 +146,31 @@ class NormalizedDetection:
     # deterministic-id migration (#86). Set in __post_init__.
     legacy_id: str = ""
 
+    # Observable subtypes that are plain indicators, not behaviour.
+    _INDICATOR_SUBTYPES = frozenset({"file_hash", "ip_address", "domain", "url"})
+
+    def _forwards_an_upstream_alert(self) -> bool:
+        """The rule reads an alert feed rather than telemetry: the event
+        type says the event is already an alert (`platform_alert`).
+
+        Deliberately NOT keyed on the `siem_alert` data source: that is
+        also the domain-less catch-all for Sentinel tables the mapping
+        does not list (#138, ~half of Sentinel), and treating all of
+        those as alert forwarders would erase Sentinel from coverage.
+        The event type is set only where a mapping asserts it."""
+        return "platform_alert" in self.event_types
+
+    def _matches_indicators_only(self) -> bool:
+        """Every positive observable is a hash, IP, domain or URL: an
+        indicator list wearing a technique tag, not a detection of it."""
+        positive = [
+            o for o in self.extracted_observables
+            if isinstance(o, dict) and not o.get("negated") and (o.get("values") or [])
+        ]
+        if not positive:
+            return False
+        return all(o.get("subtype") in self._INDICATOR_SUBTYPES for o in positive)
+
     def __post_init__(self) -> None:
         # Deterministic permalinks (#86 / teardown F10): when the
         # upstream publishes a rule id, the canonical id is a UUIDv5
@@ -204,6 +229,14 @@ class NormalizedDetection:
                 self.rule_modality = lifted[0]
             elif self.is_building_block:
                 self.rule_modality = "building_block"
+            elif self._forwards_an_upstream_alert():
+                # DX-05 / #147: the detection happened in another
+                # product; this rule re-raises its alert. The event type
+                # and data source stay (they say what it reads) -- only
+                # the modality changes, so coverage math can skip it.
+                self.rule_modality = "passthrough"
+            elif self._matches_indicators_only():
+                self.rule_modality = "indicator_match"
         if not self.event_types:
             self.event_types = ["unknown"]
 

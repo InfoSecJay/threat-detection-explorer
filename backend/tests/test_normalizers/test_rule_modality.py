@@ -66,6 +66,51 @@ def test_unknown_vocabulary_falls_back_to_rule():
     assert _norm(rule_modality="anomaly").rule_modality == "rule"
 
 
+# ── DX-05 / #147: passthrough and indicator-only lifts ────────────────
+
+
+def test_platform_alert_event_type_lifts_to_passthrough_and_stays_on_event_types():
+    n = _norm(event_types=["platform_alert"])
+    assert n.rule_modality == "passthrough"
+    # Unlike the marker lifts, the event type is real: the rule reads alerts.
+    assert n.event_types == ["platform_alert"]
+
+
+def test_siem_alert_data_source_alone_is_not_a_passthrough():
+    """`siem_alert` is also the domain-less catch-all for unlisted Sentinel
+    tables (#138, about half of Sentinel). Only the `platform_alert`
+    event type -- asserted by a mapping -- says "this reads alerts"."""
+    n = _norm(data_sources=["siem_alert"], event_types=["audit_event"])
+    assert n.rule_modality == "rule"
+    assert n.data_sources == ["siem_alert"]
+
+
+def test_explicit_modality_beats_the_passthrough_lift():
+    assert _norm(rule_modality="correlation", event_types=["platform_alert"]).rule_modality == "correlation"
+    assert _norm(is_building_block=True, event_types=["platform_alert"]).rule_modality == "building_block"
+
+
+def _obs(subtype, values, otype="file", negated=False):
+    return {"field": "f", "values": values, "type": otype, "subtype": subtype, "negated": negated}
+
+
+def test_indicator_only_observables_lift_to_indicator_match():
+    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"]), _obs("ip_address", ["10.0.0.1"], "network")])
+    assert n.rule_modality == "indicator_match"
+
+
+def test_a_behavioural_observable_keeps_the_rule_a_rule():
+    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"]), _obs("process_name", ["mimikatz.exe"], "process")])
+    assert n.rule_modality == "rule"
+
+
+def test_negated_indicators_alone_are_not_an_indicator_list():
+    # An allowlist of hashes is an exclusion, not what the rule detects.
+    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"], negated=True)])
+    assert n.rule_modality == "rule"
+    assert _norm(extracted_observables=[]).rule_modality == "rule"
+
+
 # ── Elastic: vendor rule type -> modality, language cleaned ───────────
 
 

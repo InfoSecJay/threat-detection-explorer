@@ -30,7 +30,15 @@ async def technique_source_counts(db: AsyncSession) -> dict[str, dict[str, int]]
 
 
 async def _scan_technique_sources(db: AsyncSession) -> dict[str, dict[str, int]]:
-    rows = (await db.execute(select(Detection.source, Detection.mitre_techniques))).all()
+    from app.services.coverage_scope import coverage_conditions
+
+    # Only rules that count as coverage (DX-05 / #147): no hunting,
+    # building-block, passthrough or indicator-only rules, no deprecated.
+    rows = (
+        await db.execute(
+            select(Detection.source, Detection.mitre_techniques).where(*coverage_conditions())
+        )
+    ).all()
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for source, techniques in rows:
         for tid in techniques or []:

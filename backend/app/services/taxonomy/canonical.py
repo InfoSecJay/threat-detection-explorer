@@ -1098,7 +1098,39 @@ RULE_MODALITIES: frozenset[str] = frozenset({
     "correlation",      # consumes other rules' alerts / signals
     "indicator_match",  # joins events against a threat-intel indicator set
     "building_block",   # emits signal for other rules instead of alerting
+    "passthrough",      # forwards another product's alert (DX-05): the
+                        # detection happened upstream, this rule re-raises it
 })
+
+# Modalities that do not count as technique COVERAGE (DX-05 / #147):
+# a hunting query nobody alerts on, a building block that never fires
+# alone, an alert forwarded from another product, and a hash/IOC list
+# all carry technique tags, but none of them is a detection of that
+# technique the way a query on the behaviour is. Actor coverage, the
+# ATT&CK matrix, the heatmap and the Navigator export skip them; the
+# catalog, facets and search do not.
+COVERAGE_EXCLUDED_MODALITIES: frozenset[str] = frozenset({
+    "hunting", "building_block", "passthrough", "indicator_match",
+})
+
+# ATT&CK `x_mitre_platforms` -> the corpus OS / domain values a rule
+# observing that platform would carry (DX-05 lint). A technique whose
+# platforms share nothing with the rule's platforms+domains is a
+# "suspect mapping" (T1055 Process Injection on an AWS Bedrock rule).
+# PRE is pre-compromise reconnaissance/resource development: any surface.
+ATTACK_PLATFORM_SCOPE: dict[str, frozenset[str]] = {
+    "Windows": frozenset({"windows", "endpoint"}),
+    "Linux": frozenset({"linux", "endpoint"}),
+    "macOS": frozenset({"macos", "endpoint"}),
+    "ESXi": frozenset({"endpoint"}),
+    "Containers": frozenset({"container", "devops", "endpoint"}),
+    "IaaS": frozenset({"cloud"}),
+    "SaaS": frozenset({"saas", "email", "application", "data"}),
+    "Office Suite": frozenset({"saas", "email"}),
+    "Identity Provider": frozenset({"identity", "saas"}),
+    "Network Devices": frozenset({"network"}),
+    "PRE": frozenset(),  # never suspect
+}
 
 # Mapping-file event types that are really modality markers. They stay
 # accepted in the mapping YAML (vendor logsources still say "this is
