@@ -162,16 +162,32 @@ class NormalizedDetection:
         r"|[0-9a-fA-F:]{3,39}:[0-9a-fA-F:]*)$"                       # IPv6-ish
     )
 
+    # Under the `siem_alert` catch-all, the table NAME is the only
+    # evidence left. These say "this table holds another product's
+    # alerts" (TrendAI_XDR_WORKBENCH_V2_CL, GoogleSecOpsDetectionAlerts,
+    # SecurityAlert, *Findings*); a vendor telemetry table does not.
+    _ALERT_TABLE = re.compile(r"alert|incident|detection|finding|workbench", re.IGNORECASE)
+
     def _forwards_an_upstream_alert(self) -> bool:
         """The rule reads an alert feed rather than telemetry: the event
-        type says the event is already an alert (`platform_alert`).
+        type says the event is already an alert (`platform_alert`), or
+        -- only when the data source is the `siem_alert` catch-all for
+        tables the mapping does not list (#138) -- the table it reads
+        is named as an alert/incident/finding feed.
 
-        Deliberately NOT keyed on the `siem_alert` data source: that is
-        also the domain-less catch-all for Sentinel tables the mapping
-        does not list (#138, ~half of Sentinel), and treating all of
-        those as alert forwarders would erase Sentinel from coverage.
-        The event type is set only where a mapping asserts it."""
-        return "platform_alert" in self.event_types
+        Deliberately NOT the catch-all alone: about half of Sentinel
+        sits in it, most of it unlisted telemetry, and treating all of
+        it as alert forwarders would erase Sentinel from coverage."""
+        if "platform_alert" in self.event_types:
+            return True
+        if "siem_alert" in self.data_sources and self.extracted_source_tables:
+            # Primary table only (the extractor lists the statement head
+            # first, #141): a telemetry rule that JOINS SecurityAlert for
+            # enrichment ("Azure DevOps Pipeline modified by a new user"
+            # reads ADOAuditLogs) is not forwarding alerts.
+            primary = self.extracted_source_tables[0]
+            return isinstance(primary, str) and bool(self._ALERT_TABLE.search(primary))
+        return False
 
     def _matches_indicators_only(self) -> bool:
         """Every positive observable is a hash, IP, domain or URL: an

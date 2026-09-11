@@ -76,13 +76,38 @@ def test_platform_alert_event_type_lifts_to_passthrough_and_stays_on_event_types
     assert n.event_types == ["platform_alert"]
 
 
-def test_siem_alert_data_source_alone_is_not_a_passthrough():
+def test_siem_alert_catch_all_alone_is_not_a_passthrough():
     """`siem_alert` is also the domain-less catch-all for unlisted Sentinel
-    tables (#138, about half of Sentinel). Only the `platform_alert`
-    event type -- asserted by a mapping -- says "this reads alerts"."""
+    tables (#138, about half of Sentinel): on its own it says nothing."""
     n = _norm(data_sources=["siem_alert"], event_types=["audit_event"])
     assert n.rule_modality == "rule"
-    assert n.data_sources == ["siem_alert"]
+    n = _norm(data_sources=["siem_alert"], event_types=["audit_event"], extracted_source_tables=["SomeVendor_CL"])
+    assert n.rule_modality == "rule"
+
+
+def test_catch_all_plus_an_alert_named_table_is_a_passthrough():
+    """The review's two Sentinel examples: vendor alert tables the mapping
+    does not list, so the only evidence is the table name."""
+    for table in ("TrendAI_XDR_WORKBENCH_V2_CL", "GoogleSecOpsDetectionAlerts", "SecurityAlert", "Vendor_Findings_CL"):
+        n = _norm(data_sources=["siem_alert"], event_types=["audit_event"], extracted_source_tables=[table])
+        assert n.rule_modality == "passthrough", table
+        assert n.event_types == ["audit_event"]  # what it reads is untouched
+
+
+def test_alert_named_table_needs_the_catch_all():
+    # A listed telemetry source is trusted over a coincidental table name.
+    n = _norm(data_sources=["sysmon"], event_types=["process_creation"], extracted_source_tables=["SecurityAlert"])
+    assert n.rule_modality == "rule"
+
+
+def test_only_the_primary_table_counts():
+    """Measured on the clone: 'Azure DevOps Pipeline modified by a new
+    user' reads ADOAuditLogs and joins SecurityAlert for enrichment.
+    The statement head (first table, #141) is what the rule detects on."""
+    n = _norm(data_sources=["siem_alert"], event_types=["audit_event"], extracted_source_tables=["ADOAuditLogs", "SecurityAlert"])
+    assert n.rule_modality == "rule"
+    n = _norm(data_sources=["siem_alert"], event_types=["audit_event"], extracted_source_tables=["SecurityAlert", "ADOAuditLogs"])
+    assert n.rule_modality == "passthrough"
 
 
 def test_explicit_modality_beats_the_passthrough_lift():
