@@ -489,6 +489,80 @@ def test_splunk_aws_security_lake_label():
     assert "aws_security_lake" in result["data_sources"]
 
 
+# ── Splunk OS narrowing (DX-06 / #148) ──────────────────────────────────
+
+_ENDPOINT_PROCESSES = {
+    "search": "| tstats count FROM datamodel=Endpoint.Processes WHERE Processes.process_name = 'sqlcmd.exe'",
+}
+
+
+def _os(result) -> set[str]:
+    return set(result["platforms"]) & {"windows", "linux", "macos"}
+
+
+def test_splunk_sysmon_for_linux_label_is_linux_not_windows():
+    """'Sysmon for Linux EventID 1' (101 upstream rules) used to fall
+    through to the bare 'sysmon' prefix key and come out windows."""
+    parsed = _make_parsed(source="splunk", extra={"data_source": ["Sysmon for Linux EventID 1"]})
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"linux"}
+    assert "sysmon" in result["data_sources"]
+    assert "process_creation" in result["event_types"]
+
+
+def test_splunk_label_longest_key_wins():
+    parsed = _make_parsed(source="splunk", extra={"data_source": ["Sysmon for Linux EventID 11"]})
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"linux"}
+    assert "file_event" in result["event_types"]
+
+
+def test_splunk_datamodel_os_narrowed_by_own_data_source():
+    """The reviewer's case: a windows_ rule on Endpoint.Processes with
+    'Sysmon EventID 1' inherited [windows, linux, macos] from the CIM
+    datamodel. Its own feed says Windows; that replaces the union."""
+    parsed = _make_parsed(
+        source="splunk",
+        file_path="detections/endpoint/windows_sqlcmd_execution.yml",
+        extra={"data_source": ["Sysmon EventID 1", "Windows Event Log Security 4688"]},
+        detection_logic_raw=_ENDPOINT_PROCESSES,
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"windows"}
+    assert "process_creation" in result["event_types"]
+
+
+def test_splunk_datamodel_keeps_broad_os_without_any_evidence():
+    """No data_source and a neutral filename: the union is the honest
+    answer, not a guess -- no regression to unknown or to one OS."""
+    parsed = _make_parsed(source="splunk", detection_logic_raw=_ENDPOINT_PROCESSES)
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"windows", "linux", "macos"}
+
+
+def test_splunk_filename_prefix_disambiguates_multi_os_datamodel():
+    parsed = _make_parsed(
+        source="splunk",
+        file_path="detections/endpoint/linux_curl_download.yml",
+        detection_logic_raw=_ENDPOINT_PROCESSES,
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"linux"}
+
+
+def test_splunk_non_os_label_does_not_empty_the_os_set():
+    """A label that carries a non-OS platform (aws) is not OS evidence;
+    it must neither narrow the datamodel's OS set nor be dropped."""
+    parsed = _make_parsed(
+        source="splunk",
+        extra={"data_source": ["ASL AWS CloudTrail"]},
+        detection_logic_raw=_ENDPOINT_PROCESSES,
+    )
+    result = resolve_for_repo("splunk", parsed)
+    assert _os(result) == {"windows", "linux", "macos"}
+    assert "aws" in result["platforms"]
+
+
 # ── Sublime vendor (always email) ───────────────────────────────────────
 
 

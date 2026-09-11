@@ -754,6 +754,24 @@ data_source_labels:
     event_types: [authentication]
 
   # ── Linux ────────────────────────────────────────────────────────────
+  # DX-06 (#148): "Sysmon for Linux EventID N" used to fall through to
+  # the bare "sysmon" prefix key and tag 100+ Linux rules as windows.
+  # Tier 3 now picks the LONGEST matching key, so these win over "sysmon".
+  "sysmon for linux eventid 1":
+    platforms: [linux]
+    data_sources: [sysmon]
+    event_types: [process_creation]
+  "sysmon for linux eventid 3":
+    platforms: [linux]
+    data_sources: [sysmon]
+    event_types: [network_connection]
+  "sysmon for linux eventid 11":
+    platforms: [linux]
+    data_sources: [sysmon]
+    event_types: [file_event]
+  "sysmon for linux":
+    platforms: [linux]
+    data_sources: [sysmon]
   "linux audit":
     platforms: [linux]
     data_sources: [auditd]

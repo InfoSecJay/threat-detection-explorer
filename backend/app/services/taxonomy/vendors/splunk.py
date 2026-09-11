@@ -31,6 +31,18 @@ platforms + data_sources freely; they're a LAST resort for event_types
 because a coarse feed (Windows Security Event Log) can produce many
 different event types and we shouldn't preemptively claim all of them.
 
+For the OS dimension specifically they are the OPPOSITE of a last
+resort (DX-06 / #148): a rule's own data_source list is the most
+rule-specific OS evidence there is. A `datamodel=Endpoint.Processes`
+rule inherits [windows, linux, macos] from Tier 1 because the CIM
+datamodel CAN be fed by any of them -- but a rule that declares
+"Sysmon EventID 1" only ever sees Windows telemetry. So when the labels
+name a specific OS, that set REPLACES the OS values the datamodel /
+macro tiers unioned in; non-OS platform values (aws, okta, ...) are
+untouched. With no label evidence, a `windows_` / `linux_` / `macos_`
+filename prefix disambiguates a multi-OS set; failing that, the broad
+union stays (no evidence is not evidence of a narrower scope).
+
 ## Tier 4 — `tags.security_domain`
 
 Coarse fallback (endpoint / network / identity / cloud). Fills any
@@ -68,6 +80,22 @@ _DATAMODEL_PATTERNS = [
 # the bare name.
 _MACRO_PATTERN = re.compile(r"`([a-z_][a-z0-9_]*)(?:\s*\([^`]*\))?`", re.IGNORECASE)
 
+# The OS dimension DX-06 narrows. Mirrors domains._SPECIFIC_OS (kept
+# local to avoid importing the split module into a vendor resolver).
+_SPECIFIC_OS = frozenset({"windows", "linux", "macos"})
+
+# Splunk names endpoint rule files by OS (detections/endpoint/
+# windows_sqlcmd_execution.yml, linux_..., macos_...).
+_FILENAME_OS_PREFIX = (("windows_", "windows"), ("linux_", "linux"), ("macos_", "macos"))
+
+
+def _os_from_filename(file_path: str | None) -> str | None:
+    name = (file_path or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    for prefix, os_name in _FILENAME_OS_PREFIX:
+        if name.startswith(prefix):
+            return os_name
+    return None
+
 
 def resolve(parsed: "ParsedRule") -> dict:
     """Resolve canonical taxonomy for a parsed Splunk rule using the
@@ -78,6 +106,9 @@ def resolve(parsed: "ParsedRule") -> dict:
 
     platforms: set[str] = set()
     data_sources: set[str] = set()
+    # Platforms the rule's OWN data_source labels named (Tier 3) -- the
+    # OS-narrowing evidence for DX-06, kept apart from the union.
+    label_platforms: set[str] = set()
     # Keep authoritative and capability event_type contributions separate
     # until the end so higher tiers can override lower ones.
     authoritative_ets: set[str] = set()
@@ -123,11 +154,19 @@ def resolve(parsed: "ParsedRule") -> dict:
         normalized = label.lower().strip()
         entry = label_map.get(normalized)
         if entry is None:
-            for key, mapping in label_map.items():
-                if normalized.startswith(key) or key in normalized:
-                    entry = mapping
-                    break
+            # Longest matching key wins (DX-06): "Sysmon for Linux
+            # EventID 1" must land on "sysmon for linux eventid 1", not
+            # on the bare "sysmon" prefix that happens to be first.
+            best_key = None
+            for key in label_map:
+                if (normalized.startswith(key) or key in normalized) and (
+                    best_key is None or len(key) > len(best_key)
+                ):
+                    best_key = key
+            if best_key is not None:
+                entry = label_map[best_key]
         if entry:
+            label_platforms.update(entry.get("platforms") or [])
             platforms.update(entry.get("platforms") or [])
             data_sources.update(entry.get("data_sources") or [])
             # data_source labels are capability-level for event_types —
@@ -161,6 +200,23 @@ def resolve(parsed: "ParsedRule") -> dict:
     # Event_type resolution: authoritative wins. If nothing authoritative
     # matched, fall back to the capability union.
     event_types = authoritative_ets if authoritative_ets else capability_ets
+
+    # ── OS narrowing (DX-06 / #148) ──
+    # Tier 1/2 union every OS a CIM datamodel or macro CAN be fed by; a
+    # rule that names its own feed ("Sysmon EventID 1") only sees one.
+    # The label OS set replaces the unioned OS values; everything that
+    # is not a specific OS (aws, okta, network_appliance, ...) is kept.
+    label_os = label_platforms & _SPECIFIC_OS
+    unioned_os = platforms & _SPECIFIC_OS
+    if label_os:
+        platforms = (platforms - _SPECIFIC_OS) | label_os
+    elif len(unioned_os) > 1:
+        # No label evidence: the filename prefix disambiguates a
+        # multi-OS set. A single-OS set is left alone, and so is an
+        # empty one -- absence of evidence is not a narrower scope.
+        file_os = _os_from_filename(getattr(parsed, "file_path", None))
+        if file_os:
+            platforms = (platforms - _SPECIFIC_OS) | {file_os}
 
     return {
         "platforms": platforms,
