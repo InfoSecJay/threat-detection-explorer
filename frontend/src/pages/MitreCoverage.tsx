@@ -11,6 +11,15 @@ import { TacticGroup } from './mitre/TacticGroup';
 import { SummaryPane } from './mitre/SummaryPane';
 import { TechniqueDetailPane } from './mitre/TechniqueDetailPane';
 import type { CoverageFilter } from './mitre/types';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
+
+/** Title for the summary view only (DX-18). Mounted conditionally so a
+ * selected technique's own title (TechniqueDetailPane) is not clobbered
+ * by a parent effect running after the child's. */
+function SummaryTitle() {
+  useDocumentMeta('ATT&CK coverage', 'How many open-source detection rules cover each MITRE ATT&CK tactic and technique, and which techniques have none.');
+  return null;
+}
 
 export function MitreCoverage() {
   const { techniqueId } = useParams<{ techniqueId?: string }>();
@@ -68,6 +77,7 @@ export function MitreCoverage() {
 
   return (
     <div className="space-y-4">
+      {!selectedId && <SummaryTitle />}
       {/* Page Header */}
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>

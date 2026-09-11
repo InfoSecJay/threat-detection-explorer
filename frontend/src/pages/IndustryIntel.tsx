@@ -32,6 +32,7 @@ import type { ActivityFilters } from '../services/api';
 import { clipSm } from '../constants/style';
 import { sourceTheme as sourceConfig } from '../constants/style';
 import { useFilterOptions } from '../hooks/useDetections';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { Section } from './intel/Section';
 import { RepoHealthStrip } from './intel/RepoHealthStrip';
 import { PulseBanner } from './intel/PulseBanner';
@@ -152,6 +153,8 @@ function GroupHeader({
 }
 
 export function IndustryIntel() {
+  // DX-18: every list route used to title as the bare site name.
+  useDocumentMeta('Detection intelligence', 'What changed upstream: new and modified rules per repository, trending ATT&CK techniques, and the latest tagged releases.');
   // The window toggle controls only the Activity group below. Catalog
   // sections are unwindowed (fixed 12-week sparkline / latest-N
   // releases) — see the module docstring for the layout rationale.

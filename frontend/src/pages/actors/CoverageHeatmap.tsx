@@ -10,6 +10,7 @@ import { actorsApi } from '../../services/api';
 import { sourceTheme, clipSm } from '../../constants/style';
 import { sourceLabelsShort } from '../../constants/sources';
 import { SkeletonRow, EmptyLabel } from '../intel/Section';
+import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 
 const SORTS = [
   { value: 'weighted_gap', label: 'Biggest gap' },
@@ -27,6 +28,8 @@ function heat(pct: number): string {
 }
 
 export function CoverageHeatmap() {
+  // DX-18: this route used to title as the bare site name.
+  useDocumentMeta('Actor coverage heatmap', 'Which vendor covers which threat actor\'s ATT&CK techniques, and where no tracked source has a rule.');
   const [params, setParams] = useSearchParams();
   const kind = params.get('kind') === 'software' ? 'software' : 'groups';
   const sort = (SORTS.find((s) => s.value === params.get('sort'))?.value ?? 'weighted_gap');

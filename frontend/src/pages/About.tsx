@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import { clipLg, clipXl } from '../constants/style';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 
 export function About() {
+  // DX-18: every static route used to title as the bare site name.
+  useDocumentMeta('About', 'Who builds Detection Explorer, how the corpus is assembled, and how to get in touch.');
   return (
     <div className="space-y-12 max-w-6xl mx-auto">
       {/* Page Header */}

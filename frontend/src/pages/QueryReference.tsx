@@ -11,6 +11,7 @@
 
 import { Link } from 'react-router-dom';
 import { useQueryFields } from '../hooks/useQueryFields';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { clipSm, clipMd } from '../constants/style';
 
 const RECIPES: Array<{ title: string; query: string; explains: string }> = [
@@ -53,6 +54,8 @@ const OPERATORS: Array<{ token: string; desc: string; example: string }> = [
 ];
 
 export function QueryReference() {
+  // DX-18: this route used to title as the bare site name.
+  useDocumentMeta('Query syntax', 'Every field the search bar accepts, how each one matches, and worked example queries.');
   const { data, isLoading } = useQueryFields();
   const fields = data?.fields || [];
 

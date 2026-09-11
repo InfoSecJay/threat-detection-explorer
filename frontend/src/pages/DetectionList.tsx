@@ -7,6 +7,7 @@ import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { SearchBar } from '../components/SearchBar';
 import { FilterSheet } from '../components/FilterSheet';
 import { useDetections } from '../hooks/useDetections';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import type { SearchFilters } from '../types';
 import { detectionsApi, extractQueryParseError } from '../services/api';
 import { countActiveFilters } from '../utils/filterUtils';
@@ -73,6 +74,8 @@ function ApiUrlButton({ url }: { url: string }) {
 }
 
 export function DetectionList() {
+  // DX-18: every list route used to title as the bare site name.
+  useDocumentMeta('Detection rules', 'Search 15,000+ open-source detection rules across thirteen repositories, normalized to one schema and mapped to MITRE ATT&CK.');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);

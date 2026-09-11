@@ -71,6 +71,61 @@
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/corpus-health"
     },
     {
+      "source": "/methodology",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/methodology"
+    },
+    {
+      "source": "/query",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/query"
+    },
+    {
+      "source": "/digest",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/digest"
+    },
+    {
+      "source": "/digest/:week(\\d{4}-w\\d{2})",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/digest/:week"
+    },
+    {
+      "source": "/observables/:kind([a-z_]+)",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/observables/:kind"
+    },
+    {
       "source": "/((?!api/|assets/|fonts/).*)",
       "destination": "/index.html"
     }
@@ -174,6 +229,51 @@
     },
     {
       "source": "/methodology/corpus-health",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/methodology",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/query",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/digest",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/digest/:week(\\d{4}-w\\d{2})",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/observables/:kind([a-z_]+)",
       "headers": [
         {
           "key": "Vary",

@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useActorsQuery } from '../hooks/useActors';
+import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { clipSm, clipMd } from '../constants/style';
 import { countryFlag, countryName } from '../utils/actorDisplay';
 
@@ -30,6 +31,8 @@ const CARDS_PER_PAGE = 500;
 const TABLE_PER_PAGE = 50;
 
 export function Actors() {
+  // DX-18: every list route used to title as the bare site name.
+  useDocumentMeta('Threat actors', 'ATT&CK groups and software ranked by outstanding detection work: which techniques have public rules, and which have none.');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tab = (searchParams.get('tab') === 'software' ? 'software' : 'groups') as Tab;

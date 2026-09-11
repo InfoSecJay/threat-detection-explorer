@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { clipMd } from '../constants/style';
@@ -5,6 +6,19 @@ import { clipMd } from '../constants/style';
 export function NotFound() {
   const { pathname } = useLocation();
   useDocumentMeta('Not found');
+  // DX-18: the SPA shell is served with HTTP 200 for every path, so a
+  // crawler that executes JS is the only one we can tell "this is a
+  // 404". The status code itself can't be fixed from inside the app;
+  // bots hitting /detections/{id}, /mitre/{id} and /actors/{id} already
+  // get real 404s from the prerender endpoints.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex';
+    document.head.appendChild(meta);
+    return () => { meta.remove(); };
+  }, []);
   return (
     <div className="max-w-2xl mx-auto py-16" data-testid="not-found">
       <div className="bg-void-850 border border-void-700 p-8" style={clipMd}>
