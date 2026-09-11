@@ -57,6 +57,7 @@ from app.services.actor_matching import (
 from app.services.actor_scores import actor_score_service
 from app.services.corpus_cache import corpus_cache, memoised
 from app.services.coverage_heatmap import technique_source_counts
+from app.services.coverage_scope import coverage_conditions
 from app.services.mitre import mitre_service
 from app.services.navigator import build_layer, layer_response
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -117,11 +118,12 @@ async def _rules_matching_ids(
     db: AsyncSession, column, ids: list[str],
 ) -> list[Detection]:
     """Rules where the JSON list column contains ANY of `ids` —
-    coverage mode."""
+    coverage mode. Scoped to rules that count as coverage (DX-05 /
+    #147) so the list agrees with the headline the bundle computes."""
     if not ids:
         return []
     conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
-    q = select(*_RULE_COLS).where(or_(*conds)).limit(RULES_LIMIT)
+    q = select(*_RULE_COLS).where(or_(*conds), *coverage_conditions()).limit(RULES_LIMIT)
     return list((await db.execute(q)).all())
 
 
@@ -293,7 +295,9 @@ async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
         return 0
     from sqlalchemy import func
     conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
-    q = select(func.count(Detection.id)).where(or_(*conds))
+    # Coverage scope (DX-05 / #147): the count must agree with the
+    # bundle's technique_rule_counts that drive the headline.
+    q = select(func.count(Detection.id)).where(or_(*conds), *coverage_conditions())
     return (await db.execute(q)).scalar() or 0
 
 
@@ -648,7 +652,7 @@ async def _technique_rule_titles(
             return titles
         q = (
             select(Detection.title, Detection.mitre_techniques)
-            .where(or_(*conds))
+            .where(or_(*conds), *coverage_conditions())  # DX-05: Navigator comments list coverage only
             .limit(LAYER_RULES_CAP)
         )
         pool = [(row[0], row[1] or []) for row in (await db.execute(q)).all()]

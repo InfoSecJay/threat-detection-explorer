@@ -131,6 +131,39 @@ async def client(db_session, mitre_fixture):
 
 
 @pytest.mark.asyncio
+async def test_passthrough_rule_is_named_but_not_coverage(client, db_session):
+    """DX-05 / #147: a forwarded-alert rule tagged with the actor's ID is
+    still a Named rule for that actor, but it is not evidence that its
+    technique is detected -- on the headline, the coverage count AND the
+    coverage-mode list, which used to disagree with each other."""
+    db_session.add_all([
+        _rule(id="sigma:pass", title="EDR Alert Forwarder", mitre_groups=["G0001"], mitre_techniques=["T1001"],
+              rule_modality="passthrough", severity="high", status="stable"),
+        _rule(id="sigma:old", title="Retired T1001 rule", mitre_techniques=["T1001"],
+              severity="high", status="deprecated"),
+        _rule(id="sigma:real", title="Real T1002 rule", mitre_techniques=["T1002"],
+              severity="high", status="stable"),
+    ])
+    await db_session.commit()
+
+    exact = (await client.get("/api/actors/G0001?match_mode=exact")).json()
+    assert exact["technique_count"] == 2
+    assert exact["covered_technique_count"] == 1          # T1002 only
+    assert exact["gap_count"] == 1                          # T1001 has only passthrough + deprecated
+    assert exact["match_counts"]["exact"] == 1              # the passthrough rule IS Named (ID tag)
+    assert exact["match_counts"]["coverage"] == 1           # ...but not coverage
+    assert [r["id"] for r in exact["rules"]] == ["sigma:pass"]
+
+    coverage = (await client.get("/api/actors/G0001?match_mode=coverage")).json()
+    assert [r["id"] for r in coverage["rules"]] == ["sigma:real"]
+
+    layer = (await client.get("/api/actors/G0001/navigator-layer?match_mode=coverage")).json()
+    scores = {t["techniqueID"]: t["score"] for t in layer["techniques"]}
+    assert scores == {"T1001": 0, "T1002": 1}
+    assert all("EDR Alert Forwarder" not in (t.get("comment") or "") for t in layer["techniques"])
+
+
+@pytest.mark.asyncio
 async def test_group_and_software_coverage_counts_are_independent(client, db_session):
     """2 groups with exact rules, 1 software with exact rules -> 2 vs 1.
 
