@@ -1,11 +1,16 @@
 """Related rules: the same behaviour written by other vendors.
 
-For one rule, find rules that share what it keys on -- the same
-technique plus the same process names / event IDs / registry keys /
-API actions / paths / indicators -- and rank them by how much they
-share. Other sources rank first at equal score: the point of the site
-is cross-vendor comparison, and a rule's siblings in its own repo are
-one click away already.
+For one rule, find rules that share what it keys on and rank them by
+how much they share. Other sources rank first at equal score: the
+point of the site is cross-vendor comparison, and a rule's siblings in
+its own repo are one click away already.
+
+"Same behaviour" (DX-02) requires at least one shared OBSERVABLE --
+process name / event ID / registry key / API action / path /
+indicator. A shared ATT&CK technique alone is not behaviour: two rules
+both tagged T1055 can work in unrelated ways. Technique-only matches
+are still returned, in their own `technique_only` bucket, so the UI
+can show them as "shares a technique" rather than "same behaviour."
 """
 
 from __future__ import annotations
@@ -61,7 +66,7 @@ async def _compute(db: AsyncSession, d: Detection, limit: int) -> dict:
             escaped = v.replace("%", "\\%").replace("_", "\\_")
             conds.append(cast(getattr(Detection, col), String).ilike(f'%"{escaped}"%', escape="\\"))
     if not conds:
-        return {"id": d.id, "related": [], "same_source": []}
+        return {"id": d.id, "related": [], "same_source": [], "technique_only": []}
 
     rows = (
         await db.execute(select(*_COLS).where(or_(*conds)).where(Detection.id != d.id).limit(_CANDIDATES))
@@ -69,41 +74,59 @@ async def _compute(db: AsyncSession, d: Detection, limit: int) -> dict:
     my_techs = set(techniques)
     my_ds = _lower_set(d.data_sources)
     scored = []
+    technique_only = []
     for r in rows:
         (rid, title, source, severity, language, r_techs, r_ds, quality, *surfaces) = r
         score = 0.0
-        reasons: list[str] = []
-        specific = False  # shared technique or a real observable, not just a table
+        observable_reasons: list[str] = []
+        has_observable = False  # DX-02: "same behaviour" requires a real shared
+        # observable (process/registry/API/path/indicator/event ID), not just
+        # an ATT&CK tag both rules happen to carry. `extracted_*` already
+        # excludes negated/excluded values (field_extractor.py), so any hit
+        # here is something both rules positively key on.
         shared_t = sorted(my_techs & {t.upper() for t in (r_techs or []) if isinstance(t, str)})
+        technique_reason = f"technique {', '.join(shared_t[:3])}" if shared_t else None
         if shared_t:
-            score += 2.0 * len(shared_t)
-            reasons.append(f"technique {', '.join(shared_t[:3])}")
-            specific = True
+            # Supplementary context, not a qualifying signal on its own --
+            # weighted below any single observable surface.
+            score += 1.0 * len(shared_t)
         for (col, label, weight), values in zip(_SURFACES, surfaces):
             shared = sorted(mine[col] & _lower_set(values))
-            if shared:
-                score += weight * min(len(shared), 4)
-                reasons.append(f"{label} {', '.join(shared[:3])}")
-                if col != "extracted_source_tables":
-                    specific = True
+            if not shared:
+                continue
+            score += weight * min(len(shared), 4)
+            if col == "extracted_source_tables":
+                # "Also an inbound email rule" alone is not the same
+                # behaviour (teardown F12) -- boosts score, never qualifies.
+                continue
+            observable_reasons.append(f"{label} {', '.join(shared[:3])}")
+            has_observable = True
         if my_ds and (my_ds & _lower_set(r_ds)):
             score += 0.5
-        # A shared source table alone ("also an inbound email rule") is
-        # not the same behaviour -- it was padding the panel with
-        # same-source lookalikes on rules that have no real match
-        # (teardown F12). Table overlap may boost a real match, never
-        # constitute one.
-        if score <= 0 or not specific:
+        if score <= 0:
             continue
-        scored.append({
+        entry = {
             "id": rid, "title": title, "source": source, "severity": severity, "language": language,
-            "quality_score": quality, "score": round(score, 1), "reasons": reasons,
+            "quality_score": quality, "score": round(score, 1),
             "other_vendor": source != d.source,
-        })
+        }
+        if has_observable:
+            entry["reasons"] = observable_reasons + ([technique_reason] if technique_reason else [])
+            scored.append(entry)
+        elif technique_reason:
+            # Shares an ATT&CK technique only -- no shared observable means
+            # this is not verified as the same behaviour (DX-02). Collapsed
+            # into its own group instead of padding "same behaviour".
+            entry["reasons"] = [technique_reason]
+            technique_only.append(entry)
     scored.sort(key=lambda x: (-x["score"], x["title"].lower()))
+    technique_only.sort(key=lambda x: (-x["score"], x["title"].lower()))
     cross = [x for x in scored if x["other_vendor"]]
     same = [x for x in scored if not x["other_vendor"]]
-    return {"id": d.id, "related": cross[:limit], "same_source": same[:6]}
+    return {
+        "id": d.id, "related": cross[:limit], "same_source": same[:6],
+        "technique_only": technique_only[:limit],
+    }
 
 
 async def related_for_id(db: AsyncSession, detection_id: str, limit: int = _RESULTS) -> Optional[dict]:

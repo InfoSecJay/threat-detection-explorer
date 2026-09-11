@@ -1,6 +1,9 @@
-/** "Same behaviour, other vendors": rules that key on the same
- * technique and the same process names / registry keys / API actions
- * / paths / indicators, ranked by overlap, other sources first. */
+/** "Same behaviour, other vendors": rules that share a real observable
+ * (process name, registry key, API action, path, indicator, event ID),
+ * ranked by overlap, other sources first. A shared ATT&CK technique
+ * alone is not "same behaviour" (DX-02) -- those land in a separate,
+ * collapsed "Shares an ATT&CK technique" group instead of padding this
+ * panel with rules that only happen to carry the same tag. */
 
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -18,6 +21,7 @@ export function RelatedRules({ id }: { id: string; source?: string }) {
   });
   const rows = data?.related ?? [];
   const sameRows = data?.same_source ?? [];
+  const techOnlyRows = data?.technique_only ?? [];
   const otherVendors = new Set(rows.map((r) => r.source));
   return (
     <section className="bg-void-850 rounded-xl border border-void-700" data-testid="related-rules">
@@ -30,7 +34,8 @@ export function RelatedRules({ id }: { id: string; source?: string }) {
       {!isLoading && rows.length === 0 && (
         <p className="px-5 py-4 text-xs text-gray-400" data-testid="related-gap">
           <span className="text-breach-400 font-mono uppercase tracking-wider mr-2">coverage gap</span>
-          No other tracked source has a rule sharing this rule&apos;s technique or observables.
+          No other tracked source has a rule sharing a real observable with this one.{' '}
+          {techOnlyRows.length > 0 && 'Rules sharing only its ATT&CK technique are below.'}
         </p>
       )}
       {rows.length > 0 && (
@@ -77,6 +82,30 @@ export function RelatedRules({ id }: { id: string; source?: string }) {
             ))}
           </ul>
         </div>
+      )}
+      {techOnlyRows.length > 0 && (
+        <details className="border-t border-void-700" data-testid="related-technique-only">
+          <summary className="px-5 py-2 bg-void-900/40 text-[10px] font-mono text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300">
+            Shares an ATT&amp;CK technique ({techOnlyRows.length})
+          </summary>
+          <ul className="divide-y divide-void-800">
+            {techOnlyRows.map((r) => {
+              const cfg = sourceTheme[r.source];
+              return (
+                <li key={r.id} className="px-5 py-2 flex items-center gap-3 hover:bg-void-800/40" data-testid={`related-tech-only-${r.id}`}>
+                  <span className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border shrink-0 ${cfg?.text || 'text-gray-400'} ${cfg?.border || 'border-void-700'}`}>
+                    {cfg?.name || r.source}
+                  </span>
+                  <Link to={`/detections/${r.id}`} className="text-sm text-gray-300 hover:text-matrix-400 truncate flex-1 min-w-0">{r.title}</Link>
+                  <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span>
+                  <span className="font-mono text-[10px] text-gray-500 shrink-0" title="Same ATT&CK technique tag only -- no shared observable">
+                    {r.reasons[0]}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
     </section>
   );

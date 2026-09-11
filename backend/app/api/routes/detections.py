@@ -321,9 +321,11 @@ async def get_related_detections(
     limit: int = Query(12, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    """Rules that key on the same things -- technique plus shared
-    process names, registry keys, API actions, paths, indicators, event
-    IDs -- ranked by overlap, other vendors first at equal score."""
+    """Rules that share a real observable (process names, registry
+    keys, API actions, paths, indicators, event IDs), ranked by
+    overlap, other vendors first at equal score. Technique-only matches
+    (DX-02) come back separately under `technique_only`, not blended
+    into `related`."""
     from app.services.related import related_for_id
     out = await related_for_id(db, detection_id, limit)
     if out is None:

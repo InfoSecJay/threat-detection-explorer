@@ -125,6 +125,53 @@ async def test_related_rules_rank_shared_behaviour_other_vendors_first(client):
     top = d["related"][0]
     assert top["other_vendor"] is True and any(r.startswith("process mimikatz.exe") for r in top["reasons"])
     assert (await client.get("/api/detections/nope/related")).status_code == 404
+    # Technique-only overlaps are always returned separately, never blended
+    # into "same behaviour" -- sigma:c and splunk:b outrank it purely on
+    # the shared T1059 tag, but it shares no observable with sigma:a.
+    assert "elastic:d" not in [r["id"] for r in d.get("technique_only", [])]
+
+
+@pytest.fixture
+async def technique_only_client(db_session, monkeypatch):
+    from app.services.mitre import mitre_service
+
+    async def _noop():
+        return None
+
+    monkeypatch.setattr(mitre_service, "ensure_loaded", _noop)
+    db_session.add_all([
+        _rule("sigma:inj1", "sigma", "CobaltStrike Named Pipe", mitre_techniques=["T1055"],
+              extracted_process_names=["rundll32.exe"]),
+        # Same technique, zero shared observables (DX-02): a "shares an
+        # ATT&CK technique" match, not verified "same behaviour".
+        _rule("elastic:inj2", "elastic", "Generic Memory Threat Detected", mitre_techniques=["T1055"],
+              extracted_process_names=["explorer.exe"]),
+        # Same technique AND a shared observable: the real thing.
+        _rule("sentinel:inj3", "sentinel", "Suspicious named pipes", mitre_techniques=["T1055"],
+              extracted_process_names=["rundll32.exe"]),
+    ])
+    await db_session.commit()
+
+    async def _override_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.mark.asyncio
+async def test_technique_only_matches_are_not_labelled_same_behaviour(technique_only_client):
+    """DX-02: 'Same behaviour, other vendors' must not include a rule
+    that only shares an ATT&CK technique tag."""
+    d = (await technique_only_client.get("/api/detections/sigma:inj1/related")).json()
+    related_ids = [r["id"] for r in d["related"]]
+    assert "sentinel:inj3" in related_ids  # shares the pipe process AND the technique
+    assert "elastic:inj2" not in related_ids  # technique only -- must not appear here
+    technique_only_ids = [r["id"] for r in d["technique_only"]]
+    assert technique_only_ids == ["elastic:inj2"]
+    assert d["technique_only"][0]["reasons"] == ["technique T1055"]
 
 
 @pytest.mark.asyncio
