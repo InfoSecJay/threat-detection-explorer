@@ -95,20 +95,35 @@ def _obs(subtype, values, otype="file", negated=False):
 
 
 def test_indicator_only_observables_lift_to_indicator_match():
-    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"]), _obs("ip_address", ["10.0.0.1"], "network")])
+    n = _norm(extracted_observables=[_obs("file_hash", ["a" * 64]), _obs("ip_address", ["10.0.0.1"], "network")])
     assert n.rule_modality == "indicator_match"
 
 
 def test_a_behavioural_observable_keeps_the_rule_a_rule():
-    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"]), _obs("process_name", ["mimikatz.exe"], "process")])
+    n = _norm(extracted_observables=[_obs("file_hash", ["a" * 64]), _obs("process_name", ["mimikatz.exe"], "process")])
     assert n.rule_modality == "rule"
 
 
 def test_negated_indicators_alone_are_not_an_indicator_list():
     # An allowlist of hashes is an exclusion, not what the rule detects.
-    n = _norm(extracted_observables=[_obs("file_hash", ["abc123"], negated=True)])
+    n = _norm(extracted_observables=[_obs("file_hash", ["a" * 64], negated=True)])
     assert n.rule_modality == "rule"
     assert _norm(extracted_observables=[]).rule_modality == "rule"
+
+
+def test_indicator_lift_needs_literal_values_not_field_references():
+    """Measured on the clones: 'Internal Horizontal Port Scan' keys on
+    src_ip=* (typed ip_address) and 'Apache - Command in URI' on a url
+    pattern -- behaviour, not an IOC list. Only literal hashes / IPs lift."""
+    assert _norm(extracted_observables=[_obs("ip_address", ["*"], "network")]).rule_modality == "rule"
+    assert _norm(extracted_observables=[_obs("ip_address", ["src_ip"], "network")]).rule_modality == "rule"
+    assert _norm(extracted_observables=[_obs("url", ["/etc/passwd"], "network")]).rule_modality == "rule"
+    assert _norm(extracted_observables=[_obs("domain", ["evil.example"], "network")]).rule_modality == "rule"
+    # A CIDR is a scope (the port-scan rules filter to 10.0.0.0/8), not an indicator.
+    assert _norm(extracted_observables=[_obs("ip_address", ["10.0.0.0/8", "192.168.0.0/16"], "network")]).rule_modality == "rule"
+    # A real list of dotted quads / hashes still does.
+    assert _norm(extracted_observables=[_obs("ip_address", ["10.0.0.1", "192.0.2.10"], "network")]).rule_modality == "indicator_match"
+    assert _norm(extracted_observables=[_obs("file_hash", ["a" * 32, "b" * 40])]).rule_modality == "indicator_match"
 
 
 # ── Elastic: vendor rule type -> modality, language cleaned ───────────

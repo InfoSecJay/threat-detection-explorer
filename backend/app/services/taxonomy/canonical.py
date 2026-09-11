@@ -1124,10 +1124,14 @@ ATTACK_PLATFORM_SCOPE: dict[str, frozenset[str]] = {
     "macOS": frozenset({"macos", "endpoint"}),
     "ESXi": frozenset({"endpoint"}),
     "Containers": frozenset({"container", "devops", "endpoint"}),
-    "IaaS": frozenset({"cloud"}),
-    "SaaS": frozenset({"saas", "email", "application", "data"}),
+    # Measured on the clones before widening: Panther's GitHub / Okta /
+    # Zoom rules (domains devops, identity) tagged SaaS-platform
+    # techniques were 109 false flags. SaaS in ATT&CK spans CI/CD and
+    # identity SaaS; IaaS spans the container and devops planes.
+    "IaaS": frozenset({"cloud", "devops", "container"}),
+    "SaaS": frozenset({"saas", "email", "application", "data", "devops", "identity"}),
     "Office Suite": frozenset({"saas", "email"}),
-    "Identity Provider": frozenset({"identity", "saas"}),
+    "Identity Provider": frozenset({"identity", "saas", "cloud"}),
     "Network Devices": frozenset({"network"}),
     "PRE": frozenset(),  # never suspect
 }

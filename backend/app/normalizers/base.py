@@ -1,6 +1,7 @@
 """Base normalizer interface for detection rules."""
 
 from abc import ABC, abstractmethod
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -146,8 +147,20 @@ class NormalizedDetection:
     # deterministic-id migration (#86). Set in __post_init__.
     legacy_id: str = ""
 
-    # Observable subtypes that are plain indicators, not behaviour.
-    _INDICATOR_SUBTYPES = frozenset({"file_hash", "ip_address", "domain", "url"})
+    # Observable subtypes that can be plain indicators. `domain`/`url`
+    # are deliberately absent: "/etc/passwd in URI" is behaviour that
+    # happens to be typed url, and the Sentinel Apache rules proved it.
+    _INDICATOR_SUBTYPES = frozenset({"file_hash", "ip_address"})
+    # ...and the VALUE has to be a literal indicator, not a field
+    # reference or wildcard: a port-scan rule keys on src_ip=* (typed
+    # ip_address) and is behaviour, a list of dotted quads is not.
+    # No CIDR: a rule scoped to 10.0.0.0/8 is filtering to the internal
+    # network (the Splunk port-scan rules), not matching an IOC list.
+    _LITERAL_INDICATOR = re.compile(
+        r"^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}"      # md5 / sha1 / sha256
+        r"|(?:\d{1,3}\.){3}\d{1,3}"                                  # IPv4
+        r"|[0-9a-fA-F:]{3,39}:[0-9a-fA-F:]*)$"                       # IPv6-ish
+    )
 
     def _forwards_an_upstream_alert(self) -> bool:
         """The rule reads an alert feed rather than telemetry: the event
@@ -169,7 +182,11 @@ class NormalizedDetection:
         ]
         if not positive:
             return False
-        return all(o.get("subtype") in self._INDICATOR_SUBTYPES for o in positive)
+        return all(
+            o.get("subtype") in self._INDICATOR_SUBTYPES
+            and all(isinstance(v, str) and self._LITERAL_INDICATOR.match(v.strip()) for v in o["values"])
+            for o in positive
+        )
 
     def __post_init__(self) -> None:
         # Deterministic permalinks (#86 / teardown F10): when the
