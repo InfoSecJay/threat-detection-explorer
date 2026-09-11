@@ -60,6 +60,7 @@ from app.services.actor_matching import (
     label_like_patterns,
     sql_like_patterns,
 )
+from app.services.mitre import mitre_service
 from app.services.mitre_lookup import GROUPS as MITRE_GROUPS
 from app.services.mitre_lookup import SOFTWARE as MITRE_SOFTWARE
 
@@ -263,8 +264,12 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["tech", "technique"],
         kind="list",
         columns=["mitre_techniques"],
-        description="MITRE ATT&CK technique ID (T1059, T1059.001).",
-        examples=["tech:T1059", "technique:T1059.001"],
+        description=(
+            "MITRE ATT&CK technique ID. A parent (T1059) matches the parent and "
+            "every sub-technique; a sub-technique (T1059.001) matches exactly; "
+            "wildcards match element prefixes (T1055*)."
+        ),
+        examples=["tech:T1059", "technique:T1059.001", "tech:T1055*"],
     ),
     FieldSpec(
         aliases=["actor", "group"],
@@ -480,9 +485,20 @@ def _list_clause(column_name: str, raw_value: str) -> ColumnElement:
 
     Same trick the SearchService uses everywhere else — portable
     across SQLite + Postgres by casting the JSON column to text.
+
+    Wildcards (DX-07) anchor to the JSON element boundary exactly as
+    `_list_substring_clause` does: `tech:T1055*` -> `%"T1055%` (element
+    starts with). They used to be embedded as a literal `*`, which no
+    stored value contains -- a silent zero rows instead of a match.
     """
     col = getattr(Detection, column_name)
-    return cast(col, String).ilike(f'%"{raw_value}"%')
+    pattern, is_wild = _wildcard_to_like(raw_value)
+    if not is_wild:
+        return cast(col, String).ilike(f'%"{pattern}"%')
+    core = pattern.strip("%")
+    prefix = "%" if raw_value.startswith("*") else '%"'
+    suffix = "%" if raw_value.endswith("*") else '"%'
+    return cast(col, String).ilike(f"{prefix}{core}{suffix}")
 
 
 def _list_substring_clause(column_name: str, raw_value: str) -> ColumnElement:
@@ -602,6 +618,21 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
             expanded = expand_event_types([value])
             if len(expanded) > 1:
                 return or_(*[_list_clause(spec.columns[0], v) for v in expanded])
+        if spec.columns[0] == "mitre_techniques":
+            # tech:T1059 matches the parent AND every sub-technique
+            # (DX-07), the same parent-includes-children rule event
+            # types already follow. A sub-technique (`T1059.001`) or a
+            # wildcard stays as typed. The catalog is loaded once at
+            # warmup, so this is a plain dict scan -- and an unloaded
+            # catalog degrades to the exact parent match, never an error.
+            parent = value.strip().upper()
+            if "." not in parent and not _wildcard_to_like(parent)[1]:
+                subs = sorted(
+                    tid for tid, info in mitre_service.get_all_techniques().items()
+                    if info.get("parent_id") == parent
+                )
+                if subs:
+                    return or_(*[_list_clause(spec.columns[0], v) for v in [parent, *subs]])
         return _list_clause(spec.columns[0], value)
     if spec.kind == "event_id":
         from app.services.taxonomy.event_ids import event_id_conditions

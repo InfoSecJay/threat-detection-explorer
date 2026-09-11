@@ -84,11 +84,13 @@ class TestFieldQueries:
         assert "detections.title" in s and "'power%'" in s and "%%" not in s
 
     def test_list_column_uses_quoted_substring(self):
-        """Technique T1059 must not false-match T1059.001."""
+        """List elements match as whole quoted values, never as bare
+        substrings. Sub-techniques are included by explicit expansion
+        (DX-07, TestTechniqueRollup), not by `"T1059"` leaking into
+        `"T1059.001"` through an unquoted `%t1059%`."""
         s = _sql(parse_query("tech:T1059"))
-        # The `"T1059"` (with quotes in the LIKE pattern) is what
-        # prevents the sub-technique false-match.
         assert '\'%"t1059"%\'' in s
+        assert "'%t1059%'" not in s
 
 
 class TestBooleanCombination:
@@ -286,3 +288,54 @@ class TestMitreEntityDedicatedSemantics:
         DX-04 case (that one now raises; see TestMitreAliasResolution)."""
         s = _sql(parse_query("actor:G9999"))
         assert "title" not in s
+
+
+class TestTechniqueRollup:
+    """DX-07: `tech:T1059` matches the parent and its sub-techniques, the
+    same parent-includes-children rule event types follow. The review's
+    T2 run got 37 parent-only rules for T1055 and a silent 0 for
+    `tech:T1055*`."""
+
+    @pytest.fixture
+    def catalog(self, monkeypatch):
+        from app.services.mitre import mitre_service
+
+        monkeypatch.setattr(mitre_service, "_techniques", {
+            "T1055": {"id": "T1055", "name": "Process Injection", "parent_id": None, "is_subtechnique": False},
+            "T1055.001": {"id": "T1055.001", "name": "DLL Injection", "parent_id": "T1055", "is_subtechnique": True},
+            "T1055.012": {"id": "T1055.012", "name": "Process Hollowing", "parent_id": "T1055", "is_subtechnique": True},
+            "T1059": {"id": "T1059", "name": "Command and Scripting Interpreter", "parent_id": None, "is_subtechnique": False},
+            "T1059.001": {"id": "T1059.001", "name": "PowerShell", "parent_id": "T1059", "is_subtechnique": True},
+        })
+
+    def test_parent_expands_to_its_sub_techniques(self, catalog):
+        s = _sql(parse_query("tech:T1055"))
+        assert '\'%"t1055"%\'' in s
+        assert '\'%"t1055.001"%\'' in s and '\'%"t1055.012"%\'' in s
+        assert " or " in s
+        # Another parent's children never leak in, and no bare substring.
+        assert "t1059" not in s
+        assert "'%t1055%'" not in s
+
+    def test_sub_technique_stays_exact(self, catalog):
+        s = _sql(parse_query("tech:T1055.001"))
+        assert '\'%"t1055.001"%\'' in s
+        assert "t1055.012" not in s and " or " not in s
+
+    def test_unloaded_catalog_degrades_to_the_parent(self, monkeypatch):
+        from app.services.mitre import mitre_service
+
+        monkeypatch.setattr(mitre_service, "_techniques", {})
+        s = _sql(parse_query("tech:T1055"))
+        assert '\'%"t1055"%\'' in s and " or " not in s
+
+    def test_wildcard_matches_element_prefix_instead_of_a_literal_star(self, catalog):
+        """`tech:T1055*` embedded a literal `*` in the LIKE pattern, which
+        no stored value contains -- zero rows, no error."""
+        s = _sql(parse_query("tech:T1055*"))
+        assert "*" not in s
+        assert "'%\"t1055%'" in s
+
+    def test_wildcards_work_on_every_list_field(self):
+        s = _sql(parse_query("platform:win*"))
+        assert "'%\"win%'" in s and "*" not in s
