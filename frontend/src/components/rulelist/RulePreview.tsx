@@ -9,6 +9,7 @@
 import { Link } from 'react-router-dom';
 import type { Detection } from '../../types';
 import { useDetection } from '../../hooks/useDetections';
+import { qualityBand } from './format';
 
 export function RulePreview({ detection: row, lang, colSpan }: { detection: Detection; lang: string | null; colSpan: number }) {
   const { data: full, isLoading } = useDetection(row.id);
@@ -17,6 +18,22 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
     <tr className="bg-void-900/60">
       <td colSpan={colSpan} className="px-6 py-4">
         <div className="space-y-4">
+          {/* Completeness (DX-17): moved here from its own table column so
+              Techniques and Modified could take the row width instead. */}
+          {typeof detection.quality_score === 'number' && (
+            <div className="flex items-center gap-2" data-testid="preview-completeness">
+              <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
+                Completeness
+              </span>
+              <span
+                className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
+                title="Metadata completeness (0-100): metadata, ATT&CK mapping, specificity, docs, testability. Measures documentation quality, not detection accuracy."
+              >
+                {detection.quality_score}
+              </span>
+            </div>
+          )}
+
           {/* Query logic */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">

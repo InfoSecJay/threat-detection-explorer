@@ -8,7 +8,7 @@ import { MODALITY_LABELS } from '../filterpanel/options';
 // Two-to-four letter row badges; plain rules get none.
 const MODALITY_ABBR: Record<string, string> = { hunting: 'HUNT', correlation: 'CORR', indicator_match: 'IOC', ml_job: 'ML', building_block: 'BB' };
 import type { Detection } from '../../types';
-import { severityColors, qualityBand, formatRelativeDate, formatDate } from './format';
+import { severityColors, formatRelativeDate, formatDate } from './format';
 import { TagList } from './TagList';
 import { whereItApplies } from '../../constants/taxonomy';
 import { RulePreview } from './RulePreview';
@@ -33,6 +33,8 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
     detection.language && detection.language !== 'unknown'
       ? detection.language.toUpperCase()
       : null;
+  const where = whereItApplies(detection);
+  const techniques = (detection.mitre_techniques ?? []).filter((t): t is string => typeof t === 'string' && t.length > 0);
 
   return (
     <Fragment>
@@ -110,15 +112,19 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             {detection.severity.toUpperCase()}
           </span>
         </td>
-        <td className="px-3 py-2">
-          {/* Domain first, OS only when it is one (#134): "identity" says
-              more than "not_applicable" about where a rule applies. */}
-          <TagList
-            items={whereItApplies(detection)}
-            colorClass="bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
-          />
-        </td>
-        <td className="px-3 py-2">
+        <td className="px-3 py-2" data-testid="row-data-sources">
+          {/* DX-17: Domain (first, OS only when it is one -- #134) is a
+              prefix here instead of its own column, holding the width for
+              Techniques and Modified. Full list on hover. */}
+          {where.length > 0 && (
+            <span
+              className="mr-1.5 text-[10px] font-mono uppercase tracking-wider text-cyan-400/80 align-middle"
+              title={`Where it applies: ${where.join(', ')}`}
+              data-testid="row-domain-prefix"
+            >
+              {where[0]}{where.length > 1 ? ` +${where.length - 1}` : ''} /
+            </span>
+          )}
           <TagList
             items={detection.data_sources}
             colorClass="bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
@@ -130,25 +136,47 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
             colorClass="bg-orange-500/10 text-orange-300 border-orange-500/30"
           />
         </td>
+        <td className="px-3 py-2 whitespace-nowrap" data-testid="row-techniques" onClick={(e) => e.stopPropagation()}>
+          {techniques.length === 0 ? (
+            <span className="text-xs text-gray-600">-</span>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              {techniques.slice(0, 2).map((tid) => (
+                <Link
+                  key={tid}
+                  to={`/mitre/${tid}`}
+                  className="px-1.5 py-0.5 text-xs font-mono border bg-violet-500/10 text-violet-300 border-violet-500/30 hover:text-violet-200 hover:border-violet-400/60 transition-colors"
+                  title={`Open ${tid} coverage`}
+                >
+                  {tid}
+                </Link>
+              ))}
+              {techniques.length > 2 && (
+                <span
+                  className="px-1.5 py-0.5 text-xs font-mono border bg-gray-500/10 text-gray-400 border-gray-500/30"
+                  title={techniques.slice(2).join(', ')}
+                >
+                  +{techniques.length - 2}
+                </span>
+              )}
+            </span>
+          )}
+        </td>
         <td className="px-3 py-2 whitespace-nowrap">
           <span
             className="text-xs font-mono text-gray-400"
-            title={`Created ${formatDate(detection.rule_created_date)} - modified ${formatDate(detection.rule_modified_date)}`}
+            title={`Created ${formatDate(detection.rule_created_date)}`}
           >
             {formatRelativeDate(detection.rule_created_date)}
           </span>
         </td>
-        <td className="px-3 py-2 whitespace-nowrap">
-          {typeof detection.quality_score === 'number' ? (
-            <span
-              className={`px-1.5 py-0.5 text-xs font-mono border tabular-nums ${qualityBand(detection.quality_score)}`}
-              title="Metadata completeness (0-100): scored on what the format can express, not detection accuracy"
-            >
-              {detection.quality_score}
-            </span>
-          ) : (
-            <span className="text-xs text-gray-600">-</span>
-          )}
+        <td className="px-3 py-2 whitespace-nowrap" data-testid="row-modified">
+          <span
+            className="text-xs font-mono text-gray-400"
+            title={`Modified ${formatDate(detection.rule_modified_date)}`}
+          >
+            {formatRelativeDate(detection.rule_modified_date)}
+          </span>
         </td>
       </tr>
       {expanded && <RulePreview detection={detection} lang={lang} colSpan={enableSelection ? 10 : 9} />}

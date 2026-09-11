@@ -255,15 +255,20 @@ export function RuleList({
                 <SortableTh {...sortProps} field="source" label="Source"
                   title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
                 <SortableTh {...sortProps} field="severity" label="Severity" />
-                <SortableTh {...sortProps} field="domains" label="Domain"
-                  title="Attack-surface domain, with the OS when it is one. Sorts by first domain (alphabetical); use the SORT dropdown for platform ordering." />
+                {/* DX-17: Domain folded into this cell as a prefix (it used
+                    to be its own column) so Techniques and Modified fit
+                    without a ninth column. Domain sort is in the SORT dropdown. */}
                 <SortableTh {...sortProps} field="data_sources" label="Data Source"
-                  title="Sort by first data source (alphabetical)" />
+                  title="Attack-surface domain (prefix), then data sources. Sorts by first data source (alphabetical); use the SORT dropdown for domain or platform ordering." />
                 <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
+                <th scope="col" className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                  title="ATT&CK technique IDs the rule is mapped to (first two, then +n). Each links to its /mitre page.">
+                  Techniques
+                </th>
                 <SortableTh {...sortProps} field="rule_created_date" label="Created" />
-                <SortableTh {...sortProps} field="quality_score" label="Completeness"
-                  title="Metadata completeness: metadata, ATT&CK mapping, specificity, docs, testability. Measures documentation quality, not detection accuracy." />
+                <SortableTh {...sortProps} field="rule_modified_date" label="Modified"
+                  title="Upstream modified date (relative; exact date on hover). Completeness moved to the expanded row preview." />
               </tr>
             </thead>
             <tbody className="divide-y divide-void-800">
