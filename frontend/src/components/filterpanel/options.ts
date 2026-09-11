@@ -65,6 +65,7 @@ export const MODALITY_OPTIONS: Array<{ value: string; label: string; hint: strin
   { value: 'indicator_match', label: 'Indicator match', hint: 'Joins events against a threat-intel indicator set (Elastic threat_match)' },
   { value: 'ml_job', label: 'ML job', hint: 'Anomaly scored by a machine-learning job; no query' },
   { value: 'building_block', label: 'Building block', hint: 'Emits signal for other rules instead of alerting' },
+  { value: 'passthrough', label: 'Alert passthrough', hint: 'Forwards another product\'s alert; the detection happened upstream, so it does not count as technique coverage (DX-05)' },
 ];
 export const MODALITY_LABELS: Record<string, string> = Object.fromEntries(MODALITY_OPTIONS.map((o) => [o.value, o.label]));
 

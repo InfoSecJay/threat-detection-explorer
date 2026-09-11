@@ -6,7 +6,7 @@ import { sourceColors, sourceLabelsShort as sourceLabels } from '../../constants
 import { MODALITY_LABELS } from '../filterpanel/options';
 
 // Two-to-four letter row badges; plain rules get none.
-const MODALITY_ABBR: Record<string, string> = { hunting: 'HUNT', correlation: 'CORR', indicator_match: 'IOC', ml_job: 'ML', building_block: 'BB' };
+const MODALITY_ABBR: Record<string, string> = { hunting: 'HUNT', correlation: 'CORR', indicator_match: 'IOC', ml_job: 'ML', building_block: 'BB', passthrough: 'PASS' };
 import type { Detection } from '../../types';
 import { severityColors, formatRelativeDate, formatDate } from './format';
 import { TagList } from './TagList';

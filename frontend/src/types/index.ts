@@ -8,7 +8,7 @@ export interface UpstreamTouch {
 // Detection types
 export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther';
 
-export type RuleModality = 'rule' | 'hunting' | 'ml_job' | 'correlation' | 'indicator_match' | 'building_block';
+export type RuleModality = 'rule' | 'hunting' | 'ml_job' | 'correlation' | 'indicator_match' | 'building_block' | 'passthrough';
 
 export interface Detection {
   id: string;
