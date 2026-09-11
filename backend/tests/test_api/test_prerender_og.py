@@ -25,11 +25,15 @@ async def client(db_session, monkeypatch):
     monkeypatch.setattr(mitre_service, "get_all_groups", lambda: {"G0016": {"id": "G0016", "name": "APT29", "aliases": ["Cozy Bear"], "description": "A group."}})
     monkeypatch.setattr(mitre_service, "get_all_software", lambda: {})
 
+    from datetime import datetime
+
     db_session.add(Detection(
         id="sigma:x", source="sigma", source_file="r.yml", source_repo_url="https://x",
+        source_rule_url="https://github.com/SigmaHQ/sigma/blob/master/rules/r.yml",
         title="Suspicious <PowerShell> Cradle", detection_logic="selection: a", language="sigma",
         raw_content="raw", severity="high", status="stable", description="Detects a download cradle & things.",
         mitre_techniques=["T1059.001"],
+        rule_created_date=datetime(2021, 9, 20), rule_modified_date=datetime(2025, 11, 3),
     ))
     await db_session.commit()
 
@@ -99,3 +103,52 @@ async def test_corpus_health_prerender_is_citable_html(client):
     assert '<link rel="canonical" href="https://detectionexplorer.io/methodology/corpus-health">' in t
     assert "No ATT&amp;CK mapping" in t and "corpus-health.csv" in t
     assert r.headers["cache-control"].startswith("public, s-maxage=3600")
+
+
+# -- DX-18 -----------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_detection_prerender_carries_jsonld(client):
+    """A rule page is a citable document: license, dates and the
+    upstream file it is based on, as schema.org JSON-LD."""
+    import json
+    import re
+
+    r = await client.get("/api/prerender/detection/sigma:x")
+    m = re.search(r'<script type="application/ld\+json">(.*?)</script>', r.text, re.S)
+    assert m, "no JSON-LD block"
+    data = json.loads(m.group(1))
+    assert data["@context"] == "https://schema.org" and data["@type"] == "TechArticle"
+    assert data["headline"] == "Suspicious <PowerShell> Cradle"
+    assert data["isBasedOn"] == "https://github.com/SigmaHQ/sigma/blob/master/rules/r.yml"
+    assert data["license"].startswith("https://github.com/SigmaHQ/Detection-Rule-License")
+    assert data["dateCreated"] == "2021-09-20" and data["dateModified"] == "2025-11-03"
+    assert data["keywords"] == ["T1059.001"]
+
+
+@pytest.mark.asyncio
+async def test_methodology_query_digest_observables_prerender(client):
+    """The four page types that had no bot-facing render at all."""
+    m = await client.get("/api/prerender/methodology")
+    assert m.status_code == 200 and "<h1>Methodology</h1>" in m.text
+    assert '<link rel="canonical" href="https://detectionexplorer.io/methodology">' in m.text
+    assert "sigma" in m.text and "Detection Rule License 1.1" in m.text
+
+    q = await client.get("/api/prerender/query")
+    assert q.status_code == 200 and "<h1>Query syntax</h1>" in q.text
+    assert "actor, group" in q.text  # the field registry, not a hardcoded list
+
+    d = await client.get("/api/prerender/digest")
+    assert d.status_code == 200 and "<h1>Digest" in d.text and "New rules" in d.text
+    assert '<link rel="canonical" href="https://detectionexplorer.io/digest">' in d.text
+
+    o = await client.get("/api/prerender/observables/process")
+    assert o.status_code == 200 and "observables</h1>" in o.text
+    assert '<link rel="canonical" href="https://detectionexplorer.io/observables/process">' in o.text
+
+
+@pytest.mark.asyncio
+async def test_prerender_unknowns_are_real_404s(client):
+    assert (await client.get("/api/prerender/observables/not-a-kind")).status_code == 404
+    assert (await client.get("/api/prerender/digest/not-a-week")).status_code == 404

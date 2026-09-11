@@ -29,7 +29,9 @@ from app.services.observables import OBSERVABLE_TYPES
 
 router = APIRouter(tags=["sitemap"])
 
-STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/compare", "/query", "/about", "/integrations", "/methodology", "/methodology/unclassified", "/methodology/corpus-health"]
+# /integrations is a client-side redirect to /intel (DX-18): a sitemap
+# entry that lands on a redirect is crawl budget spent on nothing.
+STATIC = ["/", "/detections", "/mitre", "/actors", "/actors/heatmap", "/observables", "/intel", "/digest", "/compare", "/query", "/about", "/methodology", "/methodology/unclassified", "/methodology/corpus-health"]
 
 
 def _key(section: str) -> tuple[str, str]:
@@ -101,10 +103,19 @@ async def _actors(db: AsyncSession) -> str:
 
 
 async def _detections(db: AsyncSession) -> str:
-    rows = (await db.execute(select(Detection.id, Detection.updated_at))).all()
+    # lastmod is the rule's own upstream modified date (DX-18), not
+    # updated_at: every sync re-upserts every row and stamps updated_at,
+    # so all 15k URLs shared one date that moved daily -- which search
+    # engines learn to ignore. Falls back to the created date, then to
+    # the sync stamp for rows with neither.
+    rows = (
+        await db.execute(
+            select(Detection.id, Detection.rule_modified_date, Detection.rule_created_date, Detection.updated_at)
+        )
+    ).all()
     s = _UrlSet()
-    for rid, updated in rows:
-        s.url(f"/detections/{rid}", lastmod=updated, priority="0.5")
+    for rid, modified, created, updated in rows:
+        s.url(f"/detections/{rid}", lastmod=modified or created or updated, priority="0.5")
     return s.render()
 
 
@@ -118,9 +129,12 @@ SECTIONS: dict[str, Callable] = {
 
 async def _index(db: AsyncSession) -> str:
     site = _site_url()
-    # lastmod on the index = newest rule change; the other sections move
-    # with ATT&CK releases, which the corpus fingerprint also tracks.
-    newest = (await db.execute(select(func.max(Detection.updated_at)))).scalar()
+    # lastmod on the index = newest upstream rule change (DX-18; the
+    # sync stamp only as a fallback); the other sections move with
+    # ATT&CK releases, which the corpus fingerprint also tracks.
+    newest = (
+        await db.execute(select(func.max(func.coalesce(Detection.rule_modified_date, Detection.updated_at))))
+    ).scalar()
     parts = ['<?xml version="1.0" encoding="UTF-8"?>', '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for name in SECTIONS:
         parts.append("<sitemap>")
