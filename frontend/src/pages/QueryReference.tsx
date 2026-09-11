@@ -249,8 +249,10 @@ export function QueryReference() {
           </li>
           <li>
             <span className="text-matrix-500">•</span> List fields (techniques, groups, tags…)
-            use exact-value matching. <code className="text-cyan-400 bg-void-800 px-1">tech:T1059</code>{' '}
-            matches only T1059, never T1059.001.
+            match whole values. A parent technique includes its sub-techniques:{' '}
+            <code className="text-cyan-400 bg-void-800 px-1">tech:T1059</code> matches T1059 and T1059.001;{' '}
+            <code className="text-cyan-400 bg-void-800 px-1">tech:T1059.001</code> matches exactly. Wildcards
+            match value prefixes: <code className="text-cyan-400 bg-void-800 px-1">tech:T1055*</code>.
           </li>
           <li>
             <span className="text-matrix-500">•</span> Bare text with no colon searches title,
