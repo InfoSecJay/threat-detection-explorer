@@ -5,7 +5,7 @@
  * away, so the whole card just navigates. */
 
 import { useNavigate } from 'react-router-dom';
-import { sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
+import { severityLabel, sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
 import type { Detection } from '../../types';
 import { severityColors, qualityBand, formatRelativeDate } from './format';
 import { whereItApplies } from '../../constants/taxonomy';
@@ -46,8 +46,9 @@ export function RuleCard({ detection }: { detection: Detection }) {
         </span>
         <span
           className={`px-1.5 py-0.5 text-[10px] font-mono font-medium border ${sevColors.bg} ${sevColors.text} ${sevColors.border}`}
+          title={detection.severity === 'unknown' ? 'The source publishes no severity for this rule' : undefined}
         >
-          {detection.severity.toUpperCase()}
+          {severityLabel(detection.severity).toUpperCase()}
         </span>
         {typeof detection.quality_score === 'number' && (
           <span

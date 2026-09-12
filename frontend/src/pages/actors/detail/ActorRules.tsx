@@ -9,6 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { actorsApi } from '../../../services/api';
 import { sourceTheme as sourceConfig, clipSm } from '../../../constants/style';
 import { severityColor } from '../../intel/lib';
+import { severityAbbr, severityLabel } from '../../../constants/sources';
 import { SectionHead } from './SectionHead';
 import { MATCH_MODE_LABEL, MATCH_MODE_DEFINITION } from './matchMode';
 import type { ActorMatchMode } from '../../../services/api';
@@ -31,8 +32,9 @@ function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border tabular-nums ${cls}`}
+      title={severityLabel(severity)}
     >
-      {severity.slice(0, 4)}
+      {severityAbbr(severity)}
     </span>
   );
 }

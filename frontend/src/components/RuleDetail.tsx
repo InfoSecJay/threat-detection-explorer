@@ -18,7 +18,7 @@ import { AttackSection } from './ruledetail/AttackSection';
 import { HygieneBars } from './ruledetail/HygieneBars';
 import { RelatedRules } from './ruledetail/RelatedRules';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
-import { sourceLicenses } from '../constants/sources';
+import { severityLabel, sourceLicenses } from '../constants/sources';
 import { sourceTheme } from '../constants/style';
 import { downloadRuleFile, ruleFileName } from '../utils/downloadRule';
 import ReactMarkdown from 'react-markdown';
@@ -167,7 +167,12 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                   {src?.name || detection.source}
                 </span>
                 <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-semibold">{language}</span>
-                <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity] || severityColors.unknown}`}>{detection.severity}</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${severityColors[detection.severity] || severityColors.unknown}`}
+                  title={detection.severity === 'unknown' ? 'The source publishes no severity for this rule' : undefined}
+                >
+                  {severityLabel(detection.severity)}
+                </span>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold capitalize border ${statusColors[detection.status] || statusColors.unknown}`}>{detection.status.replace(/_/g, ' ')}</span>
                 {/* The same completeness chip the list rows carry, so the
                     number a visitor clicked through on is still in view;

@@ -10,6 +10,7 @@ import { useMitre } from '../contexts/MitreContext';
 import { useEventIds } from '../hooks/useEventIds';
 import { sourceTheme, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
+import { severityLabel } from '../constants/sources';
 import { OBSERVABLE_FILTER_KEY, OBSERVABLE_KIND_LABEL, observableUrl, type ObservableKind } from '../utils/observableLinks';
 import { SkeletonRow } from './intel/Section';
 
@@ -194,7 +195,7 @@ export function ObservableDetail() {
                 <tr key={r.id} className="hover:bg-void-800/50" data-testid={`obs-rule-${r.id}`}>
                   <td className="px-2 py-1.5 max-w-md"><Link to={`/detections/${r.id}`} className="text-gray-200 hover:text-matrix-400">{r.title}</Link></td>
                   <td className="px-2 py-1.5 whitespace-nowrap"><span className={`font-mono ${sourceTheme[r.source]?.text || 'text-gray-400'}`}>{sourceTheme[r.source]?.name || r.source}</span></td>
-                  <td className="px-2 py-1.5"><span className={`font-mono ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span></td>
+                  <td className="px-2 py-1.5"><span className={`font-mono ${severityColor[r.severity] || 'text-gray-400'}`}>{severityLabel(r.severity)}</span></td>
                   <td className="px-2 py-1.5 font-mono text-gray-400">
                     {r.mitre_techniques.slice(0, 3).map((t) => <Link key={t} to={`/mitre/${t}`} className="mr-1 hover:text-matrix-400">{t}</Link>)}
                     {r.mitre_techniques.length > 3 && <span className="text-gray-600">+{r.mitre_techniques.length - 3}</span>}

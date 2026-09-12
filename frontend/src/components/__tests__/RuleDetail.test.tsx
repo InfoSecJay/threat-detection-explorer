@@ -216,6 +216,14 @@ describe('RuleDetail', () => {
     expect(getByRole('tab', { name: 'Investigation guide' })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('calls an unpublished severity "not specified", never "unknown" (DX-22)', () => {
+    const { container } = render(
+      <MemoryRouter><RuleDetail detection={{ ...detection, severity: 'unknown' } as unknown as Detection} /></MemoryRouter>,
+    );
+    expect(container.textContent).toContain('not specified');
+    expect(container.querySelector('[title="The source publishes no severity for this rule"]')).not.toBeNull();
+  });
+
   it('never links an unknown chip: there is nothing behind it', () => {
     const { getByTestId } = render(
       <MemoryRouter><RuleDetail detection={{ ...detection, platforms: ['unknown'] } as unknown as Detection} /></MemoryRouter>,

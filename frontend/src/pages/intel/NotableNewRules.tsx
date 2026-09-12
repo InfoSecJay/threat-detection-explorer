@@ -11,6 +11,7 @@ import { sourceTheme as sourceConfig, clipSm } from '../../constants/style';
 import type { ActivityFilters, RecentRuleItem } from '../../services/api';
 import { SkeletonRow, EmptyLabel } from './Section';
 import { severityColor, formatRelDate } from './lib';
+import { severityAbbr, severityLabel } from '../../constants/sources';
 
 function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
   const cfg = sourceConfig[rule.source];
@@ -26,8 +27,8 @@ function NotableRuleCard({ rule }: { rule: RecentRuleItem }) {
         <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${cfg?.bg || ''} ${cfg?.text || ''} ${cfg?.border || ''}`}>
           {cfg?.name || rule.source}
         </span>
-        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${sev}`}>
-          {rule.severity.slice(0, 4)}
+        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${sev}`} title={severityLabel(rule.severity)}>
+          {severityAbbr(rule.severity)}
         </span>
         <span className="text-[10px] font-mono text-gray-600 ml-auto">
           {formatRelDate(rule.date)}

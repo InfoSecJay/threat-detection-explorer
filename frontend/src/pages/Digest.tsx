@@ -22,6 +22,7 @@ import { useDigest } from '../hooks/useTrending';
 import { digestApi } from '../services/api';
 import { sourceTheme, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
+import { severityLabel } from '../constants/sources';
 import { parseApiDate } from '../utils/dates';
 import { NetChangeList, JustCoveredList } from './home/ThisWeek';
 import { TechniqueMomentumList } from './intel/Trending';
@@ -92,7 +93,7 @@ function toMarkdown(d: DigestResponse, origin: string): string {
       L.push('### \u2728 New rules');
       L.push('');
       for (const r of fresh) {
-        const bits = [`${SEVERITY_MARK[r.severity] || '\u26AA'} ${r.severity}`];
+        const bits = [`${SEVERITY_MARK[r.severity] || '\u26AA'} ${severityLabel(r.severity)}`];
         if (r.mitre_techniques.length) bits.push(techLinks(r.mitre_techniques, origin));
         if (r.platforms.length) bits.push(r.platforms.slice(0, 3).join(' / '));
         L.push(`- ${ruleLink(r, origin)} \u2014 ${bits.join(' \u00B7 ')}`);
@@ -175,7 +176,7 @@ function NewRuleCard({ r }: { r: DigestRule }) {
     <article className="bg-void-900/60 border border-void-700 hover:border-matrix-500/40 px-3 py-2.5 transition-colors" data-testid={`digest-rule-${r.id}`}>
       <div className="flex items-start gap-2">
         <Link to={`/detections/${r.id}`} className="text-sm text-gray-100 hover:text-matrix-400 font-medium flex-1 min-w-0">{r.title}</Link>
-        <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span>
+        <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{severityLabel(r.severity)}</span>
       </div>
       {r.description && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{r.description}</p>}
       <div className="mt-1.5 flex items-center gap-3 text-[11px] flex-wrap">
@@ -448,7 +449,7 @@ export function Digest() {
                       {srcName(r.source)}
                     </span>
                     <Link to={`/detections/${r.id}`} className="text-gray-300 hover:text-matrix-400 truncate flex-1 min-w-0">{r.title}</Link>
-                    <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span>
+                    <span className={`font-mono text-[10px] uppercase shrink-0 ${severityColor[r.severity] || 'text-gray-400'}`}>{severityLabel(r.severity)}</span>
                     <Techniques ids={r.mitre_techniques ?? []} />
                     <span className="font-mono text-gray-600 whitespace-nowrap">{fmtDate(r.removed)}</span>
                   </li>

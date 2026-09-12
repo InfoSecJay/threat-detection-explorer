@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
+import { severityLabel, sourceColors, sourceLabelsShort as sourceLabels } from '../../constants/sources';
 import { MODALITY_LABELS } from '../filterpanel/options';
 
 // Two-to-four letter row badges; plain rules get none.
@@ -108,8 +108,9 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
         <td className="px-3 py-2 whitespace-nowrap">
           <span
             className={`px-2 py-1 text-xs font-mono font-medium border ${sevColors.bg} ${sevColors.text} ${sevColors.border}`}
+            title={detection.severity === 'unknown' ? 'The source publishes no severity for this rule' : undefined}
           >
-            {detection.severity.toUpperCase()}
+            {severityLabel(detection.severity).toUpperCase()}
           </span>
         </td>
         <td className="px-3 py-2" data-testid="row-data-sources">

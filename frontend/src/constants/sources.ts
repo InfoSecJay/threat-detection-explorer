@@ -126,3 +126,33 @@ export const severityTailwind: Record<string, string> = {
   low: 'bg-green-500/15 text-green-400 border-green-500/30',
   unknown: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
 };
+
+/** One severity vocabulary (DX-22): the wire value `unknown` means the
+ * source publishes no severity (#106), and every surface says "not
+ * specified" for it -- the table used to say UNKNOWN, the facet Not
+ * Specified and the methodology not specified. */
+export const SEVERITY_LABEL: Record<string, string> = {
+  critical: 'critical',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  unknown: 'not specified',
+};
+
+/** Same vocabulary for 9px badges that cannot fit the words; each
+ * carries the full label as its title. `MEDI`-style truncation is gone. */
+export const SEVERITY_ABBR: Record<string, string> = {
+  critical: 'CRIT',
+  high: 'HIGH',
+  medium: 'MED',
+  low: 'LOW',
+  unknown: 'N/S',
+};
+
+export function severityLabel(severity: string | null | undefined): string {
+  return SEVERITY_LABEL[severity || 'unknown'] ?? severity ?? 'not specified';
+}
+
+export function severityAbbr(severity: string | null | undefined): string {
+  return SEVERITY_ABBR[severity || 'unknown'] ?? (severity || '').slice(0, 4).toUpperCase();
+}

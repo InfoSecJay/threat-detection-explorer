@@ -19,6 +19,7 @@ import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { useMitre } from '../contexts/MitreContext';
 import { sourceTheme, clipSm, clipMd } from '../constants/style';
 import { severityColor } from './intel/lib';
+import { severityLabel } from '../constants/sources';
 import { qualityBand } from '../components/rulelist/format';
 import { AXIS_LABEL, diffToMarkdown } from '../utils/compareMarkdown';
 import type { CompareDiffAxis, CompareDiffObservable, CompareDiffResponse } from '../services/api';
@@ -224,7 +225,7 @@ export function Compare() {
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="font-mono text-[10px] text-gray-500">R{i + 1}</span>
                 <span className={`px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border ${cfg?.text || 'text-gray-400'} ${cfg?.border || 'border-void-700'}`}>{srcName(r.source)}</span>
-                <span className={`font-mono text-[10px] uppercase ${severityColor[r.severity] || 'text-gray-400'}`}>{r.severity}</span>
+                <span className={`font-mono text-[10px] uppercase ${severityColor[r.severity] || 'text-gray-400'}`}>{severityLabel(r.severity)}</span>
                 <span className="flex-1" />
                 {data.rules.length > 2 && (
                   <button type="button" onClick={() => remove(r.id)} className="text-gray-600 hover:text-white font-mono text-xs" title="Remove from the comparison" aria-label={`Remove ${r.title}`}>x</button>

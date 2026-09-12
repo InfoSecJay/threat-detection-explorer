@@ -61,6 +61,12 @@ describe('RuleRow (DX-17)', () => {
     expect(cell.querySelector('[title="T1027"]')).not.toBeNull();
   });
 
+  it('labels an unpublished severity NOT SPECIFIED, the same word every surface uses (DX-22)', () => {
+    renderRow({ ...base, severity: 'unknown' } as unknown as Detection);
+    expect(screen.getByText('NOT SPECIFIED')).toHaveAttribute('title', 'The source publishes no severity for this rule');
+    expect(screen.queryByText('UNKNOWN')).toBeNull();
+  });
+
   it('renders a dash when a rule has no ATT&CK mapping', () => {
     renderRow({ ...base, mitre_techniques: [] } as unknown as Detection);
     expect(screen.getByTestId('row-techniques')).toHaveTextContent('-');
