@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
+# Social-card images live under the API prefix; crawlers that honour
+# robots for og:image previews need them reachable (DX-22).
+Allow: /api/og/
 Disallow: /api/
 
 Sitemap: https://detectionexplorer.io/sitemap.xml
