@@ -311,7 +311,7 @@ function App() {
         Skip to content
       </a>
       {/* Top status bar */}
-      <div className="bg-void-900/80 border-b border-void-700 px-4 py-1">
+      <div className="bg-void-900/80 border-b border-void-700 px-4 py-1 print:hidden">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4 text-xs font-mono text-gray-500">
             <span className="hidden md:inline">
