@@ -68,6 +68,10 @@ export interface Detection {
   false_positives?: string[];
   // Vendor-authored investigation guide (markdown; Elastic `note`).
   investigation_guide?: string | null;
+  // "Before you deploy" prerequisites (DX-16): Sigma logsource
+  // definition, Elastic setup / integrations / min stack version,
+  // Splunk how_to_implement. Markdown-ish; null when the source has none.
+  deploy_notes?: string | null;
   // Extracted observable fields
   extracted_fields_used?: string[];
   extracted_event_ids?: string[];

@@ -224,6 +224,17 @@ describe('RuleDetail', () => {
     expect(container.querySelector('[title="The source publishes no severity for this rule"]')).not.toBeNull();
   });
 
+  it('shows the deploy prerequisites as a callout above the definition (DX-16)', () => {
+    const notes = 'Enable the builtin Zeek script that logs all HTTP header names by adding `@load policy/protocols/http/header-names`.';
+    const { getByTestId, queryByTestId, rerender } = render(
+      <MemoryRouter><RuleDetail detection={{ ...detection, deploy_notes: notes } as unknown as Detection} /></MemoryRouter>,
+    );
+    expect(getByTestId('deploy-notes')).toHaveTextContent('Before you deploy');
+    expect(getByTestId('deploy-notes')).toHaveTextContent('@load policy/protocols/http/header-names');
+    rerender(<MemoryRouter><RuleDetail detection={{ ...detection, deploy_notes: null } as unknown as Detection} /></MemoryRouter>);
+    expect(queryByTestId('deploy-notes')).toBeNull();
+  });
+
   it('never links an unknown chip: there is nothing behind it', () => {
     const { getByTestId } = render(
       <MemoryRouter><RuleDetail detection={{ ...detection, platforms: ['unknown'] } as unknown as Detection} /></MemoryRouter>,

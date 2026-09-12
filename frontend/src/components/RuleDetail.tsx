@@ -397,6 +397,19 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               </div>
             ) : (
               <div>
+                {/* DX-16 / #158: what must be switched on before this rule
+                    sees anything -- Sigma logsource.definition, Elastic
+                    setup / integrations / min stack, Splunk
+                    how_to_implement. Missing prerequisites are the most
+                    common reason a public rule is silently dead. */}
+                {detection.deploy_notes && (
+                  <div className="my-2 border border-amber-500/40 bg-amber-500/5 px-4 py-3 rounded-lg" data-testid="deploy-notes">
+                    <div className="text-[10px] font-mono text-amber-300 uppercase tracking-[0.2em] mb-1">Before you deploy</div>
+                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-400 prose-code:text-matrix-300 prose-pre:bg-void-900 text-gray-200">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{detection.deploy_notes}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
                 {/* Every taxonomy chip is a catalog filter: the page is
                     an entry point into "everything else tagged this". */}
                 <Row label="Source tables / indices" testId="def-tables">
