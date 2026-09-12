@@ -11,11 +11,13 @@ from app.models.detection import Detection
 from app.normalizers.elastic import _guide_text
 
 
-def test_guide_text_joins_note_and_setup():
-    assert _guide_text("## Triage\n\nCheck the user.", None) == "## Triage\n\nCheck the user."
-    assert _guide_text(" ", "Enable the integration.") == "## Setup\n\nEnable the integration."
-    assert _guide_text("Note", "Setup") == "Note\n\n## Setup\n\nSetup"
-    assert _guide_text(None, None) is None
+def test_guide_text_is_the_note_alone():
+    # `setup` used to be appended under "## Setup"; since DX-16 it is the
+    # deploy_notes field (see test_deploy_notes.py).
+    assert _guide_text("## Triage\n\nCheck the user.") == "## Triage\n\nCheck the user."
+    assert _guide_text("  Note  ") == "Note"
+    assert _guide_text(" ") is None
+    assert _guide_text(None) is None
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
-from app.normalizers.base import BaseNormalizer, NormalizedDetection
+from app.normalizers.base import BaseNormalizer, NormalizedDetection, notes_text
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_splunk_fields
 
@@ -66,6 +66,13 @@ class SplunkNormalizer(BaseNormalizer):
             tags=self._normalize_tags(parsed.tags),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
+            # ESCU `how_to_implement`: the data models, add-ons and
+            # sourcetypes the search needs (DX-16 / #158). The parser
+            # keeps it beside the search in detection_logic_raw.
+            deploy_notes=notes_text(
+                parsed.detection_logic_raw.get("how_to_implement")
+                if isinstance(parsed.detection_logic_raw, dict) else None
+            ),
             raw_content=parsed.raw_content,
             extracted_fields_used=extracted.fields_used,
             extracted_event_ids=extracted.event_ids,

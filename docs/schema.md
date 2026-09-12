@@ -148,7 +148,8 @@ Prefer the `taxonomy_*` fields when building new features.
 | | | • Elastic's tags get lowercased and spaces → underscores. |
 | `references` | `list[str]` | External links / CVE pages / threat-intel articles. |
 | `false_positives` | `list[str]` | Author-noted FP scenarios. |
-| `investigation_guide` | `str | null` | Vendor-authored investigation guide in markdown (Elastic `note`, with `setup` appended under its own heading). Null for sources without one; the rule page renders it under the Investigation guide tab. |
+| `investigation_guide` | `str | null` | Vendor-authored investigation guide in markdown (Elastic `note`). Null for sources without one; the rule page renders it under the Investigation guide tab. |
+| `deploy_notes` | `str | null` | "Before you deploy" prerequisites (DX-16): what must be switched on for the rule to see anything. Sigma `logsource.definition`; Elastic `setup` plus `Integrations: ...` and `Minimum stack version: ...` lines; Splunk `how_to_implement`. Markdown-ish text; null when the source says nothing. The rule page renders it as a callout above the query, the bot prerender as its own section. |
 
 ## 7. Detection logic + raw content
 
@@ -225,6 +226,7 @@ For taxonomy-resolution depth (the tier system), see
 | `status` | `status` | direct (`stable` / `test` / `experimental` / `deprecated` / `unsupported`) |
 | `level` | `severity` | `informational` → `low` |
 | `logsource.product` / `category` / `service` | `taxonomy_*` | Tiered resolver via `taxonomy/mappings/sigma.yaml` |
+| `logsource.definition` | `deploy_notes` | free text: what must be enabled for the fields to exist (DX-16) |
 | `tags` (with `attack.` prefix) | `mitre_tactics` / `mitre_techniques` | Routed by ID prefix (`attack.t...`, `attack.tactic...`) |
 | `tags` (without `attack.`) | `tags` | passed through |
 | `detection` block | `detection_logic` (YAML-formatted) + `extracted_*` | Parsed by the Sigma field extractor |
@@ -249,7 +251,8 @@ For taxonomy-resolution depth (the tier system), see
 | `rule.tags` | `tags` | lowercased, spaces → underscores |
 | `rule.query` (or assembled for ML / threshold / new_terms) | `detection_logic` + `extracted_*` | |
 | `rule.false_positives` | `false_positives` | direct |
-| `rule.note` + `rule.setup` | `investigation_guide` | joined markdown |
+| `rule.note` | `investigation_guide` | markdown |
+| `rule.setup` + `metadata.integration` + `min_stack_version` | `deploy_notes` | integrations and minimum version as one-line facts, then the setup markdown (DX-16) |
 | `rule.references` | `references` | direct |
 | `metadata.creation_date` | `rule_created_date` | embedded |
 | `metadata.updated_date` | `rule_modified_date` | embedded |
@@ -265,6 +268,7 @@ For taxonomy-resolution depth (the tier system), see
 | `author` | `author` | direct |
 | `status` | `status` | `production` → `stable` |
 | RBA risk_objects[].score | `severity` | bucketed (≥80 critical, ≥60 high, ≥40 medium, else low) |
+| `how_to_implement` | `deploy_notes` | the data models, add-ons and sourcetypes the search needs (DX-16) |
 | `data_source` (list) | `taxonomy_*` (via resolver) + `data_sources` | Free-form vendor strings; mappings in `taxonomy/mappings/splunk.yaml` |
 | `tags.mitre_attack_id` | `mitre_techniques` / `mitre_tactics` | Routed by ID prefix |
 | `tags.kill_chain_phases` | `mitre_tactics` (additional) | Phase → tactic lookup |

@@ -145,6 +145,11 @@ class Detection(Base):
     # Vendor-authored investigation guide (markdown; Elastic `note`).
     investigation_guide: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # "Before you deploy" prerequisites (DX-16 / #158): Sigma
+    # logsource.definition, Elastic setup + integrations + min stack,
+    # Splunk how_to_implement. Markdown-ish; NULL when the source has none.
+    deploy_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Extracted observable fields (from detection logic parsing)
     extracted_fields_used: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     extracted_event_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

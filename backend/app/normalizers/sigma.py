@@ -3,7 +3,7 @@
 import yaml
 from typing import Any
 
-from app.normalizers.base import BaseNormalizer, NormalizedDetection
+from app.normalizers.base import BaseNormalizer, NormalizedDetection, notes_text
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_sigma_fields
 
@@ -53,6 +53,9 @@ class SigmaNormalizer(BaseNormalizer):
             tags=parsed.tags,
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
+            # logsource.definition is the only place Sigma states what
+            # must be switched on for the fields to exist (DX-16 / #158).
+            deploy_notes=notes_text(extra.get("logsource_definition")),
             raw_content=parsed.raw_content,
             extracted_fields_used=extracted.fields_used,
             extracted_event_ids=extracted.event_ids,

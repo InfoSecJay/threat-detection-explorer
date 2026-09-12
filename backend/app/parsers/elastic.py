@@ -144,6 +144,9 @@ class ElasticParser(BaseParser):
                     # resolution on rules that have no `rule.index` (ML,
                     # some ESQL). Previously dropped on the floor.
                     "integration": metadata.get("integration", []) or [],
+                    # Minimum Kibana/stack version the rule needs; part
+                    # of the "Before you deploy" block (DX-16 / #158).
+                    "min_stack_version": rule.get("min_stack_version") or metadata.get("min_stack_version"),
                     "language": rule.get("language"),
                     "references": rule.get("references", []),
                     "creation_date": metadata.get("creation_date"),

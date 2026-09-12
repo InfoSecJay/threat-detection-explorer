@@ -100,6 +100,16 @@ def _dict_or_none(value):
     return value if isinstance(value, dict) else None
 
 
+def _text_or_none(value):
+    """Free-text column or None. The column migration used to backfill
+    new Text columns with the JSON default '[]' (fixed with DX-16), so a
+    row from that window must not render a literal "[]" block."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text if text and text != "[]" else None
+
+
 class DetectionBase(UtcTimestampsModel):
     """Base detection schema with common fields."""
 
@@ -144,6 +154,10 @@ class DetectionBase(UtcTimestampsModel):
     false_positives: list[str] = []
     # Vendor-authored investigation guide (markdown), when present.
     investigation_guide: Optional[str] = None
+    # "Before you deploy" prerequisites (DX-16): Sigma logsource
+    # definition, Elastic setup / integrations / min stack version,
+    # Splunk how_to_implement. Markdown-ish; null when the source has none.
+    deploy_notes: Optional[str] = None
     # Extracted observable fields
     extracted_fields_used: list[str] = []
     extracted_event_ids: list[str] = []
@@ -216,7 +230,8 @@ class DetectionResponse(DetectionBase):
             "tags": normalize_string_list(detection.tags),
             "references": normalize_string_list(detection.references),
             "false_positives": normalize_string_list(detection.false_positives),
-            "investigation_guide": getattr(detection, "investigation_guide", None) or None,
+            "investigation_guide": _text_or_none(getattr(detection, "investigation_guide", None)),
+            "deploy_notes": _text_or_none(getattr(detection, "deploy_notes", None)),
             "extracted_fields_used": getattr(detection, 'extracted_fields_used', None) or [],
             "extracted_event_ids": getattr(detection, 'extracted_event_ids', None) or [],
             "extracted_process_names": getattr(detection, 'extracted_process_names', None) or [],

@@ -128,10 +128,14 @@ when it was removed from the {escape(tomb["source"])} repository.</p>
         _kv("Status", d.status or ""),
     ])
     query = escape((d.detection_logic or "")[:4000])
+    # DX-16: the prerequisites are indexable text, not just a raw-view field.
+    notes = (getattr(d, "deploy_notes", None) or "").strip()
+    deploy_html = f"<h2>Before you deploy</h2><p>{escape(notes[:1500])}</p>" if notes and notes != "[]" else ""
     body = f"""<h1>{escape(d.title)}</h1>
 <p>{escape((d.description or "")[:1200])}</p>
 <ul>{facts}</ul>
 <p>ATT&amp;CK: {tech_html or "unmapped"}</p>
+{deploy_html}
 <h2>Detection logic</h2>
 <pre>{query}</pre>"""
     desc = d.description or f"{d.source} detection rule"

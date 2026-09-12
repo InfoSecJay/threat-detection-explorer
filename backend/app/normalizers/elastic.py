@@ -3,7 +3,7 @@
 from typing import Any, Optional
 
 from app.services.taxonomy.canonical import VENDOR_RULE_TYPE_MODALITY
-from app.normalizers.base import BaseNormalizer, NormalizedDetection
+from app.normalizers.base import BaseNormalizer, NormalizedDetection, notes_text
 from app.parsers.base import ParsedRule
 from app.services.field_extractor import extract_elastic_fields
 
@@ -102,7 +102,13 @@ class ElasticNormalizer(BaseNormalizer):
             rule_modality=VENDOR_RULE_TYPE_MODALITY.get(str(extra.get("type") or "").lower(), "rule"),
             references=self.normalize_references(extra.get("references")),
             false_positives=self.normalize_false_positives(parsed.false_positives),
-            investigation_guide=_guide_text(parsed.extra.get("note"), parsed.extra.get("setup")),
+            investigation_guide=_guide_text(parsed.extra.get("note")),
+            # Setup, integrations and the minimum stack version are the
+            # deploy prerequisites, not triage guidance (DX-16 / #158);
+            # they used to be appended to the guide under "## Setup".
+            deploy_notes=_deploy_notes(
+                parsed.extra.get("setup"), parsed.extra.get("integration"), parsed.extra.get("min_stack_version"),
+            ),
             raw_content=parsed.raw_content,
             extracted_fields_used=extracted.fields_used,
             extracted_event_ids=extracted.event_ids,
@@ -304,13 +310,21 @@ class ElasticNormalizer(BaseNormalizer):
         return "unknown"
 
 
-def _guide_text(note, setup) -> "str | None":
-    """Elastic `note` is the investigation guide; `setup` (when
-    present) is appended under its own heading so the page shows one
-    document."""
-    parts = []
-    if isinstance(note, str) and note.strip():
-        parts.append(note.strip())
-    if isinstance(setup, str) and setup.strip():
-        parts.append("## Setup\n\n" + setup.strip())
-    return "\n\n".join(parts) or None
+def _guide_text(note) -> "str | None":
+    """Elastic `note` is the investigation guide. `setup` used to be
+    appended here under its own heading; it is deploy prerequisite
+    material and now lives in `deploy_notes` (DX-16 / #158)."""
+    return notes_text(note)
+
+
+def _deploy_notes(setup, integrations, min_stack_version) -> "str | None":
+    """The "Before you deploy" block for an Elastic rule: which
+    integrations must be installed and the minimum stack version as
+    one-line facts, then the vendor's own `setup` markdown."""
+    facts = []
+    names = [i.strip() for i in (integrations or []) if isinstance(i, str) and i.strip()]
+    if names:
+        facts.append("Integrations: " + ", ".join(names))
+    if isinstance(min_stack_version, str) and min_stack_version.strip():
+        facts.append("Minimum stack version: " + min_stack_version.strip())
+    return notes_text("\n".join(facts), setup)

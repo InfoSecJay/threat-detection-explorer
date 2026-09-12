@@ -19,6 +19,14 @@ from app.services.upstream_refs import branch_for
 _PERMALINK_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://detectionexplorer.io")
 
 
+def notes_text(*parts) -> Optional[str]:
+    """Join the non-empty string parts with a blank line; None when
+    there is nothing to say. Shared by the deploy-notes builders so a
+    whitespace-only vendor field never becomes an empty callout."""
+    kept = [p.strip() for p in parts if isinstance(p, str) and p.strip()]
+    return "\n\n".join(kept) or None
+
+
 @dataclass
 class NormalizedDetection:
     """Normalized detection rule ready for storage.
@@ -89,6 +97,12 @@ class NormalizedDetection:
     # Vendor-authored investigation guide (markdown), when the format
     # carries one (Elastic `note`). None otherwise.
     investigation_guide: Optional[str] = None
+    # "Before you deploy" (DX-16 / #158): what has to be switched on for
+    # the rule to see anything -- Sigma `logsource.definition`, Elastic
+    # `setup` + integrations + minimum stack version, Splunk
+    # `how_to_implement`. Markdown-ish text; None when the source says
+    # nothing.
+    deploy_notes: Optional[str] = None
 
     # Original raw content
     raw_content: str = ""

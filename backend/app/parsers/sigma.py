@@ -102,6 +102,11 @@ class SigmaParser(BaseParser):
                     "references": rule.get("references", []),
                     "date": rule.get("date"),
                     "modified": rule.get("modified"),
+                    # Free-text prerequisites ("enable the builtin Zeek
+                    # script that logs header names ...", DX-16 / #158).
+                    # Kept out of log_source so the taxonomy resolver's
+                    # product/category/service lookup is untouched.
+                    "logsource_definition": logsource.get("definition") if isinstance(logsource, dict) else None,
                 },
             )
 
