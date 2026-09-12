@@ -260,7 +260,9 @@ export function Observables() {
             <h2 className="font-display font-semibold text-[11px] uppercase tracking-wider text-matrix-400">
               Top {OBSERVABLE_KIND_LABEL[kind].toLowerCase()} values{source ? ` in ${sourceTheme[source]?.name || source}` : ''}
             </h2>
-            <span className="text-[10px] font-mono text-gray-600">{data.distinct.toLocaleString()} {data.query ? 'matching' : 'distinct'} · showing {data.values.length}</span>
+            <span className="text-[10px] font-mono text-dim-400" title="A value used by more sources ranks above one used by more rules from a single source (#111)">
+              {data.distinct.toLocaleString()} {data.query ? 'matching' : 'distinct'} · showing {data.values.length} · ranked by sources, then rules
+            </span>
           </div>
           <ValuesTable kind={kind} values={data.values} max={max} />
         </div>
