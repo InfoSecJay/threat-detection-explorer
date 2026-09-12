@@ -8,7 +8,7 @@ from sqlalchemy import select, or_, and_, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.detection import Detection
-from app.services.taxonomy.canonical import EVENT_TYPE_GROUPS, EVENT_TYPE_PARENTS, expand_event_types
+from app.services.taxonomy.canonical import EVENT_TYPE_GROUPS, EVENT_TYPE_PARENTS, RULE_MODALITIES, expand_event_types
 from app.services.taxonomy.domains import LEGACY_PLATFORM_FILTERS
 from app.services.corpus_cache import corpus_cache
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
@@ -280,6 +280,9 @@ class SearchService:
     # Fixed vocabularies the statistics payload always reports, zero-filled.
     _STAT_SEVERITIES = ("low", "medium", "high", "critical", "unknown")
     _STAT_STATUSES = ("stable", "experimental", "deprecated", "unknown")
+    # DX-10 / #152: the headline total includes every modality; the
+    # split lets the front door say "incl. N hunting queries".
+    _STAT_MODALITIES = tuple(sorted(RULE_MODALITIES))
 
     async def get_statistics(self) -> dict:
         """Corpus statistics, memoised on the corpus fingerprint (see
@@ -290,10 +293,11 @@ class SearchService:
     async def _compute_statistics(self) -> dict:
         """Get overall statistics about stored detections.
 
-        Four round trips regardless of vocabulary size: one GROUP BY
-        each for source / severity / status (zero-filled to the fixed
-        key sets so the payload shape never depends on the corpus) and
-        one for hygiene averages. Previously one COUNT per key (22).
+        Five round trips regardless of vocabulary size: one GROUP BY
+        each for source / severity / status / modality (zero-filled to
+        the fixed key sets so the payload shape never depends on the
+        corpus) and one for hygiene averages. Previously one COUNT per
+        key (22).
 
         Returns:
             Statistics dict with counts by source, severity, etc.
@@ -303,6 +307,7 @@ class SearchService:
             "by_source": {s: 0 for s in ALL_REPOSITORY_NAMES},
             "by_severity": {s: 0 for s in self._STAT_SEVERITIES},
             "by_status": {s: 0 for s in self._STAT_STATUSES},
+            "by_modality": {m: 0 for m in self._STAT_MODALITIES},
             "top_techniques": [],
             "top_tactics": [],
         }
@@ -310,6 +315,7 @@ class SearchService:
             (Detection.source, stats["by_source"]),
             (Detection.severity, stats["by_severity"]),
             (Detection.status, stats["by_status"]),
+            (Detection.rule_modality, stats["by_modality"]),
         ):
             rows = (
                 await self.db.execute(select(column, func.count(Detection.id)).group_by(column))

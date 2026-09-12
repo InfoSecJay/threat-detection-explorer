@@ -72,8 +72,10 @@ SCOPE_NOTES: dict[str, str] = {
     "sentinel": (
         "Solutions/*/Analytic Rules, root Detections/, ASIM/ and Summary rules "
         "are counted. Hunting Queries and Detection Queries exist in the "
-        "checkout but are rejected at parse time -- hunting content is not a "
-        "detection rule. Sparse checkout keeps the clone tractable."
+        "checkout but are rejected at parse time: they carry no analytic-rule "
+        "metadata (no severity, schedule or trigger), unlike Elastic's "
+        "hunting/ queries, which are indexed under modality:hunting. Sparse "
+        "checkout keeps the clone tractable."
     ),
     "google_secops": "rules/community/ only (YARA-L). rules/_deprecated/ is excluded and never checked out.",
     "okta": "detections/ only; hunts/, logs/, sample_osquery_checks/ and workflows/ are reference material, not rules.",
@@ -118,10 +120,15 @@ async def get_methodology(db: AsyncSession = Depends(get_db)):
         "principles": [
             "Every file our discovery globs match on the pinned commit is parsed; "
             "a count is reproducible from the commit hash alone.",
-            "Deprecated content is excluded everywhere the vendor marks it; "
-            "hunting content is not counted as detection rules.",
-            "Building-block / signal-only rules are counted but flagged, so "
-            "they can be excluded with one filter.",
+            "Deprecated content is excluded everywhere the vendor marks it.",
+            # DX-10 / #152: the headline count includes hunting queries;
+            # the old sentence ("hunting content is not counted") said
+            # the opposite of what the facets showed.
+            "Hunting queries, building blocks, correlation rules, ML jobs, "
+            "indicator matches and alert forwarders are indexed and flagged "
+            "by modality (rule_modality), so each can be excluded with one "
+            "filter; coverage figures leave out deprecated rules, alert "
+            "forwarders and pure indicator matches.",
             "After every sync the upstream tree is re-fetched via the GitHub API "
             "and our discovered count is checked against it (alerting past 5% drift).",
         ],

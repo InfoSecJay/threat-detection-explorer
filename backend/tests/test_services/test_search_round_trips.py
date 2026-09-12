@@ -12,6 +12,7 @@ import pytest
 
 from app.models.detection import Detection
 from app.services.search import SearchFilters, SearchService
+from app.services.taxonomy.canonical import RULE_MODALITIES
 
 
 def _make(id_: str, source: str, severity: str, status: str, quality: int | None, **cols) -> Detection:
@@ -112,11 +113,16 @@ async def test_statistics_is_four_queries_and_zero_fills(db_session, corpus):
     search = SearchService(db_session)
     with _Counter(db_session) as c:
         stats = await search.get_statistics()
-    assert c.n == 5, f"statistics should be fingerprint + 3 GROUP BYs + hygiene, ran {c.n}"
+    assert c.n == 6, f"statistics should be fingerprint + 4 GROUP BYs + hygiene, ran {c.n}"
     assert stats["total"] == 4
     assert stats["by_source"]["sigma"] == 2 and stats["by_source"]["sentinel"] == 0
     assert stats["by_severity"] == {"low": 1, "medium": 0, "high": 2, "critical": 1, "unknown": 0}
     assert stats["by_status"] == {"stable": 2, "experimental": 1, "deprecated": 1, "unknown": 0}
+    # DX-10 / #152: zero-filled over the whole modality vocabulary and
+    # summing to the headline, so "incl. N hunting queries" is exact.
+    assert stats["by_modality"]["rule"] == 4 and stats["by_modality"]["hunting"] == 0
+    assert set(stats["by_modality"]) == set(RULE_MODALITIES)
+    assert sum(stats["by_modality"].values()) == stats["total"]
     assert stats["quality_by_source"]["sigma"] == {"avg": 80.0, "scored": 2}
     assert "splunk" not in stats["quality_by_source"]
     assert stats["quality_avg"] == 70.0
