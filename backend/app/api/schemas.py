@@ -561,6 +561,9 @@ class StatisticsResponse(BaseModel):
     by_source: dict[str, int]
     by_severity: dict[str, int]
     by_status: dict[str, int]
+    # Rules per modality (DX-10 / #152); the total counts every one of
+    # them. Declared here or the response model silently drops it.
+    by_modality: dict[str, int] = Field(default_factory=dict)
     # Hygiene averages over scored rows (#39). Optional so an older
     # service response shape still validates.
     quality_avg: Optional[float] = None

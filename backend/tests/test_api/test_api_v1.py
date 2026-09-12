@@ -30,6 +30,9 @@ async def test_v1_and_unversioned_paths_answer_the_same(client):
     b = await client.get("/api/detections/statistics")
     assert a.status_code == b.status_code == 200
     assert a.json() == b.json()
+    # DX-10 / #152: the response model must declare by_modality or it
+    # silently drops the key the home page reads.
+    assert "hunting" in a.json()["by_modality"]
 
 
 @pytest.mark.asyncio
