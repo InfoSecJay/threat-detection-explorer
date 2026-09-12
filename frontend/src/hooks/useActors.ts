@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { actorsApi, type ActorMatchMode, type ActorsQueryParams } from '../services/api';
+import { actorsApi, type ActorMatchMode, type ActorsQueryParams, type CoverageScopeParams } from '../services/api';
 
 export function useActors() {
   return useQuery({
@@ -25,10 +25,14 @@ export function useActorsQuery(params: ActorsQueryParams) {
 export function useActor(
   actorId: string | undefined,
   matchMode: ActorMatchMode = 'exact',
+  scope?: CoverageScopeParams,
 ) {
+  // The scope is part of the key (#143): the same actor scored
+  // against a different stack is a different answer.
+  const scopeKey = scope ? { sources: scope.sources ?? null, coverage: scope.coverage ?? 'strict' } : null;
   return useQuery({
-    queryKey: ['actor', actorId, matchMode],
-    queryFn: () => actorsApi.get(actorId as string, matchMode),
+    queryKey: ['actor', actorId, matchMode, scopeKey],
+    queryFn: () => actorsApi.get(actorId as string, matchMode, scope),
     enabled: !!actorId,
     staleTime: 1000 * 60 * 5,
   });

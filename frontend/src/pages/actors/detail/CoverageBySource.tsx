@@ -7,17 +7,24 @@ import { sourceTheme as sourceConfig, clipSm } from '../../../constants/style';
 import { ALL_SOURCES } from '../../../constants/sources';
 import { SectionHead } from './SectionHead';
 import type { ActorDetail as ActorDetailData } from '../../../services/api';
+import type { CoverageScopeState } from '../../../hooks/useCoverageScope';
 
-export function CoverageBySource({ actor }: { actor: ActorDetailData }) {
+export function CoverageBySource({ actor, scope }: { actor: ActorDetailData; scope?: CoverageScopeState }) {
   if (actor.technique_count === 0) return null;
+  // "My stack" (#143): only the reader's sources are scored, so only
+  // they are shown; the rest are named as hidden, not rendered as gaps.
+  const shown = scope?.sources ? ALL_SOURCES.filter((s) => scope.sources!.includes(s)) : [...ALL_SOURCES];
+  const hidden = ALL_SOURCES.length - shown.length;
   return (
     <section>
       <SectionHead
         title="Coverage by source"
-        subtitle={`of ${actor.technique_count} techniques, per vendor · sources with no rules are the gap`}
+        subtitle={`of ${actor.technique_count} techniques, per vendor · sources with no rules are the gap${
+          hidden > 0 ? ` · ${hidden} source${hidden === 1 ? '' : 's'} outside your stack hidden` : ''
+        }`}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-        {ALL_SOURCES.map((src) => {
+        {shown.map((src) => {
           const cov = actor.coverage_by_source?.[src];
           const covered = cov?.techniques_covered ?? 0;
           const pct = actor.technique_count ? Math.round((covered / actor.technique_count) * 100) : 0;

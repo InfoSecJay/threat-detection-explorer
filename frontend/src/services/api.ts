@@ -567,9 +567,29 @@ export interface ActorsListResponse {
 
 export type ActorMatchMode = 'exact' | 'coverage' | 'mention';
 
+// "My stack" coverage scope (#143 / DX-01): score coverage, gaps and
+// Named counts against only these repos (null = every tracked
+// source), and optionally count the hunting / building-block /
+// passthrough / indicator rules the default scope leaves out.
+export type CoverageMode = 'strict' | 'all';
+export interface CoverageScopeParams {
+  sources?: string[] | null;
+  coverage?: CoverageMode;
+}
+// What the API echoes back so a page can label its numbers.
+export interface CoverageScopeEcho {
+  sources: string[] | null;
+  coverage: CoverageMode;
+}
+
+function appendScope(search: URLSearchParams, scope?: CoverageScopeParams): void {
+  if (scope?.sources && scope.sources.length > 0) search.set('sources', scope.sources.join(','));
+  if (scope?.coverage && scope.coverage !== 'strict') search.set('coverage', scope.coverage);
+}
+
 // Filtered /actors mode (Phase 4): same endpoint, any query param
 // switches the response to items + facets.
-export interface ActorsQueryParams {
+export interface ActorsQueryParams extends CoverageScopeParams {
   kind: 'groups' | 'software';
   sector?: string[];
   region?: string[];
@@ -604,6 +624,7 @@ export interface ActorsQueryResponse {
     groups_with_coverage: number;
     software_with_coverage: number;
   };
+  coverage_scope?: CoverageScopeEcho;
 }
 
 export interface ActorTechniqueEntry {
@@ -704,6 +725,8 @@ export interface ActorDetail {
   match_counts: ActorMatchCounts;
   match_mode: ActorMatchMode;
   rules: ActorDetailRule[];
+  // What every coverage figure was computed against (#143).
+  coverage_scope?: CoverageScopeEcho;
 }
 
 // Query language field registry — hydrated from backend/app/services/
@@ -823,6 +846,7 @@ export const actorsApi = {
     if (params.order) search.set('order', params.order);
     if (params.page) search.set('page', String(params.page));
     if (params.per_page) search.set('per_page', String(params.per_page));
+    appendScope(search, params);
     const response = await api.get(`/actors?${search.toString()}`);
     return response.data;
   },
@@ -858,10 +882,11 @@ export const actorsApi = {
   get: async (
     actorId: string,
     matchMode: ActorMatchMode = 'exact',
+    scope?: CoverageScopeParams,
   ): Promise<ActorDetail> => {
-    const response = await api.get(
-      `/actors/${actorId}?match_mode=${matchMode}`,
-    );
+    const search = new URLSearchParams({ match_mode: matchMode });
+    appendScope(search, scope);
+    const response = await api.get(`/actors/${actorId}?${search.toString()}`);
     return response.data;
   },
 };

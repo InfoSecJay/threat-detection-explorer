@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useActorsQuery } from '../hooks/useActors';
+import { useCoverageScope } from '../hooks/useCoverageScope';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { clipSm, clipMd } from '../constants/style';
 import { countryFlag, countryName } from '../utils/actorDisplay';
@@ -22,6 +23,7 @@ import { EntityCard } from './actors/cards';
 import { FacetSelect } from './actors/FacetSelect';
 import { ActorsTable } from './actors/ActorsTable';
 import { BulkExportButton } from './actors/BulkExportButton';
+import { CoverageScopeBar } from './actors/CoverageScopeBar';
 
 type Tab = 'groups' | 'software';
 type View = 'table' | 'cards';
@@ -67,10 +69,15 @@ export function Actors() {
     (tab === 'software' ? 'used_by_actor_count' : 'weighted_gap');
   const order = (searchParams.get('order') === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
   const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+  // "My stack" (#143): the table ranks and counts against the chosen
+  // repos, so the sort column and the actor page agree.
+  const { scope, setScope } = useCoverageScope();
 
   const params = useMemo(
     () => ({
       kind: tab,
+      sources: scope.sources ?? undefined,
+      coverage: scope.coverage === 'all' ? ('all' as const) : undefined,
       sector: tab === 'groups' ? sector : undefined,
       region: tab === 'groups' ? region : undefined,
       motivation: tab === 'groups' ? motivation : undefined,
@@ -87,7 +94,7 @@ export function Actors() {
       per_page: view === 'cards' ? CARDS_PER_PAGE : TABLE_PER_PAGE,
     }),
     [tab, sector, region, motivation, origin, swType, usedByActor,
-     minGaps, hasExactRules, q, sort, order, page, view]
+     minGaps, hasExactRules, q, sort, order, page, view, scope]
   );
 
   const { data, isLoading, error } = useActorsQuery(params);
@@ -225,6 +232,10 @@ export function Actors() {
           </div>
         </div>
       </div>
+
+      {/* "My stack" (#143): every gap, coverage and Named figure in the
+          table below is scored against these repos. */}
+      <CoverageScopeBar scope={scope} setScope={setScope} />
 
       {/* Tab switcher */}
       <div className="flex items-center gap-1 border-b border-void-800">

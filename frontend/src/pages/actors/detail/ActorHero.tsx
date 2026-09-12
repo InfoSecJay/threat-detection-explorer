@@ -11,7 +11,13 @@ import { MATCH_MODE_LABEL } from './matchMode';
 import type { ActorMatchMode } from '../../../services/api';
 import type { ActorDetail as ActorDetailData } from '../../../services/api';
 
-export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchMode: ActorMatchMode }) {
+export function ActorHero({ actor, matchMode, scopeLabel = 'any vendor' }: {
+  actor: ActorDetailData;
+  matchMode: ActorMatchMode;
+  /** What the coverage figures were scored against (#143): "any
+   * vendor", or the reader's stack when one is selected. */
+  scopeLabel?: string;
+}) {
   const isGroup = actor.kind === 'group';
   const accentText = isGroup
     ? 'text-breach-400'
@@ -146,8 +152,8 @@ export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchM
           </div>
         </div>
         <div className="col-span-2 sm:col-auto">
-          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
-            Techniques with &ge;1 rule (any vendor)
+          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1" data-testid="hero-coverage-scope">
+            Techniques with &ge;1 rule ({scopeLabel})
           </div>
           <div className="text-xl font-display font-bold text-gray-200 tabular-nums" data-testid="hero-raw-coverage">
             {actor.covered_technique_count}/{actor.technique_count}

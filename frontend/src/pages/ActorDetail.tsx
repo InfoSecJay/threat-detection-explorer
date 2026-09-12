@@ -18,6 +18,8 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useActor } from '../hooks/useActors';
+import { useCoverageScope } from '../hooks/useCoverageScope';
+import { CoverageScopeBar } from './actors/CoverageScopeBar';
 import { MitreText, MitreReferences, resolveCitations } from '../components/MitreText';
 import { useAttackRouteResolver } from '../hooks/useAttackRoutes';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
@@ -33,7 +35,10 @@ import { ActorRules } from './actors/detail/ActorRules';
 export function ActorDetail() {
   const { id } = useParams<{ id: string }>();
   const [matchMode, setMatchMode] = useState<ActorMatchMode>('exact');
-  const { data: actor, isLoading, error } = useActor(id, matchMode);
+  // "My stack" (#143): the same URL-held scope the /actors table uses,
+  // so the numbers here are the ones the reader sorted by there.
+  const { scope, setScope, label: scopeLabel } = useCoverageScope();
+  const { data: actor, isLoading, error } = useActor(id, matchMode, scope);
   const resolveRoute = useAttackRouteResolver();
   useDocumentMeta(actor ? `${actor.name} (${actor.id})` : null, actor?.description);
 
@@ -65,8 +70,9 @@ export function ActorDetail() {
         </Link>
       </div>
 
-      <ActorHero actor={actor} matchMode={matchMode} />
-      <CoverageBySource actor={actor} />
+      <ActorHero actor={actor} matchMode={matchMode} scopeLabel={scopeLabel} />
+      <CoverageScopeBar scope={scope} setScope={setScope} />
+      <CoverageBySource actor={actor} scope={scope} />
 
       {/* Description + numbered references */}
       {actor.description && (
