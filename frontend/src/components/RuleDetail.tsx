@@ -27,6 +27,7 @@ import { HistoryTimeline } from './HistoryTimeline';
 import { qualityBand } from './rulelist/format';
 import { useEventTypeParents } from '../hooks/useDetections';
 import { taxonomyHint } from '../constants/taxonomy';
+import { upstreamRef } from '../utils/upstreamRef';
 
 interface RuleDetailProps {
   detection: Detection;
@@ -131,6 +132,11 @@ export function RuleDetail({ detection }: RuleDetailProps) {
   const language = LANGUAGE_LABEL[(detection.language || '').toLowerCase()] || (detection.language || 'unknown');
   const hasObservables = (detection.extracted_observables?.length ?? 0) > 0 || (detection.extracted_source_tables?.length ?? 0) > 0;
   const eventTypeParents = useEventTypeParents();
+  // DX-15 / #157: the stored link is pinned to the indexed commit; the
+  // branch link is derived by the API and only exists when there is a pin.
+  const upstream = upstreamRef(detection.source_rule_url);
+  const latestUpstream = detection.source_rule_url_latest || null;
+  const latestRef = upstreamRef(latestUpstream);
 
   return (
     <div className="space-y-4">
@@ -203,8 +209,31 @@ export function RuleDetail({ detection }: RuleDetailProps) {
                 </button>
               )}
               {detection.source_rule_url && (
-                <a href={detection.source_rule_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors">
-                  Upstream &#8599;
+                <a
+                  href={detection.source_rule_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-void-700 hover:bg-void-600 text-gray-300 hover:text-white rounded-lg text-sm font-medium transition-colors"
+                  title={upstream?.pinned
+                    ? `The file at the commit this catalog indexed (${upstream.ref.slice(0, 7)}), so what you read is what was parsed`
+                    : 'The rule file upstream'}
+                  data-testid="upstream-link"
+                >
+                  Upstream{upstream?.pinned ? ' (as indexed)' : ''} &#8599;
+                </a>
+              )}
+              {/* DX-15: the pinned link is the primary; the moving branch is
+                  offered beside it, never instead of it. */}
+              {latestUpstream && latestRef && (
+                <a
+                  href={latestUpstream}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1.5 text-xs font-mono text-gray-400 hover:text-white transition-colors"
+                  title="The same file at the tip of the upstream branch, which may be newer than what was indexed"
+                  data-testid="upstream-latest-link"
+                >
+                  latest on {latestRef.ref} &#8599;
                 </a>
               )}
             </div>

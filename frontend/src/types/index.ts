@@ -15,7 +15,12 @@ export interface Detection {
   source: DetectionSource;
   source_file: string;
   source_repo_url: string;
+  // Pinned to the commit the catalog indexed (`/blob/<sha>/`) since
+  // DX-15; rows from before that carry a branch link until resynced.
   source_rule_url: string | null;
+  // The same file on the moving branch, derived by the API from the
+  // pinned link; absent on list items and null for unpinned rows.
+  source_rule_url_latest?: string | null;
   rule_id: string | null;
   title: string;
   description: string | null;

@@ -177,6 +177,33 @@ describe('RuleDetail', () => {
     expect(getByTestId('source-file-link')).toHaveTextContent('rules/windows/proc.yml');
   });
 
+  it('leads with the pinned upstream file and offers the branch beside it (DX-15)', () => {
+    const sha = 'ffc8ad66' + '0'.repeat(32);
+    const pinned = `https://github.com/SigmaHQ/sigma/blob/${sha}/rules/windows/proc.yml`;
+    const latest = 'https://github.com/SigmaHQ/sigma/blob/master/rules/windows/proc.yml';
+    const { getByTestId } = render(
+      <MemoryRouter>
+        <RuleDetail detection={{ ...detection, source_rule_url: pinned, source_rule_url_latest: latest } as unknown as Detection} />
+      </MemoryRouter>,
+    );
+    expect(getByTestId('upstream-link')).toHaveAttribute('href', pinned);
+    expect(getByTestId('upstream-link')).toHaveTextContent('Upstream (as indexed)');
+    expect(getByTestId('upstream-latest-link')).toHaveAttribute('href', latest);
+    expect(getByTestId('upstream-latest-link')).toHaveTextContent('latest on master');
+    // The source-file row keeps the pinned link: diffing and license
+    // review happen against the file that was actually parsed.
+    expect(getByTestId('source-file-link')).toHaveAttribute('href', pinned);
+  });
+
+  it('shows a plain Upstream link, and no latest link, for a row indexed before DX-15', () => {
+    const { getByTestId, queryByTestId } = render(
+      <MemoryRouter><RuleDetail detection={detection as unknown as Detection} /></MemoryRouter>,
+    );
+    expect(getByTestId('upstream-link')).toHaveTextContent(/^Upstream/);
+    expect(getByTestId('upstream-link')).not.toHaveTextContent('as indexed');
+    expect(queryByTestId('upstream-latest-link')).toBeNull();
+  });
+
   it('never links an unknown chip: there is nothing behind it', () => {
     const { getByTestId } = render(
       <MemoryRouter><RuleDetail detection={{ ...detection, platforms: ['unknown'] } as unknown as Detection} /></MemoryRouter>,
