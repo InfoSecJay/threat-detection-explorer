@@ -34,7 +34,7 @@ export function HygieneSection({
             >
               {opt.label}
               {count !== undefined && (
-                <span className="ml-1 text-[10px] font-mono text-gray-600 tabular-nums">{count.toLocaleString()}</span>
+                <span className="ml-1 text-[11px] font-mono text-dim-500 tabular-nums">{count.toLocaleString()}</span>
               )}
             </button>
           );

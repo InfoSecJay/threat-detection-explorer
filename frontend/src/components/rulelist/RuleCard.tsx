@@ -59,7 +59,7 @@ export function RuleCard({ detection }: { detection: Detection }) {
         )}
       </div>
       {meta && (
-        <div className="mt-1 text-[11px] font-mono text-gray-500 truncate">{meta}</div>
+        <div className="mt-1 text-[11px] font-mono text-dim-400 truncate">{meta}</div>
       )}
     </button>
   );

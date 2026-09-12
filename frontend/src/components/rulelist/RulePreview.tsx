@@ -22,7 +22,7 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
               Techniques and Modified could take the row width instead. */}
           {typeof detection.quality_score === 'number' && (
             <div className="flex items-center gap-2" data-testid="preview-completeness">
-              <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
+              <span className="text-[10px] font-display font-semibold text-dim-400 uppercase tracking-wider">
                 Completeness
               </span>
               <span
@@ -37,7 +37,7 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
           {/* Query logic */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider">
+              <span className="text-[10px] font-display font-semibold text-dim-400 uppercase tracking-wider">
                 Detection Logic
               </span>
               {lang && (
@@ -54,7 +54,7 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
           {/* References */}
           {detection.references && detection.references.length > 0 && (
             <div>
-              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              <div className="text-[10px] font-display font-semibold text-dim-400 uppercase tracking-wider mb-1.5">
                 References
               </div>
               <ul className="space-y-1">
@@ -78,7 +78,7 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
           {/* False positives */}
           {detection.false_positives && detection.false_positives.length > 0 && (
             <div>
-              <div className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              <div className="text-[10px] font-display font-semibold text-dim-400 uppercase tracking-wider mb-1.5">
                 False Positives
               </div>
               <ul className="space-y-1">

@@ -21,7 +21,7 @@ function visiblePages(currentPage: number, totalPages: number): (number | string
 export function Pagination({ currentPage, totalPages, onPageChange }: { currentPage: number; totalPages: number; onPageChange: (page: number) => void }) {
   return (
     <div className="flex items-center justify-between mt-4">
-      <div className="text-sm font-mono text-gray-500">
+      <div className="text-sm font-mono text-dim-400">
         PAGE <span className="text-matrix-500">{currentPage}</span> / {totalPages}
       </div>
       <div className="flex items-center gap-1">
@@ -46,7 +46,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: { currentP
               {page}
             </button>
           ) : (
-            <span key={idx} className="px-2 text-gray-600">
+            <span key={idx} className="px-2 text-dim-500">
               {page}
             </span>
           )

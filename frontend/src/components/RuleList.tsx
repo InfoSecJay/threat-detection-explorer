@@ -144,11 +144,11 @@ export function RuleList({
       {/* Header with count and controls */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
-          <p className="text-sm font-mono text-gray-500">
-            <span className="text-gray-600">[</span>
+          <p className="text-sm font-mono text-dim-400">
+            <span className="text-dim-500">[</span>
             {offset + 1}-{Math.min(offset + limit, total)}
-            <span className="text-gray-600">]</span>
-            <span className="text-gray-600 mx-1">/</span>
+            <span className="text-dim-500">]</span>
+            <span className="text-dim-500 mx-1">/</span>
             <span className="text-matrix-500">{total.toLocaleString()}</span>
           </p>
 
@@ -182,7 +182,7 @@ export function RuleList({
                 </button>
               )}
               {onCompareSelected && selectedIds.size > 6 && (
-                <span className="text-[10px] font-mono text-gray-500">compare takes up to 6</span>
+                <span className="text-[10px] font-mono text-dim-400">compare takes up to 6</span>
               )}
             </div>
           )}
@@ -192,7 +192,7 @@ export function RuleList({
             used to run past the viewport edge (teardown F04/S1.8). */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-mono text-gray-500">SORT:</label>
+            <label className="text-xs font-mono text-dim-400">SORT:</label>
             <select
               value={currentSortValue}
               onChange={(e) => handleQuickSort(e.target.value)}
@@ -206,7 +206,7 @@ export function RuleList({
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs font-mono text-gray-500">LIMIT:</label>
+            <label className="text-xs font-mono text-dim-400">LIMIT:</label>
             <select
               value={limit}
               onChange={(e) =>
@@ -262,7 +262,7 @@ export function RuleList({
                   title="Attack-surface domain (prefix), then data sources. Sorts by first data source (alphabetical); use the SORT dropdown for domain or platform ordering." />
                 <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
-                <th scope="col" className="px-3 py-3 text-left text-xs font-display font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                <th scope="col" className="px-3 py-3 text-left text-xs font-display font-semibold text-dim-400 uppercase tracking-wider whitespace-nowrap"
                   title="ATT&CK technique IDs the rule is mapped to (first two, then +n). Each links to its /mitre page.">
                   Techniques
                 </th>

@@ -23,6 +23,14 @@ export default {
           700: '#21262d',
           600: '#30363d',
         },
+        // Secondary text that must still clear WCAG AA on the void
+        // backgrounds (DX-20 / #162). gray-600 (#4B5563) facet counts
+        // read 2.5:1 on void-850 and gray-500 (#6B7280) labels 4.25:1;
+        // these two sit at >= 5:1 on every void shade at 10-12px.
+        dim: {
+          500: '#8B94A3', // counts and tabular secondary numbers
+          400: '#9AA3B2', // secondary labels (SORT:, header sub-labels)
+        },
         // Primary accent - electric cyan
         matrix: {
           500: '#00ffcc',

@@ -19,7 +19,7 @@ export function SortableTh({
       <button
         type="button"
         onClick={() => onSort(field)}
-        className="text-xs font-display font-semibold text-gray-500 uppercase tracking-wider hover:text-matrix-500 focus-visible:text-matrix-400 focus-visible:underline focus:outline-none transition-colors whitespace-nowrap"
+        className="text-xs font-display font-semibold text-dim-400 uppercase tracking-wider hover:text-matrix-500 focus-visible:text-matrix-400 focus-visible:underline focus:outline-none transition-colors whitespace-nowrap"
       >
         {label}{active && <span className="ml-1 text-matrix-500">{sortOrder === 'asc' ? '\u2191' : '\u2193'}</span>}
       </button>

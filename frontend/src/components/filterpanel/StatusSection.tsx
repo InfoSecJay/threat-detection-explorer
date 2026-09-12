@@ -21,7 +21,7 @@ export function StatusSection({
       ))}
       <div className="pt-2 mt-1 border-t border-void-800">
         <div className="flex items-center justify-between px-2 mb-1">
-          <span className="text-[11px] font-mono text-gray-500 uppercase" title="Building blocks feed other rules instead of alerting on their own">
+          <span className="text-[11px] font-mono text-dim-400 uppercase" title="Building blocks feed other rules instead of alerting on their own">
             Building blocks
           </span>
           <FacetCount count={buildingBlockCount} />

@@ -3,12 +3,14 @@
 
 /** Count badge rendered on every facet option -- shows how many rules
  * the option matches under the current query, dimmed when zero so
- * users stop clicking into empty result sets. */
+ * users stop clicking into empty result sets. 11px at dim-500 clears
+ * WCAG AA (DX-20 / #162: the 10px gray-600 version read 2.5:1); the
+ * zero state is an inactive cue and stays one step dimmer. */
 export function FacetCount({ count }: { count: number | undefined }) {
   return (
     <span
-      className={`ml-auto text-[10px] font-mono shrink-0 ${
-        count ? 'text-gray-600' : 'text-gray-700'
+      className={`ml-auto text-[11px] font-mono shrink-0 tabular-nums ${
+        count ? 'text-dim-500' : 'text-gray-500'
       }`}
     >
       {(count || 0).toLocaleString()}
