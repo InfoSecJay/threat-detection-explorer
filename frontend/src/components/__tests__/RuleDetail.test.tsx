@@ -204,6 +204,18 @@ describe('RuleDetail', () => {
     expect(queryByTestId('upstream-latest-link')).toBeNull();
   });
 
+  it('opens the About tab named in the URL and writes tab changes back (DX-22)', () => {
+    const { getByRole } = render(
+      <MemoryRouter initialEntries={['/detections/sigma:abc?tab=history']}>
+        <RuleDetail detection={detection as unknown as Detection} />
+      </MemoryRouter>,
+    );
+    expect(getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    expect(getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'false');
+    fireEvent.click(getByRole('tab', { name: 'Investigation guide' }));
+    expect(getByRole('tab', { name: 'Investigation guide' })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('never links an unknown chip: there is nothing behind it', () => {
     const { getByTestId } = render(
       <MemoryRouter><RuleDetail detection={{ ...detection, platforms: ['unknown'] } as unknown as Detection} /></MemoryRouter>,

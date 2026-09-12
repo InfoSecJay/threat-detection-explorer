@@ -8,7 +8,7 @@
 import { parseApiDate, formatCalendarDate } from '../utils/dates';
 import { MODALITY_LABELS, MODALITY_OPTIONS } from './filterpanel/options';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { Detection } from '../types';
 import { ObservablesPanel } from './ObservablesPanel';
 import { useEventIds } from '../hooks/useEventIds';
@@ -32,6 +32,8 @@ import { upstreamRef } from '../utils/upstreamRef';
 interface RuleDetailProps {
   detection: Detection;
 }
+
+type AboutTab = 'details' | 'guide' | 'history';
 
 const severityColors: Record<string, string> = {
   critical: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -126,7 +128,18 @@ function Card({ title, children, right, testId }: { title: string; children: Rea
 export function RuleDetail({ detection }: RuleDetailProps) {
   const { labels: eventIdLabels } = useEventIds();
   useDocumentMeta(detection.title, detection.description);
-  const [aboutTab, setAboutTab] = useState<'details' | 'guide' | 'history'>('details');
+  // The About tab lives in the URL (`?tab=guide|history`, DX-22) so a
+  // link to a rule's history or guide opens on it; Details is the
+  // default and carries no param.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const aboutTab: AboutTab = tabParam === 'guide' || tabParam === 'history' ? tabParam : 'details';
+  const setAboutTab = (tab: AboutTab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'details') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
   const [viewSource, setViewSource] = useState(false);
   const src = sourceTheme[detection.source];
   const language = LANGUAGE_LABEL[(detection.language || '').toLowerCase()] || (detection.language || 'unknown');
