@@ -17,6 +17,10 @@
  * Bar syntax is optional. Bare text with no colon falls through to
  * a multi-field substring match on the backend, so casual users can
  * still just type "powershell" and get results.
+ *
+ * Layout (DX-21): under 640px the star / syntax controls drop to a
+ * second row so the input keeps the full width instead of shrinking
+ * to a sliver beside them; every control is at least 24px tall.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -173,9 +177,13 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
   return (
     <div className="relative">
       <div
-        className={`flex items-center gap-2 bg-void-900 border ${focused ? 'border-matrix-500/60 shadow-[0_0_20px_rgba(0,255,65,0.08)]' : error ? 'border-breach-500/40' : 'border-void-700'} px-3 py-2 transition-colors`}
+        className={`flex flex-wrap items-center gap-2 bg-void-900 border ${focused ? 'border-matrix-500/60 shadow-[0_0_20px_rgba(0,255,65,0.08)]' : error ? 'border-breach-500/40' : 'border-void-700'} px-3 py-2 transition-colors`}
         style={clipSm}
       >
+        {/* The prompt, input and clear button share one flex item that
+            takes the whole first row on phones (basis-full) and shares
+            the row with the tools from sm: up (basis-0 + grow). */}
+        <div className="flex grow basis-full sm:basis-0 items-center gap-2 min-w-0" data-testid="searchbar-input-row">
         <span className="text-matrix-500 font-mono text-sm select-none" aria-hidden="true">&gt;</span>
         <input
           ref={inputRef}
@@ -209,19 +217,21 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
               onSubmit('');
               inputRef.current?.focus();
             }}
-            className="text-gray-500 hover:text-white text-xs font-mono shrink-0"
+            className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-dim-400 hover:text-white text-xs font-mono shrink-0"
             aria-label="Clear query"
             title="Clear query (Esc)"
           >
             ✕
           </button>
         )}
+        </div>
+        <div className="flex items-center gap-2 ml-auto shrink-0" data-testid="searchbar-tools">
         <button
           onClick={() => setQueriesOpen((o) => !o)}
-          className={`text-[10px] font-mono uppercase tracking-wider shrink-0 border px-1.5 py-0.5 transition-colors ${
+          className={`inline-flex items-center min-h-[24px] text-[10px] font-mono uppercase tracking-wider shrink-0 border px-1.5 py-0.5 transition-colors ${
             queriesOpen
               ? 'text-matrix-400 border-matrix-500/40'
-              : 'text-gray-500 hover:text-matrix-500 border-void-700 hover:border-matrix-500/40'
+              : 'text-dim-400 hover:text-matrix-500 border-void-700 hover:border-matrix-500/40'
           }`}
           title="Saved and recent queries"
           aria-label="Saved and recent queries"
@@ -231,11 +241,12 @@ export function SearchBar({ value, onSubmit, error, autoFocus }: SearchBarProps)
         </button>
         <Link
           to="/query"
-          className="text-[10px] font-mono text-gray-500 hover:text-matrix-500 uppercase tracking-wider shrink-0 border border-void-700 hover:border-matrix-500/40 px-1.5 py-0.5"
+          className="inline-flex items-center min-h-[24px] text-[10px] font-mono text-dim-400 hover:text-matrix-500 uppercase tracking-wider shrink-0 border border-void-700 hover:border-matrix-500/40 px-1.5 py-0.5"
           title="Query syntax reference: field filters, actors, techniques, boolean logic"
         >
           syntax
         </Link>
+        </div>
       </div>
 
       {queriesOpen && (

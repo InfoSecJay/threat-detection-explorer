@@ -121,7 +121,9 @@ export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchM
           VIEW_ON_ATT&amp;CK ↗
         </a>
       </div>
-      <div className="flex gap-6 shrink-0">
+      {/* DX-21: a 2x2 grid under 640px (the flex row pushed the layout
+          to 429px on a 390px phone); a row again from sm: up. */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 w-full sm:w-auto sm:flex sm:gap-6 shrink-0" data-testid="hero-stats">
         <div>
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
             Rules ({MATCH_MODE_LABEL[matchMode]})
@@ -143,7 +145,7 @@ export function ActorHero({ actor, matchMode }: { actor: ActorDetailData; matchM
             techniques with no rules
           </div>
         </div>
-        <div>
+        <div className="col-span-2 sm:col-auto">
           <div className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1">
             Techniques with &ge;1 rule (any vendor)
           </div>

@@ -110,7 +110,7 @@ export function FilterSheet({
                     sort_order: filters.sort_order,
                   })
                 }
-                className="text-[10px] font-mono text-gray-500 hover:text-breach-400 uppercase tracking-wider"
+                className="min-h-[24px] px-1 text-[10px] font-mono text-dim-400 hover:text-breach-400 uppercase tracking-wider"
               >
                 clear all
               </button>

@@ -140,7 +140,7 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
             key={`${key}:${value}`}
             onClick={() => removePill(key, value)}
             aria-label={`Remove filter ${label}: ${display}`}
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono border ${accent} hover:opacity-80 transition-opacity`}
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 min-h-[24px] text-xs font-mono border ${accent} hover:opacity-80 transition-opacity`}
           >
             <span className="text-[10px] opacity-60">{label}:</span>
             <span>{display}</span>
@@ -151,7 +151,7 @@ export function ActiveFilterPills({ filters, onFiltersChange }: ActiveFilterPill
       {pills.length > 0 && (
         <button
           onClick={clearAll}
-          className="ml-auto text-[10px] font-mono text-gray-500 hover:text-matrix-500 uppercase tracking-wide"
+          className="ml-auto min-h-[24px] px-1 text-[10px] font-mono text-dim-400 hover:text-matrix-500 uppercase tracking-wide"
         >
           Clear all
         </button>

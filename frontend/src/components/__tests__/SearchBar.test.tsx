@@ -134,6 +134,24 @@ describe('SearchBar keyboard interaction', () => {
 });
 
 describe('inline query errors (DX-04)', () => {
+  it('keeps the tools in their own row group with 24px targets (DX-21)', () => {
+    const { input } = setup('tech:T1055');
+    // The input row is a full-width flex item on phones; the star and
+    // syntax controls live in a separate group that wraps beneath it.
+    const row = screen.getByTestId('searchbar-input-row');
+    const tools = screen.getByTestId('searchbar-tools');
+    expect(row).toContainElement(input);
+    expect(row.className).toMatch(/basis-full/);
+    expect(row.className).toMatch(/sm:basis-0/);
+    expect(tools).toContainElement(screen.getByLabelText('Saved and recent queries'));
+    expect(tools).toContainElement(screen.getByText('syntax'));
+    expect(tools).not.toContainElement(input);
+    // WCAG 2.2 target size: clear, star and syntax are all >= 24px tall.
+    for (const el of [screen.getByLabelText('Clear query'), screen.getByLabelText('Saved and recent queries'), screen.getByText('syntax')]) {
+      expect(el.className).toMatch(/min-h-\[24px\]/);
+    }
+  });
+
   it('offers a clickable fix for an unknown FIELD name', () => {
     setup('sevrity:high', {
       error: 'query_parse_error',
