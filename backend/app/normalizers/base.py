@@ -12,6 +12,7 @@ import uuid
 from app.parsers.base import ParsedRule
 from app.services.git_service import GitService
 from app.services.log_source_taxonomy import standardize_log_sources
+from app.services.upstream_refs import branch_for
 
 # Namespace for deterministic detection ids (#86). NEVER change: every
 # permalink derives from it.
@@ -571,30 +572,21 @@ class BaseNormalizer(ABC):
 
         return None
 
-    def build_source_rule_url(self, file_path: str, branch: str = "main") -> str:
-        """Build a direct URL to the rule file in the source repository.
+    def build_source_rule_url(self, file_path: str, source: str) -> str:
+        """Direct URL to the rule file upstream (DX-15 / #157).
 
-        Args:
-            file_path: Relative path to the rule file
-            branch: Git branch name (default: main)
-
-        Returns:
-            Full URL to view the rule file
+        Pinned to the commit that was indexed -- ``/blob/<sha>/<path>``
+        -- whenever a clone is on disk, so what the link shows is what
+        the catalog parsed; the API derives the moving "latest on
+        <branch>" link from it (upstream_refs.latest_upstream_url).
+        With no clone (tests, legacy callers) it falls back to
+        ``/blob/<branch>/`` with the branch from upstream_refs, the same
+        map the methodology page prints.
         """
-        # Ensure consistent path separators
-        file_path = file_path.replace("\\", "/")
-
-        # Remove leading slash if present
-        if file_path.startswith("/"):
-            file_path = file_path[1:]
-
-        # Strip .git suffix from repo URL if present
-        repo_url = self.repo_url
-        if repo_url.endswith(".git"):
-            repo_url = repo_url[:-4]
-
-        # Build the GitHub URL
-        return f"{repo_url}/blob/{branch}/{file_path}"
+        file_path = file_path.replace("\\", "/").lstrip("/")
+        repo_url = self.repo_url[:-4] if self.repo_url.endswith(".git") else self.repo_url
+        sha = self._git_service.head_sha() if self._git_service is not None else None
+        return f"{repo_url}/blob/{sha or branch_for(source)}/{file_path}"
 
     def normalize_references(self, references) -> list[str]:
         """Normalize references to a list of strings.

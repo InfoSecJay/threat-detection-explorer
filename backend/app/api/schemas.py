@@ -6,6 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
+from app.services.upstream_refs import latest_upstream_url
 from app.utils.datetime_utils import to_utc_iso
 
 
@@ -172,6 +173,11 @@ class DetectionResponse(DetectionBase):
     raw_content: str
     created_at: datetime  # Sync timestamp
     updated_at: datetime  # Sync timestamp
+    # DX-15 / #157: `source_rule_url` is pinned to the indexed commit
+    # (`/blob/<sha>/`); this is the same file on the moving branch, for
+    # "what does upstream say now". None when the stored link is not
+    # pinned (rows indexed before DX-15, until the next sync).
+    source_rule_url_latest: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -185,6 +191,7 @@ class DetectionResponse(DetectionBase):
             "source_file": sanitize_string(detection.source_file),
             "source_repo_url": sanitize_string(detection.source_repo_url),
             "source_rule_url": sanitize_string(detection.source_rule_url),
+            "source_rule_url_latest": latest_upstream_url(detection.source, detection.source_rule_url),
             "rule_id": sanitize_string(detection.rule_id),
             "title": sanitize_string(detection.title),
             "description": sanitize_string(detection.description),

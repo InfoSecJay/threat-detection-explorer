@@ -24,6 +24,7 @@ Two lookup strategies share one API:
 
 import codecs
 import logging
+import re
 import subprocess
 import time
 from datetime import datetime
@@ -58,6 +59,11 @@ class GitService:
         # path -> touches newest-first, from build_index(); None = not built
         # (per-file subprocess fallback).
         self._index: Optional[dict[str, list[Touch]]] = None
+        # head_sha() cache: one `git rev-parse HEAD` per repository, not
+        # one per rule. Cleared by build_index() so a re-clone under the
+        # same instance can never serve the previous commit.
+        self._head_sha: Optional[str] = None
+        self._head_resolved = False
 
     # Azure-Sentinel at depth 2000 is the worst case for the whole-repo walk;
     # generous because a timeout only costs the fallback, never the sync.
@@ -80,6 +86,7 @@ class GitService:
         failure, in which case lookups fall back to per-file subprocesses.
         """
         self._index = None
+        self._head_resolved = False
         if not self.repo_path.exists():
             return 0
         started = time.perf_counter()
@@ -115,6 +122,37 @@ class GitService:
             f"git history index: {len(self._index)} paths in {time.perf_counter() - started:.1f}s ({self.repo_path.name})"
         )
         return len(self._index)
+
+    def head_sha(self) -> Optional[str]:
+        """Full sha of the checked-out commit (DX-15 / #157).
+
+        What `source_rule_url` pins to, so a rule link shows the file
+        the catalog parsed rather than whatever the branch holds today.
+        None when there is no clone, no git binary, or anything else
+        goes wrong -- callers fall back to a branch link. Cached per
+        instance; build_index() clears the cache.
+        """
+        if self._head_resolved:
+            return self._head_sha
+        self._head_resolved = True
+        self._head_sha = None
+        if not self.repo_path.exists():
+            return None
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):  # noqa: BLE001 -- best-effort by contract
+            return None
+        sha = result.stdout.strip() if result.returncode == 0 else ""
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
+            self._head_sha = sha
+        return self._head_sha
 
     def _shallow_boundary(self) -> set[str]:
         """Commit shas that a shallow clone cut history at."""

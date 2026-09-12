@@ -40,7 +40,7 @@ class SublimeNormalizer(BaseNormalizer):
             source=parsed.source,
             source_file=parsed.file_path,
             source_repo_url=self.repo_url,
-            source_rule_url=self.build_source_rule_url(parsed.file_path),
+            source_rule_url=self.build_source_rule_url(parsed.file_path, parsed.source),
             rule_id=extra.get("id"),
             title=parsed.title,
             description=parsed.description,

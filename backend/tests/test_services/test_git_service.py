@@ -78,6 +78,25 @@ def git_repo(tmp_path: Path) -> Path:
     return repo
 
 
+def test_head_sha_is_the_checked_out_commit(git_repo: Path, tmp_path: Path) -> None:
+    """DX-15 / #157: what source_rule_url pins to. Full 40-hex sha of
+    HEAD; None for a path with no clone; cached, and cleared by
+    build_index() so a re-clone under the same instance is picked up."""
+    expected = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=git_repo, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    svc = GitService(git_repo)
+    assert svc.head_sha() == expected and len(expected) == 40
+    assert svc.head_sha() == expected  # cached path
+
+    assert GitService(tmp_path / "missing").head_sha() is None
+
+    _commit_file(git_repo, "rules/other.yml", "title: other\n", "2024-07-01T00:00:00+00:00", "Add other")
+    assert svc.head_sha() == expected  # still the cached value ...
+    svc.build_index()
+    assert svc.head_sha() != expected  # ... until the index is rebuilt
+
+
 def test_get_file_dates_returns_add_and_latest_commit(git_repo: Path) -> None:
     """Happy path: created = first add commit, modified = most recent commit."""
     svc = GitService(git_repo)
