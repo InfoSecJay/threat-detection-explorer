@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.repository import Repository
+from app.services.upstream_refs import REPO_BRANCHES, branch_for  # noqa: F401 -- REPO_BRANCHES re-exported for tests
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -41,18 +42,11 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "pypanther",
 ]
 
-# Default branch per source -- used by the sparse-clone path which
-# has to fetch + checkout a specific branch name. The regular
-# (full) clone path auto-detects via Repo.clone_from. Sources NOT
-# listed here default to "master" for back-compat with Sentinel.
-SPARSE_CHECKOUT_BRANCHES: dict[str, str] = {
-    # Chronicle's default branch is `main`, not `master`.
-    "google_secops": "main",
-    # Panther publishes on `develop`, not `main`/`master`.
-    "panther": "develop",
-    # pypanther publishes on `main`.
-    "pypanther": "main",
-}
+# Branch per source lives in upstream_refs.REPO_BRANCHES (DX-15 / #157),
+# imported above: the sparse-clone path fetches + checks out that name
+# explicitly, the full-clone path auto-detects via Repo.clone_from and
+# the map records what it lands on, and the methodology page and the
+# "latest on <branch>" rule links read the same map.
 
 
 # Sparse checkout patterns for large repositories
@@ -233,7 +227,7 @@ class RepositorySyncService:
             # Clone repository (fresh clone ensures we have latest)
             # Use sparse checkout for large repos like sentinel
             if name in SPARSE_CHECKOUT_PATTERNS:
-                branch = SPARSE_CHECKOUT_BRANCHES.get(name, "master")
+                branch = branch_for(name)
                 commit_hash = await self._sparse_clone_repository(
                     config["url"], repo_path, SPARSE_CHECKOUT_PATTERNS[name], branch,
                 )

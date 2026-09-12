@@ -278,7 +278,8 @@ async def prerender_methodology(db: AsyncSession = Depends(get_db)):
     and scope note -- as indexable HTML."""
     from app.api.routes.methodology import LICENSES, SCOPE_NOTES
     from app.models.repository import Repository
-    from app.services.repository_sync import ALL_REPOSITORY_NAMES, SPARSE_CHECKOUT_BRANCHES, RepositorySyncService
+    from app.services.repository_sync import ALL_REPOSITORY_NAMES, RepositorySyncService
+    from app.services.upstream_refs import branch_for
 
     repos = {r.name: r for r in (await db.execute(select(Repository))).scalars().all()}
     rows = []
@@ -291,7 +292,7 @@ async def prerender_methodology(db: AsyncSession = Depends(get_db)):
             "<tr>"
             f"<td>{escape(name)}</td>"
             f'<td><a href="{escape(url)}">{escape(url)}</a></td>'
-            f"<td>{escape(SPARSE_CHECKOUT_BRANCHES.get(name, 'master'))}</td>"
+            f"<td>{escape(branch_for(name))}</td>"
             f"<td><code>{escape(sha)}</code></td>"
             f"<td>{repo.rule_count if repo else 0:,}</td>"
             f"<td>{escape(lic.get('name', ''))}</td>"

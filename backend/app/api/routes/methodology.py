@@ -19,10 +19,10 @@ from app.database import get_db
 from app.models.repository import Repository
 from app.services.repository_sync import (
     ALL_REPOSITORY_NAMES,
-    SPARSE_CHECKOUT_BRANCHES,
     SPARSE_CHECKOUT_PATTERNS,
     RepositorySyncService,
 )
+from app.services.upstream_refs import branch_for
 from app.services.corpus_cache import corpus_cache
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.unclassified import build_report
@@ -101,7 +101,9 @@ async def get_methodology(db: AsyncSession = Depends(get_db)):
         sources.append({
             "name": name,
             "url": config.get("url"),
-            "branch": SPARSE_CHECKOUT_BRANCHES.get(name, "master"),
+            # The branch the clone actually lands on (DX-15 / #157): the
+            # same map the rule links use, so the two cannot disagree.
+            "branch": branch_for(name),
             "sparse_checkout": SPARSE_CHECKOUT_PATTERNS.get(name),
             "include_patterns": list(patterns.get("include_patterns", [])),
             "exclude_dirs": sorted(patterns.get("exclude_dirs", [])),

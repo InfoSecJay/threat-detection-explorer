@@ -87,7 +87,7 @@ async def test_sparse_clone_checks_out_only_the_patterns_on_the_configured_branc
     svc = RepositorySyncService(db_session)
     monkeypatch.setitem(svc.REPO_CONFIGS, "sparse_test", {"url": remote.as_uri(), "name": "sparse_test"})
     monkeypatch.setitem(rs.SPARSE_CHECKOUT_PATTERNS, "sparse_test", ["rules/keep/*"])
-    monkeypatch.setitem(rs.SPARSE_CHECKOUT_BRANCHES, "sparse_test", "develop")
+    monkeypatch.setitem(rs.REPO_BRANCHES, "sparse_test", "develop")
 
     ok, message = await svc.sync_repository("sparse_test")
     assert ok, message

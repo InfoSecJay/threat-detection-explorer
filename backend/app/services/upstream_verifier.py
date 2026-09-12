@@ -39,9 +39,9 @@ from app.services.github_auth import (
 from app.services.rule_discovery import RuleDiscoveryService
 from app.services.repository_sync import (
     RepositorySyncService,
-    SPARSE_CHECKOUT_BRANCHES,
     SPARSE_CHECKOUT_PATTERNS,
 )
+from app.services.upstream_refs import branch_for
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -340,7 +340,7 @@ async def _verify_one_repo(
     # explicitly, full clones follow the remote HEAD.
     branch: Optional[str] = None
     if repo_name in SPARSE_CHECKOUT_PATTERNS:
-        branch = SPARSE_CHECKOUT_BRANCHES.get(repo_name, "master")
+        branch = branch_for(repo_name)
 
     upstream_files = await _fetch_upstream_files(client, owner, repo, branch)
 

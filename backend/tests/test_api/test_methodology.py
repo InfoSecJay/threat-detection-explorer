@@ -67,3 +67,10 @@ async def test_methodology_mirrors_discovery_config_and_repo_state(client, db_se
     assert panther["sparse_checkout"] and "rules/**" in panther["sparse_checkout"]
     assert panther["rule_count"] is None
     assert panther["scope_notes"]
+
+    # DX-15 / #157: the table prints the branch the clone lands on, not
+    # a sparse-only default. The review found elastic and splunk listed
+    # as `master` while their rule links went to `main` and `develop`.
+    assert by_name["elastic"]["branch"] == "main"
+    assert by_name["splunk"]["branch"] == "develop"
+    assert by_name["sentinel"]["branch"] == "master"
