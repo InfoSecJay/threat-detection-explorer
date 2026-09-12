@@ -5,6 +5,51 @@ import { HistoryTimeline } from '../components/HistoryTimeline';
 import type { UpstreamTouch } from '../types';
 import { useDetection } from '../hooks/useDetections';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { upstreamRef } from '../utils/upstreamRef';
+import { clipMd } from '../constants/style';
+
+/** Tell JS-executing crawlers this URL is not a page (bots that fetch
+ * without JS already get a real 404 from the prerender endpoint). */
+function useNoindex() {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const meta = document.createElement('meta');
+    meta.name = 'robots';
+    meta.content = 'noindex';
+    document.head.appendChild(meta);
+    return () => { meta.remove(); };
+  }, []);
+}
+
+/** DX-19 / #161: an id that is not in the catalog and has no tombstone
+ * used to render the raw client error ("Request failed with status
+ * code 404"). Vendor ids and legacy ids resolve on their own (#86), so
+ * a 404 here means the link is mistyped or predates tombstoning. */
+function RuleNotFound({ id }: { id: string }) {
+  useDocumentMeta('Rule not found', 'No rule with this id is in the catalog.');
+  useNoindex();
+  return (
+    <div className="max-w-3xl space-y-4" data-testid="rule-not-found">
+      <Link to="/detections" className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1">
+        <span>&larr;</span> Back to list
+      </Link>
+      <div className="bg-void-850 border border-void-700 p-6" style={clipMd}>
+        <div className="text-[10px] font-mono text-breach-400 uppercase tracking-[0.25em] mb-2">404 · no such rule</div>
+        <h1 className="text-2xl font-display font-bold text-white tracking-wide">No rule with this id</h1>
+        <p className="text-sm text-gray-400 mt-3">
+          <span className="font-mono text-gray-200 break-all">{id}</span> is not in the catalog and is not a rule this
+          site has tracked. Vendor rule ids and older ids redirect to the current page on their own, so this link is
+          most likely mistyped, or from a rule that was removed before tombstones were kept.
+        </p>
+        <ul className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs font-mono uppercase tracking-wider">
+          <li><Link to="/detections" className="text-matrix-500 hover:text-matrix-400">Search the catalog</Link></li>
+          <li><Link to="/digest" className="text-matrix-500 hover:text-matrix-400">Removed this week</Link></li>
+          <li><Link to="/methodology" className="text-gray-400 hover:text-white">How rules are indexed</Link></li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 interface Tombstone {
   removed: true;
@@ -30,6 +75,11 @@ function TombstonePage({ t }: { t: Tombstone }) {
   const touches = Array.isArray(t.last_seen.upstream_history) ? (t.last_seen.upstream_history as UpstreamTouch[]) : [];
   const createdDate = typeof t.last_seen.rule_created_date === 'string' ? t.last_seen.rule_created_date : t.first_seen_at;
   const repoUrl = typeof t.last_seen.source_repo_url === 'string' ? t.last_seen.source_repo_url : null;
+  // DX-15 pays off here: a link pinned to the commit we last indexed
+  // still resolves on GitHub after the file is deleted, so the tombstone
+  // can point at the exact last version. A branch link would 404.
+  const lastUrl = typeof t.last_seen.source_rule_url === 'string' ? t.last_seen.source_rule_url : null;
+  const lastRef = upstreamRef(lastUrl);
   return (
     <div className="max-w-4xl space-y-5" data-testid="tombstone">
       <Link to="/detections" className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1">
@@ -44,6 +94,18 @@ function TombstonePage({ t }: { t: Tombstone }) {
           <span className="text-gray-200">{t.source}</span> repository ({t.source_file}). This URL preserves the
           last version we saw -- a record only this site keeps.
         </p>
+        {lastUrl && lastRef?.pinned && (
+          <a
+            href={lastUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-3 text-xs font-mono text-matrix-500 hover:text-matrix-400"
+            title="The file at the commit this site last indexed; the commit outlives the deletion on GitHub"
+            data-testid="tombstone-upstream"
+          >
+            last indexed version upstream (commit {lastRef.ref.slice(0, 7)}) &#8599;
+          </a>
+        )}
         {t.mitre_techniques.length > 0 && (
           <p className="text-xs font-mono text-gray-500 mt-2">
             ATT&amp;CK:{' '}
@@ -110,9 +172,14 @@ export function DetectionDetail() {
     if (resp?.status === 410 && resp.data?.removed) {
       return <TombstonePage t={resp.data} />;
     }
+    if (resp?.status === 404) {
+      return <RuleNotFound id={id || ''} />;
+    }
+    // Anything else is the network or the API, not the reader's link.
     return (
-      <div className="bg-red-500/20 text-red-400 border border-red-500/30 p-4 rounded-lg">
-        Error loading detection: {error.message}
+      <div className="bg-red-500/20 text-red-400 border border-red-500/30 p-4 rounded-lg" role="alert" data-testid="rule-load-error">
+        This rule could not be loaded{resp?.status ? ` (HTTP ${resp.status})` : ''}. Reload the page, or{' '}
+        <Link to="/detections" className="underline hover:text-red-300">go back to the catalog</Link>.
       </div>
     );
   }
