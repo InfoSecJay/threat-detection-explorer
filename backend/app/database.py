@@ -55,7 +55,7 @@ def _migrate_missing_columns(connection):
                     # backfilled with it (rule_modality -> 'rule', #105)
                     # instead of a NULL every reader must coerce.
                     default = f"'{server_default}'"
-                elif "json" in type_name or "text" in type_name:
+                elif "json" in type_name:
                     default = "'[]'"
                 elif "bool" in type_name:
                     # A NULL boolean is a third state every reader would
@@ -63,6 +63,10 @@ def _migrate_missing_columns(connection):
                     # FALSE (Postgres) / 0 (SQLite) instead.
                     default = "FALSE" if connection.engine.dialect.name == "postgresql" else "0"
                 else:
+                    # Includes free-text columns: a Text column used to be
+                    # backfilled with the JSON-list default '[]', which the
+                    # rule page then rendered as a literal "[]" until the
+                    # next sync rewrote the row (DX-16 / #158).
                     default = "NULL"
                 connection.execute(text(
                     f'ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type} DEFAULT {default}'
