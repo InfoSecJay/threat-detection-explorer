@@ -445,11 +445,27 @@ export const releasesApi = {
 };
 
 // Trending types
+// DX-14: `count` = new + logic-changed rules (the ranking key); `bulk`
+// rules were part of a commit that rewrote >= 25 rules of one source
+// and are reported once in `bulk_commits`; `metadata` edits moved the
+// modified date without touching the logic.
 export interface TrendingTechnique {
   technique_id: string;
   count: number;
+  new?: number;
+  changed?: number;
+  bulk?: number;
+  metadata?: number;
   sources: string[];
   latest_date: string | null;
+}
+
+export interface BulkCommit {
+  source: string;
+  sha: string;
+  subject: string;
+  date: string | null;
+  rules: number;
 }
 
 export interface TrendingPlatform {
@@ -462,7 +478,9 @@ export interface TrendingPlatform {
 export interface TrendingTechniquesResponse {
   period_days: number;
   cutoff_date: string;
+  ranking?: string;
   techniques: TrendingTechnique[];
+  bulk_commits?: BulkCommit[];
 }
 
 export interface TrendingPlatformsResponse {
@@ -491,8 +509,12 @@ export interface TrendingSummaryResponse {
   cutoff_date: string;
   total_created: number;
   total_modified: number;
-  // {source: {created, modified}} — zero-activity sources omitted.
-  by_source: Record<string, { created: number; modified: number }>;
+  // DX-14: how much of `modified` is bulk rewrites (one commit across
+  // >= 25 rules of a source), and which commits those were.
+  bulk_modified?: number;
+  bulk_commits?: BulkCommit[];
+  // {source: {created, modified, bulk}} — zero-activity sources omitted.
+  by_source: Record<string, { created: number; modified: number; bulk?: number }>;
 }
 
 export interface TrendingUseCase {

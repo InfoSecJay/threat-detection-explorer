@@ -67,6 +67,18 @@ export function PulseBanner({ days }: { days: number }) {
               {data.total_modified.toLocaleString()}
             </span>
             <span className="text-sm text-gray-400 font-mono">modified</span>
+            {/* DX-14: a regeneration is one event; say how much of
+                "modified" it is instead of letting it read as a month
+                of work. */}
+            {(data.bulk_modified ?? 0) > 0 && (
+              <span
+                className="text-xs text-dim-400 font-mono"
+                data-testid="pulse-bulk"
+                title={(data.bulk_commits ?? []).map((c) => `${c.source}: ${c.rules} rules in ${c.sha.slice(0, 7)} ${c.subject}`).join('\n')}
+              >
+                ({data.bulk_modified!.toLocaleString()} in {data.bulk_commits?.length ?? 1} bulk commit{(data.bulk_commits?.length ?? 1) === 1 ? '' : 's'})
+              </span>
+            )}
             <span className="text-xs text-gray-600 font-mono">·</span>
             <span className="text-sm text-cyan-400 font-mono">{activeSources} active repos</span>
           </div>

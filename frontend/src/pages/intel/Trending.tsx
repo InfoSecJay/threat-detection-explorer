@@ -17,7 +17,7 @@ import type { ActivityFilters } from '../../services/api';
 import { SkeletonRow, EmptyLabel } from './Section';
 
 function TrendingRow({
-  rank, primary, secondary, count, maxCount, sources, href, accent,
+  rank, primary, secondary, count, maxCount, sources, href, accent, title,
 }: {
   rank: number;
   primary: string;
@@ -27,6 +27,7 @@ function TrendingRow({
   sources: string[];
   href: string;
   accent: 'matrix' | 'cyan' | 'amber';
+  title?: string;
 }) {
   const pct = (count / maxCount) * 100;
   const primaryCls =
@@ -34,7 +35,7 @@ function TrendingRow({
   const barCls =
     accent === 'matrix' ? 'bg-matrix-500/10' : accent === 'cyan' ? 'bg-cyan-500/10' : 'bg-amber-500/10';
   return (
-    <Link to={href} className="block group">
+    <Link to={href} className="block group" title={title}>
       <div className="relative bg-void-800/60 border border-void-700 hover:border-void-600 px-2.5 py-1.5 transition-colors">
         <div className={`absolute inset-y-0 left-0 ${barCls}`} style={{ width: `${pct}%` }} />
         <div className="relative flex items-center gap-2">
@@ -62,8 +63,9 @@ export function TrendingTechniquesList({ days, filters }: { days: number; filter
   if (error || !data?.techniques?.length) return <EmptyLabel label="NO_TRENDING_DATA" />;
 
   const max = Math.max(...data.techniques.map((t) => t.count));
+  const bulk = data.bulk_commits ?? [];
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-testid="trending-techniques">
       {data.techniques.map((t, i) => (
         <TrendingRow
           key={t.technique_id}
@@ -75,8 +77,26 @@ export function TrendingTechniquesList({ days, filters }: { days: number; filter
           sources={t.sources}
           href={`/mitre/${t.technique_id}`}
           accent="matrix"
+          title={t.new !== undefined
+            ? `${t.new} new + ${t.changed ?? 0} logic-changed rules${t.bulk ? ` (+${t.bulk} in bulk commits, not counted)` : ''}${t.metadata ? ` (+${t.metadata} metadata-only edits, not counted)` : ''}`
+            : undefined}
         />
       ))}
+      {/* DX-14: a repo regenerating every file is one event, not a
+          trend. It is named here instead of ranking #1. */}
+      {bulk.length > 0 && (
+        <div className="pt-1.5 text-[10px] font-mono text-dim-400" data-testid="trending-bulk-commits">
+          <span className="uppercase tracking-wider text-gray-500">collapsed:</span>{' '}
+          {bulk.map((c, i) => (
+            <span key={`${c.source}-${c.sha}`}>
+              {i > 0 && ' · '}
+              <span className={sourceConfig[c.source]?.text || 'text-gray-300'}>{sourceConfig[c.source]?.name || c.source}</span>
+              {' '}{c.rules.toLocaleString()} rules in one commit
+              <span className="text-gray-600" title={c.subject}> ({c.sha.slice(0, 7)})</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

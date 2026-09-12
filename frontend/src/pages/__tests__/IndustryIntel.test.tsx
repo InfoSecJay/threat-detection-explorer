@@ -34,7 +34,16 @@ vi.mock('../../hooks/useTrending', () => ({
     isLoading: false,
     error: null,
   }),
-  useTrendingTechniques: () => ({ data: { techniques: [] }, isLoading: false, error: null }),
+  useTrendingTechniques: () => ({
+    data: {
+      period_days: 30, cutoff_date: '',
+      techniques: [{ technique_id: 'T1059', count: 12, new: 9, changed: 3, bulk: 0, metadata: 2, sources: ['sigma'], latest_date: null }],
+      // DX-14: the regeneration is one line, not rank #1.
+      bulk_commits: [{ source: 'lolrmm', sha: 'b'.repeat(40), subject: 'Regenerate all RMM rules', date: '2026-08-20T10:00:00+00:00', rules: 597 }],
+    },
+    isLoading: false,
+    error: null,
+  }),
   useTrendingPlatforms:  () => ({ data: { platforms: [] },  isLoading: false, error: null }),
   useTrendingUseCases:   () => ({ data: { use_cases: [] },  isLoading: false, error: null }),
   useTrendingDataSources: () => ({
@@ -54,7 +63,9 @@ vi.mock('../../hooks/useTrending', () => ({
       cutoff_date: '',
       total_created: 47,
       total_modified: 142,
-      by_source: { sigma: { created: 20, modified: 47 }, splunk: { created: 12, modified: 22 } },
+      bulk_modified: 60,
+      bulk_commits: [{ source: 'lolrmm', sha: 'b'.repeat(40), subject: 'Regenerate all RMM rules', date: '2026-08-20T10:00:00+00:00', rules: 60 }],
+      by_source: { sigma: { created: 20, modified: 47, bulk: 0 }, splunk: { created: 12, modified: 22, bulk: 0 }, lolrmm: { created: 0, modified: 60, bulk: 60 } },
     },
     isLoading: false,
   }),
@@ -184,5 +195,18 @@ describe('IndustryIntel', () => {
     const splunk = getByTestId('wow-splunk').closest('a');
     expect(total.compareDocumentPosition(sigma!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sigma!.compareDocumentPosition(splunk!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('collapses a bulk rewrite into one line and names it in the pulse (DX-14)', async () => {
+    const { getByTestId } = renderPage();
+    await waitFor(() => {
+      expect(getByTestId('trending-bulk-commits')).toBeInTheDocument();
+    });
+    const collapsed = getByTestId('trending-bulk-commits');
+    expect(collapsed).toHaveTextContent('597 rules in one commit');
+    expect(collapsed).toHaveTextContent('bbbbbbb');
+    // The ranked row carries the split on hover; the bulk rules are not in its count.
+    expect(getByTestId('trending-techniques').querySelector('a')).toHaveAttribute('title', '9 new + 3 logic-changed rules (+2 metadata-only edits, not counted)');
+    expect(getByTestId('pulse-bulk')).toHaveTextContent('(60 in 1 bulk commit)');
   });
 });
