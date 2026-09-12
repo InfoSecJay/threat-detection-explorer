@@ -63,9 +63,14 @@ vi.mock('../../hooks/useCompare', () => ({
   useCoverageMatrix: () => ({ data: COVERAGE_FIXTURE, isLoading: false, error: null }),
 }));
 
+// Mutable so one test can make the catalog count exceed the listed
+// rules (the factory runs lazily, after this object is initialised).
+const rulesMock = { total: 1 };
+
 vi.mock('../../hooks/useDetections', () => ({
   useDetections: () => ({
     data: {
+      get total() { return rulesMock.total; },
       items: [
         {
           id: 'rule-1',
@@ -106,7 +111,6 @@ vi.mock('../../hooks/useDetections', () => ({
           updated_at: '2026-04-01T00:00:00Z',
         },
       ],
-      total: 1,
       offset: 0,
       limit: 200,
     },
@@ -204,5 +208,27 @@ describe('MitreCoverage', () => {
     // Wait for it (async render) — `findByText` resolves when the
     // text appears, throws on timeout. No `waitFor` wrapper needed.
     expect(await findByText(/PowerShell commands/i)).toBeInTheDocument();
+  });
+
+  it('labels each rule count with its scope (DX-11)', async () => {
+    rulesMock.total = 1;
+    const { findByTestId, getByTestId } = renderAt('/mitre/T1059');
+    // Headline = the matrix cell: sub-techniques rolled up, coverage scope.
+    expect(await findByTestId('technique-rules-stat')).toHaveTextContent('8');
+    expect(getByTestId('technique-rules-scope')).toHaveTextContent('incl. sub-techniques');
+    // The catalog's exact-tag count is the other number, linked to the
+    // filter that produces it so the reader can reproduce it.
+    expect(getByTestId('technique-rules-scope')).toHaveTextContent('1 tagged T1059 in the catalog');
+    expect(getByTestId('technique-rules-scope').querySelector('a')).toHaveAttribute('href', '/detections?mitre_techniques=T1059');
+    // Every listed rule is shown: no truncation notice.
+    expect(getByTestId('technique-rules-open')).toHaveTextContent('OPEN_IN_DETECTIONS');
+  });
+
+  it('says how many of the tagged rules the capped list shows (DX-11)', async () => {
+    rulesMock.total = 37;
+    const { findByTestId } = renderAt('/mitre/T1059.001');
+    expect(await findByTestId('technique-rules-open')).toHaveTextContent('showing 1 of 37');
+    expect(await findByTestId('technique-rules-scope')).toHaveTextContent('excl. deprecated / passthrough');
+    expect(await findByTestId('technique-rules-scope')).not.toHaveTextContent('incl. sub-techniques');
   });
 });

@@ -14,6 +14,9 @@ import { useDocumentMeta } from '../../hooks/useDocumentMeta';
 import { sourceTheme as sourceColors, clipSm as clipCornerSm, clipMd as clipCornerMd } from '../../constants/style';
 import type { CoverageData } from './types';
 
+// How many matching rules the pane lists before pointing at the catalog.
+const RULES_SHOWN = 200;
+
 const severityColors: Record<string, string> = {
   critical: 'text-breach-400 border-breach-500/30 bg-breach-500/10',
   high: 'text-orange-400 border-orange-500/30 bg-orange-500/10',
@@ -46,11 +49,15 @@ export function TechniqueDetailPane({
   const parentId = techniqueId.includes('.') ? techniqueId.split('.')[0] : null;
   const parentTech = parentId ? techniques[parentId] : null;
 
-  // Fetch matching rules — the backend's mitre_techniques filter already
-  // matches both the technique and its sub-techniques via json contains.
+  // Rules tagged with this exact id. The catalog's `mitre_techniques`
+  // filter is a quoted-element match, so T1055 does NOT pull in
+  // T1055.001; the coverage matrix's total DOES roll sub-techniques up
+  // into the parent and applies the coverage scope (no deprecated, no
+  // passthrough / indicator rules). That is why the two numbers differ,
+  // and why each is labelled with its scope below (DX-11 / #153).
   const { data: rulesData, isLoading: rulesLoading } = useDetections({
     mitre_techniques: [techniqueId],
-    limit: 200,
+    limit: RULES_SHOWN,
   });
 
   // Profile: per-vendor observables, actors, momentum (technique page enrichment).
@@ -80,8 +87,10 @@ export function TechniqueDetailPane({
     );
   }
 
-  const totalDetections = coverageEntry?.total_detections ?? rules.length;
+  const exactTotal = rulesData?.total;
+  const totalDetections = coverageEntry?.total_detections ?? exactTotal ?? rules.length;
   const sourcesCovered = coverageEntry?.sources_with_coverage ?? Object.keys(rulesBySource).length;
+  const truncated = exactTotal !== undefined && exactTotal > rules.length;
 
   return (
     <div className="space-y-4">
@@ -141,9 +150,28 @@ export function TechniqueDetailPane({
 
         {/* Stat pills */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm}>
+          <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm} data-testid="technique-rules-stat">
             <div className="text-[10px] font-mono text-gray-500 uppercase">Rules</div>
             <div className="text-lg font-display text-matrix-500">{totalDetections}</div>
+            {/* DX-11: every count on this page says what it counts. The
+                headline matches the matrix cell (sub-techniques rolled up,
+                coverage scope); the catalog count is the exact tag. */}
+            <div className="text-[10px] font-mono text-gray-500 leading-snug mt-0.5" data-testid="technique-rules-scope">
+              {coverageEntry
+                ? (parentId ? 'excl. deprecated / passthrough' : 'incl. sub-techniques; excl. deprecated / passthrough')
+                : `tagged ${techniqueId}`}
+              {exactTotal !== undefined && coverageEntry && (
+                <>
+                  {' · '}
+                  <Link
+                    to={`/detections?mitre_techniques=${techniqueId}`}
+                    className="text-gray-400 hover:text-matrix-400 underline decoration-dotted"
+                  >
+                    {exactTotal.toLocaleString()} tagged {techniqueId} in the catalog
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
           <div className="bg-void-900 border border-void-700 px-3 py-2" style={clipCornerSm}>
             <div className="text-[10px] font-mono text-gray-500 uppercase">Sources</div>
@@ -226,7 +254,7 @@ export function TechniqueDetailPane({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-xs font-mono text-matrix-400 uppercase">{src.replace(/_/g, ' ')}</span>
                   <span className="text-[10px] font-mono text-gray-500 tabular-nums">
-                    {info.rules} {info.rules === 1 ? 'rule' : 'rules'}{info.hygiene_avg !== null ? ` / completeness ${info.hygiene_avg}` : ''}
+                    {info.rules} tagged {techniqueId}{info.hygiene_avg !== null ? ` / completeness ${info.hygiene_avg}` : ''}
                   </span>
                 </div>
                 {Object.keys(info.observables).length === 0 ? (
@@ -272,15 +300,20 @@ export function TechniqueDetailPane({
 
       {/* Matching rules */}
       <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h3 className="font-display text-sm text-white uppercase tracking-wider">
             Matching Detection Rules
           </h3>
+          {/* DX-11: the list is capped; say so rather than let a per-source
+              tally here disagree with the vendor summary above. */}
           <Link
             to={`/detections?mitre_techniques=${techniqueId}`}
             className="text-[10px] font-mono text-matrix-500 hover:text-matrix-400 transition-colors"
+            data-testid="technique-rules-open"
           >
-            [ OPEN_IN_DETECTIONS ↗ ]
+            {truncated
+              ? `[ showing ${rules.length} of ${exactTotal} · open all in catalog ↗ ]`
+              : '[ OPEN_IN_DETECTIONS ↗ ]'}
           </Link>
         </div>
 
@@ -300,6 +333,9 @@ export function TechniqueDetailPane({
               const srcRules = rulesBySource[src];
               if (!srcRules || srcRules.length === 0) return null;
               const colors = sourceColors[src] || sourceColors.sigma;
+              // Per-source total from the profile (exact tag, uncapped) so a
+              // capped group reads "10 of 37", not a bare "10".
+              const tagged = profile?.sources?.[src]?.rules;
               return (
                 <div key={src}>
                   <div className="flex items-center gap-2 mb-1.5">
@@ -307,7 +343,9 @@ export function TechniqueDetailPane({
                     <span className={`text-[11px] font-mono uppercase tracking-wider ${colors.text}`}>
                       {colors.name || src}
                     </span>
-                    <span className="text-[10px] font-mono text-gray-500">({srcRules.length})</span>
+                    <span className="text-[10px] font-mono text-gray-500" data-testid={`technique-group-count-${src}`}>
+                      ({tagged !== undefined && tagged > srcRules.length ? `${srcRules.length} of ${tagged}` : srcRules.length})
+                    </span>
                   </div>
                   <div className="divide-y divide-void-700/50">
                     {srcRules.map((r) => (
