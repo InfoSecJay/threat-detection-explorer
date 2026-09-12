@@ -24,13 +24,14 @@ import { ALL_SOURCES } from '../../constants/sources';
 import { BAKED_SNAPSHOT } from '../../constants/snapshot';
 import { formatRelDate } from '../intel/lib';
 
-function Stat({ to, value, label, testId }: { to: string; value: string; label: string; testId: string }) {
+function Stat({ to, value, label, sub, testId }: { to: string; value: string; label: string; sub?: string; testId: string }) {
   return (
     <Link to={to} className="group flex flex-col min-w-[7rem]" data-testid={testId}>
       <span className="text-2xl font-display font-bold text-white tabular-nums leading-none group-hover:text-matrix-400 transition-colors">
         {value}
       </span>
       <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider mt-1">{label}</span>
+      {sub && <span className="text-[10px] font-mono text-gray-500 mt-0.5" data-testid={`${testId}-sub`}>{sub}</span>}
     </Link>
   );
 }
@@ -53,10 +54,20 @@ export function StatsStrip() {
   const rules = stats?.total ?? BAKED_SNAPSHOT?.rules;
   const covered = coverage?.summary.techniques_with_any_coverage ?? BAKED_SNAPSHOT?.coverage.covered;
   const total = coverage?.summary.total_techniques ?? BAKED_SNAPSHOT?.coverage.total;
+  // DX-10 / #152: the headline counts every indexed rule, hunting
+  // queries included. Say so where the number is, so the front door
+  // and the methodology page agree.
+  const hunting = stats?.by_modality?.hunting;
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-4 pt-5 mt-5 border-t border-void-800">
-      <Stat to="/detections" value={rules !== undefined ? rules.toLocaleString() : '—'} label="detection rules" testId="stat-rules" />
+      <Stat
+        to="/detections"
+        value={rules !== undefined ? rules.toLocaleString() : '—'}
+        label="rules indexed"
+        sub={hunting ? `incl. ${hunting.toLocaleString()} hunting queries` : undefined}
+        testId="stat-rules"
+      />
       <Stat to="/methodology" value={String(ALL_SOURCES.length)} label="open-source repos" testId="stat-sources" />
       <Stat
         to="/mitre"

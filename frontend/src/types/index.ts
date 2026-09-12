@@ -224,6 +224,9 @@ export interface Statistics {
   by_source: Record<string, number>;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
+  // Rules per modality (DX-10 / #152): the total counts every one of
+  // them; absent on older responses.
+  by_modality?: Record<string, number>;
   // Hygiene averages over scored rows (#39); absent on older responses.
   quality_avg?: number | null;
   quality_by_source?: Record<string, { avg: number; scored: number }>;
