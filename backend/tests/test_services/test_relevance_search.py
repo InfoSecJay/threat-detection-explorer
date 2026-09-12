@@ -30,6 +30,23 @@ class TestDialectAwareParsing:
         sql = str(clause.compile(dialect=postgresql.dialect()))
         assert "websearch_to_tsquery" not in sql
 
+    def test_postgres_bare_word_never_matches_on_the_rule_body(self):
+        """DX-12 / #154: the vector carries detection_logic at weight D
+        for ranking; the MATCH is restricted to A-C (title, rule_id,
+        description / use_cases / tags), so a product that appears only
+        in an exclusion list does not come back for that product."""
+        clause = parse_query("citrix", dialect="postgresql")
+        sql = str(clause.compile(dialect=postgresql.dialect()))
+        assert "ts_filter(detections.search_vector, '{a,b,c}')" in sql
+        # Both halves: the indexed @@ and the weight-filtered recheck.
+        assert sql.count("@@") == 2 and " AND " in sql
+
+    def test_content_field_still_reaches_rule_bodies(self):
+        clause = parse_query("content:citrix", dialect="postgresql")
+        sql = str(clause.compile(dialect=postgresql.dialect()))
+        assert "ts_filter" not in sql
+        assert "detection_logic" in sql and "raw_content" in sql
+
 
 class TestFreeTextTerms:
     def test_extracts_bare_words_and_phrases_only(self):

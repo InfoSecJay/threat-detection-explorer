@@ -50,7 +50,7 @@ const OPERATORS: Array<{ token: string; desc: string; example: string }> = [
   { token: 'NOT', desc: 'Excludes matching rules.', example: 'severity:critical NOT source:sigma' },
   { token: '( ... )', desc: 'Grouping / precedence.', example: '(source:sigma OR source:elastic) AND severity:high' },
   { token: '*', desc: 'Wildcard.', example: 'title:power*' },
-  { token: 'bare word', desc: 'No prefix = substring across title + description + tags.', example: 'powershell' },
+  { token: 'bare word', desc: 'No prefix = whole-word match across title, rule id, description, use cases and tags. Never the rule body: use content: for that.', example: 'powershell' },
 ];
 
 export function QueryReference() {

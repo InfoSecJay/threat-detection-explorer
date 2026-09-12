@@ -5,7 +5,7 @@ Powers the free-text search bar. Users type queries like:
     actor:apt29 AND severity:high
     (title:"cobalt strike" OR desc:"beacon") AND source:sigma
     tech:T1059.001 NOT platform:linux
-    powershell             # bare word: multi-field substring
+    powershell             # bare word: whole-word match on the documented fields
 
 The syntax is Lucene-ish via `luqum`, translated to SQLAlchemy WHERE
 clauses that work identically on SQLite (dev) and Postgres (prod).
@@ -21,9 +21,11 @@ Design principles:
 - **Fail loud, not silent.** Bad syntax -> `QueryParseError` with a
   position hint. Unknown fields -> suggestion (Levenshtein). No
   silent drops.
-- **Bare words fall back** to multi-field substring across a curated
-  set (title, description, tags) — matches user expectation from
-  simple search bars.
+- **Bare words fall back** to a match across the documented fields
+  (title, rule id, description, use cases, tags) — matches user
+  expectation from simple search bars. Never the rule body: a product
+  named only in an exclusion list must not come back for that product
+  (DX-12 / #154). `content:` is the explicit way into bodies.
 """
 
 from __future__ import annotations
@@ -382,8 +384,9 @@ for spec in QUERYABLE_FIELDS:
     for alias in spec.aliases:
         _ALIAS_INDEX[alias.lower()] = spec
 
-# Fields a bare word (no colon) searches across. Curated to be useful,
-# not exhaustive — dumping raw_content in here makes every query slow.
+# Fields a bare word (no colon) searches across on SQLite. Curated to be
+# useful, not exhaustive — and never the rule body (DX-12 / #154; on
+# Postgres the same rule is the weight A-C filter in _bare_word_clause).
 _BARE_WORD_FIELDS = ["title", "description", "tags"]
 
 
@@ -665,16 +668,25 @@ def _bare_word_clause(value: str) -> ColumnElement:
     """Bare word (no `field:` prefix).
 
     Postgres (#12 / teardown F13): weighted full-text match against the
-    generated `search_vector` column (title A > rule_id B > description
-    C > logic D) via websearch_to_tsquery -- so `ransomware` ranks a
-    rule TITLED ransomware above one that merely mentions it in a
-    comment. SQLite (dev) keeps the curated-field substring match.
+    generated `search_vector` column (title A > rule_id B > description,
+    use cases, tags C > logic D) via websearch_to_tsquery -- so
+    `ransomware` ranks a rule TITLED ransomware above one that merely
+    mentions it. The match itself is restricted to weights A-C (DX-12 /
+    #154): `citrix` used to return Elastic Protections rules where the
+    word appears only in a list of EXCLUDED code-signing vendors, because
+    the logic is in the vector at weight D. The vector keeps weight D
+    for ranking and `content:` still reaches bodies; the first `@@` uses
+    the GIN index, the ts_filter one rechecks the survivors. SQLite
+    (dev) keeps the curated-field substring match.
     """
     if _ACTIVE_DIALECT == "postgresql":
         from sqlalchemy import literal_column
 
-        return literal_column("detections.search_vector").op("@@")(
-            func.websearch_to_tsquery("english", value)
+        vector = literal_column("detections.search_vector")
+        query = func.websearch_to_tsquery("english", value)
+        return and_(
+            vector.op("@@")(query),
+            func.ts_filter(vector, literal_column("'{a,b,c}'")).op("@@")(query),
         )
     return or_(*[_text_clause(c, value) for c in _BARE_WORD_FIELDS])
 
