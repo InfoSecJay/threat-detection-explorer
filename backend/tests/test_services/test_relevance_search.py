@@ -40,6 +40,16 @@ class TestDialectAwareParsing:
         assert "ts_filter(detections.search_vector, '{a,b,c}')" in sql
         # Both halves: the indexed @@ and the weight-filtered recheck.
         assert sql.count("@@") == 2 and " AND " in sql
+        # ... OR a whole-token hit on the extracted process names, which
+        # is what keeps `certutil` / `lsass` (#125) reachable.
+        assert "extracted_process_names" in sql and "~*" in sql
+        params = clause.compile(dialect=postgresql.dialect()).params
+        assert r"\mcitrix\M" in params.values()
+
+    def test_process_name_token_is_regex_safe(self):
+        clause = parse_query("cmd.exe", dialect="postgresql")
+        params = clause.compile(dialect=postgresql.dialect()).params
+        assert r"\mcmd\.exe\M" in params.values()
 
     def test_content_field_still_reaches_rule_bodies(self):
         clause = parse_query("content:citrix", dialect="postgresql")

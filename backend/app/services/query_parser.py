@@ -22,14 +22,16 @@ Design principles:
   position hint. Unknown fields -> suggestion (Levenshtein). No
   silent drops.
 - **Bare words fall back** to a match across the documented fields
-  (title, rule id, description, use cases, tags) — matches user
-  expectation from simple search bars. Never the rule body: a product
-  named only in an exclusion list must not come back for that product
-  (DX-12 / #154). `content:` is the explicit way into bodies.
+  (title, rule id, description, use cases, tags) plus the extracted
+  process names — matches user expectation from simple search bars.
+  Never the rest of the rule body: a product named only in an
+  exclusion list must not come back for that product (DX-12 / #154).
+  `content:` is the explicit way into bodies.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -684,11 +686,33 @@ def _bare_word_clause(value: str) -> ColumnElement:
 
         vector = literal_column("detections.search_vector")
         query = func.websearch_to_tsquery("english", value)
-        return and_(
+        documented = and_(
             vector.op("@@")(query),
             func.ts_filter(vector, literal_column("'{a,b,c}'")).op("@@")(query),
         )
-    return or_(*[_text_clause(c, value) for c in _BARE_WORD_FIELDS])
+        return or_(documented, _process_name_word_clause(value))
+    # SQLite (dev): substring on the same fields plus the process-name
+    # list; dev never sees enough rows for the substring to matter.
+    return or_(
+        *[_text_clause(c, value) for c in _BARE_WORD_FIELDS],
+        _list_substring_clause("extracted_process_names", value),
+    )
+
+
+def _process_name_word_clause(value: str) -> ColumnElement:
+    """A bare word that is a whole token of an extracted process name.
+
+    Restricting the tsvector match to the documented fields would have
+    dropped `certutil` from 151 rules to 27 and `lsass` from 180 to 103
+    -- the process names #125 made reachable, most of them present only
+    in the logic (`Image|endswith: \\certutil.exe`). The extracted
+    process-name list is a structured observable, not the body, so it
+    stays in scope; matched as a whole token (`\\m...\\M`) so `m` does
+    not hit every process with an m in it. Measured on prod 2026-09-11:
+    certutil 27 -> 119, lsass 103 -> 123, citrix unchanged at 14.
+    """
+    pattern = r"\m" + re.escape(value.strip()) + r"\M"
+    return cast(Detection.extracted_process_names, String).op("~*")(pattern)
 
 
 def free_text_terms(q: str) -> list[str]:

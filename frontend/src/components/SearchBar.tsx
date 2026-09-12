@@ -15,9 +15,10 @@
  * field on click.
  *
  * Bar syntax is optional. Bare text with no colon is a whole-word
- * match on the backend across title, rule id, description, use cases
- * and tags (not the rule body: that is `content:`), so casual users
- * can still just type "powershell" and get results.
+ * match on the backend across title, rule id, description, use cases,
+ * tags and extracted process names (not the rest of the rule body:
+ * that is `content:`), so casual users can still just type
+ * "powershell" and get results.
  *
  * Layout (DX-21): under 640px the star / syntax controls drop to a
  * second row so the input keeps the full width instead of shrinking
