@@ -1,11 +1,12 @@
-/** Right pane for a selected technique: ATT&CK metadata, per-vendor
- * observables and actors from the technique profile, and the matching
- * rules grouped by source. */
+/** Right pane for a selected technique: ATT&CK metadata, the actors
+ * and software that use it (technique profile), and the matching rules
+ * grouped by source. The per-vendor observables panel that used to sit
+ * between them was removed at Jay's call (2026-09-11): it did not earn
+ * its space. */
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTechniqueProfile } from '../../hooks/useTechniqueProfile';
-import { observableUrl, OBSERVABLE_KIND_LABEL, type ObservableKind } from '../../utils/observableLinks';
 import { useDetections } from '../../hooks/useDetections';
 import { useMitre } from '../../contexts/MitreContext';
 import { MitreText } from '../../components/MitreText';
@@ -238,44 +239,6 @@ export function TechniqueDetailPane({
         <div className="bg-void-850 border border-amber-500/20 p-5" style={clipCornerMd}>
           <h3 className="font-display text-sm text-amber-400 uppercase tracking-wider mb-2">MITRE Detection Guidance</h3>
           <MitreText text={tech.detection} resolveRoute={resolveRoute} />
-        </div>
-      )}
-
-      {/* How each vendor detects it + who uses it (technique profile) */}
-      {profile && Object.keys(profile.sources).length > 0 && (
-        <div className="bg-void-850 border border-void-700 p-5" style={clipCornerMd}>
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="font-display text-sm text-white uppercase tracking-wider">How each vendor detects it</h3>
-            <span className="text-[10px] font-mono text-gray-500">what the rules key on, per source; click a value for every rule that uses it</span>
-          </div>
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {Object.entries(profile.sources).map(([src, info]) => (
-              <div key={src} className="bg-void-900 border border-void-700 p-3" style={clipCornerSm} data-testid={`vendor-${src}`}>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-xs font-mono text-matrix-400 uppercase">{src.replace(/_/g, ' ')}</span>
-                  <span className="text-[10px] font-mono text-gray-500 tabular-nums">
-                    {info.rules} tagged {techniqueId}{info.hygiene_avg !== null ? ` / completeness ${info.hygiene_avg}` : ''}
-                  </span>
-                </div>
-                {Object.keys(info.observables).length === 0 ? (
-                  <p className="text-[10px] font-mono text-gray-600">no extracted observables</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {Object.entries(info.observables).map(([kind, values]) => (
-                      <div key={kind} className="flex flex-wrap items-baseline gap-1">
-                        <span className="text-[9px] font-mono text-gray-600 uppercase w-14 shrink-0">{OBSERVABLE_KIND_LABEL[kind as ObservableKind] || kind}</span>
-                        {values.map((v) => (
-                          <Link key={v.value} to={observableUrl(kind as ObservableKind, v.value)} className="px-1 py-0.5 text-[10px] font-mono bg-void-800 border border-void-700 text-gray-300 hover:text-matrix-400 hover:border-matrix-500/40 break-all" title={`${v.rules} rule(s) here reference this`}>
-                            {v.value}
-                          </Link>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
