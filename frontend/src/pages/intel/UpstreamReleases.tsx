@@ -58,8 +58,9 @@ export function UpstreamReleases() {
                 {cfg.name}
               </span>
               <span className="font-mono text-xs text-matrix-500 shrink-0">{release.tag_name}</span>
+              {/* DX-22: a release named after its tag read "v6.6.0 v6.6.0". */}
               <span className="text-sm text-gray-200 flex-1 truncate min-w-0">
-                {release.name || release.tag_name}
+                {release.name && release.name !== release.tag_name ? release.name : ''}
               </span>
               <span className="text-[10px] text-gray-500 font-mono shrink-0">
                 {formatRelDate(release.published_at)}

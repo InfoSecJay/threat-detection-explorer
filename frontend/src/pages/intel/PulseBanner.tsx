@@ -7,6 +7,7 @@
 
 import { useTrendingSummary } from '../../hooks/useTrending';
 import { sourceTheme as sourceConfig, clipMd } from '../../constants/style';
+import { sourceLabelsShort } from '../../constants/sources';
 import { SkeletonRow } from './Section';
 
 export function PulseBanner({ days }: { days: number }) {
@@ -82,7 +83,9 @@ export function PulseBanner({ days }: { days: number }) {
                 title={`${cfg.name}: ${counts.created} new, ${counts.modified} modified`}
               >
                 <div className={`w-6 ${cfg.dot} transition-all`} style={{ height: `${pct * 0.4}px` }} />
-                <div className="text-[9px] font-mono text-gray-500 uppercase">{src.slice(0, 3)}</div>
+                {/* DX-22: three Elastic sources all read "ELA" under a
+                    3-char slice; the short labels tell them apart. */}
+                <div className="text-[9px] font-mono text-gray-500 uppercase">{sourceLabelsShort[src] ?? src}</div>
                 <div className={`text-[10px] font-mono ${cfg.text} tabular-nums`}>{counts.created}</div>
               </div>
             );
