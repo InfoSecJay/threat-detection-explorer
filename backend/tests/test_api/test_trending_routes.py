@@ -113,9 +113,10 @@ async def test_summary_splits_created_from_modified(client, db_session):
     assert data["cutoff_date"].startswith("2026-07-27T15:00:00")
     assert data["total_created"] == 2
     assert data["total_modified"] == 2
+    assert data["bulk_modified"] == 0 and data["bulk_commits"] == []
     assert data["by_source"] == {
-        "sigma": {"created": 1, "modified": 2},
-        "splunk": {"created": 1, "modified": 0},
+        "sigma": {"created": 1, "modified": 2, "bulk": 0},
+        "splunk": {"created": 1, "modified": 0, "bulk": 0},
     }
     assert "elastic" not in data["by_source"]
 
@@ -209,3 +210,86 @@ async def test_trending_endpoints_are_memoised(client, db_session):
     assert hit_cost == 1, hit_cost
     assert calls > hit_cost  # the other window computed
     assert other != first or other == first  # shape-only: both are valid payloads
+
+
+# -- DX-14 / #156: bulk commits collapse, ranking = new + logic-changed ---
+
+
+def _touch(sha: str, date: str, subject: str = "Regenerate") -> dict:
+    return {"sha": sha, "author": "bot", "date": date, "subject": subject}
+
+
+@pytest.mark.asyncio
+async def test_trending_techniques_collapse_bulk_commits_and_rank_on_new_plus_changed(client, db_session, monkeypatch):
+    """FROZEN_NOW is 2026-08-26; days=30 puts the cutoff at 2026-07-27."""
+    monkeypatch.setattr(trending_routes, "BULK_COMMIT_MIN_RULES", 3)
+    regen = [_touch("b" * 40, "2026-08-20T10:00:00+00:00", "Regenerate all RMM rules")]
+    rows = [
+        _rule(source="lolrmm", title=f"rmm{i}", mitre_techniques=["T1219"],
+              rule_created_date=datetime(2025, 1, 1), rule_modified_date=datetime(2026, 8, 20), upstream_history=regen)
+        for i in range(5)
+    ]
+    rows += [
+        # New in the window.
+        _rule(source="sigma", title="new1", mitre_techniques=["T1059"],
+              rule_created_date=datetime(2026, 8, 10), rule_modified_date=datetime(2026, 8, 10)),
+        # Logic changed in the window (ingest stamped it).
+        _rule(source="sigma", title="changed1", mitre_techniques=["T1059"],
+              rule_created_date=datetime(2025, 1, 1), rule_modified_date=datetime(2026, 8, 12),
+              logic_changed_at=datetime(2026, 8, 12), upstream_history=[_touch("c" * 40, "2026-08-12T00:00:00+00:00", "tighten")]),
+        # Modified in the window but the logic last moved in January: metadata only.
+        _rule(source="sigma", title="meta1", mitre_techniques=["T1059"],
+              rule_created_date=datetime(2025, 1, 1), rule_modified_date=datetime(2026, 8, 13),
+              logic_changed_at=datetime(2026, 1, 5), upstream_history=[_touch("d" * 40, "2026-08-13T00:00:00+00:00", "fix typo")]),
+        # No hash history yet: still counts as a change (the data cannot say more).
+        _rule(source="elastic", title="unknown1", mitre_techniques=["T1105"],
+              rule_created_date=datetime(2025, 1, 1), rule_modified_date=datetime(2026, 8, 14)),
+        # Outside the window entirely.
+        _rule(source="sigma", title="old", mitre_techniques=["T1003"],
+              rule_created_date=datetime(2025, 1, 1), rule_modified_date=datetime(2026, 6, 1)),
+    ]
+    db_session.add_all(rows)
+    await db_session.commit()
+
+    resp = await client.get("/api/trending/techniques", params={"days": 30})
+    assert resp.status_code == 200
+    data = resp.json()
+    by = {t["technique_id"]: t for t in data["techniques"]}
+    assert data["techniques"][0]["technique_id"] == "T1059"
+    assert by["T1059"] == {**by["T1059"], "count": 2, "new": 1, "changed": 1, "bulk": 0, "metadata": 1, "sources": ["sigma"]}
+    assert by["T1105"]["count"] == 1 and by["T1105"]["changed"] == 1
+    # The regeneration ranks nothing: five touched rules collapse to one line.
+    assert "T1219" not in by and "T1003" not in by
+    assert data["bulk_commits"] == [
+        {"source": "lolrmm", "sha": "b" * 40, "subject": "Regenerate all RMM rules", "date": "2026-08-20T10:00:00+00:00", "rules": 5}
+    ]
+    assert "logic changed" in data["ranking"]
+
+
+@pytest.mark.asyncio
+async def test_trending_summary_reports_bulk_commits_separately(client, db_session, monkeypatch):
+    monkeypatch.setattr(trending_routes, "BULK_COMMIT_MIN_RULES", 3)
+    regen = [_touch("e" * 40, "2026-08-21T00:00:00+00:00", "Regenerate")]
+    db_session.add_all([
+        *[_rule(source="lolrmm", title=f"r{i}", rule_modified_date=datetime(2026, 8, 21), upstream_history=regen) for i in range(4)],
+        _rule(source="sigma", title="s", rule_modified_date=datetime(2026, 8, 22),
+              upstream_history=[_touch("f" * 40, "2026-08-22T00:00:00+00:00", "one rule")]),
+        _rule(source="sigma", title="n", rule_created_date=datetime(2026, 8, 23), rule_modified_date=datetime(2026, 8, 23)),
+    ])
+    await db_session.commit()
+
+    data = (await client.get("/api/trending/summary", params={"days": 30})).json()
+    assert data["total_modified"] == 6 and data["bulk_modified"] == 4
+    assert data["by_source"]["lolrmm"] == {"created": 0, "modified": 4, "bulk": 4}
+    assert data["by_source"]["sigma"] == {"created": 1, "modified": 2, "bulk": 0}
+    assert data["bulk_commits"][0]["rules"] == 4 and data["bulk_commits"][0]["source"] == "lolrmm"
+
+
+def test_touch_in_window_reads_the_newest_entry_only():
+    cutoff = datetime(2026, 7, 27)
+    newest_in = [_touch("a" * 40, "2026-08-01T00:00:00Z"), _touch("b" * 40, "2026-06-01T00:00:00Z")]
+    newest_out = [_touch("b" * 40, "2026-06-01T00:00:00Z"), _touch("a" * 40, "2026-08-01T00:00:00Z")]
+    assert trending_routes._touch_in_window(newest_in, cutoff)["sha"] == "a" * 40
+    assert trending_routes._touch_in_window(newest_out, cutoff) is None
+    assert trending_routes._touch_in_window([{"sha": "x"}, {"date": "garbage"}], cutoff) is None
+    assert trending_routes._touch_in_window(None, cutoff) is None

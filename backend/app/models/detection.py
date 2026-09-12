@@ -180,6 +180,12 @@ class Detection(Base):
     rule_modified_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # Upstream commit touches, newest first (#127): [{sha, author, date, subject}]
     upstream_history: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # DX-14 / #156: sha1 of the whitespace-normalized detection_logic,
+    # and when a sync last saw it move. A modification whose logic hash
+    # did not move is a metadata or cosmetic edit; trending ranks on
+    # new + logic-changed rules, not on "touched".
+    logic_hash: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    logic_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
 
     # Timestamps (sync timestamps)
     created_at: Mapped[datetime] = mapped_column(

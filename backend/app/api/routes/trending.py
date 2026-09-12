@@ -1,7 +1,21 @@
-"""Trending data API routes."""
+"""Trending data API routes.
+
+Trending techniques rank on NEW rules plus rules whose LOGIC changed
+(DX-14 / #156). Two things used to drown that signal: a repo
+regenerating every file in one commit (LOLRMM: 597 of 1,176
+modifications in a 30-day window, "T1219 599" at #1), and metadata
+edits that move `rule_modified_date` without touching the query. Bulk
+commits -- one sha across >= BULK_COMMIT_MIN_RULES rules of one source
+inside the window, read from each rule's upstream_history -- are
+collapsed into one line and reported separately; a rule whose
+`logic_changed_at` (stamped by ingest when the normalized logic hash
+moves) predates the window is a metadata-only edit and does not count.
+Rules with no hash history yet still count, so the ranking degrades to
+"touched" only where the data cannot say more.
+"""
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -53,6 +67,75 @@ def _apply_trending_filters(
         conditions.append(or_(*et_conds))
 
 
+# A commit that touched this many rules of one source inside the window
+# is a bulk rewrite (regeneration, mass metadata edit): it counts once.
+BULK_COMMIT_MIN_RULES = 25
+BULK_COMMITS_SHOWN = 8
+
+RANKING_NOTE = (
+    "new rules + rules whose logic changed in the window; a commit touching "
+    f">= {BULK_COMMIT_MIN_RULES} rules of one source is collapsed into one line; "
+    "edits whose logic last changed before the window do not count"
+)
+
+
+def _touch_in_window(history, cutoff: datetime) -> Optional[dict]:
+    """The rule's newest upstream touch if it is dated inside the window.
+
+    upstream_history is newest-first, so the first well-formed entry
+    decides: dated on or after the cutoff -> that touch; older -> None
+    (the in-window modification, if any, is not attributable to a commit
+    we know about)."""
+    for touch in history or []:
+        if not isinstance(touch, dict):
+            continue
+        raw = touch.get("date")
+        if not isinstance(raw, str) or not raw:
+            continue
+        try:
+            when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if when.tzinfo is not None:
+            when = when.astimezone(timezone.utc).replace(tzinfo=None)
+        return touch if when >= cutoff else None
+    return None
+
+
+def _bulk_commits(sources: list[str], touches: list[Optional[dict]]) -> tuple[set[tuple[str, str]], list[dict]]:
+    """Group in-window touches by (source, sha); every group with
+    BULK_COMMIT_MIN_RULES or more rules is a bulk commit. Returns the set
+    of bulk (source, sha) keys and the commits, largest first."""
+    groups: dict[tuple[str, str], dict] = {}
+    for source, touch in zip(sources, touches):
+        if not touch or not isinstance(touch.get("sha"), str):
+            continue
+        key = (source, touch["sha"])
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {
+                "source": source, "sha": touch["sha"], "subject": touch.get("subject") or "",
+                "date": touch.get("date"), "rules": 0,
+            }
+        g["rules"] += 1
+    bulk = {k for k, g in groups.items() if g["rules"] >= BULK_COMMIT_MIN_RULES}
+    commits = sorted((groups[k] for k in bulk), key=lambda g: (-g["rules"], g["source"], g["sha"]))
+    return bulk, commits
+
+
+def _change_kind(created, modified, logic_changed, cutoff: datetime, bulk_hit: bool) -> str:
+    """new | bulk | metadata | changed for one rule in the window."""
+    if created is not None and created >= cutoff:
+        return "new"
+    if bulk_hit:
+        return "bulk"
+    if logic_changed is not None and logic_changed < cutoff:
+        # Ingest saw the logic move, but before this window: the edit
+        # that moved rule_modified_date touched metadata, not the query.
+        return "metadata"
+    return "changed"
+
+
 @router.get("/techniques")
 @memoised("trending.get_trending_techniques")
 async def get_trending_techniques(
@@ -63,16 +146,19 @@ async def get_trending_techniques(
     event_types: Optional[str] = Query(None, description="Comma-separated canonical-event-type filter"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get trending MITRE techniques based on recently created/modified rules.
-
-    Returns techniques ordered by the number of rules created/modified in the time period.
-    Optional filters narrow the corpus before counting (e.g. "top techniques in new O365 rules").
+    """Trending MITRE techniques: ranked by new rules plus rules whose
+    logic changed in the window (DX-14). Each entry carries the split
+    (`new`, `changed`, `bulk`, `metadata`); `count` = new + changed is
+    the ranking key. Bulk commits are listed once in `bulk_commits`.
+    Optional filters narrow the corpus before counting.
     """
     cutoff_date = utcnow() - timedelta(days=days)
 
     conditions = [
-        Detection.rule_modified_date.isnot(None),
-        Detection.rule_modified_date >= cutoff_date,
+        or_(
+            and_(Detection.rule_modified_date.isnot(None), Detection.rule_modified_date >= cutoff_date),
+            and_(Detection.rule_created_date.isnot(None), Detection.rule_created_date >= cutoff_date),
+        ),
     ]
     _apply_trending_filters(conditions, _parse_csv(sources), _parse_csv(platforms), _parse_csv(event_types))
 
@@ -81,50 +167,66 @@ async def get_trending_techniques(
     query = select(
         Detection.source,
         Detection.mitre_techniques,
+        Detection.rule_created_date,
         Detection.rule_modified_date,
+        Detection.logic_changed_at,
+        Detection.upstream_history,
     ).where(and_(*conditions))
 
     rows = (await db.execute(query)).all()
+    touches = [_touch_in_window(r[5], cutoff_date) for r in rows]
+    bulk, bulk_commits = _bulk_commits([r[0] for r in rows], touches)
 
     technique_counts: dict[str, dict] = {}
-    for source, techniques, modified_date in rows:
+    for (source, techniques, created, modified, logic_changed, _history), touch in zip(rows, touches):
         if not techniques:
             continue
+        kind = _change_kind(
+            created, modified, logic_changed, cutoff_date,
+            bulk_hit=bool(touch) and (source, touch.get("sha")) in bulk,
+        )
+        when = modified or created
         for technique in techniques:
-            if technique not in technique_counts:
-                technique_counts[technique] = {
+            entry = technique_counts.get(technique)
+            if entry is None:
+                entry = technique_counts[technique] = {
                     "technique_id": technique,
-                    "count": 0,
+                    "count": 0, "new": 0, "changed": 0, "bulk": 0, "metadata": 0,
                     "sources": set(),
                     "latest_date": None,
                 }
-            technique_counts[technique]["count"] += 1
-            technique_counts[technique]["sources"].add(source)
+            entry[kind] += 1
+            if kind in ("new", "changed"):
+                entry["count"] += 1
+                entry["sources"].add(source)
+                if when and (entry["latest_date"] is None or when > entry["latest_date"]):
+                    entry["latest_date"] = when
 
-            if modified_date:
-                current_latest = technique_counts[technique]["latest_date"]
-                if current_latest is None or modified_date > current_latest:
-                    technique_counts[technique]["latest_date"] = modified_date
-
-    # Sort by count and return top N
+    # Rank on new + changed; a technique touched only by bulk or
+    # metadata edits has nothing to say here (it is in bulk_commits).
     sorted_techniques = sorted(
-        technique_counts.values(),
+        (t for t in technique_counts.values() if t["count"] > 0),
         key=lambda x: (-x["count"], x["technique_id"]),
     )[:limit]
 
-    # Convert sets to lists and format dates
     return {
         "period_days": days,
         "cutoff_date": to_utc_iso(cutoff_date),
+        "ranking": RANKING_NOTE,
         "techniques": [
             {
                 "technique_id": t["technique_id"],
                 "count": t["count"],
-                "sources": list(t["sources"]),
+                "new": t["new"],
+                "changed": t["changed"],
+                "bulk": t["bulk"],
+                "metadata": t["metadata"],
+                "sources": sorted(t["sources"]),
                 "latest_date": to_utc_iso(t["latest_date"]),
             }
             for t in sorted_techniques
         ],
+        "bulk_commits": bulk_commits[:BULK_COMMITS_SHOWN],
     }
 
 
@@ -329,18 +431,38 @@ async def get_trending_summary(
     total_created = sum(created_by.values())
     total_modified = sum(modified_by.values())
 
+    # DX-14: how much of `modified` is one repo rewriting every file at
+    # once. Read from the modified rows' upstream history; the banner
+    # says "1,176 modified (597 in one bulk commit)" instead of letting
+    # a regeneration read as a month of work.
+    mod_rows = (
+        await db.execute(
+            select(Detection.source, Detection.upstream_history).where(
+                and_(Detection.rule_modified_date.isnot(None), Detection.rule_modified_date >= cutoff_date)
+            )
+        )
+    ).all()
+    touches = [_touch_in_window(h, cutoff_date) for _s, h in mod_rows]
+    bulk, bulk_commits = _bulk_commits([s for s, _h in mod_rows], touches)
+    bulk_by: dict[str, int] = {}
+    for (source, _h), touch in zip(mod_rows, touches):
+        if touch and (source, touch.get("sha")) in bulk:
+            bulk_by[source] = bulk_by.get(source, 0) + 1
+
     by_source: dict[str, dict[str, int]] = {}
     for source in ALL_REPOSITORY_NAMES:
         created = created_by.get(source, 0)
         modified = modified_by.get(source, 0)
         if created or modified:
-            by_source[source] = {"created": created, "modified": modified}
+            by_source[source] = {"created": created, "modified": modified, "bulk": bulk_by.get(source, 0)}
 
     return {
         "period_days": days,
         "cutoff_date": to_utc_iso(cutoff_date),
         "total_created": total_created,
         "total_modified": total_modified,
+        "bulk_modified": sum(bulk_by.values()),
+        "bulk_commits": bulk_commits[:BULK_COMMITS_SHOWN],
         "by_source": by_source,
     }
 

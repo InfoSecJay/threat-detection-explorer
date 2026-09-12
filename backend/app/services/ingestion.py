@@ -1,5 +1,6 @@
 """Detection rule ingestion service."""
 
+import hashlib
 import logging
 import time
 import re
@@ -42,6 +43,21 @@ from app.services.ingestion_errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+_WS_RUN = re.compile(r"\s+")
+
+
+def logic_fingerprint(text) -> Optional[str]:
+    """sha1 of the whitespace-normalized detection logic (DX-14 / #156).
+
+    Runs of whitespace collapse to one space and the ends are stripped,
+    so a re-indent or a trailing newline is not a logic change; any
+    other byte is. None for empty logic (ML jobs, correlation shells).
+    """
+    if not isinstance(text, str):
+        return None
+    norm = _WS_RUN.sub(" ", text).strip()
+    return hashlib.sha1(norm.encode("utf-8")).hexdigest() if norm else None
 
 # Vendors retire rules by renaming them in place, not only by moving them
 # to a _deprecated/ directory (teardown R11): Elastic uses "Deprecated - "
@@ -446,17 +462,32 @@ class IngestionService:
         # every rule looked first-seen at the LAST sync (and tombstones
         # inherited that as first_seen_at). Carry the stored value over.
         ids = [r.id for r in rules if r.id]
-        first_seen: dict[str, datetime] = {}
+        prior: dict[str, tuple] = {}
         if ids:
             rows = (
                 await self.db.execute(
-                    select(Detection.id, Detection.created_at).where(Detection.id.in_(ids))
+                    select(
+                        Detection.id, Detection.created_at, Detection.logic_hash, Detection.logic_changed_at,
+                    ).where(Detection.id.in_(ids))
                 )
             ).all()
-            first_seen = {rid: seen for rid, seen in rows if seen is not None}
+            prior = {rid: (seen, old_hash, changed) for rid, seen, old_hash, changed in rows}
+        now = utcnow()
         for rule in rules:
-            if rule.id in first_seen:
-                rule.created_at = first_seen[rule.id]
+            p = prior.get(rule.id)
+            if p is None:
+                continue  # first sight: created_at = now, no logic-change event
+            seen, old_hash, old_changed = p
+            if seen is not None:
+                rule.created_at = seen
+            # DX-14 / #156: the logic-change stamp survives every merge
+            # (merge copies every column) and moves only when the
+            # normalized logic hash does. A first-ever hash is not a
+            # change; whitespace-only edits are not a change.
+            if old_hash and rule.logic_hash and old_hash != rule.logic_hash:
+                rule.logic_changed_at = now
+            else:
+                rule.logic_changed_at = old_changed
 
         stored = 0
         for rule in rules:
@@ -737,6 +768,7 @@ class IngestionService:
             false_positives=normalized.false_positives,
             investigation_guide=getattr(normalized, "investigation_guide", None),
             deploy_notes=getattr(normalized, "deploy_notes", None),
+            logic_hash=logic_fingerprint(normalized.detection_logic),
             raw_content=normalized.raw_content,
             quality_score=quality_score,
             quality_details=quality_details,

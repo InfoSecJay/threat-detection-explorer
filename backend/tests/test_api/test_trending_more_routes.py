@@ -85,16 +85,17 @@ def _rule(**kw) -> Detection:
 
 @pytest.mark.asyncio
 async def test_techniques_rank_by_recently_modified_rules(client, db_session):
-    """days=30 -> cutoff 2026-07-27T15:00. Keyed on rule_modified_date:
-    a created-only rule is ignored; multi-technique rules count once
-    per technique; ties break by technique id."""
+    """days=30 -> cutoff 2026-07-27T15:00. Ranking = new + changed
+    (DX-14): a created-only rule in the window counts as new, a modified
+    rule with no logic-hash history counts as changed; multi-technique
+    rules count once per technique; ties break by technique id."""
     db_session.add_all([
         _rule(source="sigma", mitre_techniques=["T1059", "T1003"],
               rule_modified_date=datetime(2026, 8, 20)),
         _rule(source="splunk", mitre_techniques=["T1059"],
               rule_modified_date=datetime(2026, 8, 25)),
         _rule(source="elastic", mitre_techniques=["T1059", "T1003"],
-              rule_created_date=datetime(2026, 8, 20)),  # never modified: ignored
+              rule_created_date=datetime(2026, 8, 20)),  # created in window: new
         _rule(source="sigma", mitre_techniques=["T1003"],
               rule_modified_date=datetime(2026, 1, 1)),  # out of window
         _rule(source="sigma", mitre_techniques=["T1001"],
@@ -111,11 +112,13 @@ async def test_techniques_rank_by_recently_modified_rules(client, db_session):
     assert data["cutoff_date"].startswith("2026-07-27T15:00:00")
     rows = data["techniques"]
     assert [(r["technique_id"], r["count"]) for r in rows] == [
-        ("T1059", 2), ("T1001", 1), ("T1003", 1),
+        ("T1059", 3), ("T1003", 2), ("T1001", 1),
     ]
     top = rows[0]
-    assert sorted(top["sources"]) == ["sigma", "splunk"]
+    assert top["new"] == 1 and top["changed"] == 2 and top["bulk"] == 0
+    assert sorted(top["sources"]) == ["elastic", "sigma", "splunk"]
     assert top["latest_date"].startswith("2026-08-25")
+    assert data["bulk_commits"] == []
 
 
 @pytest.mark.asyncio
