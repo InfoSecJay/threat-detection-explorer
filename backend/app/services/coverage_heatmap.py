@@ -29,14 +29,34 @@ async def technique_source_counts(db: AsyncSession) -> dict[str, dict[str, int]]
     return await corpus_cache.get(db, ("technique_source_counts",), lambda: _scan_technique_sources(db), persist=True)
 
 
-async def _scan_technique_sources(db: AsyncSession) -> dict[str, dict[str, int]]:
+async def technique_source_counts_excluded(db: AsyncSession) -> dict[str, dict[str, int]]:
+    """The rules the default coverage scope leaves out -- non-deprecated
+    hunting / building-block / passthrough / indicator rules -- in the
+    same shape, so `?coverage=all` (#143) is this map added to the
+    strict one rather than a third scan shape."""
+    return await corpus_cache.get(
+        db, ("technique_source_counts", "excluded"), lambda: _scan_technique_sources(db, excluded=True), persist=True,
+    )
+
+
+async def _scan_technique_sources(db: AsyncSession, excluded: bool = False) -> dict[str, dict[str, int]]:
     from app.services.coverage_scope import coverage_conditions
+    from app.services.taxonomy.canonical import COVERAGE_EXCLUDED_MODALITIES
 
     # Only rules that count as coverage (DX-05 / #147): no hunting,
-    # building-block, passthrough or indicator-only rules, no deprecated.
+    # building-block, passthrough or indicator-only rules, no deprecated
+    # -- or, for the excluded map, exactly those modalities (still no
+    # deprecated).
+    if excluded:
+        conds = [
+            Detection.status != "deprecated",
+            Detection.rule_modality.in_(sorted(COVERAGE_EXCLUDED_MODALITIES)),
+        ]
+    else:
+        conds = coverage_conditions()
     rows = (
         await db.execute(
-            select(Detection.source, Detection.mitre_techniques).where(*coverage_conditions())
+            select(Detection.source, Detection.mitre_techniques).where(*conds)
         )
     ).all()
     out: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))

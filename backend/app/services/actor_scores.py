@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.detection import Detection
 from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_matching import compile_name_regex, normalize_label
+from app.services.coverage_scope import DEFAULT_SCOPE, CoverageScope, counts_as_coverage
 from app.services.mitre import mitre_service
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,16 @@ class ScoreBundle:
     technique_rule_counts: dict[str, int]
     groups: dict[str, EntityScores]
     software: dict[str, EntityScores]
+    # The same counts split by source, and the rules the default scope
+    # leaves out (non-deprecated hunting / building-block / passthrough
+    # / indicator rules), also by source -- so a "My stack" view
+    # (#143: `?sources=` / `?coverage=all`) is a sum over these, not
+    # another corpus scan. `exact_by_source` is the Named-rule count
+    # per entity per source for the same reason.
+    technique_rule_counts_by_source: dict[str, dict[str, int]] = field(default_factory=dict)
+    technique_excluded_by_source: dict[str, dict[str, int]] = field(default_factory=dict)
+    exact_by_source: dict[str, dict[str, int]] = field(default_factory=dict)
+    scope: CoverageScope = DEFAULT_SCOPE
 
 
 def _score_entity(
@@ -206,8 +217,14 @@ class ActorScoreService:
     """In-memory materialized scores, recomputed only when the corpus
     or the ATT&CK catalog actually changes."""
 
+    # Derived "My stack" views kept per (fingerprint, scope); cleared
+    # whenever the base bundle is recomputed. Bounded so a crawler
+    # cycling source combinations cannot grow it without limit.
+    SCOPED_CACHE_MAX = 64
+
     def __init__(self) -> None:
         self._bundle: Optional[ScoreBundle] = None
+        self._scoped: dict[tuple, ScoreBundle] = {}
 
     async def _fingerprint(self, db: AsyncSession) -> tuple:
         row = (
@@ -226,19 +243,30 @@ class ActorScoreService:
 
     def invalidate(self) -> None:
         self._bundle = None
+        self._scoped.clear()
 
-    async def get(self, db: AsyncSession) -> ScoreBundle:
+    async def get(self, db: AsyncSession, scope: Optional[CoverageScope] = None) -> ScoreBundle:
+        """The bundle for `scope` (default: every source, strict
+        coverage). A non-default scope is derived from the base bundle's
+        per-source counts -- no second corpus scan -- and cached."""
         await mitre_service.ensure_loaded()
         await actor_context_service.ensure_loaded()
         fp = await self._fingerprint(db)
-        if self._bundle is not None and self._bundle.fingerprint == fp:
+        if self._bundle is None or self._bundle.fingerprint != fp:
+            self._bundle = await self._compute(db, fp)
+            self._scoped.clear()
+        scope = scope or DEFAULT_SCOPE
+        if scope.is_default:
             return self._bundle
-        self._bundle = await self._compute(db, fp)
-        return self._bundle
+        key = (fp, scope.key())
+        view = self._scoped.get(key)
+        if view is None:
+            if len(self._scoped) >= self.SCOPED_CACHE_MAX:
+                self._scoped.clear()
+            view = self._scoped[key] = _derive_scoped(self._bundle, scope)
+        return view
 
     async def _compute(self, db: AsyncSession, fp: tuple) -> ScoreBundle:
-        from app.services.coverage_scope import counts_as_coverage
-
         q = select(
             Detection.source,
             Detection.mitre_groups,
@@ -273,6 +301,8 @@ class ActorScoreService:
         story_labels.pop("", None)
 
         technique_rule_counts: dict[str, int] = {}
+        by_source: dict[str, dict[str, int]] = {}
+        excluded_by_source: dict[str, dict[str, int]] = {}
         # entity id -> row indices qualifying as "Named" (id-tag or
         # story label; title hits merge in below). Disjoint-tier
         # bookkeeping per issue #34, DX-08.
@@ -301,10 +331,14 @@ class ActorScoreService:
             # hunting, building-block or indicator rule still counts as a
             # Named rule for the actor it names, but it is not evidence
             # that its technique is detected.
-            if counts_as_coverage(status, modality):
-                for tid in rtechs or []:
-                    tid_u = tid.upper()
+            strict = counts_as_coverage(status, modality)
+            per_source = by_source if strict else excluded_by_source
+            for tid in rtechs or []:
+                tid_u = tid.upper()
+                if strict:
                     technique_rule_counts[tid_u] = technique_rule_counts.get(tid_u, 0) + 1
+                bucket = per_source.setdefault(tid_u, {})
+                bucket[source] = bucket.get(source, 0) + 1
             title_texts.append(title or "")
             rule_texts.append(" ".join([
                 title or "",
@@ -321,26 +355,30 @@ class ActorScoreService:
 
         exact_groups: dict[str, dict] = {}
         exact_software: dict[str, dict] = {}
+        exact_by_source: dict[str, dict[str, int]] = {}
         mention_counts: dict[str, int] = {}
-        for eid in entity_names:
-            dedicated = dedicated_idx.get(eid, set()) | title_hits.get(eid, set())
-            mention_counts[eid] = len(full_hits.get(eid, set()) - dedicated)
-            if dedicated:
-                bucket = exact_software if eid.startswith("S") else exact_groups
-                bucket[eid] = {
-                    "rule_count": len(dedicated),
-                    "sources": {rule_sources[i] for i in dedicated},
-                }
-        # Tagged IDs outside the loaded catalog (rare, but rgroups is
-        # verbatim rule data) still count toward exact buckets.
-        for eid, idxs in dedicated_idx.items():
-            if eid in entity_names:
-                continue
+
+        def _record_exact(eid: str, idxs: set[int]) -> None:
             bucket = exact_software if eid.startswith("S") else exact_groups
             bucket[eid] = {
                 "rule_count": len(idxs),
                 "sources": {rule_sources[i] for i in idxs},
             }
+            per = exact_by_source.setdefault(eid, {})
+            for i in idxs:
+                per[rule_sources[i]] = per.get(rule_sources[i], 0) + 1
+
+        for eid in entity_names:
+            dedicated = dedicated_idx.get(eid, set()) | title_hits.get(eid, set())
+            mention_counts[eid] = len(full_hits.get(eid, set()) - dedicated)
+            if dedicated:
+                _record_exact(eid, dedicated)
+        # Tagged IDs outside the loaded catalog (rare, but rgroups is
+        # verbatim rule data) still count toward exact buckets.
+        for eid, idxs in dedicated_idx.items():
+            if eid in entity_names:
+                continue
+            _record_exact(eid, idxs)
 
         groups = {
             gid: _score_entity(g, technique_rule_counts, exact_groups)
@@ -366,7 +404,57 @@ class ActorScoreService:
             technique_rule_counts=technique_rule_counts,
             groups=groups,
             software=software,
+            technique_rule_counts_by_source=by_source,
+            technique_excluded_by_source=excluded_by_source,
+            exact_by_source=exact_by_source,
         )
+
+
+def _sum_scoped(per_source: dict[str, dict[str, int]], scope: CoverageScope) -> dict[str, int]:
+    return {
+        tid: total
+        for tid, per in per_source.items()
+        if (total := sum(n for s, n in per.items() if scope.allows_source(s))) > 0
+    }
+
+
+def _derive_scoped(base: ScoreBundle, scope: CoverageScope) -> ScoreBundle:
+    """The bundle as one reader's stack sees it (#143): technique
+    counts summed over the chosen sources (plus the excluded modalities
+    when asked), every entity re-scored against them, Named counts
+    narrowed to the same sources. Mentions are not source-scoped --
+    a rule citing an actor is chatter about it whichever repo it sits
+    in -- and are copied through."""
+    counts = _sum_scoped(base.technique_rule_counts_by_source, scope)
+    if scope.include_excluded:
+        for tid, n in _sum_scoped(base.technique_excluded_by_source, scope).items():
+            counts[tid] = counts.get(tid, 0) + n
+    exact: dict[str, dict] = {}
+    for eid, per in base.exact_by_source.items():
+        kept = {s: n for s, n in per.items() if scope.allows_source(s)}
+        if kept:
+            exact[eid] = {"rule_count": sum(kept.values()), "sources": set(kept)}
+    groups = {
+        gid: _score_entity(g, counts, exact)
+        for gid, g in mitre_service.get_all_groups().items()
+    }
+    software = {
+        sid: _score_entity(s, counts, exact)
+        for sid, s in mitre_service.get_all_software().items()
+    }
+    for bucket, source_bucket in ((groups, base.groups), (software, base.software)):
+        for eid, entry in bucket.items():
+            entry.mention_count = source_bucket[eid].mention_count if eid in source_bucket else 0
+    return ScoreBundle(
+        fingerprint=base.fingerprint,
+        technique_rule_counts=counts,
+        groups=groups,
+        software=software,
+        technique_rule_counts_by_source=base.technique_rule_counts_by_source,
+        technique_excluded_by_source=base.technique_excluded_by_source,
+        exact_by_source=base.exact_by_source,
+        scope=scope,
+    )
 
 
 # Global singleton, matching the mitre_service pattern.

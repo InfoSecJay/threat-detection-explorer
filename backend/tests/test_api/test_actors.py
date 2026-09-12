@@ -627,3 +627,83 @@ async def test_mitre_coverage_matrix_is_memoised_on_the_corpus(client, db_sessio
     assert again.status_code == 200 and again.json() == first.json()
     assert other.status_code == 200
     assert calls == 3, f"warm hit = 1 fingerprint query; a different param set recomputes (1 + 1 scan), ran {calls}"
+
+
+# -- #143 / DX-01: "My stack" coverage scope --------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sources_scope_recomputes_coverage_and_gaps(client, db_session):
+    """`?sources=` scores an actor against the reader's own repos. G0001
+    uses T1001 + T1002; sigma covers T1001, splunk covers T1002."""
+    db_session.add_all([
+        _rule(title="s1", source="sigma", mitre_techniques=["T1001"], mitre_groups=["G0001"]),
+        _rule(title="x1", source="splunk", mitre_techniques=["T1002"]),
+    ])
+    await db_session.commit()
+
+    full = (await client.get("/api/actors/G0001")).json()
+    assert full["covered_technique_count"] == 2 and full["gap_count"] == 0
+    assert full["coverage_scope"] == {"sources": None, "coverage": "strict"}
+
+    sigma_only = (await client.get("/api/actors/G0001?sources=sigma")).json()
+    assert sigma_only["covered_technique_count"] == 1 and sigma_only["gap_count"] == 1
+    assert {t["technique_id"]: t["has_rules"] for t in sigma_only["techniques"]} == {"T1001": True, "T1002": False}
+    assert sigma_only["coverage_by_source"] == {"sigma": {"techniques_covered": 1, "rule_count": 1}}
+    assert sigma_only["match_counts"]["coverage"] == 1
+    assert sigma_only["coverage_scope"] == {"sources": ["sigma"], "coverage": "strict"}
+    # Coverage-mode rule list follows the scope too.
+    rules = (await client.get("/api/actors/G0001?sources=sigma&match_mode=coverage")).json()["rules"]
+    assert [r["title"] for r in rules] == ["s1"]
+
+    # The list ranks with the same scope: G0002 (T1002 only) is fully
+    # covered by splunk but a gap under a sigma-only stack; Named counts
+    # narrow to the same sources.
+    lst = (await client.get("/api/actors?kind=groups&sources=sigma&sort=gap_count")).json()
+    by_id = {e["id"]: e for e in lst["items"]}
+    assert by_id["G0001"]["gap_count"] == 1 and by_id["G0002"]["gap_count"] == 1
+    assert by_id["G0001"]["our_rule_count"] == 1 and by_id["G0001"]["sources_with_coverage"] == ["sigma"]
+    assert lst["coverage_scope"] == {"sources": ["sigma"], "coverage": "strict"}
+    splunk_list = (await client.get("/api/actors?kind=groups&sources=splunk")).json()
+    by_id = {e["id"]: e for e in splunk_list["items"]}
+    assert by_id["G0002"]["gap_count"] == 0 and by_id["G0001"]["our_rule_count"] == 0
+
+    # Legacy shape (no filter params) is scoped too, and unknown names are a 400.
+    legacy = (await client.get("/api/actors?sources=sigma")).json()
+    assert "groups" in legacy and legacy["coverage_scope"]["sources"] == ["sigma"]
+    bad = await client.get("/api/actors?kind=groups&sources=nope,sigma")
+    assert bad.status_code == 400 and "nope" in bad.json()["detail"]
+    assert (await client.get("/api/actors/G0001?sources=nope")).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_coverage_all_counts_the_excluded_modalities(client, db_session):
+    """`?coverage=all` brings hunting / passthrough rules back into
+    coverage (the pre-#147 any-tag figure); deprecated rules stay out."""
+    db_session.add_all([
+        _rule(title="h1", source="elastic", mitre_techniques=["T1001"], rule_modality="hunting"),
+        _rule(title="p1", source="sentinel", mitre_techniques=["T1002"], rule_modality="passthrough"),
+        _rule(title="d1", source="sigma", mitre_techniques=["T1002"], status="deprecated"),
+    ])
+    await db_session.commit()
+
+    strict = (await client.get("/api/actors/G0001")).json()
+    assert strict["covered_technique_count"] == 0 and strict["gap_count"] == 2
+    assert strict["match_counts"]["coverage"] == 0 and strict["coverage_by_source"] == {}
+
+    loose = (await client.get("/api/actors/G0001?coverage=all")).json()
+    assert loose["covered_technique_count"] == 2 and loose["gap_count"] == 0
+    assert loose["match_counts"]["coverage"] == 2
+    assert loose["coverage_by_source"] == {
+        "elastic": {"techniques_covered": 1, "rule_count": 1},
+        "sentinel": {"techniques_covered": 1, "rule_count": 1},
+    }
+    assert loose["coverage_scope"] == {"sources": None, "coverage": "all"}
+    # Scope composes: the passthrough rule is in sentinel, so an
+    # elastic-only stack with coverage=all still has the T1002 gap.
+    both = (await client.get("/api/actors/G0001?coverage=all&sources=elastic")).json()
+    assert both["covered_technique_count"] == 1 and both["gap_count"] == 1
+
+    lst = (await client.get("/api/actors?kind=groups&coverage=all")).json()
+    assert {e["id"]: e["gap_count"] for e in lst["items"]}["G0001"] == 0
+    assert (await client.get("/api/actors?kind=groups&coverage=maybe")).status_code == 422

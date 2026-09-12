@@ -56,8 +56,8 @@ from app.services.actor_matching import (
 )
 from app.services.actor_scores import actor_score_service
 from app.services.corpus_cache import corpus_cache, memoised
-from app.services.coverage_heatmap import technique_source_counts
-from app.services.coverage_scope import coverage_conditions
+from app.services.coverage_heatmap import technique_source_counts, technique_source_counts_excluded
+from app.services.coverage_scope import CoverageScope, coverage_conditions, parse_scope
 from app.services.mitre import mitre_service
 from app.services.navigator import build_layer, layer_response
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -71,6 +71,33 @@ software_router = APIRouter(prefix="/software", tags=["actors"])
 
 MatchMode = Literal["exact", "coverage", "mention"]
 RULES_LIMIT = 200
+
+# "My stack" coverage scope (#143 / DX-01): the same two params on the
+# list and the detail endpoint, so the table sort and the page agree.
+SOURCES_PARAM = Query(
+    None,
+    description=(
+        "Comma-separated source names (see /api/methodology). Score "
+        "technique coverage, gaps and Named counts against only these "
+        "repos -- the reader's own stack. Default: all tracked sources."
+    ),
+)
+COVERAGE_PARAM = Query(
+    "strict",
+    description=(
+        "`strict` (default): hunting, building-block, passthrough and "
+        "indicator-only rules do not count as technique coverage (DX-05). "
+        "`all`: every non-deprecated rule tagging a technique counts, the "
+        "pre-#147 any-tag figure."
+    ),
+)
+
+
+def _scope_or_400(sources: Optional[str], coverage: str) -> CoverageScope:
+    try:
+        return parse_scope(sources, coverage)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -115,15 +142,16 @@ def _name_text_conds(column, names: list[str]) -> list:
 
 
 async def _rules_matching_ids(
-    db: AsyncSession, column, ids: list[str],
+    db: AsyncSession, column, ids: list[str], scope: Optional[CoverageScope] = None,
 ) -> list[Detection]:
     """Rules where the JSON list column contains ANY of `ids` —
     coverage mode. Scoped to rules that count as coverage (DX-05 /
-    #147) so the list agrees with the headline the bundle computes."""
+    #147, narrowed by the reader's `scope` per #143) so the list agrees
+    with the headline the bundle computes."""
     if not ids:
         return []
     conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
-    q = select(*_RULE_COLS).where(or_(*conds), *coverage_conditions()).limit(RULES_LIMIT)
+    q = select(*_RULE_COLS).where(or_(*conds), *coverage_conditions(scope)).limit(RULES_LIMIT)
     return list((await db.execute(q)).all())
 
 
@@ -287,7 +315,9 @@ def _serialize_rule(row, reasons: dict[str, list[str]] | None = None) -> dict:
     }
 
 
-async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
+async def _count_matches(
+    db: AsyncSession, column, ids: list[str], scope: Optional[CoverageScope] = None,
+) -> int:
     """Count of rules matching any of `ids` in the JSON list column
     (coverage mode). Dedicated/referenced counts come from their
     verified row sets instead — SQL alone can't apply the regex."""
@@ -295,9 +325,9 @@ async def _count_matches(db: AsyncSession, column, ids: list[str]) -> int:
         return 0
     from sqlalchemy import func
     conds = [cast(column, String).ilike(f'%"{i}"%') for i in ids]
-    # Coverage scope (DX-05 / #147): the count must agree with the
+    # Coverage scope (DX-05 / #147, #143): the count must agree with the
     # bundle's technique_rule_counts that drive the headline.
-    q = select(func.count(Detection.id)).where(or_(*conds), *coverage_conditions())
+    q = select(func.count(Detection.id)).where(or_(*conds), *coverage_conditions(scope))
     return (await db.execute(q)).scalar() or 0
 
 
@@ -518,30 +548,38 @@ async def list_actors(
     order: Literal["asc", "desc"] = Query("desc"),
     page: Optional[int] = Query(None, ge=1),
     per_page: Optional[int] = Query(None, ge=1, le=1000),
+    sources: Optional[str] = SOURCES_PARAM,
+    coverage: Literal["strict", "all"] = COVERAGE_PARAM,
     db: AsyncSession = Depends(get_db),
 ):
     """Enumerate the MITRE catalog with corpus rule-coverage overlaid.
 
     Two response shapes:
 
-    - **No query params** (legacy, public API): `{groups, software,
+    - **No filter params** (legacy, public API): `{groups, software,
       total_groups, total_software, groups_with_coverage,
       software_with_coverage}` — the full catalog, both classes,
       ranked by weighted_gap desc.
-    - **Any param present** (filtered): `{items, total, page,
+    - **Any filter param present**: `{items, total, page,
       per_page, facets, summary}` for the requested `kind` (default
       groups). Multi-select filters OR within a dimension, AND across
       dimensions; `facets` carries value counts with every other
       filter applied so chips can show result counts up front.
+
+    `sources` and `coverage` (#143) change what the numbers measure,
+    not the shape: every coverage figure, gap and Named count is
+    computed against the chosen repos, and the response echoes the
+    scope in `coverage_scope`.
 
     Everything is served from the precomputed score bundle — no
     per-request corpus scan.
     """
     await mitre_service.ensure_loaded()
     await actor_context_service.ensure_loaded()
+    scope = _scope_or_400(sources, coverage)
     catalog_groups = mitre_service.get_all_groups()
     catalog_software = mitre_service.get_all_software()
-    bundle = await actor_score_service.get(db)
+    bundle = await actor_score_service.get(db, scope)
 
     groups = [_group_entry(g, bundle) for g in catalog_groups.values()]
     software = [_software_entry(s, bundle) for s in catalog_software.values()]
@@ -563,6 +601,7 @@ async def list_actors(
             # Count of entries we have ANY rule coverage for.
             "groups_with_coverage": sum(1 for g in groups if g["our_rule_count"] > 0),
             "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
+            "coverage_scope": scope.describe(),
         }
 
     if sort is not None and sort not in SORT_KEYS:
@@ -619,6 +658,7 @@ async def list_actors(
             "groups_with_coverage": sum(1 for g in groups if g["our_rule_count"] > 0),
             "software_with_coverage": sum(1 for s in software if s["our_rule_count"] > 0),
         },
+        "coverage_scope": scope.describe(),
     }
 
 
@@ -904,6 +944,8 @@ async def get_actor(
             "as a whole word in title/description/tags, minus Named rules."
         ),
     ),
+    sources: Optional[str] = SOURCES_PARAM,
+    coverage: Literal["strict", "all"] = COVERAGE_PARAM,
     db: AsyncSession = Depends(get_db),
 ):
     """Actor / software detail overlaying MITRE metadata + rule coverage.
@@ -919,9 +961,12 @@ async def get_actor(
       always populated so the UI can render a mode switcher.
     - `rules`: rules array matching the SELECTED `match_mode`, capped
       at 200. Sorted by (source, title).
+    - `coverage_scope`: the `sources` / `coverage` scope (#143) every
+      coverage figure above was computed under.
     """
     actor_id = actor_id.upper()
     kind, mitre_url = _actor_type(actor_id)
+    scope = _scope_or_400(sources, coverage)
 
     await mitre_service.ensure_loaded()
     await actor_context_service.ensure_loaded()
@@ -942,19 +987,20 @@ async def get_actor(
     # is one COUNT/MAX query). The catalog versions are part of the key
     # so a MITRE refresh without a corpus change still recomputes.
     key = (
-        "actor", actor_id, match_mode,
+        "actor", actor_id, match_mode, scope.key(),
         mitre_service.get_stats()["last_fetch"],
         actor_context_service.get_stats().get("version"),
     )
     return await corpus_cache.get(
-        db, key, lambda: _compute_actor(db, actor_id, match_mode, kind, mitre_url, entity),
+        db, key, lambda: _compute_actor(db, actor_id, match_mode, kind, mitre_url, entity, scope),
     )
 
 
 async def _compute_actor(
     db: AsyncSession, actor_id: str, match_mode: str, kind: str, mitre_url: str, entity: dict,
+    scope: CoverageScope,
 ) -> dict:
-    bundle = await actor_score_service.get(db)
+    bundle = await actor_score_service.get(db, scope)
     scores = (bundle.groups if kind == "group" else bundle.software)[actor_id]
 
     # Techniques used by this actor, annotated with our coverage and
@@ -974,12 +1020,20 @@ async def _compute_actor(
         })
     # Per-source breakdown (#18): which vendor covers which of this
     # actor's techniques, from the corpus-wide technique -> source map
-    # (one cached scan shared with the coverage heatmap).
+    # (one cached scan shared with the coverage heatmap), narrowed to
+    # the reader's scope (#143): only their sources, and the excluded
+    # modalities added back when they asked for `coverage=all`.
     ts_counts = await technique_source_counts(db)
+    ts_extra = await technique_source_counts_excluded(db) if scope.include_excluded else {}
     actor_tids = {t["technique_id"] for t in techniques_used}
-    by_source_per_technique: dict[str, dict[str, int]] = {
-        tid: dict(ts_counts[tid]) for tid in actor_tids if ts_counts.get(tid)
-    }
+    by_source_per_technique: dict[str, dict[str, int]] = {}
+    for tid in actor_tids:
+        per: dict[str, int] = {}
+        for src, n in list(ts_counts.get(tid, {}).items()) + list(ts_extra.get(tid, {}).items()):
+            if scope.allows_source(src):
+                per[src] = per.get(src, 0) + n
+        if per:
+            by_source_per_technique[tid] = per
     for t in techniques_used:
         t["rule_count_by_source"] = dict(
             sorted(by_source_per_technique.get(t["technique_id"], {}).items())
@@ -1055,13 +1109,13 @@ async def _compute_actor(
     exact_count = len(dedicated_rows)
     mention_count = len(referenced_rows)
     coverage_ids = [t["technique_id"] for t in techniques_used]
-    coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids)
+    coverage_count = await _count_matches(db, Detection.mitre_techniques, coverage_ids, scope)
 
     # Fetch rules for the SELECTED mode
     if match_mode == "exact":
         rule_rows, rule_reasons = dedicated_rows[:RULES_LIMIT], dedicated_reasons
     elif match_mode == "coverage":
-        rule_rows = await _rules_matching_ids(db, Detection.mitre_techniques, coverage_ids)
+        rule_rows = await _rules_matching_ids(db, Detection.mitre_techniques, coverage_ids, scope)
         rule_reasons = {}
     else:  # mention
         rule_rows, rule_reasons = referenced_rows[:RULES_LIMIT], referenced_reasons
@@ -1133,4 +1187,6 @@ async def _compute_actor(
         },
         "match_mode": match_mode,
         "rules": rules,
+        # What every coverage figure above was computed against (#143).
+        "coverage_scope": scope.describe(),
     }
