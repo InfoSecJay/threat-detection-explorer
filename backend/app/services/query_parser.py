@@ -551,22 +551,39 @@ def _mitre_entity_clause(column_name: str, entity_id: str, info: Optional[dict])
 
     Only the ID tag matched before, which returned nothing for actors
     vendors write rules for but tag by name -- `actor:"Salt Typhoon"`
-    was 0 while the actor page counted 60 dedicated rules. SQL-only,
-    so names the regex layer treats as risky (single English words,
-    all-caps codenames, very short names) are skipped here; the ID tag
-    still matches for those.
+    was 0 while the actor page counted 60 dedicated rules.
+
+    A label equal to the name is an explicit tag whatever its casing
+    (the actor page's story_labels index), so every usable name gets
+    the label clause. The free-text title match keeps the regex
+    layer's guards: single English words are skipped, and ALL-CAPS
+    codenames match with their exact casing (#33). Skipping those
+    outright, as this used to, dropped the Sentinel rules whose story
+    is "NOBELIUM" from `actor:APT29` -- 8 in the bar, 33 on the actor
+    page (#146).
     """
     clauses = [_list_clause(column_name, entity_id)]
     if info:
         for name in [info.get("name", ""), *info.get("aliases", [])]:
-            if (
-                not name or len(name) < 4
-                or is_unmatchable_name(name) or is_ambiguous_name(name) or is_case_sensitive_name(name)
-            ):
+            if not name or len(name) < 4 or is_unmatchable_name(name):
+                continue
+            clauses.extend(cast(Detection.use_cases, String).ilike(p) for p in label_like_patterns(name))
+            if is_ambiguous_name(name):
+                continue
+            if is_case_sensitive_name(name):
+                clauses.append(_contains_exact_case(Detection.title, name))
                 continue
             clauses.extend(Detection.title.ilike(p) for p in sql_like_patterns(name))
-            clauses.extend(cast(Detection.use_cases, String).ilike(p) for p in label_like_patterns(name))
     return or_(*clauses) if len(clauses) > 1 else clauses[0]
+
+
+def _contains_exact_case(col, needle: str) -> ColumnElement:
+    """`col` contains `needle` with its exact casing. Postgres LIKE is
+    case-sensitive; SQLite's is not, so it gets GLOB instead (the
+    needle is purely alphabetic, nothing to escape)."""
+    if _ACTIVE_DIALECT == "sqlite":
+        return col.op("GLOB")(f"*{needle}*")
+    return col.like(f"%{needle}%")
 
 
 def _list_clause(column_name: str, raw_value: str) -> ColumnElement:

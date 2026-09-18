@@ -352,11 +352,13 @@ class TestActorCatalogResolution:
         from app.services.mitre import mitre_service
 
         monkeypatch.setattr(mitre_service, "_groups", {
-            "G1099": {"id": "G1099", "name": "Test Kitten", "aliases": ["Sandy Cat"]},
+            # "Ping" is an ambiguous single word: label-only. "NOBELIUM"
+            # is an all-caps codename: exact-case title match.
+            "G1099": {"id": "G1099", "name": "Test Kitten", "aliases": ["Sandy Cat", "Ping"]},
             "G1098": {"id": "G1098", "name": "Other Crew", "aliases": []},
             # Curated too (APT29): the catalog alias must win over a
             # galaxy synonym that also names another group.
-            "G0016": {"id": "G0016", "name": "APT29", "aliases": ["Cozy Bear"]},
+            "G0016": {"id": "G0016", "name": "APT29", "aliases": ["Cozy Bear", "NOBELIUM"]},
         })
         monkeypatch.setattr(mitre_service, "_software", {
             "S9999": {"id": "S9999", "name": "Test Loader", "aliases": ["TLoader"]},
@@ -409,6 +411,27 @@ class TestActorCatalogResolution:
             parse_query('actor:"Test Kittn"')
         assert exc.value.error_code == "query_value_error"
         assert exc.value.suggestion == "test kitten"
+
+    def test_all_caps_codename_matches_labels_any_case_and_titles_exact_case(self, catalog):
+        """Sentinel's APT29 rules carry the story "NOBELIUM"; the actor
+        page counts them as Named, so the bar must too. Title matching
+        keeps the exact casing that keeps "LEAD" out of "may lead to"."""
+        s = _sql(parse_query("actor:APT29"))
+        assert '\'%"nobelium"%\'' in s
+        assert "'%nobelium%'" in s
+        assert "lower('%nobelium%')" not in s and "ilike '%nobelium%'" not in s
+
+    def test_ambiguous_single_word_alias_matches_labels_only(self, catalog):
+        s = _sql(parse_query('actor:"Test Kitten"'))
+        assert '\'%"ping"%\'' in s
+        assert "'%ping%'" not in s
+
+    def test_sqlite_dialect_matches_exact_case_with_glob(self, catalog):
+        from sqlalchemy.dialects import sqlite
+
+        clause = parse_query("actor:APT29", dialect="sqlite")
+        s = str(clause.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
+        assert "GLOB '*NOBELIUM*'" in s
 
     def test_software_resolves_through_catalog_aliases(self, catalog):
         assert '"s9999"' in _sql(parse_query("software:TLoader"))
