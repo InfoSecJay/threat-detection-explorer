@@ -66,6 +66,7 @@ from app.services.actor_matching import (
     is_unmatchable_name,
     label_like_patterns,
     sql_like_patterns,
+    tokenize,
 )
 from app.services.mitre import mitre_service
 from app.services.mitre_lookup import GROUPS as MITRE_GROUPS
@@ -570,11 +571,31 @@ def _mitre_entity_clause(column_name: str, entity_id: str, info: Optional[dict])
             clauses.extend(cast(Detection.use_cases, String).ilike(p) for p in label_like_patterns(name))
             if is_ambiguous_name(name):
                 continue
-            if is_case_sensitive_name(name):
-                clauses.append(_contains_exact_case(Detection.title, name))
-                continue
-            clauses.extend(Detection.title.ilike(p) for p in sql_like_patterns(name))
+            clauses.append(_title_name_clause(name))
     return or_(*clauses) if len(clauses) > 1 else clauses[0]
+
+
+def _title_name_clause(name: str) -> ColumnElement:
+    """The name in the rule title.
+
+    The LIKE pre-filter is a cheap superset that ignores token
+    boundaries: `Tick` matched every "Ticket" and `Cobalt` every
+    "CobaltStrike", so BRONZE BUTLER read 39 in the bar against 1 on
+    the actor page. On Postgres the pre-filter is ANDed with the same
+    not-alphanumeric-bounded, separator-tolerant regex the actor page
+    matches with (compile_name_regex); `~*` for ordinary names, `~`
+    for exact-case codenames. SQLite (dev, tests) has no regex
+    operator and keeps the pre-filter alone.
+    """
+    if is_case_sensitive_name(name):
+        prefilter = _contains_exact_case(Detection.title, name)
+        body, op = name, "~"
+    else:
+        prefilter = or_(*[Detection.title.ilike(p) for p in sql_like_patterns(name)])
+        body, op = "[[:space:]_.-]*".join(tokenize(name)), "~*"
+    if _ACTIVE_DIALECT != "postgresql":
+        return prefilter
+    return and_(prefilter, Detection.title.op(op)(f"(?<![A-Za-z0-9])(?:{body})(?![A-Za-z0-9])"))
 
 
 def _contains_exact_case(col, needle: str) -> ColumnElement:

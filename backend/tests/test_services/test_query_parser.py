@@ -432,6 +432,31 @@ class TestActorCatalogResolution:
         clause = parse_query("actor:APT29", dialect="sqlite")
         s = str(clause.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
         assert "GLOB '*NOBELIUM*'" in s
+        assert "~" not in s  # no regex operator on SQLite: LIKE/GLOB pre-filter only
+
+    @staticmethod
+    def _pg(q: str) -> str:
+        from sqlalchemy.dialects import postgresql
+
+        clause = parse_query(q, dialect="postgresql")
+        return str(clause.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+
+    def test_postgres_title_match_requires_token_boundaries(self, catalog):
+        """The LIKE pre-filter alone let `Tick` match "Ticket" and
+        `Cobalt` match "CobaltStrike" (BRONZE BUTLER: 39 in the bar, 1
+        on the actor page). Postgres ANDs the page's boundary regex on:
+        separator-tolerant between tokens, not-alphanumeric outside."""
+        s = self._pg('actor:"Test Kitten"')
+        # SQLAlchemy parenthesizes the custom-operator expression.
+        assert " AND (detections.title ~* '(?<![A-Za-z0-9])(?:test[[:space:]_.-]*kitten)(?![A-Za-z0-9])')" in s
+        assert "(?:sandy[[:space:]_.-]*cat)" in s
+        # "Ping" is ambiguous: label-only, never a title regex.
+        assert "(?:ping)" not in s
+
+    def test_postgres_codename_regex_is_case_sensitive(self, catalog):
+        s = self._pg("actor:APT29")
+        assert " AND (detections.title ~ '(?<![A-Za-z0-9])(?:NOBELIUM)(?![A-Za-z0-9])')" in s
+        assert "~* '(?<![A-Za-z0-9])(?:NOBELIUM)" not in s
 
     def test_software_resolves_through_catalog_aliases(self, catalog):
         assert '"s9999"' in _sql(parse_query("software:TLoader"))
