@@ -227,7 +227,7 @@ export function RuleList({
         className="bg-void-850 border border-void-700 overflow-hidden"
         style={clipMd}
       >
-        {/* Card list under 640px (teardown R18 / #116): the table's ten
+        {/* Card list under 640px (teardown R18 / #116): the table's nine
             columns leave only Title on a phone screen. */}
         <div className="sm:hidden divide-y divide-void-800">
           {detections.map((detection) => (
@@ -256,16 +256,14 @@ export function RuleList({
                   title="Source repository · query language. Sorts by source; use the SORT dropdown for language ordering." />
                 <SortableTh {...sortProps} field="severity" label="Severity" />
                 {/* DX-17: Domain folded into this cell as a prefix (it used
-                    to be its own column) so Techniques and Modified fit
-                    without a ninth column. Domain sort is in the SORT dropdown. */}
+                    to be its own column) so Modified fits without a ninth
+                    column. Domain sort is in the SORT dropdown. The
+                    Techniques column DX-17 added was dropped again on
+                    2026-09-17 (Jay): ATT&CK IDs stay on the detail page. */}
                 <SortableTh {...sortProps} field="data_sources" label="Data Source"
                   title="Attack-surface domain (prefix), then data sources. Sorts by first data source (alphabetical); use the SORT dropdown for domain or platform ordering." />
                 <SortableTh {...sortProps} field="event_types" label="Event Type"
                   title="Sort by first event type (alphabetical)" />
-                <th scope="col" className="px-3 py-3 text-left text-xs font-display font-semibold text-dim-400 uppercase tracking-wider whitespace-nowrap"
-                  title="ATT&CK technique IDs the rule is mapped to (first two, then +n). Each links to its /mitre page.">
-                  Techniques
-                </th>
                 <SortableTh {...sortProps} field="rule_created_date" label="Created" />
                 <SortableTh {...sortProps} field="rule_modified_date" label="Modified"
                   title="Upstream modified date (relative; exact date on hover). Completeness moved to the expanded row preview." />

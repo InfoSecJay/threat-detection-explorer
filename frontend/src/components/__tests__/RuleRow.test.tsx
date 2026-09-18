@@ -1,8 +1,9 @@
 /**
- * DX-17: the catalog row carries the two things detection engineers
- * triage on -- ATT&CK techniques and the modified date -- without a
- * ninth column. Domain folds into the Data Source cell as a prefix;
- * Completeness moves to the expanded preview.
+ * DX-17: the catalog row carries the modified date without a ninth
+ * column. Domain folds into the Data Source cell as a prefix;
+ * Completeness moves to the expanded preview. The Techniques column
+ * DX-17 added was removed on 2026-09-17 (Jay): ATT&CK IDs live on the
+ * detail page, not in the table.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -50,26 +51,17 @@ function renderRow(detection: Detection, expanded = false) {
 }
 
 describe('RuleRow (DX-17)', () => {
-  it('shows the first two techniques as /mitre links plus a +n overflow chip', () => {
+  it('does not render ATT&CK technique IDs in the row', () => {
     renderRow(base);
-    const cell = screen.getByTestId('row-techniques');
-    const links = cell.querySelectorAll('a');
-    expect(links).toHaveLength(2);
-    expect(links[0]).toHaveAttribute('href', '/mitre/T1059.001');
-    expect(links[1]).toHaveAttribute('href', '/mitre/T1105');
-    expect(cell).toHaveTextContent('+1');
-    expect(cell.querySelector('[title="T1027"]')).not.toBeNull();
+    expect(screen.queryByTestId('row-techniques')).toBeNull();
+    expect(screen.queryByText('T1059.001')).toBeNull();
+    expect(screen.queryByText('T1105')).toBeNull();
   });
 
   it('labels an unpublished severity NOT SPECIFIED, the same word every surface uses (DX-22)', () => {
     renderRow({ ...base, severity: 'unknown' } as unknown as Detection);
     expect(screen.getByText('NOT SPECIFIED')).toHaveAttribute('title', 'The source publishes no severity for this rule');
     expect(screen.queryByText('UNKNOWN')).toBeNull();
-  });
-
-  it('renders a dash when a rule has no ATT&CK mapping', () => {
-    renderRow({ ...base, mitre_techniques: [] } as unknown as Detection);
-    expect(screen.getByTestId('row-techniques')).toHaveTextContent('-');
   });
 
   it('has a Modified cell with the exact date on hover', () => {

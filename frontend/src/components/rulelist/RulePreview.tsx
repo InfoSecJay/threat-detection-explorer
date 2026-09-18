@@ -19,7 +19,7 @@ export function RulePreview({ detection: row, lang, colSpan }: { detection: Dete
       <td colSpan={colSpan} className="px-6 py-4">
         <div className="space-y-4">
           {/* Completeness (DX-17): moved here from its own table column so
-              Techniques and Modified could take the row width instead. */}
+              Modified could take the row width instead. */}
           {typeof detection.quality_score === 'number' && (
             <div className="flex items-center gap-2" data-testid="preview-completeness">
               <span className="text-[10px] font-display font-semibold text-dim-400 uppercase tracking-wider">
