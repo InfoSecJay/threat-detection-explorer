@@ -339,3 +339,79 @@ class TestTechniqueRollup:
     def test_wildcards_work_on_every_list_field(self):
         s = _sql(parse_query("platform:win*"))
         assert "'%\"win%'" in s and "*" not in s
+
+
+class TestActorCatalogResolution:
+    """DX-04 remainder (#146): `actor:` / `software:` resolve through the
+    warmup-loaded ATT&CK catalog and the MISP-galaxy join, not only the
+    ~75-group curated table, so the query bar and the actor pages agree
+    on which names exist."""
+
+    @pytest.fixture
+    def catalog(self, monkeypatch):
+        from app.services.actor_context import actor_context_service
+        from app.services.mitre import mitre_service
+
+        monkeypatch.setattr(mitre_service, "_groups", {
+            "G1099": {"id": "G1099", "name": "Test Kitten", "aliases": ["Sandy Cat"]},
+            "G1098": {"id": "G1098", "name": "Other Crew", "aliases": []},
+            # Curated too (APT29): the curated pin must win over a galaxy
+            # synonym that also names another group.
+            "G0016": {"id": "G0016", "name": "APT29", "aliases": ["Cozy Bear"]},
+        })
+        monkeypatch.setattr(mitre_service, "_software", {
+            "S9999": {"id": "S9999", "name": "Test Loader", "aliases": ["TLoader"]},
+        })
+        monkeypatch.setattr(actor_context_service, "_alias_to_gids", {
+            "kittenfromhell": ["G1099"],
+            "sharedname": ["G1099", "G1098"],
+            "cozybear": ["G0016", "G1098"],
+        })
+        monkeypatch.setattr(actor_context_service, "_contexts", {
+            "G1099": {"galaxy_aliases": ["Kitten From Hell"]},
+        })
+
+    def test_catalog_name_resolves_outside_the_curated_table(self, catalog):
+        s = _sql(parse_query('actor:"Test Kitten"'))
+        assert '"g1099"' in s and "g1098" not in s
+
+    def test_catalog_alias_and_punctuation_insensitive_spelling(self, catalog):
+        assert '"g1099"' in _sql(parse_query('actor:"sandy cat"'))
+        assert '"g1099"' in _sql(parse_query('actor:"Test-Kitten"'))
+        assert '"g1099"' in _sql(parse_query("actor:TESTKITTEN"))
+
+    def test_galaxy_synonym_resolves_and_widens_the_title_match(self, catalog):
+        s = _sql(parse_query('actor:"Kitten From Hell"'))
+        assert '"g1099"' in s
+        # The Named-tier title / story clauses carry the galaxy alias
+        # too, the way the actor page's own matcher does.
+        assert "kitten" in s
+
+    def test_galaxy_synonym_shared_by_two_groups_ors_them(self, catalog):
+        s = _sql(parse_query("actor:SharedName"))
+        assert '"g1099"' in s and '"g1098"' in s and " or " in s
+
+    def test_curated_pin_wins_over_a_shared_galaxy_synonym(self, catalog):
+        s = _sql(parse_query('actor:"Cozy Bear"'))
+        assert '"g0016"' in s and "g1098" not in s
+
+    def test_unknown_name_suggests_from_the_catalog(self, catalog):
+        with pytest.raises(QueryParseError) as exc:
+            parse_query('actor:"Test Kittn"')
+        assert exc.value.error_code == "query_value_error"
+        assert exc.value.suggestion == "test kitten"
+
+    def test_software_resolves_through_catalog_aliases(self, catalog):
+        assert '"s9999"' in _sql(parse_query("software:TLoader"))
+        assert '"s9999"' in _sql(parse_query('software:"test loader"'))
+
+    def test_unloaded_catalog_keeps_the_curated_table_working(self, monkeypatch):
+        from app.services.actor_context import actor_context_service
+        from app.services.mitre import mitre_service
+
+        monkeypatch.setattr(mitre_service, "_groups", {})
+        monkeypatch.setattr(actor_context_service, "_alias_to_gids", {})
+        assert '"g0016"' in _sql(parse_query("actor:APT29"))
+        with pytest.raises(QueryParseError):
+            parse_query('actor:"Test Kitten"')
+

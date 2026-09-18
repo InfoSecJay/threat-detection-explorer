@@ -15,9 +15,11 @@ Design principles:
 - **Explicit field registry.** `QUERYABLE_FIELDS` is the ONE place
   aliases + columns + kinds live. The `/query/fields` endpoint reads
   this so the docs page stays in sync automatically.
-- **Alias-friendly for MITRE.** `actor:APT29` resolves to `G0016` via
-  the mitre_lookup groups table before matching. Same for
-  `malware:Mimikatz` -> `S0002`. Users don't memorize IDs.
+- **Alias-friendly for MITRE.** `actor:APT29` resolves to `G0016`
+  before matching: the curated mitre_lookup table first, then the
+  warmup-loaded ATT&CK catalog (name + aliases), then MISP-galaxy
+  synonyms (#146). Same for `malware:Mimikatz` -> `S0002`. Users
+  don't memorize IDs.
 - **Fail loud, not silent.** Bad syntax -> `QueryParseError` with a
   position hint. Unknown fields -> suggestion (Levenshtein). No
   silent drops.
@@ -57,6 +59,7 @@ from sqlalchemy import String, and_, cast, func, not_, or_
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.detection import Detection
+from app.services.actor_context import actor_context_service, merge_aliases, normalize_alias
 from app.services.actor_matching import (
     is_ambiguous_name,
     is_case_sensitive_name,
@@ -280,7 +283,10 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["actor", "group"],
         kind="list_mitre_group",
         columns=["mitre_groups"],
-        description="ATT&CK Group. Accepts raw G-ID or a known name/alias.",
+        description=(
+            "ATT&CK Group. Accepts a raw G-ID or any ATT&CK name, alias or "
+            "MISP-galaxy synonym (the alias set the actor pages use)."
+        ),
         examples=['actor:"Salt Typhoon"', "actor:APT29", "actor:G1017"],
     ),
     FieldSpec(
@@ -290,7 +296,7 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["software", "tool", "malware"],
         kind="list_mitre_software",
         columns=["mitre_software"],
-        description="ATT&CK Software. Accepts raw S-ID or a known name.",
+        description="ATT&CK Software. Accepts a raw S-ID or any ATT&CK name or alias.",
         examples=["software:Mimikatz", "software:S0154"],
     ),
     FieldSpec(
@@ -419,20 +425,94 @@ def _is_software_id(v: str) -> bool:
     return v.upper().startswith("S") and v[1:].isdigit()
 
 
-def _resolve_mitre_group(value: str) -> str:
-    """Turn 'APT29' / 'Cozy Bear' into 'G0016'; pass IDs through."""
+# -- Catalog-backed resolution (DX-04 remainder, #146) ---------------
+# The curated mitre_lookup table pins ~75 groups; the ATT&CK catalog
+# mitre_service loads at warmup has every group and software entry, and
+# the MISP-galaxy join adds the vendor names the actor pages match on.
+# Resolution walks those tiers in order and stops at the first hit, so
+# a curated pin (Mustang Panda -> G0129) never widens to a galaxy
+# synonym shared with another group (G1014). Keys are normalize_alias()
+# forms, the actor pages' own join key, so "APT-29" and "apt 29"
+# resolve like "APT29". Built on demand: only actor: and software:
+# values pay for it, and a catalog reload needs no cache invalidation.
+
+
+def _catalog_reverse(kind: str) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """(primary name -> IDs, alias -> IDs), normalized, from the loaded catalog."""
+    entries = mitre_service.get_all_groups() if kind == "group" else mitre_service.get_all_software()
+    by_name: dict[str, list[str]] = {}
+    by_alias: dict[str, list[str]] = {}
+    for eid, info in entries.items():
+        key = normalize_alias(info.get("name", ""))
+        if key and eid not in by_name.setdefault(key, []):
+            by_name[key].append(eid)
+        for alias in info.get("aliases", []) or []:
+            key = normalize_alias(alias)
+            if key and eid not in by_alias.setdefault(key, []):
+                by_alias[key].append(eid)
+    return by_name, by_alias
+
+
+def _resolve_mitre_group(value: str) -> list[str]:
+    """'APT29' / 'Cozy Bear' / 'APT-29' -> ['G0016']; IDs pass through.
+
+    Tiers: curated table, catalog primary name, catalog alias, galaxy
+    synonym. A galaxy name can belong to more than one group; every
+    match comes back and the clause ORs them. Empty means unknown.
+    """
     v = value.strip()
     if _is_group_id(v):
-        return v.upper()
-    return _MITRE_GROUP_REVERSE.get(v.lower(), v)
+        return [v.upper()]
+    curated = _MITRE_GROUP_REVERSE.get(v.lower())
+    if curated:
+        return [curated]
+    key = normalize_alias(v)
+    if not key:
+        return []
+    by_name, by_alias = _catalog_reverse("group")
+    return by_name.get(key) or by_alias.get(key) or actor_context_service.resolve_alias(v)
 
 
-def _resolve_mitre_software(value: str) -> str:
-    """Turn 'Mimikatz' into 'S0002'; pass IDs through."""
+def _resolve_mitre_software(value: str) -> list[str]:
+    """'Mimikatz' / 'S0002' -> ['S0002']; catalog aliases resolve too."""
     v = value.strip()
     if _is_software_id(v):
-        return v.upper()
-    return _MITRE_SOFTWARE_REVERSE.get(v.lower(), v)
+        return [v.upper()]
+    curated = _MITRE_SOFTWARE_REVERSE.get(v.lower())
+    if curated:
+        return [curated]
+    key = normalize_alias(v)
+    if not key:
+        return []
+    by_name, by_alias = _catalog_reverse("software")
+    return by_name.get(key) or by_alias.get(key) or []
+
+
+def _entity_info(eid: str, kind: str) -> Optional[dict]:
+    """Name + aliases for the title / story clauses: the catalog entry
+    merged with galaxy synonyms (what the actor page's Named tier
+    matches on), else the curated table entry."""
+    if kind == "group":
+        cat = mitre_service.get_group(eid)
+        if cat:
+            name = cat.get("name", "")
+            ctx = actor_context_service.get_context(eid)
+            return {"name": name, "aliases": merge_aliases(list(cat.get("aliases", []) or []), ctx, exclude=name)}
+        return MITRE_GROUPS.get(eid)
+    cat = mitre_service.get_software(eid)
+    if cat:
+        return {"name": cat.get("name", ""), "aliases": list(cat.get("aliases", []) or [])}
+    return MITRE_SOFTWARE.get(eid)
+
+
+def _entity_suggestions(kind: str) -> list[str]:
+    """Every name the resolver accepts, lowercased, for did-you-mean."""
+    curated = _MITRE_GROUP_REVERSE if kind == "group" else _MITRE_SOFTWARE_REVERSE
+    entries = mitre_service.get_all_groups() if kind == "group" else mitre_service.get_all_software()
+    names = set(curated.keys())
+    for info in entries.values():
+        names.update(n.lower() for n in [info.get("name", ""), *(info.get("aliases", []) or [])] if n)
+    return sorted(names)
 
 
 # ── Field-value -> SQL clause ───────────────────────────────────────
@@ -598,24 +678,17 @@ def _apply_field(spec: FieldSpec, value: str) -> ColumnElement:
         return _bool_clause(spec.columns[0], value)
     if spec.kind == "list_substring":
         return _list_substring_clause(spec.columns[0], value)
-    if spec.kind == "list_mitre_group":
-        gid = _resolve_mitre_group(value)
-        if not _is_group_id(gid):
+    if spec.kind in ("list_mitre_group", "list_mitre_software"):
+        kind = "group" if spec.kind == "list_mitre_group" else "software"
+        ids = _resolve_mitre_group(value) if kind == "group" else _resolve_mitre_software(value)
+        if not ids:
             raise QueryParseError(
                 f"'{spec.aliases[0]}' does not recognize {value!r}",
-                suggestion=_closest_value(value, list(_MITRE_GROUP_REVERSE.keys())),
+                suggestion=_closest_value(value, _entity_suggestions(kind)),
                 error_code="query_value_error",
             )
-        return _mitre_entity_clause(spec.columns[0], gid, MITRE_GROUPS.get(gid))
-    if spec.kind == "list_mitre_software":
-        sid = _resolve_mitre_software(value)
-        if not _is_software_id(sid):
-            raise QueryParseError(
-                f"'{spec.aliases[0]}' does not recognize {value!r}",
-                suggestion=_closest_value(value, list(_MITRE_SOFTWARE_REVERSE.keys())),
-                error_code="query_value_error",
-            )
-        return _mitre_entity_clause(spec.columns[0], sid, MITRE_SOFTWARE.get(sid))
+        clauses = [_mitre_entity_clause(spec.columns[0], eid, _entity_info(eid, kind)) for eid in ids]
+        return or_(*clauses) if len(clauses) > 1 else clauses[0]
     if spec.kind == "list":
         if spec.columns[0] == "event_types":
             # event:file_event matches the parent and every child (#104).
