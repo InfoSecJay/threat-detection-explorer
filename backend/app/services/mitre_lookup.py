@@ -10,6 +10,13 @@ Sigma + LOLRMM corpora. Missing IDs fall through to their raw ID as
 the display name — the UI still renders something meaningful even
 before the table is expanded.
 
+At query time the warmup-loaded ATT&CK catalog outranks this table
+(query_parser, #146): four IDs here were once pinned to the wrong
+group by hand (Salt Typhoon under G1039, Sandworm Team under G1044,
+BlackTech under G0132, Aoqin Dragon under G0143), which turned a
+resolvable name into a silent zero. Check an ID against
+attack.mitre.org before adding one.
+
 To refresh from the canonical source:
   https://github.com/mitre-attack/attack-stix-data
 Look for `intrusion-set` (Groups) and `malware` / `tool` (Software).
@@ -24,6 +31,7 @@ GROUPS: dict[str, dict] = {
     "G0010": {"name": "Turla", "aliases": ["Snake", "Uroburos", "Venomous Bear"]},
     "G0016": {"name": "APT29", "aliases": ["Cozy Bear", "Nobelium", "Midnight Blizzard"]},
     "G0032": {"name": "Lazarus Group", "aliases": ["Hidden Cobra", "Zinc"]},
+    "G0034": {"name": "Sandworm Team", "aliases": ["Sandworm", "APT44", "Voodoo Bear", "Seashell Blizzard", "IRON VIKING", "ELECTRUM", "Telebots"]},
     "G0035": {"name": "Dragonfly", "aliases": ["Energetic Bear", "Berserk Bear"]},
     "G0037": {"name": "FIN6", "aliases": ["Skeleton Spider"]},
     "G0045": {"name": "menuPass", "aliases": ["APT10", "Stone Panda"]},
@@ -42,6 +50,7 @@ GROUPS: dict[str, dict] = {
     "G0091": {"name": "Silence", "aliases": ["Whisper Spider"]},
     "G0092": {"name": "TA505", "aliases": ["Hive0065", "Graceful Spider"]},
     "G0096": {"name": "APT41", "aliases": ["Wicked Panda", "BARIUM"]},
+    "G0098": {"name": "BlackTech", "aliases": ["Circuit Panda", "Palmerworm", "Canary Typhoon", "Earth Hundun"]},
     "G0099": {"name": "APT-C-36", "aliases": ["Blind Eagle"]},
     "G0102": {"name": "Wizard Spider", "aliases": ["Trickbot", "UNC1878", "Grim Spider"]},
     "G0106": {"name": "Rocke", "aliases": []},
@@ -52,15 +61,14 @@ GROUPS: dict[str, dict] = {
     "G0128": {"name": "ZIRCONIUM", "aliases": ["APT31"]},
     "G0129": {"name": "Mustang Panda", "aliases": ["Bronze President", "Red Lich", "TA416", "RedDelta"]},
     "G0130": {"name": "Ajax Security Team", "aliases": ["Rocket Kitten"]},
-    "G0132": {"name": "BlackTech", "aliases": ["Circuit Panda"]},
     "G0134": {"name": "Transparent Tribe", "aliases": ["APT36", "COPPER FIELDSTONE"]},
     "G0138": {"name": "Andariel", "aliases": ["Silent Chollima"]},
     "G0140": {"name": "LazyScripter", "aliases": []},
     "G0142": {"name": "Confucius", "aliases": []},
-    "G0143": {"name": "Aoqin Dragon", "aliases": []},
     "G0146": {"name": "FIN13", "aliases": ["Elephant Beetle"]},
     "G1004": {"name": "LAPSUS$", "aliases": ["Strawberry Tempest", "DEV-0537"]},
     "G1006": {"name": "Earth Lusca", "aliases": ["TAG-22"]},
+    "G1007": {"name": "Aoqin Dragon", "aliases": []},
     "G1015": {"name": "Scattered Spider", "aliases": ["Octo Tempest", "0ktapus", "UNC3944"]},
     "G1017": {"name": "Volt Typhoon", "aliases": ["Vanguard Panda", "BRONZE SILHOUETTE"]},
     "G1018": {"name": "TA2541", "aliases": []},
@@ -69,9 +77,8 @@ GROUPS: dict[str, dict] = {
     "G1030": {"name": "Agrius", "aliases": ["Pink Sandstorm", "Agonizing Serpens"]},
     "G1032": {"name": "INC Ransom", "aliases": []},
     "G1035": {"name": "Winter Vivern", "aliases": ["TA473"]},
-    "G1039": {"name": "Salt Typhoon", "aliases": ["GhostEmperor", "UNC5807"]},
     "G1040": {"name": "Play", "aliases": ["PlayCrypt"]},
-    "G1044": {"name": "APT44", "aliases": ["Sandworm Team", "Voodoo Bear"]},
+    "G1045": {"name": "Salt Typhoon", "aliases": ["GhostEmperor", "FamousSparrow", "UNC2286", "RedMike", "OPERATOR PANDA", "UNC5807"]},
     "G1046": {"name": "Storm-1811", "aliases": ["Storm 1811"]},
 }
 
