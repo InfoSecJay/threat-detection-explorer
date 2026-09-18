@@ -7,7 +7,6 @@ tests break, the search bar produces wrong results — no fallback.
 """
 
 import pytest
-from sqlalchemy import Column
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.services.query_parser import (
