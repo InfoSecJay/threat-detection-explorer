@@ -60,8 +60,13 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
     # (#146) both resolve vendor names through this join.
     await step("actor_context", actor_context_service.ensure_loaded())
     # Home hero reads the parent-technique matrix; the ATT&CK browser the full one.
-    await step("coverage_matrix", get_coverage_matrix(tactic=None, include_subtechniques=False, db=db))
-    await step("coverage_matrix_sub", get_coverage_matrix(tactic=None, include_subtechniques=True, db=db))
+    # Route functions are called directly here, outside FastAPI's
+    # dependency injection: every Query-defaulted parameter has to be
+    # passed explicitly, or the fastapi.params.Query object itself
+    # arrives as the value. Leaving `domain` (#135) and the actor scope
+    # (#143) out failed every one of these steps silently.
+    await step("coverage_matrix", get_coverage_matrix(tactic=None, include_subtechniques=False, domain=None, db=db))
+    await step("coverage_matrix_sub", get_coverage_matrix(tactic=None, include_subtechniques=True, domain=None, db=db))
     bundle = None
     try:
         t0 = time.perf_counter()
@@ -81,7 +86,10 @@ async def warm_caches(db: AsyncSession, *, top_actors: int = TOP_ACTORS) -> dict
             if actor_id in seen:
                 continue
             seen.add(actor_id)
-            await step(f"actor:{actor_id}", get_actor(actor_id, match_mode="exact", db=db))
+            await step(
+                f"actor:{actor_id}",
+                get_actor(actor_id, match_mode="exact", sources=None, coverage="strict", db=db),
+            )
 
     total = round(sum(timings.values()), 3)
     logger.info("cache warm-up done in %.1fs (%d steps)", total, len(timings))

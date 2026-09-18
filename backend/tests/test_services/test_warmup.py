@@ -60,3 +60,65 @@ async def test_warm_caches_survives_a_failing_step(db_session, monkeypatch):
     timings = await warm_caches(db_session, top_actors=0)
     assert "statistics" in timings  # recorded, not raised
     assert "facets" in timings  # later steps still ran
+
+
+@pytest.mark.asyncio
+async def test_warm_caches_passes_every_query_default_explicitly(db_session, monkeypatch):
+    """warm_caches calls route functions directly, outside FastAPI's
+    dependency injection, so a Query-defaulted parameter left out
+    arrives as the fastapi.params.Query object itself. The actor steps
+    failed on "'Query' object has no attribute 'split'" and the
+    coverage matrix on "Unknown domain: annotation=..." from the day
+    the scope selector (#143) and the domain filter (#135) shipped, and
+    the best-effort logging hid it: nothing was pre-warmed."""
+    import inspect
+
+    from fastapi import params
+
+    from app.api.routes import actors as actors_routes
+    from app.api.routes import compare as compare_routes
+    from app.services.actor_scores import actor_score_service
+    from app.services.mitre import mitre_service
+
+    async def _noop():
+        return None
+
+    monkeypatch.setattr(mitre_service, "ensure_loaded", _noop)
+
+    real = {"get_actor": actors_routes.get_actor, "get_coverage_matrix": compare_routes.get_coverage_matrix}
+    calls: dict[str, list[dict]] = {}
+
+    def recorder(name: str):
+        async def _stub(*args, **kwargs):
+            calls.setdefault(name, []).append(kwargs)
+            return {}
+
+        return _stub
+
+    monkeypatch.setattr(actors_routes, "get_actor", recorder("get_actor"))
+    monkeypatch.setattr(compare_routes, "get_coverage_matrix", recorder("get_coverage_matrix"))
+
+    class _Score:
+        weighted_gap = 1.0
+        exact_rule_count = 1
+
+    class _Bundle:
+        groups = {"G0016": _Score()}
+
+    async def fake_bundle(db):
+        return _Bundle()
+
+    monkeypatch.setattr(actor_score_service, "get", fake_bundle)
+
+    await warm_caches(db_session, top_actors=1)
+
+    for name, fn in real.items():
+        query_params = {
+            p.name for p in inspect.signature(fn).parameters.values()
+            if isinstance(p.default, params.Query)
+        }
+        assert calls.get(name), f"{name} was never warmed"
+        for kwargs in calls[name]:
+            missing = query_params - set(kwargs)
+            assert not missing, f"{name} warmed without {sorted(missing)}"
+
