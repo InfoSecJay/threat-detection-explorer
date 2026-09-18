@@ -952,7 +952,9 @@ class SearchService:
     def _apply_sorting(self, query, sort_by: str, sort_order: str, q: str | None = None):
         """Apply sorting to query.
 
-        `relevance` (#12 / S4.13, the catalog default): with a query on
+        `relevance` (#12 / S4.13; the catalog's default for a bar with
+        free text -- the empty catalog and field-only queries default
+        to rule_created_date desc since 2026-09-17): with a query on
         Postgres, order by weighted ts_rank_cd over the free-text
         terms; without a query (or on SQLite), round-robin across
         sources by documentation quality. A plain quality_score sort
