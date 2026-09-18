@@ -17,6 +17,7 @@ import {
   reconcileFilterChange,
 } from '../utils/querySync';
 import { clipSm, clipMd } from '../constants/style';
+import { defaultSortFor } from '../utils/sortDefaults';
 
 /** Filter trigger — mirrors the SearchBar's height and clip so they read as a pair. */
 function FilterButton({ activeCount, onClick }: { activeCount: number; onClick: () => void }) {
@@ -184,7 +185,12 @@ export function DetectionList() {
     source_tables: searchParams.get('source_tables')?.split(',').filter(Boolean) || [],
     offset: parseInt(searchParams.get('offset') || '0', 10),
     limit: parseInt(searchParams.get('limit') || '25', 10),
-    sort_by: searchParams.get('sort_by') || 'relevance',
+    // Newest-first unless the bar carries free text (then Relevance);
+    // see utils/sortDefaults.
+    sort_by: searchParams.get('sort_by') || defaultSortFor({
+      q: searchParams.get('q') || undefined,
+      search: searchParams.get('search') || undefined,
+    }),
     sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
   });
 
@@ -227,7 +233,9 @@ export function DetectionList() {
     if (filters.source_tables?.length) params.set('source_tables', filters.source_tables.join(','));
     if (filters.offset) params.set('offset', String(filters.offset));
     if (filters.limit && filters.limit !== 25) params.set('limit', String(filters.limit));
-    if (filters.sort_by && filters.sort_by !== 'relevance') params.set('sort_by', filters.sort_by);
+    // The default sort depends on the bar, so the URL only records a
+    // sort that differs from the default for its own query.
+    if (filters.sort_by && filters.sort_by !== defaultSortFor(filters)) params.set('sort_by', filters.sort_by);
     if (filters.sort_order && filters.sort_order !== 'desc') params.set('sort_order', filters.sort_order);
     return params;
   };
@@ -265,8 +273,19 @@ export function DetectionList() {
   const queryError = useMemo(() => extractQueryParseError(error), [error]);
   const isQueryError = !!queryError;
 
+  // Newest-first is the catalog default; a bar with free text defaults
+  // to Relevance. When an edit moves the bar across that line while the
+  // sort still sits at its default, follow the new default. An explicit
+  // pick (any other sort, or the default in ascending order) is kept.
+  const applyFilters = (next: SearchFilters) => {
+    const prevDefault = defaultSortFor(filters);
+    const nextDefault = defaultSortFor(next);
+    const atDefault = next.sort_by === prevDefault && next.sort_order === 'desc';
+    setFilters(prevDefault !== nextDefault && atDefault ? { ...next, sort_by: nextDefault } : next);
+  };
+
   const handleQuerySubmit = (q: string) => {
-    setFilters({ ...filters, q: q || undefined, offset: 0 });
+    applyFilters({ ...filters, q: q || undefined, offset: 0 });
   };
 
   // Bar <-> sheet translation (#13): the sheet and pills render a VIEW
@@ -279,7 +298,7 @@ export function DetectionList() {
     [filters, parsedBar],
   );
   const handleViewFiltersChange = (next: SearchFilters) => {
-    setFilters(reconcileFilterChange(filters, viewFilters, next, parsedBar));
+    applyFilters(reconcileFilterChange(filters, viewFilters, next, parsedBar));
   };
 
   const handleCompareSelected = (ids: string[]) => {

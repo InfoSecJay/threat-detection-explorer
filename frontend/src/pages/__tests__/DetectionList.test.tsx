@@ -82,11 +82,11 @@ vi.mock('../../contexts/MitreContext', () => {
 
 import { DetectionList } from '../DetectionList';
 
-function renderPage() {
+function renderPage(path = '/detections') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/detections']}>
+      <MemoryRouter initialEntries={[path]}>
         <DetectionList />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -123,5 +123,20 @@ describe('DetectionList', () => {
     const btn = await findByTestId('copy-api-url');
     // jsdom origin + the versioned prefix + the page's pagination defaults.
     expect(btn.getAttribute('title')).toMatch(/^http:\/\/localhost(:\d+)?\/api\/v1\/detections\?/);
+  });
+
+  it('sorts newest-first by default and by relevance once the bar has free text', async () => {
+    const empty = renderPage();
+    const url = (await empty.findByTestId('copy-api-url')).getAttribute('title') ?? '';
+    expect(url).toContain('sort_by=rule_created_date');
+    expect(url).toContain('sort_order=desc');
+    empty.unmount();
+
+    const fielded = renderPage('/detections?q=tech%3AT1055+source%3Asigma');
+    expect((await fielded.findByTestId('copy-api-url')).getAttribute('title')).toContain('sort_by=rule_created_date');
+    fielded.unmount();
+
+    const freeText = renderPage('/detections?q=citrix');
+    expect((await freeText.findByTestId('copy-api-url')).getAttribute('title')).toContain('sort_by=relevance');
   });
 });
