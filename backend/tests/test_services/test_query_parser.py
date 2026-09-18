@@ -354,8 +354,8 @@ class TestActorCatalogResolution:
         monkeypatch.setattr(mitre_service, "_groups", {
             "G1099": {"id": "G1099", "name": "Test Kitten", "aliases": ["Sandy Cat"]},
             "G1098": {"id": "G1098", "name": "Other Crew", "aliases": []},
-            # Curated too (APT29): the curated pin must win over a galaxy
-            # synonym that also names another group.
+            # Curated too (APT29): the catalog alias must win over a
+            # galaxy synonym that also names another group.
             "G0016": {"id": "G0016", "name": "APT29", "aliases": ["Cozy Bear"]},
         })
         monkeypatch.setattr(mitre_service, "_software", {
@@ -390,9 +390,19 @@ class TestActorCatalogResolution:
         s = _sql(parse_query("actor:SharedName"))
         assert '"g1099"' in s and '"g1098"' in s and " or " in s
 
-    def test_curated_pin_wins_over_a_shared_galaxy_synonym(self, catalog):
+    def test_catalog_alias_wins_over_a_shared_galaxy_synonym(self, catalog):
         s = _sql(parse_query('actor:"Cozy Bear"'))
         assert '"g0016"' in s and "g1098" not in s
+
+    def test_catalog_outranks_a_wrong_curated_pin(self, catalog, monkeypatch):
+        """The curated table has pinned names to the wrong G-ID before
+        (Salt Typhoon under G1039, which is RedCurl); with the catalog
+        loaded that pin must not turn a real name into a silent zero."""
+        from app.services import query_parser
+
+        monkeypatch.setitem(query_parser._MITRE_GROUP_REVERSE, "test kitten", "G1098")
+        s = _sql(parse_query('actor:"Test Kitten"'))
+        assert '"g1099"' in s and "g1098" not in s
 
     def test_unknown_name_suggests_from_the_catalog(self, catalog):
         with pytest.raises(QueryParseError) as exc:

@@ -426,15 +426,16 @@ def _is_software_id(v: str) -> bool:
 
 
 # -- Catalog-backed resolution (DX-04 remainder, #146) ---------------
-# The curated mitre_lookup table pins ~75 groups; the ATT&CK catalog
-# mitre_service loads at warmup has every group and software entry, and
-# the MISP-galaxy join adds the vendor names the actor pages match on.
-# Resolution walks those tiers in order and stops at the first hit, so
-# a curated pin (Mustang Panda -> G0129) never widens to a galaxy
-# synonym shared with another group (G1014). Keys are normalize_alias()
-# forms, the actor pages' own join key, so "APT-29" and "apt 29"
-# resolve like "APT29". Built on demand: only actor: and software:
-# values pay for it, and a catalog reload needs no cache invalidation.
+# The ATT&CK catalog mitre_service loads at warmup is authoritative:
+# primary name first, then aliases, then the MISP-galaxy synonyms the
+# actor pages join on. The curated mitre_lookup table (~50 groups, IDs
+# pinned by hand) is the last resort: it alone serves an unloaded
+# catalog, and it has carried wrong pins before (Salt Typhoon under
+# G1039, "Sandworm Team" under G1044), so it must never outrank the
+# catalog. Keys are normalize_alias() forms, the actor pages' own join
+# key, so "APT-29" and "apt 29" resolve like "APT29". Built on demand:
+# only actor: and software: values pay for it, and a catalog reload
+# needs no cache invalidation.
 
 
 def _catalog_reverse(kind: str) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
@@ -456,21 +457,22 @@ def _catalog_reverse(kind: str) -> tuple[dict[str, list[str]], dict[str, list[st
 def _resolve_mitre_group(value: str) -> list[str]:
     """'APT29' / 'Cozy Bear' / 'APT-29' -> ['G0016']; IDs pass through.
 
-    Tiers: curated table, catalog primary name, catalog alias, galaxy
-    synonym. A galaxy name can belong to more than one group; every
-    match comes back and the clause ORs them. Empty means unknown.
+    Tiers: catalog primary name, catalog alias, galaxy synonym, then
+    the curated table. A name shared by several groups returns every
+    match and the clause ORs them. Empty means unknown.
     """
     v = value.strip()
     if _is_group_id(v):
         return [v.upper()]
-    curated = _MITRE_GROUP_REVERSE.get(v.lower())
-    if curated:
-        return [curated]
     key = normalize_alias(v)
     if not key:
         return []
     by_name, by_alias = _catalog_reverse("group")
-    return by_name.get(key) or by_alias.get(key) or actor_context_service.resolve_alias(v)
+    hit = by_name.get(key) or by_alias.get(key) or actor_context_service.resolve_alias(v)
+    if hit:
+        return list(hit)
+    curated = _MITRE_GROUP_REVERSE.get(v.lower())
+    return [curated] if curated else []
 
 
 def _resolve_mitre_software(value: str) -> list[str]:
@@ -478,14 +480,15 @@ def _resolve_mitre_software(value: str) -> list[str]:
     v = value.strip()
     if _is_software_id(v):
         return [v.upper()]
-    curated = _MITRE_SOFTWARE_REVERSE.get(v.lower())
-    if curated:
-        return [curated]
     key = normalize_alias(v)
     if not key:
         return []
     by_name, by_alias = _catalog_reverse("software")
-    return by_name.get(key) or by_alias.get(key) or []
+    hit = by_name.get(key) or by_alias.get(key)
+    if hit:
+        return list(hit)
+    curated = _MITRE_SOFTWARE_REVERSE.get(v.lower())
+    return [curated] if curated else []
 
 
 def _entity_info(eid: str, kind: str) -> Optional[dict]:
