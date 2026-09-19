@@ -301,6 +301,17 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         examples=["software:Mimikatz", "software:S0154"],
     ),
     FieldSpec(
+        aliases=["equiv", "equivalent"],
+        kind="list",
+        columns=["equivalent_sources"],
+        description=(
+            "Source holding a same-behaviour rule for this one: a shared "
+            "observable plus a shared technique or a second shared observable, "
+            "recomputed nightly. Negate it for porting gaps."
+        ),
+        examples=["equiv:elastic", "tech:T1055 source:sigma -equiv:elastic"],
+    ),
+    FieldSpec(
         aliases=["usecase", "story", "use_case"],
         kind="list",
         columns=["use_cases"],

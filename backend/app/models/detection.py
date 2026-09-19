@@ -186,6 +186,12 @@ class Detection(Base):
     # new + logic-changed rules, not on "touched".
     logic_hash: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     logic_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    # DX-07 / #149: sources holding a "same behaviour" rule for this one
+    # (a shared observable plus a shared technique or a second shared
+    # observable, the related-rules bar). Written by the post-sync batch
+    # in services/equivalents.py; the "has equivalent in" facet and the
+    # `equiv:` query field filter on it.
+    equivalent_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     # Timestamps (sync timestamps)
     created_at: Mapped[datetime] = mapped_column(

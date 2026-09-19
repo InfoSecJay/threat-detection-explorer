@@ -76,6 +76,11 @@ class SearchFilters:
     target_resources: list[str] = field(default_factory=list)
     source_tables: list[str] = field(default_factory=list)
 
+    # "Same behaviour elsewhere" (DX-07 / #149): sources with an
+    # equivalent rule (any of), and sources with none (every one of).
+    equivalent_in: list[str] = field(default_factory=list)
+    no_equivalent_in: list[str] = field(default_factory=list)
+
     # Pagination
     offset: int = 0
     limit: int = 50
@@ -88,7 +93,7 @@ class SearchFilters:
 
 # Bump when the facets response gains or changes a key. Persisted default
 # facets (#81) are otherwise keyed on the corpus fingerprint alone.
-_FACETS_SHAPE_VERSION = 2
+_FACETS_SHAPE_VERSION = 3
 
 
 class SearchService:
@@ -518,6 +523,8 @@ class SearchService:
         # Scalar boolean dimension: reports only the `true` bucket
         # (count of building blocks under the current query).
         "building_block": ("building_block", "is_building_block", False),
+        # "Has equivalent in" (DX-07 / #149): nightly equivalent_sources.
+        "equivalent_sources": ("equivalent_in", "equivalent_sources", True),
     }
 
     async def get_facets(self, filters: SearchFilters) -> dict[str, list[dict]]:
@@ -837,6 +844,17 @@ class SearchService:
                 for v in filters.data_sources_normalized
             ]
             conditions.append(or_(*ds_conds))
+
+        # "Same behaviour elsewhere" (DX-07 / #149). equivalent_sources is
+        # the nightly batch's answer; `equivalent_in` is any-of, and
+        # `no_equivalent_in` excludes every listed source, which is the
+        # porting question ("Sigma rules with no Elastic equivalent").
+        if filters.equivalent_in:
+            conditions.append(or_(*[
+                cast(Detection.equivalent_sources, String).ilike(f'%"{v}"%') for v in filters.equivalent_in
+            ]))
+        for v in filters.no_equivalent_in:
+            conditions.append(~cast(Detection.equivalent_sources, String).ilike(f'%"{v}"%'))
 
         # Extracted Event IDs filter (JSON array, text-based matching).
         # Values are channel-namespaced (`sysmon:1`, #110); a bare

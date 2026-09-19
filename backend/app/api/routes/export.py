@@ -101,6 +101,8 @@ async def export_detections(
                 severities=request.filters.severities,
                 languages=request.filters.languages,
                 rule_modalities=request.filters.rule_modalities,
+                equivalent_in=request.filters.equivalent_in,
+                no_equivalent_in=request.filters.no_equivalent_in,
                 mitre_tactics=request.filters.mitre_tactics,
                 mitre_techniques=request.filters.mitre_techniques,
                 tags=request.filters.tags,

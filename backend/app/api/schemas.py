@@ -292,6 +292,8 @@ class DetectionListItem(UtcTimestampsModel):
     mitre_groups: list[str] = []
     mitre_software: list[str] = []
     language: str = "unknown"
+    # Sources holding a same-behaviour rule (DX-07 / #149), nightly.
+    equivalent_sources: list[str] = []
     # Heavy fields below are None unless ?verbose=true (teardown R15 /
     # #113): the default list response was 149 KB for 25 rows with ~85%
     # of the payload never rendered by the table. None (not []) so
@@ -354,6 +356,7 @@ class DetectionListItem(UtcTimestampsModel):
             "mitre_groups": getattr(detection, 'mitre_groups', None) or [],
             "mitre_software": getattr(detection, 'mitre_software', None) or [],
             "language": detection.language or "unknown",
+            "equivalent_sources": getattr(detection, "equivalent_sources", None) or [],
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "quality_score": _int_or_none(getattr(detection, 'quality_score', None)),
@@ -519,6 +522,9 @@ class SearchParams(BaseModel):
     network_indicators: list[str] = Field(default_factory=list)
     target_resources: list[str] = Field(default_factory=list)
     source_tables: list[str] = Field(default_factory=list)
+    # "Same behaviour elsewhere" (DX-07 / #149)
+    equivalent_in: list[str] = Field(default_factory=list)
+    no_equivalent_in: list[str] = Field(default_factory=list)
     offset: int = 0
     limit: int = Field(default=50, le=200)
     sort_by: str = "title"

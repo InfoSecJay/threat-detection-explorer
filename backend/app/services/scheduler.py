@@ -235,6 +235,16 @@ async def run_full_sync_job(
             except Exception as e:
                 logger.warning(f"Coverage snapshot failed: {e}", exc_info=True)
 
+            # "Same behaviour elsewhere" (DX-07 / #149): every rule's
+            # equivalent_sources, so the "has equivalent in" facet is a
+            # plain filter. Before the corpus snapshot so the day's
+            # snapshot carries the values; same isolation as the rest.
+            try:
+                from app.services.equivalents import write_equivalent_sources
+                await write_equivalent_sources(db)
+            except Exception as e:
+                logger.warning(f"Equivalent sources pass failed: {e}", exc_info=True)
+
             # Full corpus snapshot (#94 / teardown S5.1): the exact
             # normalized state of every source, gzip JSONL per (day,
             # source). The longitudinal record only exists if we keep
