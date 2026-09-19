@@ -26,6 +26,8 @@ const LABELS: Record<string, string> = {
   severities: 'Severity',
   languages: 'Language',
   rule_modalities: 'Modality',
+  equivalent_in: 'Equivalent in',
+  no_equivalent_in: 'No equivalent in',
   platforms: 'Platform',
   domains: 'Domain',
   products: 'Product',

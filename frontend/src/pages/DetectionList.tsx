@@ -166,6 +166,8 @@ export function DetectionList() {
     tags: searchParams.get('tags')?.split(',').filter(Boolean) || [],
     languages: searchParams.get('languages')?.split(',').filter(Boolean) || [],
     rule_modalities: searchParams.get('rule_modalities')?.split(',').filter(Boolean) || [],
+    equivalent_in: searchParams.get('equivalent_in')?.split(',').filter(Boolean) || [],
+    no_equivalent_in: searchParams.get('no_equivalent_in')?.split(',').filter(Boolean) || [],
     // Standardized taxonomy filters
     platforms: searchParams.get('platforms')?.split(',').filter(Boolean) || [],
     event_categories: searchParams.get('event_categories')?.split(',').filter(Boolean) || [],
@@ -214,6 +216,8 @@ export function DetectionList() {
     if (filters.tags?.length) params.set('tags', filters.tags.join(','));
     if (filters.languages?.length) params.set('languages', filters.languages.join(','));
     if (filters.rule_modalities?.length) params.set('rule_modalities', filters.rule_modalities.join(','));
+    if (filters.equivalent_in?.length) params.set('equivalent_in', filters.equivalent_in.join(','));
+    if (filters.no_equivalent_in?.length) params.set('no_equivalent_in', filters.no_equivalent_in.join(','));
     // Standardized taxonomy filters
     if (filters.platforms?.length) params.set('platforms', filters.platforms.join(','));
     if (filters.event_categories?.length) params.set('event_categories', filters.event_categories.join(','));

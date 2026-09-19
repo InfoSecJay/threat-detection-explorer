@@ -21,6 +21,8 @@ export const ARRAY_FILTER_KEYS: Array<keyof SearchFilters> = [
   'severities',
   'languages',
   'rule_modalities',
+  'equivalent_in',
+  'no_equivalent_in',
   'mitre_tactics',
   'mitre_techniques',
   'mitre_groups',

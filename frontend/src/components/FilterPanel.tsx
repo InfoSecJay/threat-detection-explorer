@@ -38,6 +38,15 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
   const qualityBandCounts = useMemo(() => countMap(facets?.quality_band), [facets]);
   const languageCounts = useMemo(() => countMap(facets?.languages), [facets]);
   const modalityCounts = useMemo(() => countMap(facets?.rule_modalities), [facets]);
+  // DX-07 / #149: sources holding a same-behaviour rule, from the
+  // nightly batch. Empty until the first sync after the deploy.
+  const equivalentCounts = useMemo(() => countMap(facets?.equivalent_sources), [facets]);
+  const equivalentOptions = useMemo(() => {
+    const values = (facets?.equivalent_sources || []).map((f) => f.value);
+    const ordered: string[] = (ALL_SOURCES as readonly string[]).filter((s) => values.includes(s));
+    for (const s of values) if (!ordered.includes(s)) ordered.push(s);
+    return ordered;
+  }, [facets]);
   const tacticCounts = useMemo(() => countMap(facets?.mitre_tactics), [facets]);
 
   // Sources come from the live facet (scoped to the active query) so
@@ -207,6 +216,51 @@ export function FilterPanel({ filters, onFiltersChange }: FilterPanelProps) {
               title={m.hint}
             />
           ))}
+        </div>
+      ))}
+
+      {/* DX-07 / #149: a rule "has an equivalent in" a source when a rule
+          there keys on a shared observable plus a shared technique (or a
+          second shared observable). "No equivalent in" is the porting
+          question the review asked for: Sigma rules with nothing in Elastic. */}
+      {section('equivalent', 'Has equivalent in', filters.equivalent_in?.length, (
+        <div className="space-y-1 mt-2">
+          {equivalentOptions.map((value) => (
+            <CheckboxOption
+              key={value}
+              checked={filters.equivalent_in?.includes(value) || false}
+              onChange={(checked) => toggle('equivalent_in', value, checked)}
+              label={sourceLabels[value] || value}
+              color={sourceColors[value] || '#6b7280'}
+              count={equivalentCounts[value]}
+            />
+          ))}
+          {equivalentOptions.length === 0 && (
+            <p className="text-[10px] font-mono text-dim-400">Not computed yet: fills in after the next nightly sync.</p>
+          )}
+          <p className="mt-2 text-[10px] font-mono text-dim-400 leading-relaxed">
+            Another source keys on the same observable and technique. Recomputed nightly; bar syntax{' '}
+            <code className="text-cyan-400">equiv:elastic</code>.
+          </p>
+        </div>
+      ))}
+
+      {section('no-equivalent', 'No equivalent in', filters.no_equivalent_in?.length, (
+        <div className="space-y-1 mt-2">
+          {sourceOptions.map((value) => (
+            <CheckboxOption
+              key={value}
+              checked={filters.no_equivalent_in?.includes(value) || false}
+              onChange={(checked) => toggle('no_equivalent_in', value, checked)}
+              label={sourceLabels[value] || value}
+              color={sourceColors[value] || '#6b7280'}
+              count={undefined}
+            />
+          ))}
+          <p className="mt-2 text-[10px] font-mono text-dim-400 leading-relaxed">
+            The porting gap: rules with no same-behaviour rule in the ticked sources. Bar syntax{' '}
+            <code className="text-cyan-400">-equiv:elastic</code>.
+          </p>
         </div>
       ))}
 

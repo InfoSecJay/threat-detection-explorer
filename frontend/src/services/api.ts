@@ -80,6 +80,8 @@ function buildFilterParams(filters: SearchFilters, includePagination = true): UR
   if (filters.severities?.length) params.set('severities', filters.severities.join(','));
   if (filters.languages?.length) params.set('languages', filters.languages.join(','));
   if (filters.rule_modalities?.length) params.set('rule_modalities', filters.rule_modalities.join(','));
+  if (filters.equivalent_in?.length) params.set('equivalent_in', filters.equivalent_in.join(','));
+  if (filters.no_equivalent_in?.length) params.set('no_equivalent_in', filters.no_equivalent_in.join(','));
   if (filters.mitre_tactics?.length) params.set('mitre_tactics', filters.mitre_tactics.join(','));
   if (filters.mitre_techniques?.length) params.set('mitre_techniques', filters.mitre_techniques.join(','));
   if (filters.mitre_groups?.length) params.set('mitre_groups', filters.mitre_groups.join(','));
@@ -131,6 +133,8 @@ export interface DetectionFacets {
   event_type_groups?: FacetGroup[];
   languages: FacetOption[];
   rule_modalities: FacetOption[];
+  /** Sources holding a same-behaviour rule (DX-07 / #149); empty until the first nightly batch. */
+  equivalent_sources?: FacetOption[];
   mitre_tactics: FacetOption[];
   mitre_techniques: FacetOption[];
   platforms: FacetOption[];
@@ -194,6 +198,8 @@ export const detectionsApi = {
     severities: string[];
     languages: string[];
     rule_modalities?: string[];
+    equivalent_in?: string[];
+    no_equivalent_in?: string[];
     platforms: Array<{ value: string; count: number }>;
     data_sources: Array<{ value: string; count: number }>;
     event_types: Array<{ value: string; count: number }>;

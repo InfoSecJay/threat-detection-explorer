@@ -49,6 +49,9 @@ const FIELD_MAP: { key: keyof SearchFilters; canonical: string; aliases: string[
   { key: 'statuses', canonical: 'status', aliases: ['status'] },
   { key: 'languages', canonical: 'lang', aliases: ['lang', 'language'] },
   { key: 'rule_modalities', canonical: 'modality', aliases: ['modality', 'kind'] },
+  // DX-07 / #149. `no_equivalent_in` has no token of its own: in the
+  // bar that is `-equiv:<source>`, which the sheet treats as opaque.
+  { key: 'equivalent_in', canonical: 'equiv', aliases: ['equiv', 'equivalent'] },
   { key: 'platforms', canonical: 'platform', aliases: ['platform'] },
   { key: 'domains', canonical: 'domain', aliases: ['domain'] },
   { key: 'products', canonical: 'product', aliases: ['product', 'vendor'] },

@@ -36,6 +36,11 @@ const RECIPES: Array<{ title: string; query: string; explains: string }> = [
     explains: 'NOT excludes matching rules; combines cleanly with any other filter.',
   },
   {
+    title: 'Sigma rules for T1055 with no Elastic equivalent',
+    query: 'tech:T1055 source:sigma -equiv:elastic',
+    explains: '`equiv:` lists the sources holding a same-behaviour rule (a shared observable plus a shared technique, recomputed nightly). Negate it to find porting gaps.',
+  },
+  {
     title: 'Anything mentioning Mimikatz outside actor tags',
     query: 'content:mimikatz NOT software:Mimikatz',
     explains: 'Free-text `content:` searches raw rule body — useful for finding gaps in vendor tagging.',

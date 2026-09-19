@@ -191,6 +191,10 @@ export interface SearchFilters {
   severities?: string[];
   languages?: string[];
   rule_modalities?: string[];
+  // "Same behaviour elsewhere" (DX-07 / #149): sources with an
+  // equivalent rule (any of) / sources with none (every one of).
+  equivalent_in?: string[];
+  no_equivalent_in?: string[];
   mitre_tactics?: string[];
   mitre_techniques?: string[];
   mitre_groups?: string[];
