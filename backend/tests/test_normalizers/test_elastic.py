@@ -208,6 +208,53 @@ def test_normalize_data_sources_picked_from_index_pattern(normalizer):
     assert "elastic_defend" in n.data_sources
 
 
+def test_normalize_anthropic_audit_esql_rule(normalizer):
+    """Elastic's Anthropic Compliance API rules (#169): the ES|QL FROM
+    target plus `integration: anthropic` land on the `anthropic_activity`
+    feed Panther already uses (product anthropic, domain saas), and the
+    org-audit `event.action` verb surfaces as an API action."""
+    query = (
+        "from logs-anthropic.audit-* metadata _id, _version, _index\n"
+        "| where\n"
+        '    data_stream.dataset == "anthropic.audit" and\n'
+        '    mv_contains(event.category, "configuration") and\n'
+        '    event.action == "org_magic_link_second_factor_toggled" and\n'
+        "    anthropic.audit.enabled == false\n"
+        "| keep _id, _version, _index, @timestamp, event.*, organization.*, "
+        "user.*, source.*, user_agent.*, anthropic.audit.*, data_stream.*"
+    )
+    n = normalizer.normalize(_parsed(
+        file_path="rules/integrations/anthropic/defense_evasion_anthropic_magic_link_second_factor_disabled.toml",
+        title="Anthropic Magic Link Second Factor Disabled",
+        detection_logic_raw={"type": "esql", "query": query, "language": "esql"},
+        log_source={"indices": ["logs-anthropic.audit-*"]},
+        tags=[
+            "Domain: GenAI", "Domain: Identity", "Platform: Anthropic",
+            "Data Source: Anthropic Audit Logs", "Use Case: Identity and Access Audit",
+            "Rule Type: ES|QL", "Tactic: Defense Evasion",
+        ],
+        mitre_attack={"tactics": ["TA0005"], "techniques": ["T1556.006"]},
+        extra={
+            "rule_id": "58ad16ae-4c96-424e-9cd2-c151ac79e8ea",
+            "type": "esql",
+            "language": "esql",
+            "index": ["logs-anthropic.audit-*"],
+            "integration": ["anthropic"],
+            "references": [],
+            "creation_date": "2026/09/12",
+            "updated_date": "2026/09/21",
+            "promotion": False,
+        },
+    ))
+    assert n.taxonomy_matched is True
+    assert n.platforms == ["not_applicable"]
+    assert n.data_sources == ["anthropic_activity"]
+    assert n.event_types == ["api_call"]
+    assert n.domains == ["saas"]
+    assert n.products == ["anthropic"]
+    assert "org_magic_link_second_factor_toggled" in n.extracted_api_actions
+
+
 # ── Dates ────────────────────────────────────────────────────────────
 
 

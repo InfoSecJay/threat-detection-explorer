@@ -1520,6 +1520,7 @@ _CLOUD_INTEGRATIONS = frozenset({
     "aws", "aws_bedrock", "azure", "azure_openai", "gcp",
     "google_workspace", "o365", "github", "kubernetes", "cyberarkpas",
     "zoom",  # SaaS webhook audit: meeting.created is an API-side action
+    "anthropic",  # Compliance API org audit: admin_api_key_created (#169)
 })
 _IDENTITY_INTEGRATIONS = frozenset({"okta", "auth0", "duo"})
 # Streams whose event.action is neither an endpoint verb nor an API
@@ -1548,7 +1549,7 @@ _IDENTITY_NAMESPACES = (
 )
 _CLOUD_NAMESPACES = (
     "aws.", "azure.", "gcp.", "google_workspace.", "o365.", "github.",
-    "kubernetes.", "cloud.",
+    "kubernetes.", "cloud.", "anthropic.",
 )
 _ENDPOINT_NAMESPACES = (
     "process.", "file.", "registry.", "dll.", "library.", "driver.",

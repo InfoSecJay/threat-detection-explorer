@@ -76,6 +76,7 @@ DATA_SOURCE_LABELS: dict[str, str] = {
     "slack_audit": "Slack audit",
     "snyk_org_audit": "Snyk audit",
     "cyberark_audit": "CyberArk audit",
+    "anthropic_activity": "Anthropic audit log",
     "database_logs": "Database logs",
     "siem_alert": "SIEM alerts",
 }

@@ -205,6 +205,7 @@ class TestUndecidedAndGeneric:
         ("logs-google_workspace*", "cloud"),
         ("logs-o365.audit*", "cloud"),
         ("logs-github.audit*", "cloud"),
+        ("logs-anthropic.audit*", "cloud"),  # Compliance API org audit (#169)
         ("logs-kubernetes.audit*", "cloud"),
         ("logs-okta*", "identity"),
         ("logs-auth0*", "identity"),
