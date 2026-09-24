@@ -465,6 +465,53 @@ def test_elastic_falls_back_to_integration():
     assert "okta_system_log" in result["data_sources"]
 
 
+def test_elastic_anthropic_audit_index_resolves_to_anthropic_activity():
+    """Elastic's Anthropic integration (Compliance API org audit log,
+    #169) shares Panther's `anthropic_activity` id: llm platform,
+    api_call per the SaaS-audit convention, and nothing else -- the
+    GenAI / Platform / Data Source tags must not add a second feed."""
+    parsed = _make_parsed(
+        source="elastic",
+        tags=["Domain: GenAI", "Platform: Anthropic", "Data Source: Anthropic Audit Logs"],
+        extra={
+            "index": ["logs-anthropic.audit-*"],
+            "integration": ["anthropic"],
+            "type": "esql",
+            "language": "esql",
+        },
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["llm"]
+    assert result["data_sources"] == ["anthropic_activity"]
+    assert result["event_types"] == ["api_call"]
+    assert result["matched"] is True
+
+
+def test_elastic_anthropic_tags_alone_resolve_the_feed():
+    """A future Anthropic rule on a data stream this mapping does not
+    know still resolves through the Data Source / Platform tags, but
+    with no event type -- that gap is what the drift report should show."""
+    parsed = _make_parsed(
+        source="elastic",
+        tags=["Platform: Anthropic", "Data Source: Anthropic Audit Logs"],
+        extra={"index": ["logs-anthropic.usage-*"], "integration": ["not_anthropic"]},
+    )
+    result = resolve_for_repo("elastic", parsed)
+    assert result["platforms"] == ["llm"]
+    assert result["data_sources"] == ["anthropic_activity"]
+    assert result["event_types"] == ["unknown"]
+    assert result["matched"] is True
+
+
+def test_elastic_domain_genai_tag_alone_is_not_a_match():
+    """`Domain: GenAI` is carried by endpoint (curl/wget LLM triage) and
+    CloudTrail (Bedrock) rules alike, so on its own it must not claim a
+    feed or a platform."""
+    parsed = _make_parsed(source="elastic", tags=["Domain: GenAI"], extra={"index": ["logs-*"]})
+    result = resolve_for_repo("elastic", parsed)
+    assert result["matched"] is False
+
+
 # ── Splunk vendor ───────────────────────────────────────────────────────
 
 

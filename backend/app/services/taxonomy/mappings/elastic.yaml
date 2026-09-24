@@ -393,6 +393,16 @@ index_patterns:
     platforms: [llm]
     data_sources: [llm_service_logs]
     event_types: [api_call]
+  # Anthropic Compliance API organization audit log (integration
+  # `anthropic`, one data stream: `audit`). Panther reads the same feed as
+  # `Anthropic.Activity`, so both share the canonical `anthropic_activity`
+  # id (product anthropic, domain saas through the llm platform). Only the
+  # audit stream is mapped on purpose: a new Anthropic data stream should
+  # surface in the drift report, not inherit this entry (#169).
+  "logs-anthropic.audit*":
+    platforms: [llm]
+    data_sources: [anthropic_activity]
+    event_types: [api_call]
 
   # ═══════════════════════════════════════════════════════════════════════
   # FIM / APM / ALERTS
@@ -512,6 +522,10 @@ integrations:
   azure_openai:
     platforms: [llm]
     data_sources: [llm_service_logs]
+    event_types: [api_call]
+  anthropic:                           # Compliance API org audit log (#169)
+    platforms: [llm]
+    data_sources: [anthropic_activity]
     event_types: [api_call]
   o365:
     platforms: [microsoft_365]
@@ -667,9 +681,10 @@ integrations:
 # TAGS — fallback signal when index + integration don't resolve everything
 #
 # Elastic rules use a structured tag vocabulary:
-#   "Domain: Endpoint|Network|Cloud|Identity and Access|SIEM|LLM|..."
+#   "Domain: Endpoint|Network|Cloud|Identity|SaaS|GenAI|LLM|..."
 #   "OS: Windows|Linux|macOS"
 #   "Data Source: <vendor>"   (occasionally set)
+#   "Platform: <vendor>"      (newer family: AWS, Okta, Anthropic, ...)
 # The resolver walks `parsed.tags` in lowercase and matches against the
 # keys below. Matches UNION into the per-dimension sets, same as
 # index_patterns and integrations do. Only tags that reliably imply a
@@ -708,6 +723,11 @@ tags:
   "domain: llm":
     platforms: [llm]
     data_sources: [llm_service_logs]
+  # "domain: genai" (the newer spelling) is deliberately NOT mirrored: the
+  # endpoint rules that carry it (curl/wget LLM triage, GenAI CLI, Claude
+  # Cowork) read endpoint telemetry and the Bedrock control-plane rules
+  # read CloudTrail. The feed comes from the index; a GenAI rule on an
+  # unknown index should show up as drift, not inherit llm_service_logs.
   "domain: container":
     platforms: [kubernetes]
   # ── Data Source tags (vendor-level — when set, these are precise) ───
@@ -762,6 +782,14 @@ tags:
   "data source: amazon bedrock":
     platforms: [llm, aws]
     data_sources: [llm_service_logs]
+  "data source: anthropic audit logs":
+    platforms: [llm]
+    data_sources: [anthropic_activity]
+  # `Platform: <vendor>` tags duplicate what index + integration already
+  # say for AWS / Okta / GitHub / ...; only Anthropic is mapped, as the
+  # fallback for a future rule on an index this file does not know (#169).
+  "platform: anthropic":
+    platforms: [llm]
 
 # ═══════════════════════════════════════════════════════════════════════
 # EQL QUERY CATEGORIES — event_type extraction from the query head
