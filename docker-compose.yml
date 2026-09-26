@@ -1,0 +1,33 @@
+# Local Postgres 17 for pre-deploy verification (#38).
+#
+# Production is Postgres 17 on Railway with data that carries every
+# schema shape the app has ever written; CI and the day-to-day dev loop
+# stay on SQLite for speed. This container is where a schema or
+# serialization change gets checked against the REAL data before a push:
+#
+#   docker compose up -d --wait
+#   python scripts/dev_db.py refresh      # prod snapshot -> restore -> migrate -> smoke
+#
+# Port 5433 on the host so a native Postgres on 5432 never collides.
+# scripts/dev_db.py runs pg_dump / pg_restore / psql inside this
+# container, so nothing needs installing on the host beyond Docker.
+services:
+  postgres:
+    image: postgres:17
+    container_name: detection-explorer-postgres
+    environment:
+      POSTGRES_USER: detection_explorer
+      POSTGRES_PASSWORD: detection_explorer
+      POSTGRES_DB: detection_explorer
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U detection_explorer -d detection_explorer"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
