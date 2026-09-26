@@ -21,6 +21,13 @@ differ (Jay's decision, 2026-09-10).
   (the venv is the project interpreter; ~1,500 tests, ~20 s).
 - Frontend: `cd frontend; npm run build; npm run lint; npx vitest run`.
   Capture each exit code; eslint runs with `--max-warnings 0`.
+- Schema, migration, or API-type changes over existing columns: run
+  them against a production snapshot in local Postgres before pushing.
+  `python scripts\dev_db.py refresh` (snapshot via `railway run`,
+  restore, `init_db()` migrations, API smoke over every source; `--all`
+  sweeps every detail page). Needs Docker Desktop (`docker compose up -d
+  --wait`) or `PG_BIN` pointing at Postgres 17 client binaries plus
+  `DEV_DATABASE_URL`. Dev SQLite cannot catch prod-only shapes (#38).
 - Anything that changes normalization lands in the data only at the next
   nightly sync. Verify on prod after that sync, then close the issue.
 - Prod probes go through the public API with curl (Cloudflare blocks

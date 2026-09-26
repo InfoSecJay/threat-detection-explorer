@@ -158,6 +158,7 @@ The frontend will be available at `http://localhost:5173` and the API at `http:/
 - Python 3.11+
 - Node.js 18+
 - Git
+- Docker Desktop, only for the Postgres verification path below
 
 ### Architecture
 
@@ -236,12 +237,44 @@ cd backend
 pytest tests/ -v
 ```
 
+### Postgres for pre-deploy verification
+
+Tests and the dev loop run on SQLite. Production is Postgres 17 holding
+data with every shape the app has ever written, and a change that
+passes every local test can still 500 there (a column that is `[]` on
+old rows and a dict on new ones did exactly that on 2026-08-28). Before
+pushing a change that touches the schema, a migration, or tightens an
+API type over an existing column, run it against a production snapshot:
+
+```bash
+docker compose up -d --wait            # Postgres 17 on localhost:5433
+python scripts/dev_db.py refresh       # snapshot -> restore -> migrate -> smoke
+```
+
+`refresh` takes a `pg_dump` of production through `railway run
+--service Postgres` (the Railway CLI has to be logged in), restores it
+into the local database, runs the checked-out code's startup migrations
+over the real schema, then starts the API on it and requests every
+read route plus a sample of detail pages per source (`--all` sweeps
+all of them). The steps also run one at a time: `snapshot`, `restore`,
+`migrate`, `smoke`. `python scripts/dev_db.py url` prints the
+`DATABASE_URL` to run the dev server against the same database.
+
+No Docker? Point `PG_BIN` at a directory holding `pg_dump`,
+`pg_restore` and `psql` (the portable EDB binaries zip works without an
+admin install) and `DEV_DATABASE_URL` at any Postgres 17 you run
+yourself; `migrate` creates the database if it is missing.
+
+Dumps land in `backend/data/snapshots/` (gitignored). They leave out
+the `corpus_snapshots` rows, two thirds of the database, unless
+`--with-snapshots`, and never carry the worker lease row.
+
 ### Configuration
 
 Environment variables (can be set in `.env`):
 
 - `DEBUG` - Enable debug mode (default: false)
-- `DATABASE_URL` - SQLite database URL (default: sqlite+aiosqlite:///./data/threat_detection.db)
+- `DATABASE_URL` - SQLite (default: sqlite+aiosqlite:///./data/threat_detection.db) or Postgres (postgresql+asyncpg://user:password@host:port/database; a plain postgresql:// URL is rewritten)
 - `CORS_ORIGINS` - Allowed CORS origins (default: http://localhost:5173,http://localhost:3000)
 
 ## License
