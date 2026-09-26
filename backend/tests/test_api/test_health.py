@@ -1,23 +1,38 @@
 """Tests for health endpoint."""
 
 import pytest
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from app.database import get_db
 from app.main import app
 
 
-client = TestClient(app)
+@pytest.mark.asyncio
+async def test_health_check(db_session):
+    """/api/health answers 200 with the corpus stamp when the query works.
 
+    The query runs against the in-memory test session, not the file
+    database under backend/data/: that file only exists on a machine
+    that has run the app, so on a clean checkout (CI) the route answered
+    503 and this test failed on every run after 9dae1d3 (#97) made
+    health execute a real query.
+    """
 
-def test_health_check():
-    """Test health check endpoint returns OK."""
-    response = client.get("/api/health")
+    async def _override_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            response = await c.get("/api/health")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert data["database"] == "ok"
+    assert data["corpus"]["rules"] == 0
     assert "app" in data
 
 
