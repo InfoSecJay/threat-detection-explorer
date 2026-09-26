@@ -11,7 +11,11 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
-    "sqlalchemy>=2.0.0",
+    # SQLAlchemy 2.1 (2026-09) moved greenlet into the [asyncio] extra; without
+    # it `sqlalchemy.ext.asyncio` fails to import and the API cannot start.
+    # Name the extra and stay on 2.0 until 2.1 is verified against a prod
+    # snapshot (scripts/dev_db.py).
+    "sqlalchemy[asyncio]>=2.0.0,<2.1",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "pyyaml>=6.0.0",
