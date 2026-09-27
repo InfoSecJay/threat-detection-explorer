@@ -63,3 +63,29 @@ jobs:
         run: npm run lint
       - name: Test
         run: npm test
+
+  mcp:
+    name: MCP server (tsc, vitest, node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # engines says >=20; 24 is what the frontend job and local dev use.
+        node: [20, 24]
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      # `npm install`, not `npm ci`, for the same Windows-written lockfile
+      # reason as the frontend job (vitest pulls platform-specific bindings).
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test
