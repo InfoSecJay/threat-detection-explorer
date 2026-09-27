@@ -11,6 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "declaration": false,
     "sourceMap": false,
+    "newLine": "lf",
     "types": ["node"]
   },
   "include": ["src"]
