@@ -19,6 +19,7 @@ export const KNOWN_ROUTES: readonly RegExp[] = [
   new RegExp(`^/mitre(/${ONE})?$`),
   new RegExp(`^/actors(/${ONE})?$`),
   /^\/query$/,
+  /^\/mcp$/,
   /^\/compare(\/(mitre-coverage|side-by-side))?$/,
   /^\/intel$/,
   /^\/about$/,

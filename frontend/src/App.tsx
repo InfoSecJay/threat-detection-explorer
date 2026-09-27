@@ -16,6 +16,7 @@ const MitreCoverage   = lazy(() => import('./pages/MitreCoverage').then(m => ({ 
 const Actors          = lazy(() => import('./pages/Actors').then(m => ({ default: m.Actors })));
 const ActorDetail     = lazy(() => import('./pages/ActorDetail').then(m => ({ default: m.ActorDetail })));
 const QueryReference  = lazy(() => import('./pages/QueryReference').then(m => ({ default: m.QueryReference })));
+const McpServer       = lazy(() => import('./pages/McpServer').then(m => ({ default: m.McpServer })));
 const About           = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Digest          = lazy(() => import('./pages/Digest').then(m => ({ default: m.Digest })));
 const Observables     = lazy(() => import('./pages/Observables').then(m => ({ default: m.Observables })));
@@ -382,6 +383,7 @@ function App() {
             <Route path="/actors/heatmap" element={<CoverageHeatmap />} />
             <Route path="/actors/:id" element={<ActorDetail />} />
             <Route path="/query" element={<QueryReference />} />
+            <Route path="/mcp" element={<McpServer />} />
             {/* Old /compare/mitre-coverage bookmarks still redirect to /mitre. */}
             <Route path="/compare/mitre-coverage" element={<Navigate to="/mitre" replace />} />
             <Route path="/intel" element={<IndustryIntel />} />
