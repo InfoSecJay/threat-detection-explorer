@@ -1,0 +1,54 @@
+{
+  "name": "detection-explorer-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Detection Explorer: search, compare and map 15,000+ open-source detection rules (Sigma, Elastic, Splunk, Sentinel, Panther, Sublime, Google SecOps and more) normalized into one schema and mapped to MITRE ATT&CK.",
+  "license": "Apache-2.0",
+  "author": "InfoSecJay (https://github.com/InfoSecJay)",
+  "homepage": "https://detectionexplorer.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InfoSecJay/threat-detection-explorer.git",
+    "directory": "mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/InfoSecJay/threat-detection-explorer/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "detection-engineering",
+    "sigma",
+    "mitre-attack",
+    "siem",
+    "threat-hunting",
+    "security"
+  ],
+  "type": "module",
+  "bin": {
+    "detection-explorer-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.5"
+  }
+}
