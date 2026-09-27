@@ -163,6 +163,16 @@ async def og_actor(actor_id: str):
     ))
 
 
+@router.get("/mcp.png")
+async def og_mcp():
+    """Card for /mcp (#92 S4.10): the page people share to announce the server."""
+    return _png(_card(
+        "Ask your AI assistant about 15,000+ detection rules",
+        [("MCP SERVER", GREEN), ("CLAUDE / CURSOR / VS CODE", FG), ("NO API KEY", GRAY)],
+        "npx -y detection-explorer-mcp",
+    ))
+
+
 @router.get("/site.png")
 async def og_site():
     return _png(_card(

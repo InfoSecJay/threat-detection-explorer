@@ -342,6 +342,61 @@ async def prerender_query():
     return _page("Query syntax", desc, "/query", "/api/og/site.png", body)
 
 
+MCP_TOOLS = (
+    ("search_detections", "search with the query language plus filters; no_equivalent_in finds rules another vendor lacks"),
+    ("get_detection", "one rule in full: logic, ATT&CK mapping, data sources, false positives, pinned upstream link"),
+    ("find_related_detections", "same-behaviour rules in other repositories, with the shared observables"),
+    ("compare_detections", "observable-level diff of 2 to 6 rules, exclusions included"),
+    ("technique_coverage", "rule counts per repository for one technique and what each vendor keys on"),
+    ("actor_coverage", "covered techniques and gaps for a group or software, scoped to your repositories"),
+    ("actor_navigator_layer", "ATT&CK Navigator layer scored by public rule coverage"),
+    ("coverage_gap", "techniques one repository covers and another does not"),
+    ("observable_lookup", "every rule keyed on a process, event ID, path, registry key or API action"),
+    ("whats_new", "new, modified and removed rules over the last N days"),
+    ("corpus_overview", "rule counts and the last sync of each repository"),
+    ("query_language", "the fields the search understands"),
+)
+
+
+@router.get("/mcp", response_class=HTMLResponse)
+async def prerender_mcp(db: AsyncSession = Depends(get_db)):
+    """The MCP server page (#92 S4.10): what it answers and how to install it."""
+    total = (await db.execute(select(func.count()).select_from(Detection))).scalar() or 0
+    desc = (
+        f"Connect Claude, Cursor or VS Code to {total:,} open-source detection rules from thirteen "
+        "repositories: search, observable-level diffs, cross-vendor porting gaps and ATT&CK actor "
+        "coverage through the detection-explorer-mcp server. No account or API key."
+    )
+    tools = "".join(f"<li><code>{escape(name)}</code>: {escape(what)}</li>" for name, what in MCP_TOOLS)
+    body = f"""<h1>Detection Explorer MCP server</h1>
+<p>{escape(desc)}</p>
+<h2>Install</h2>
+<p>Claude Code: <code>claude mcp add detection-explorer -- npx -y detection-explorer-mcp</code></p>
+<p>Claude Desktop, Cursor, VS Code and other MCP clients: add a stdio server that runs <code>npx -y detection-explorer-mcp</code>. Needs Node.js 20 or newer.</p>
+<h2>Tools</h2>
+<ul>{tools}</ul>
+<p><a href="https://www.npmjs.com/package/detection-explorer-mcp">npm package</a> &middot; <a href="https://github.com/InfoSecJay/threat-detection-explorer/tree/master/mcp">source</a> &middot; <a href="{ORIGIN}/api/docs">API docs</a></p>"""
+    return _page(
+        "MCP server",
+        desc,
+        "/mcp",
+        "/api/og/mcp.png",
+        body,
+        og_type="website",
+        jsonld={
+            "@type": "SoftwareApplication",
+            "name": "detection-explorer-mcp",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "description": desc,
+            "url": f"{ORIGIN}/mcp",
+            "downloadUrl": "https://www.npmjs.com/package/detection-explorer-mcp",
+            "license": "https://www.apache.org/licenses/LICENSE-2.0",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        },
+    )
+
+
 def _digest_page(payload: dict, canonical_path: str) -> HTMLResponse:
     period = payload.get("period") or {}
     summary = payload.get("summary") or {}

@@ -152,3 +152,20 @@ async def test_methodology_query_digest_observables_prerender(client):
 async def test_prerender_unknowns_are_real_404s(client):
     assert (await client.get("/api/prerender/observables/not-a-kind")).status_code == 404
     assert (await client.get("/api/prerender/digest/not-a-week")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_mcp_page_prerender_and_card(client):
+    """/mcp (#92 S4.10) is the page shared to announce the server: bots get
+    install instructions, the tool list, and a dedicated social card."""
+    r = await client.get("/api/prerender/mcp")
+    assert r.status_code == 200 and "<h1>Detection Explorer MCP server</h1>" in r.text
+    assert '<link rel="canonical" href="https://detectionexplorer.io/mcp">' in r.text
+    assert "npx -y detection-explorer-mcp" in r.text
+    assert "https://detectionexplorer.io/api/og/mcp.png" in r.text
+    assert r.text.count("<li><code>") == 12
+    assert '"@type": "SoftwareApplication"' in r.text
+
+    png = await client.get("/api/og/mcp.png")
+    assert png.status_code == 200 and png.headers["content-type"] == "image/png"
+    assert png.content[:8] == b"\x89PNG\r\n\x1a\n"

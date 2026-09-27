@@ -93,6 +93,17 @@
       "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/query"
     },
     {
+      "source": "/mcp",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|slack|discord|twitter|facebook|linkedin|whatsapp|telegram|embed|preview|crawler|spider|vkshare|pinterest|quora).*"
+        }
+      ],
+      "destination": "https://threat-detection-explorer-production.up.railway.app/api/prerender/mcp"
+    },
+    {
       "source": "/digest",
       "has": [
         {
@@ -247,6 +258,15 @@
     },
     {
       "source": "/query",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "User-Agent"
+        }
+      ]
+    },
+    {
+      "source": "/mcp",
       "headers": [
         {
           "key": "Vary",
