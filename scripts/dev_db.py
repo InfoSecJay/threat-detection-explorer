@@ -151,6 +151,24 @@ def async_url(url: str) -> str:
 # Tool runners: local binaries or the compose container
 # --------------------------------------------------------------------------
 
+def resolve_exe(name: str, which: Callable[[str], Optional[str]] = shutil.which,
+                windows: bool = os.name == "nt") -> str:
+    """Full path to a command, so Windows can start .cmd shims.
+
+    CreateProcess appends only .exe to a bare name, so an npm-installed
+    CLI (railway.cmd) raises FileNotFoundError when launched as
+    "railway" although shutil.which finds it. On Windows the .exe /
+    .cmd / .bat variants are tried first, so an extensionless shell
+    script beside the .exe (Docker Desktop ships one) is never picked.
+    Falls back to the bare name, which then fails with the usual error.
+    """
+    if windows:
+        for ext in (".exe", ".cmd", ".bat"):
+            found = which(name + ext)
+            if found:
+                return found
+    return which(name) or name
+
 class LocalTools:
     """pg_dump / pg_restore / psql from a directory on this machine."""
 
@@ -189,12 +207,14 @@ class DockerTools:
 
     kind = "docker"
 
-    def __init__(self, compose_file: Path = COMPOSE_FILE, service: str = COMPOSE_SERVICE):
+    def __init__(self, compose_file: Path = COMPOSE_FILE, service: str = COMPOSE_SERVICE,
+                 docker: Optional[str] = None):
         self.compose_file = compose_file
         self.service = service
+        self.docker = docker or resolve_exe("docker")
 
     def compose(self, *args: str) -> list[str]:
-        return ["docker", "compose", "-f", str(self.compose_file), *args]
+        return [self.docker, "compose", "-f", str(self.compose_file), *args]
 
     def command(self, tool: str, args: list[str], env: dict[str, str]) -> list[str]:
         passthrough: list[str] = []
@@ -276,12 +296,18 @@ def excluded_tables(with_snapshots: bool) -> list[str]:
 def local_commit() -> Optional[str]:
     try:
         out = subprocess.run(
-            ["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"],
+            [resolve_exe("git"), "-C", str(REPO), "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, check=False,
         )
     except OSError:
         return None
     return out.stdout.strip() or None
+
+
+def railway_command(argv: list[str], railway: str) -> list[str]:
+    """`railway run` wrapping this same invocation, with absolute paths
+    (Railway hands the child to cmd on Windows)."""
+    return [railway, "run", "--service", "Postgres", "--", sys.executable, str(Path(__file__).resolve()), *argv]
 
 
 def reexec_under_railway(argv: list[str]) -> int:
@@ -292,7 +318,7 @@ def reexec_under_railway(argv: list[str]) -> int:
             "Either run this under `railway run --service Postgres -- ...` or\n"
             "pass --source <postgres url>."
         )
-    cmd = ["railway", "run", "--service", "Postgres", "--", sys.executable, str(Path(__file__).resolve()), *argv]
+    cmd = railway_command(argv, resolve_exe("railway"))
     print("DATABASE_PUBLIC_URL not set; re-running under railway run --service Postgres")
     env = {**os.environ, REEXEC_FLAG: "1"}
     return subprocess.run(cmd, env=env, check=False).returncode

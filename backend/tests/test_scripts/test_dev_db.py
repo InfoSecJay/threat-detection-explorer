@@ -114,7 +114,7 @@ def test_local_tools_refuse_a_directory_missing_a_tool(tmp_path):
 
 
 def test_docker_tools_pass_env_names_only_never_values():
-    tools = dev_db.DockerTools(compose_file=Path("/repo/docker-compose.yml"))
+    tools = dev_db.DockerTools(compose_file=Path("/repo/docker-compose.yml"), docker="docker")
     cmd = tools.command("pg_dump", ["--format=custom"], {"PGPASSWORD": "hunter2", "PGHOST": "prod.example"})
     assert cmd[:6] == ["docker", "compose", "-f", str(Path("/repo/docker-compose.yml")), "exec", "-T"]
     assert "-e" in cmd and "PGPASSWORD" in cmd and "PGHOST" in cmd
@@ -142,6 +142,46 @@ def test_select_tools_prefers_explicit_binaries_then_docker_then_fails(tmp_path,
     with pytest.raises(SystemExit) as exc:
         dev_db.select_tools(None, which=lambda _: None)
     assert "Docker Desktop" in str(exc.value) and "PG_BIN" in str(exc.value)
+
+
+# --- launching commands on Windows -----------------------------------------
+
+def _which_from(found: dict[str, str]):
+    return lambda name: found.get(name)
+
+
+def test_resolve_exe_returns_the_cmd_shim_that_a_bare_name_cannot_start():
+    # 2026-09-27: `railway` is npm's railway.cmd; subprocess.run(["railway", ...])
+    # raised FileNotFoundError on Windows although shutil.which found it.
+    which = _which_from({"railway.cmd": r"C:\npm\railway.cmd", "railway": r"C:\npm\railway"})
+    assert dev_db.resolve_exe("railway", which=which, windows=True) == r"C:\npm\railway.cmd"
+
+
+def test_resolve_exe_prefers_the_exe_over_an_extensionless_script_beside_it():
+    which = _which_from({"docker.exe": r"C:\dd\docker.exe", "docker": r"C:\dd\docker"})
+    assert dev_db.resolve_exe("docker", which=which, windows=True) == r"C:\dd\docker.exe"
+
+
+def test_resolve_exe_outside_windows_uses_plain_which():
+    which = _which_from({"railway": "/usr/local/bin/railway", "railway.cmd": "/nope/railway.cmd"})
+    assert dev_db.resolve_exe("railway", which=which, windows=False) == "/usr/local/bin/railway"
+
+
+def test_resolve_exe_falls_back_to_the_bare_name_when_nothing_is_found():
+    assert dev_db.resolve_exe("railway", which=_which_from({}), windows=True) == "railway"
+
+
+def test_railway_command_wraps_this_invocation_with_absolute_paths():
+    cmd = dev_db.railway_command(["refresh", "--all"], r"C:\npm\railway.cmd")
+    assert cmd[:5] == [r"C:\npm\railway.cmd", "run", "--service", "Postgres", "--"]
+    assert Path(cmd[5]).is_absolute() and Path(cmd[6]).is_absolute()
+    assert Path(cmd[6]).name == "dev_db.py"
+    assert cmd[7:] == ["refresh", "--all"]
+
+
+def test_docker_tools_launch_docker_by_its_resolved_path():
+    tools = dev_db.DockerTools(docker=r"C:\dd\docker.exe")
+    assert tools.compose("ps")[0] == r"C:\dd\docker.exe"
 
 
 # --- railway re-exec decision ----------------------------------------------
