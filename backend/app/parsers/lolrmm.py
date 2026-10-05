@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 LOLRMM_SOFTWARE_TAG_RE = re.compile(r"^attack\.s\d+")
 LOLRMM_GROUP_TAG_RE = re.compile(r"^attack\.g\d+")
 
+# A YAML mapping key is a colon followed by whitespace or the end of the
+# line. The colon in a bare Windows path (`C:\Windows\...`) is neither.
+LOLRMM_KEY_SEPARATOR_RE = re.compile(r":(?=\s|$)")
+# `- 'value'` / `- "value"`: a list item whose scalar is already quoted.
+LOLRMM_QUOTED_LIST_ITEM_RE = re.compile(r"""^-\s+['"]""")
+
 
 class LOLRMMParser(BaseParser):
     """Parser for LOLRMM detection rules (Sigma-compatible YAML format)."""
@@ -57,11 +63,22 @@ class LOLRMMParser(BaseParser):
                 result.append(line)
                 continue
 
+            # A list item whose scalar is already quoted is valid YAML as
+            # it stands. Leave it alone before any key/value heuristic
+            # runs: Windows paths carry a drive-letter colon, and event
+            # log file names a percent sign (`...Status%4Operational.evtx`),
+            # inside the quotes. Splitting on that colon re-quoted the tail
+            # and dropped the whole rule (Splashtop file activity, 2026-10).
+            if LOLRMM_QUOTED_LIST_ITEM_RE.match(stripped):
+                result.append(line)
+                continue
+
             # Check if line contains a value that needs quoting
             # Pattern: key: value where value starts with * or contains %
-            if ':' in line and not stripped.endswith(':'):
-                # Split on first colon only
-                colon_idx = line.index(':')
+            separator = LOLRMM_KEY_SEPARATOR_RE.search(line)
+            if separator and not stripped.endswith(':'):
+                # Split on the first key separator only
+                colon_idx = separator.start()
                 key_part = line[:colon_idx + 1]
                 value_part = line[colon_idx + 1:]
 
