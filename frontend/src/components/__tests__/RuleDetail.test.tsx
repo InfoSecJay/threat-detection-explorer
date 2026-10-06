@@ -257,3 +257,37 @@ describe('RuleDetail', () => {
     expect(byline).not.toHaveTextContent('2021-09-19');
   });
 });
+
+describe('RuleDetail duplicate pair (#166)', () => {
+  it('links a PyPanther port to its panther-analysis twin and back', () => {
+    const port = {
+      ...detection,
+      id: 'py1',
+      source: 'pypanther',
+      duplicate_of: 'p1',
+      duplicate_links: [{ id: 'p1', source: 'panther', title: 'IAM user created', relation: 'canonical' }],
+    } as unknown as Detection;
+    const { getByTestId, unmount } = render(<MemoryRouter><RuleDetail detection={port} /></MemoryRouter>);
+    const links = getByTestId('duplicate-links');
+    expect(links).toHaveTextContent('Generated port of the');
+    expect(links).toHaveTextContent('IAM user created');
+    expect(links).toHaveTextContent('counts once in coverage');
+    expect(links.querySelector('a')).toHaveAttribute('href', '/detections/p1');
+    unmount();
+
+    const canonical = {
+      ...detection,
+      id: 'p1',
+      source: 'panther',
+      duplicate_links: [{ id: 'py1', source: 'pypanther', title: 'IAM user created', relation: 'port' }],
+    } as unknown as Detection;
+    const second = render(<MemoryRouter><RuleDetail detection={canonical} /></MemoryRouter>);
+    expect(second.getByTestId('duplicate-links')).toHaveTextContent('Also shipped as a');
+    expect(second.getByTestId('duplicate-links').querySelector('a')).toHaveAttribute('href', '/detections/py1');
+  });
+
+  it('renders nothing for a rule with no twin', () => {
+    const { queryByTestId } = render(<MemoryRouter><RuleDetail detection={detection} /></MemoryRouter>);
+    expect(queryByTestId('duplicate-links')).toBeNull();
+  });
+});

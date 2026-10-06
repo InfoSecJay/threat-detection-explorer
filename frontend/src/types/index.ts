@@ -10,6 +10,15 @@ export type DetectionSource = 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elas
 
 export type RuleModality = 'rule' | 'hunting' | 'ml_job' | 'correlation' | 'indicator_match' | 'building_block' | 'passthrough';
 
+// One side of a Panther/PyPanther duplicate pair (DX-10 / #166): the
+// canonical twin a port points at, or a port pointing at this rule.
+export interface DuplicateLink {
+  id: string;
+  source: DetectionSource;
+  title: string;
+  relation: 'canonical' | 'port';
+}
+
 export interface Detection {
   id: string;
   source: DetectionSource;
@@ -34,6 +43,11 @@ export interface Detection {
   // How the rule works (#105): rule | hunting | ml_job | correlation |
   // indicator_match | building_block. Kept out of event_types/language.
   rule_modality: RuleModality;
+  // DX-10 / #166: id of the canonical twin when this row is a generated
+  // port of another repository's rule (PyPanther -> panther-analysis);
+  // null otherwise. `duplicate_links` is filled on the detail response.
+  duplicate_of?: string | null;
+  duplicate_links?: DuplicateLink[];
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   // Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
   // The legacy single-value siblings (platform / event_category /
@@ -235,6 +249,10 @@ export interface Statistics {
   // Rules per modality (DX-10 / #152): the total counts every one of
   // them; absent on older responses.
   by_modality?: Record<string, number>;
+  // Linked ports per source (DX-10 / #166), e.g. { pypanther: 595 }:
+  // rows inside the total that re-ship another tracked repository's
+  // rule and count once in coverage; absent on older responses.
+  ports?: Record<string, number>;
   // Hygiene averages over scored rows (#39); absent on older responses.
   quality_avg?: number | null;
   quality_by_source?: Record<string, { avg: number; scored: number }>;

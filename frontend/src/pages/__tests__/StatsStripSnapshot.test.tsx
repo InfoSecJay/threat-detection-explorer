@@ -20,7 +20,7 @@ vi.mock('../../constants/snapshot', () => ({
 
 const pending = { data: undefined, isLoading: true, error: null };
 const live = {
-  statistics: undefined as undefined | { total: number; by_modality?: Record<string, number> },
+  statistics: undefined as undefined | { total: number; by_modality?: Record<string, number>; ports?: Record<string, number> },
   coverage: undefined as undefined | { summary: { techniques_with_any_coverage: number; total_techniques: number; overall_coverage_percent: number } },
   health: undefined as undefined | { totals_pct: { no_attack: number } },
 };
@@ -46,7 +46,7 @@ describe('baked snapshot bridges the first paint', () => {
   });
 
   it('live data replaces the baked numbers', () => {
-    live.statistics = { total: 15610, by_modality: { rule: 15203, hunting: 407 } };
+    live.statistics = { total: 15610, by_modality: { rule: 15203, hunting: 407 }, ports: { pypanther: 595 } };
     live.coverage = { summary: { techniques_with_any_coverage: 188, total_techniques: 207, overall_coverage_percent: 90.8 } };
     live.health = { totals_pct: { no_attack: 27.6 } };
     render(<MemoryRouter><StatsStrip /><ShowcaseCards /></MemoryRouter>);
@@ -54,6 +54,8 @@ describe('baked snapshot bridges the first paint', () => {
     // DX-10: the headline says what it includes once the split is known.
     expect(screen.getByTestId('stat-rules')).toHaveTextContent('rules indexed');
     expect(screen.getByTestId('stat-rules-sub')).toHaveTextContent('incl. 407 hunting queries');
+    // #166: the PyPanther ports inside the total are disclosed the same way.
+    expect(screen.getByTestId('stat-rules-sub')).toHaveTextContent('595 PyPanther ports, counted once');
     expect(screen.getByTestId('stat-coverage')).toHaveTextContent('188 / 207');
     expect(screen.getByTestId('stat-health')).toHaveTextContent('28%');
     expect(screen.getByTestId('card-mitre-fact')).toHaveTextContent('90.8%');

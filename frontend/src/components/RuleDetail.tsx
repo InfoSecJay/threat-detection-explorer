@@ -204,6 +204,22 @@ export function RuleDetail({ detection }: RuleDetailProps) {
               <p className="text-xs text-gray-500 mt-1 font-mono" data-testid="rule-byline">
                 Created by {detection.author || sourceTheme[detection.source]?.name || detection.source} on {formatCalendarDate(detection.rule_created_date)} · Updated {formatCalendarDate(detection.rule_modified_date)} · Synced {fmt(detection.updated_at)}
               </p>
+              {/* Duplicate pair (DX-10 / #166): a PyPanther port and its
+                  panther-analysis twin are the same rule shipped twice;
+                  link them both ways and say how the numbers treat it. */}
+              {detection.duplicate_links && detection.duplicate_links.length > 0 && (
+                <div className="mt-2 flex flex-col gap-1" data-testid="duplicate-links">
+                  {detection.duplicate_links.map((l) => (
+                    <p key={l.id} className="text-xs text-gray-400">
+                      {l.relation === 'canonical'
+                        ? `Generated port of the ${sourceTheme[l.source]?.name || l.source} rule `
+                        : `Also shipped as a ${sourceTheme[l.source]?.name || l.source} port: `}
+                      <Link to={`/detections/${l.id}`} className="text-cyan-400 hover:text-cyan-300 hover:underline">{l.title}</Link>
+                      . The pair counts once in coverage and actor figures.
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button

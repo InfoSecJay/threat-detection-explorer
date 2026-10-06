@@ -24,6 +24,9 @@ import { ALL_SOURCES } from '../../constants/sources';
 import { BAKED_SNAPSHOT } from '../../constants/snapshot';
 import { formatRelDate } from '../intel/lib';
 
+// Display names for port sources (#166); the API keys `ports` by source.
+const PORT_LABEL: Record<string, string> = { pypanther: 'PyPanther' };
+
 function Stat({ to, value, label, sub, testId }: { to: string; value: string; label: string; sub?: string; testId: string }) {
   return (
     <Link to={to} className="group flex flex-col min-w-[7rem]" data-testid={testId}>
@@ -58,6 +61,13 @@ export function StatsStrip() {
   // queries included. Say so where the number is, so the front door
   // and the methodology page agree.
   const hunting = stats?.by_modality?.hunting;
+  // DX-10 / #166: PyPanther re-ships panther-analysis; both files are
+  // indexed and the pair counts once in coverage. Disclose it the same way.
+  const ports = Object.entries(stats?.ports ?? {}).filter(([, n]) => n > 0);
+  const disclosures = [
+    hunting ? `incl. ${hunting.toLocaleString()} hunting queries` : null,
+    ...ports.map(([src, n]) => `${n.toLocaleString()} ${PORT_LABEL[src] ?? src} ports, counted once`),
+  ].filter((s): s is string => !!s);
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-4 pt-5 mt-5 border-t border-void-800">
@@ -65,7 +75,7 @@ export function StatsStrip() {
         to="/detections"
         value={rules !== undefined ? rules.toLocaleString() : '—'}
         label="rules indexed"
-        sub={hunting ? `incl. ${hunting.toLocaleString()} hunting queries` : undefined}
+        sub={disclosures.length ? disclosures.join(' \u00B7 ') : undefined}
         testId="stat-rules"
       />
       <Stat to="/methodology" value={String(ALL_SOURCES.length)} label="open-source repos" testId="stat-sources" />
