@@ -90,6 +90,29 @@ export function RuleRow({ detection, enableSelection, selected, expanded, onTogg
               {MODALITY_ABBR[detection.rule_modality] || detection.rule_modality}
             </span>
           )}
+          {/* DX-12 / #167: for a content: query, where the term occurs in
+              the body; an exclusion-only hit is flagged so an allowlist is
+              not read as a detection. */}
+          {detection.content_snippet && (
+            <div
+              className="mt-0.5 text-[11px] font-mono text-gray-500 truncate"
+              title={`content: match in ${detection.content_snippet.field}`}
+              data-testid="row-snippet"
+            >
+              {detection.content_snippet.negated && (
+                <span
+                  className="mr-1.5 px-1 rounded border border-amber-500/30 text-amber-300 font-sans text-[10px] uppercase tracking-wide align-middle"
+                  title="The term appears only inside an exclusion (NOT / allowlist); this rule does not detect it"
+                  data-testid="row-snippet-negated"
+                >
+                  excluded
+                </span>
+              )}
+              {detection.content_snippet.before}
+              <mark className="bg-cyan-500/20 text-cyan-300 rounded px-0.5">{detection.content_snippet.match}</mark>
+              {detection.content_snippet.after}
+            </div>
+          )}
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
           <span

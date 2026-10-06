@@ -88,3 +88,31 @@ describe('RuleRow (DX-17)', () => {
     expect(screen.getByTestId('preview-completeness')).toHaveTextContent('72');
   });
 });
+
+describe('RuleRow content: snippet (DX-12 / #167)', () => {
+  const snippet = {
+    term: 'citrix',
+    before: '...and not process.code_signature.subject_name : "',
+    match: 'Citrix',
+    after: ' Systems, Inc."',
+    field: 'detection_logic',
+    negated: true,
+  };
+
+  it('shows the match in context and flags an exclusion-only hit', () => {
+    renderRow({ ...base, content_snippet: snippet } as unknown as Detection);
+    const row = screen.getByTestId('row-snippet');
+    expect(row).toHaveTextContent('subject_name : "Citrix Systems, Inc."');
+    expect(row.querySelector('mark')).toHaveTextContent('Citrix');
+    expect(screen.getByTestId('row-snippet-negated')).toHaveTextContent('excluded');
+  });
+
+  it('shows no flag for a plain hit and nothing without a snippet', () => {
+    renderRow({ ...base, content_snippet: { ...snippet, negated: false } } as unknown as Detection);
+    expect(screen.getByTestId('row-snippet')).toBeInTheDocument();
+    expect(screen.queryByTestId('row-snippet-negated')).toBeNull();
+    screen.getByTestId('row-snippet').remove();
+    renderRow(base);
+    expect(screen.queryByTestId('row-snippet')).toBeNull();
+  });
+});

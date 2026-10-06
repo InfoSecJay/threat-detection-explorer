@@ -19,6 +19,16 @@ export interface DuplicateLink {
   relation: 'canonical' | 'port';
 }
 
+// Where a `content:` term occurs in a rule body (DX-12 / #167).
+export interface ContentSnippet {
+  term: string;
+  before: string;
+  match: string;
+  after: string;
+  field: 'detection_logic' | 'raw_content';
+  negated: boolean;
+}
+
 export interface Detection {
   id: string;
   source: DetectionSource;
@@ -48,6 +58,9 @@ export interface Detection {
   // null otherwise. `duplicate_links` is filled on the detail response.
   duplicate_of?: string | null;
   duplicate_links?: DuplicateLink[];
+  // DX-12 / #167: on rows of a `content:` query, where the term occurs
+  // in the rule body and whether it sits only inside an exclusion.
+  content_snippet?: ContentSnippet | null;
   severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
   // Canonical taxonomy (Phase 3 final names). See docs/taxonomy.md.
   // The legacy single-value siblings (platform / event_category /

@@ -32,6 +32,21 @@ export function RuleCard({ detection }: { detection: Detection }) {
       <div className="text-sm font-medium text-matrix-500 leading-snug line-clamp-2">
         {detection.title}
       </div>
+      {detection.content_snippet && (
+        <div className="mt-1 text-[11px] font-mono text-gray-500 line-clamp-2" data-testid="card-snippet">
+          {detection.content_snippet.negated && (
+            <span
+              className="mr-1.5 px-1 rounded border border-amber-500/30 text-amber-300 font-sans text-[10px] uppercase tracking-wide"
+              title="The term appears only inside an exclusion (NOT / allowlist); this rule does not detect it"
+            >
+              excluded
+            </span>
+          )}
+          {detection.content_snippet.before}
+          <mark className="bg-cyan-500/20 text-cyan-300 rounded px-0.5">{detection.content_snippet.match}</mark>
+          {detection.content_snippet.after}
+        </div>
+      )}
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <span
           className="px-1.5 py-0.5 text-[10px] font-mono font-medium border"

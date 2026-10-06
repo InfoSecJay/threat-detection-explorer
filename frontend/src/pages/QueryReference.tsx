@@ -43,7 +43,7 @@ const RECIPES: Array<{ title: string; query: string; explains: string }> = [
   {
     title: 'Anything mentioning Mimikatz outside actor tags',
     query: 'content:mimikatz NOT software:Mimikatz',
-    explains: 'Free-text `content:` searches raw rule body — useful for finding gaps in vendor tagging.',
+    explains: 'Free-text `content:` searches raw rule body — useful for finding gaps in vendor tagging. Result rows show where the term occurs; a hit found only inside an exclusion (NOT / allowlist) is marked excluded.',
   },
 ];
 
