@@ -127,23 +127,26 @@ describe("actor_coverage", () => {
     expect(JSON.parse(text(result)).other_matches_for_query).toEqual(["G9999 Other"]);
   });
 
-  it("keeps named rules inside the requested source scope", async () => {
-    const { client } = await connect({
+  it("passes the scoped named rules through as the API returns them", async () => {
+    // Since #170 the API narrows the rule list to `sources` itself; the
+    // tool must not second-guess or trim what comes back.
+    const { client, requested } = await connect({
       "/actors/G0016": () => ({
         id: "G0016",
         name: "APT29",
         techniques: [],
         rules: [
-          { id: "a", title: "A", source: "sentinel" },
-          { id: "b", title: "B", source: "sigma" },
+          { id: "a", title: "A", source: "sigma" },
+          { id: "b", title: "B", source: "elastic" },
         ],
       }),
     });
     open.push(client);
     const result = await client.callTool({ name: "actor_coverage", arguments: { actor: "G0016", sources: ["sigma", "elastic"] } });
     const body = JSON.parse(text(result));
-    expect(body.named_rules.map((r: { id: string }) => r.id)).toEqual(["b"]);
-    expect(body.named_rules_outside_scope).toBe(1);
+    expect(requested[0].searchParams.get("sources")).toContain("sigma");
+    expect(body.named_rules.map((r: { id: string }) => r.id)).toEqual(["a", "b"]);
+    expect(body).not.toHaveProperty("named_rules_outside_scope");
   });
 
   it("uses an ATT&CK ID directly and routes software layers", async () => {

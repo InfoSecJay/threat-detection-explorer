@@ -228,18 +228,10 @@ export function createServer(client: DetectionExplorerClient): McpServer {
           match_mode,
           coverage: include_all_rule_types ? "all" : "strict",
         });
-        // The API scopes technique coverage by `sources` but still lists
-        // named rules from every repository; keep the answer consistent.
-        let outsideScope = 0;
-        if (sources?.length && Array.isArray((detail as { rules?: unknown[] }).rules)) {
-          const all = (detail as { rules: Array<{ source?: string }> }).rules;
-          const inScope = all.filter((r) => r.source && (sources as readonly string[]).includes(r.source));
-          outsideScope = all.length - inScope.length;
-          (detail as { rules: unknown[] }).rules = inScope;
-        }
+        // `sources` scopes technique coverage AND the Named / Mentions
+        // rule list server-side (#170), so the answer is passed through.
         const summary = {
           ...actorSummary(detail),
-          ...(outsideScope ? { named_rules_outside_scope: outsideScope } : {}),
           ...(alternatives.length ? { other_matches_for_query: alternatives } : {}),
         };
         return summary;
