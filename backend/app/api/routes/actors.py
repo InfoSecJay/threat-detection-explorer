@@ -155,8 +155,19 @@ async def _rules_matching_ids(
     return list((await db.execute(q)).all())
 
 
+def _source_conditions(scope: Optional[CoverageScope]) -> list:
+    """Narrow a Named / Mentions query to the reader's sources (#143,
+    #170). Only the source is scoped: unlike coverage_conditions(),
+    modality and status are left alone, because a passthrough or
+    deprecated rule built for an actor is still a rule about that actor."""
+    if scope is None or scope.sources is None:
+        return []
+    return [Detection.source.in_(sorted(scope.sources))]
+
+
 async def _dedicated_rules(
     db: AsyncSession, column, actor_id: str, names: list[str],
+    scope: Optional[CoverageScope] = None,
 ) -> tuple[list, dict[str, list[str]]]:
     """Rules BUILT FOR this actor, with the reason(s) each qualified.
 
@@ -166,7 +177,8 @@ async def _dedicated_rules(
     - `title`   the name/an alias in the rule title
 
     SQL is a pre-filter; each candidate is verified in Python so the
-    LIKE over-match ("%lead%") never inflates the count. Returns
+    LIKE over-match ("%lead%") never inflates the count. `scope`
+    narrows the pool to the reader's sources (#170). Returns
     (rows, {rule_id: [reasons]}).
     """
     filtered = [n for n in names if len(n) >= 3]
@@ -179,7 +191,7 @@ async def _dedicated_rules(
     conds.extend(_name_text_conds(Detection.title, filtered))
     q = (
         select(*_RULE_COLS, Detection.use_cases, cast(column, String))
-        .where(or_(*conds))
+        .where(or_(*conds), *_source_conditions(scope))
         .limit(DEDICATED_FETCH_CAP)
     )
     raw = list((await db.execute(q)).all())
@@ -202,10 +214,12 @@ async def _dedicated_rules(
 
 async def _referenced_rules(
     db: AsyncSession, names: list[str], dedicated_ids: set[str],
+    scope: Optional[CoverageScope] = None,
 ) -> tuple[list, dict[str, list[str]]]:
     """Mention hits MINUS dedicated rules, with per-rule reasons
-    (description / tag / use-case / reference)."""
-    hits = await _rules_mentioning(db, names)
+    (description / tag / use-case / reference). `scope` narrows the
+    pool to the reader's sources (#170)."""
+    hits = await _rules_mentioning(db, names, scope)
     filtered = [n for n in names if len(n) >= 3]
     rx = compile_name_regex(filtered)
     rows, reasons = [], {}
@@ -228,7 +242,7 @@ async def _referenced_rules(
 
 
 async def _rules_mentioning(
-    db: AsyncSession, names: list[str],
+    db: AsyncSession, names: list[str], scope: Optional[CoverageScope] = None,
 ) -> list[Detection]:
     """Rules whose title/description/tags/use_cases/references mention
     any of `names`, separator-tolerant.
@@ -273,7 +287,7 @@ async def _rules_mentioning(
             Detection.description, Detection.tags,
             Detection.use_cases, Detection.references,
         )
-        .where(or_(*ilike_conds))
+        .where(or_(*ilike_conds), *_source_conditions(scope))
         .limit(RULES_LIMIT * 3)  # over-fetch; Python regex filters below
     )
     raw = list((await db.execute(q)).all())
@@ -1098,13 +1112,14 @@ async def _compute_actor(
     # UI can render the switcher without a round-trip. Dedicated and
     # referenced are DISJOINT (issue #34): dedicated = id-tag / story
     # label / name-in-title; referenced = everything else that names
-    # the actor, minus dedicated.
+    # the actor, minus dedicated. Both honour the reader's source scope
+    # (#170), as the coverage side already did.
     column = Detection.mitre_groups if kind == "group" else Detection.mitre_software
     dedicated_rows, dedicated_reasons = await _dedicated_rules(
-        db, column, actor_id, mention_names
+        db, column, actor_id, mention_names, scope
     )
     referenced_rows, referenced_reasons = await _referenced_rules(
-        db, mention_names, {r[0] for r in dedicated_rows}
+        db, mention_names, {r[0] for r in dedicated_rows}, scope
     )
     exact_count = len(dedicated_rows)
     mention_count = len(referenced_rows)

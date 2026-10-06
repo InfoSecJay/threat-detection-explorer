@@ -707,3 +707,42 @@ async def test_coverage_all_counts_the_excluded_modalities(client, db_session):
     lst = (await client.get("/api/actors?kind=groups&coverage=all")).json()
     assert {e["id"]: e["gap_count"] for e in lst["items"]}["G0001"] == 0
     assert (await client.get("/api/actors?kind=groups&coverage=maybe")).status_code == 422
+
+
+# -- #170: `sources=` also narrows the Named / Mentions side ---------------
+
+
+@pytest.mark.asyncio
+async def test_sources_scope_narrows_named_and_mention_rules(client, db_session):
+    """#170: `sources=` scoped technique coverage but left the Named and
+    Mentions counts and the rule list at their corpus-wide values, so a
+    sigma-only stack still listed Sentinel rules. All three match modes
+    honour the scope, and the detail agrees with the list entry."""
+    db_session.add_all([
+        _rule(id="sigma:named", title="s-named", source="sigma",
+              mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+        _rule(id="sentinel:named", title="z-named", source="sentinel",
+              mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+        _rule(id="splunk:mention", title="x-mention", source="splunk",
+              mitre_techniques=["T1002"], description="Observed in Alpha Group intrusions"),
+    ])
+    await db_session.commit()
+
+    full = (await client.get("/api/actors/G0001")).json()
+    assert full["match_counts"] == {"exact": 2, "coverage": 3, "mention": 1}
+    assert sorted(r["source"] for r in full["rules"]) == ["sentinel", "sigma"]
+
+    sigma = (await client.get("/api/actors/G0001?sources=sigma")).json()
+    assert sigma["match_counts"] == {"exact": 1, "coverage": 1, "mention": 0}
+    assert [(r["source"], r["title"]) for r in sigma["rules"]] == [("sigma", "s-named")]
+    sigma_mention = (await client.get("/api/actors/G0001?sources=sigma&match_mode=mention")).json()
+    assert sigma_mention["rules"] == []
+
+    splunk = (await client.get("/api/actors/G0001?sources=splunk&match_mode=mention")).json()
+    assert splunk["match_counts"] == {"exact": 0, "coverage": 1, "mention": 1}
+    assert [r["title"] for r in splunk["rules"]] == ["x-mention"]
+
+    # The Named count on the detail is the our_rule_count the list shows
+    # for the same scope, so the table and the page cannot disagree.
+    lst = (await client.get("/api/actors?kind=groups&sources=sigma")).json()
+    assert {e["id"]: e["our_rule_count"] for e in lst["items"]}["G0001"] == sigma["match_counts"]["exact"]
