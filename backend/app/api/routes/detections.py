@@ -147,6 +147,22 @@ async def list_detections(
                 detail=f"Failed to serialize detection {d.id}: {str(e)}"
             )
 
+    # Result-row snippets for content: hits (DX-12 / #167): where the
+    # term occurs in the rule body, and whether it sits only inside an
+    # exclusion, so a reader can tell an allowlist from a detection
+    # without opening the rule. Pure string work over the loaded rows.
+    if q:
+        from app.api.schemas import ContentSnippet
+        from app.services.query_parser import content_terms
+        from app.services.snippets import content_snippet
+
+        terms = content_terms(q)
+        if terms:
+            for d, item in zip(detections, items):
+                snippet = content_snippet(d, terms)
+                if snippet:
+                    item.content_snippet = ContentSnippet(**snippet)
+
     return DetectionListResponse(
         items=items,
         total=total,

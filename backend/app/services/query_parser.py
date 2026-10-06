@@ -150,7 +150,11 @@ QUERYABLE_FIELDS: list[FieldSpec] = [
         aliases=["content", "raw", "logic"],
         kind="text_multi",
         columns=["raw_content", "detection_logic"],
-        description="Raw rule body + detection logic. Broadest text match.",
+        description=(
+            "Raw rule body + detection logic. Broadest text match. Result rows "
+            "show where the term occurs; a hit that sits only inside an exclusion "
+            "(NOT / allowlist) is marked, since such a rule does not detect the term."
+        ),
         examples=['content:"HKLM\\\\SOFTWARE"'],
     ),
     FieldSpec(
@@ -871,6 +875,50 @@ def free_text_terms(q: str) -> list[str]:
             collect(child)
 
     collect(tree)
+    return terms
+
+
+# Aliases of the field(s) that reach rule bodies, for #167 snippets.
+CONTENT_FIELD_ALIASES = frozenset(
+    alias.lower()
+    for spec in QUERYABLE_FIELDS
+    if "raw_content" in spec.columns
+    for alias in spec.aliases
+)
+
+
+def content_terms(q: str) -> list[str]:
+    """The values of `content:` / `raw:` / `logic:` terms in a query, in
+    order, for result-row snippets (DX-12 / #167). Negated terms and
+    anything not under those fields are excluded; wildcards are dropped
+    so the literal part can be located in the body. Returns [] on any
+    parse problem -- snippets are best-effort."""
+    q = (q or "").strip()
+    if not q:
+        return []
+    try:
+        tree = luqum_parser.parse(q)
+    except Exception:  # noqa: BLE001 -- unparsable queries just get no snippet
+        return []
+
+    terms: list[str] = []
+
+    def collect(node, under_content: bool) -> None:
+        if isinstance(node, (Not, Prohibit)):
+            return
+        if isinstance(node, SearchField):
+            under_content = node.name.lower() in CONTENT_FIELD_ALIASES
+        elif isinstance(node, (Word, Phrase)):
+            if under_content:
+                value = node.value.strip('"') if isinstance(node, Phrase) else node.value
+                value = value.replace("*", "").replace("?", "")
+                if value and not value.startswith("-"):
+                    terms.append(value)
+            return
+        for child in getattr(node, "children", []) or []:
+            collect(child, under_content)
+
+    collect(tree, False)
     return terms
 
 

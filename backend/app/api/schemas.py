@@ -276,6 +276,20 @@ class DetectionResponse(DetectionBase):
         return cls(**data)
 
 
+class ContentSnippet(BaseModel):
+    """Where a `content:` term occurs in the rule body (DX-12 / #167):
+    `before` + `match` + `after` reads as one line of context; `negated`
+    says the term appears only inside an exclusion (a negated
+    observable), so the rule does not detect it."""
+
+    term: str
+    before: str
+    match: str
+    after: str
+    field: str
+    negated: bool
+
+
 class DetectionListItem(UtcTimestampsModel):
     """Detection item for list views (without raw_content)."""
 
@@ -316,6 +330,9 @@ class DetectionListItem(UtcTimestampsModel):
     # another tracked repository's rule (PyPanther -> panther-analysis);
     # null otherwise. The detail response adds `duplicate_links`.
     duplicate_of: Optional[str] = None
+    # DX-12 / #167: present only on rows of a `content:` query, filled by
+    # the list route; None otherwise (dropped from the slim response).
+    content_snippet: Optional[ContentSnippet] = None
     # Heavy fields below are None unless ?verbose=true (teardown R15 /
     # #113): the default list response was 149 KB for 25 rows with ~85%
     # of the payload never rendered by the table. None (not []) so
