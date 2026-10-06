@@ -20,7 +20,9 @@ observable value makes the pass linear in the number of postings; a
 value carried by more than GENERIC_SHARE of the corpus is too generic
 to pair two rules on its own (it still counts as a shared observable
 once a rarer value paired them). Deprecated rules neither give nor get
-an equivalent (#109: retired content pads nothing).
+an equivalent (#109: retired content pads nothing); neither does a
+linked port of another source's rule (#166), or every panther-analysis
+rule would trivially "have an equivalent in pypanther" and vice versa.
 """
 
 from __future__ import annotations
@@ -112,6 +114,7 @@ def compute_equivalent_sources(
 _COLS = (
     Detection.id, Detection.source, Detection.status, Detection.mitre_techniques,
     *[getattr(Detection, s) for s in SURFACES],
+    Detection.duplicate_of,
     Detection.equivalent_sources,
 )
 
@@ -127,8 +130,10 @@ async def write_equivalent_sources(
     t0 = time.perf_counter()
     rows = (await db.execute(select(*_COLS))).all()
     current = {r[0]: sorted(v for v in (r[-1] or []) if isinstance(v, str)) for r in rows}
+    # A linked port (#166) is its canonical twin shipped again: skipped
+    # like a deprecated row, so it neither gives nor gets (stored []).
     computed = compute_equivalent_sources(
-        (tuple(r[:-1]) for r in rows), generic_min=generic_min, generic_share=generic_share,
+        (tuple(r[:-2]) for r in rows if not r[-2]), generic_min=generic_min, generic_share=generic_share,
     )
     changes = [
         {"_id": rid, "_v": computed.get(rid, [])}

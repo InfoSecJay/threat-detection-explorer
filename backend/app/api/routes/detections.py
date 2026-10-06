@@ -369,7 +369,38 @@ async def get_detection(detection_id: str, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(
             url=f"{settings.api_prefix}{router.prefix}/{detection.id}", status_code=301,
         )
-    return DetectionResponse.from_detection(detection)
+    response = DetectionResponse.from_detection(detection)
+    response.duplicate_links = await _duplicate_links(db, detection)
+    return response
+
+
+async def _duplicate_links(db: AsyncSession, detection) -> list:
+    """Both directions of a duplicate pair (DX-10 / #166): the canonical
+    twin this port points at, or the ports pointing at this rule."""
+    from sqlalchemy import select
+
+    from app.api.schemas import DuplicateLink
+    from app.models.detection import Detection
+
+    links: list = []
+    if detection.duplicate_of:
+        row = (
+            await db.execute(
+                select(Detection.id, Detection.source, Detection.title)
+                .where(Detection.id == detection.duplicate_of)
+            )
+        ).first()
+        if row:
+            links.append(DuplicateLink(id=row[0], source=row[1], title=row[2] or "", relation="canonical"))
+    rows = (
+        await db.execute(
+            select(Detection.id, Detection.source, Detection.title)
+            .where(Detection.duplicate_of == detection.id)
+            .order_by(Detection.source, Detection.title)
+        )
+    ).all()
+    links.extend(DuplicateLink(id=r[0], source=r[1], title=r[2] or "", relation="port") for r in rows)
+    return links
 
 
 def _first(*values: Optional[str]) -> Optional[str]:

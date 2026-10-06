@@ -39,18 +39,36 @@ async def technique_source_counts_excluded(db: AsyncSession) -> dict[str, dict[s
     )
 
 
-async def _scan_technique_sources(db: AsyncSession, excluded: bool = False) -> dict[str, dict[str, int]]:
+async def technique_source_counts_ports(db: AsyncSession) -> dict[str, dict[str, int]]:
+    """Linked ports only (DX-10 / #166): the strict map leaves out a
+    PyPanther row whose panther-analysis twin is indexed, so a reader
+    whose stack holds pypanther but not panther adds this map back."""
+    return await corpus_cache.get(
+        db, ("technique_source_counts", "ports"), lambda: _scan_technique_sources(db, ports=True), persist=True,
+    )
+
+
+async def _scan_technique_sources(
+    db: AsyncSession, excluded: bool = False, ports: bool = False,
+) -> dict[str, dict[str, int]]:
     from app.services.coverage_scope import coverage_conditions
     from app.services.taxonomy.canonical import COVERAGE_EXCLUDED_MODALITIES
 
     # Only rules that count as coverage (DX-05 / #147): no hunting,
     # building-block, passthrough or indicator-only rules, no deprecated
     # -- or, for the excluded map, exactly those modalities (still no
-    # deprecated).
+    # deprecated); the ports map is the strict set restricted to linked
+    # duplicates, which the strict map itself drops (#166).
     if excluded:
         conds = [
             Detection.status != "deprecated",
             Detection.rule_modality.in_(sorted(COVERAGE_EXCLUDED_MODALITIES)),
+        ]
+    elif ports:
+        conds = [
+            Detection.status != "deprecated",
+            Detection.rule_modality.notin_(sorted(COVERAGE_EXCLUDED_MODALITIES)),
+            Detection.duplicate_of.isnot(None),
         ]
     else:
         conds = coverage_conditions()

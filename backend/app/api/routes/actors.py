@@ -56,8 +56,18 @@ from app.services.actor_matching import (
 )
 from app.services.actor_scores import actor_score_service
 from app.services.corpus_cache import corpus_cache, memoised
-from app.services.coverage_heatmap import technique_source_counts, technique_source_counts_excluded
-from app.services.coverage_scope import CoverageScope, coverage_conditions, parse_scope
+from app.services.coverage_heatmap import (
+    technique_source_counts,
+    technique_source_counts_excluded,
+    technique_source_counts_ports,
+)
+from app.services.coverage_scope import (
+    PORT_SOURCES,
+    CoverageScope,
+    coverage_conditions,
+    duplicate_conditions,
+    parse_scope,
+)
 from app.services.mitre import mitre_service
 from app.services.navigator import build_layer, layer_response
 from app.utils.datetime_utils import to_utc_iso, utcnow
@@ -157,12 +167,14 @@ async def _rules_matching_ids(
 
 def _source_conditions(scope: Optional[CoverageScope]) -> list:
     """Narrow a Named / Mentions query to the reader's sources (#143,
-    #170). Only the source is scoped: unlike coverage_conditions(),
-    modality and status are left alone, because a passthrough or
-    deprecated rule built for an actor is still a rule about that actor."""
-    if scope is None or scope.sources is None:
-        return []
-    return [Detection.source.in_(sorted(scope.sources))]
+    #170) and to one row per duplicate pair (#166). Unlike
+    coverage_conditions(), modality and status are left alone, because
+    a passthrough or deprecated rule built for an actor is still a rule
+    about that actor."""
+    conds = duplicate_conditions(scope)
+    if scope is not None and scope.sources is not None:
+        conds.append(Detection.source.in_(sorted(scope.sources)))
+    return conds
 
 
 async def _dedicated_rules(
@@ -1039,12 +1051,21 @@ async def _compute_actor(
     # modalities added back when they asked for `coverage=all`.
     ts_counts = await technique_source_counts(db)
     ts_extra = await technique_source_counts_excluded(db) if scope.include_excluded else {}
+    # Linked ports (#166) are absent from the strict map; a stack that
+    # holds the port but not its canonical repo gets them back here.
+    ts_ports = (
+        await technique_source_counts_ports(db)
+        if any(scope.counts_source(p) for p in PORT_SOURCES) else {}
+    )
     actor_tids = {t["technique_id"] for t in techniques_used}
     by_source_per_technique: dict[str, dict[str, int]] = {}
     for tid in actor_tids:
         per: dict[str, int] = {}
         for src, n in list(ts_counts.get(tid, {}).items()) + list(ts_extra.get(tid, {}).items()):
             if scope.allows_source(src):
+                per[src] = per.get(src, 0) + n
+        for src, n in ts_ports.get(tid, {}).items():
+            if scope.counts_source(src):
                 per[src] = per.get(src, 0) + n
         if per:
             by_source_per_technique[tid] = per

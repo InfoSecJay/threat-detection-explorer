@@ -746,3 +746,56 @@ async def test_sources_scope_narrows_named_and_mention_rules(client, db_session)
     # for the same scope, so the table and the page cannot disagree.
     lst = (await client.get("/api/actors?kind=groups&sources=sigma")).json()
     assert {e["id"]: e["our_rule_count"] for e in lst["items"]}["G0001"] == sigma["match_counts"]["exact"]
+
+
+# -- #166: a Panther/PyPanther pair counts once ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_duplicate_pair_counts_once_in_coverage_and_named(client, db_session):
+    """DX-10 / #166: a PyPanther port linked to its panther-analysis twin
+    is the same rule. Coverage, Named and the per-source breakdown count
+    the pair once while panther is in scope; a pypanther-only stack still
+    counts the port; an unlinked pypanther rule is an ordinary rule."""
+    from app.services.duplicates import write_duplicate_links
+
+    db_session.add_all([
+        _rule(id="p:1", title="Twin rule", source="panther", rule_id="AWS.Twin",
+              mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+        _rule(id="py:1", title="Twin rule", source="pypanther", rule_id="AWS.Twin-prototype",
+              mitre_groups=["G0001"], mitre_techniques=["T1001"]),
+        _rule(id="py:2", title="Port-only rule", source="pypanther", rule_id="AWS.Solo-prototype",
+              mitre_techniques=["T1002"]),
+    ])
+    await db_session.commit()
+    stats = await write_duplicate_links(db_session)
+    assert (stats["linked"], stats["unlinked"]) == (1, 1)
+
+    full = (await client.get("/api/actors/G0001")).json()
+    assert full["match_counts"] == {"exact": 1, "coverage": 2, "mention": 0}
+    assert [r["source"] for r in full["rules"]] == ["panther"]
+    by_tid = {t["technique_id"]: t for t in full["techniques"]}
+    assert by_tid["T1001"]["rule_count"] == 1 and by_tid["T1001"]["rule_count_by_source"] == {"panther": 1}
+    assert by_tid["T1002"]["rule_count"] == 1 and by_tid["T1002"]["rule_count_by_source"] == {"pypanther": 1}
+    assert full["coverage_by_source"] == {
+        "panther": {"techniques_covered": 1, "rule_count": 1},
+        "pypanther": {"techniques_covered": 1, "rule_count": 1},
+    }
+
+    panther = (await client.get("/api/actors/G0001?sources=panther")).json()
+    assert panther["match_counts"] == {"exact": 1, "coverage": 1, "mention": 0}
+
+    both = (await client.get("/api/actors/G0001?sources=panther,pypanther")).json()
+    assert both["match_counts"] == {"exact": 1, "coverage": 2, "mention": 0}
+    assert [r["source"] for r in both["rules"]] == ["panther"]
+
+    port_only = (await client.get("/api/actors/G0001?sources=pypanther")).json()
+    assert port_only["match_counts"] == {"exact": 1, "coverage": 2, "mention": 0}
+    assert [r["source"] for r in port_only["rules"]] == ["pypanther"]
+    by_tid = {t["technique_id"]: t for t in port_only["techniques"]}
+    assert by_tid["T1001"]["rule_count"] == 1 and by_tid["T1001"]["rule_count_by_source"] == {"pypanther": 1}
+
+    # The list agrees with the detail under each scope.
+    for query, expected in (("", 1), ("&sources=panther", 1), ("&sources=pypanther", 1)):
+        lst = (await client.get(f"/api/actors?kind=groups{query}")).json()
+        assert {e["id"]: e["our_rule_count"] for e in lst["items"]}["G0001"] == expected, query

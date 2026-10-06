@@ -316,18 +316,28 @@ class SearchService:
             "top_techniques": [],
             "top_tactics": [],
         }
+        # Linked ports per source (DX-10 / #166): rows that are another
+        # tracked repository's rule shipped again (PyPanther ->
+        # panther-analysis). Inside the total; the home strip discloses
+        # them beside the headline the way it does hunting queries. They
+        # ride on the source GROUP BY (COUNT of a nullable column counts
+        # the non-null rows), so the round-trip budget is unchanged.
+        stats["ports"] = {}
         for column, bucket in (
             (Detection.source, stats["by_source"]),
             (Detection.severity, stats["by_severity"]),
             (Detection.status, stats["by_status"]),
             (Detection.rule_modality, stats["by_modality"]),
         ):
+            extra = [func.count(Detection.duplicate_of)] if column is Detection.source else []
             rows = (
-                await self.db.execute(select(column, func.count(Detection.id)).group_by(column))
+                await self.db.execute(select(column, func.count(Detection.id), *extra).group_by(column))
             ).all()
-            for value, n in rows:
+            for value, n, *rest in rows:
                 if value in bucket:
                     bucket[value] = int(n)
+                    if rest and rest[0]:
+                        stats["ports"][value] = int(rest[0])
         # Known sources only, matching by_source (an unregistered
         # source in the table is a sync bug, not a statistic).
         stats["total"] = sum(stats["by_source"].values())

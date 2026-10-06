@@ -181,6 +181,17 @@ class DetectionBase(UtcTimestampsModel):
     quality_details: Optional[dict] = None
 
 
+class DuplicateLink(BaseModel):
+    """One side of a duplicate pair (DX-10 / #166): the canonical twin a
+    port points at (`relation` = "canonical") or a port pointing at this
+    rule (`relation` = "port")."""
+
+    id: str
+    source: str
+    title: str
+    relation: str
+
+
 class DetectionResponse(DetectionBase):
     """Detection response with all fields."""
 
@@ -192,6 +203,12 @@ class DetectionResponse(DetectionBase):
     # "what does upstream say now". None when the stored link is not
     # pinned (rows indexed before DX-15, until the next sync).
     source_rule_url_latest: Optional[str] = None
+    # DX-10 / #166: id of the canonical twin when this row is a port of
+    # another tracked repository's rule (PyPanther -> panther-analysis),
+    # null otherwise; `duplicate_links` carries both directions with
+    # title and source, filled by the detail route.
+    duplicate_of: Optional[str] = None
+    duplicate_links: list[DuplicateLink] = []
 
     class Config:
         from_attributes = True
@@ -206,6 +223,7 @@ class DetectionResponse(DetectionBase):
             "source_repo_url": sanitize_string(detection.source_repo_url),
             "source_rule_url": sanitize_string(detection.source_rule_url),
             "source_rule_url_latest": latest_upstream_url(detection.source, detection.source_rule_url),
+            "duplicate_of": getattr(detection, "duplicate_of", None),
             "rule_id": sanitize_string(detection.rule_id),
             "title": sanitize_string(detection.title),
             "description": sanitize_string(detection.description),
@@ -294,6 +312,10 @@ class DetectionListItem(UtcTimestampsModel):
     language: str = "unknown"
     # Sources holding a same-behaviour rule (DX-07 / #149), nightly.
     equivalent_sources: list[str] = []
+    # DX-10 / #166: id of the canonical twin when this row is a port of
+    # another tracked repository's rule (PyPanther -> panther-analysis);
+    # null otherwise. The detail response adds `duplicate_links`.
+    duplicate_of: Optional[str] = None
     # Heavy fields below are None unless ?verbose=true (teardown R15 /
     # #113): the default list response was 149 KB for 25 rows with ~85%
     # of the payload never rendered by the table. None (not []) so
@@ -357,6 +379,7 @@ class DetectionListItem(UtcTimestampsModel):
             "mitre_software": getattr(detection, 'mitre_software', None) or [],
             "language": detection.language or "unknown",
             "equivalent_sources": getattr(detection, "equivalent_sources", None) or [],
+            "duplicate_of": getattr(detection, "duplicate_of", None),
             "rule_created_date": detection.rule_created_date,
             "rule_modified_date": detection.rule_modified_date,
             "quality_score": _int_or_none(getattr(detection, 'quality_score', None)),
@@ -585,6 +608,10 @@ class StatisticsResponse(BaseModel):
     # Rules per modality (DX-10 / #152); the total counts every one of
     # them. Declared here or the response model silently drops it.
     by_modality: dict[str, int] = Field(default_factory=dict)
+    # Linked ports per source (DX-10 / #166), e.g. {"pypanther": 595}:
+    # rows inside the total that are another tracked repository's rule
+    # shipped again. Declared so the response model keeps the key.
+    ports: dict[str, int] = Field(default_factory=dict)
     # Hygiene averages over scored rows (#39). Optional so an older
     # service response shape still validates.
     quality_avg: Optional[float] = None

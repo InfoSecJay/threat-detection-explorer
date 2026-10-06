@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.detection import Detection
 from app.services.actor_context import actor_context_service, merge_aliases
 from app.services.actor_matching import compile_name_regex, normalize_label
-from app.services.coverage_scope import DEFAULT_SCOPE, CoverageScope, counts_as_coverage
+from app.services.coverage_scope import DEFAULT_SCOPE, CoverageScope, counts_as_coverage, is_hidden_duplicate
 from app.services.mitre import mitre_service
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,10 @@ logger = logging.getLogger(__name__)
 # Parity with actors._rules_mentioning: names shorter than this are
 # too substring-happy to count as mentions.
 MIN_MENTION_NAME_LEN = 3
+# Per-source map key suffix for a linked port row (#166): the base
+# bundle files such rows under "<source>~port" so a scoped view can
+# tell them from the source's own rules (see _key_counts).
+PORT_KEY_SUFFIX = "~port"
 
 
 @dataclass
@@ -279,6 +283,7 @@ class ActorScoreService:
             Detection.references,
             Detection.status,
             Detection.rule_modality,
+            Detection.duplicate_of,
         )
         rows = (await db.execute(q)).all()
 
@@ -310,9 +315,19 @@ class ActorScoreService:
         rule_sources: list[str] = []
         title_texts: list[str] = []
         rule_texts: list[str] = []
+        hidden_rows: set[int] = set()
         for idx, (source, rgroups, rsoftware, rtechs, title, description,
-                  tags, use_cases, references, status, modality) in enumerate(rows):
+                  tags, use_cases, references, status, modality, duplicate_of) in enumerate(rows):
             rule_sources.append(source)
+            # A linked port (#166) is its canonical twin shipped again,
+            # and the default scope always holds the canonical source:
+            # the row is left out of every default-scope total below and
+            # filed under "<source>~port" in the per-source maps, so a
+            # stack holding the port but not the canonical repo still
+            # derives it (_derive_scoped).
+            if is_hidden_duplicate(source, duplicate_of, DEFAULT_SCOPE):
+                hidden_rows.add(idx)
+            source_key = f"{source}{PORT_KEY_SUFFIX}" if idx in hidden_rows else source
             if status == "deprecated":
                 # Vendor-retired content pads nothing (#109): not the
                 # Named/Mentions tiers, not coverage. Keep the parallel
@@ -335,10 +350,10 @@ class ActorScoreService:
             per_source = by_source if strict else excluded_by_source
             for tid in rtechs or []:
                 tid_u = tid.upper()
-                if strict:
+                if strict and idx not in hidden_rows:
                     technique_rule_counts[tid_u] = technique_rule_counts.get(tid_u, 0) + 1
                 bucket = per_source.setdefault(tid_u, {})
-                bucket[source] = bucket.get(source, 0) + 1
+                bucket[source_key] = bucket.get(source_key, 0) + 1
             title_texts.append(title or "")
             rule_texts.append(" ".join([
                 title or "",
@@ -360,17 +375,20 @@ class ActorScoreService:
 
         def _record_exact(eid: str, idxs: set[int]) -> None:
             bucket = exact_software if eid.startswith("S") else exact_groups
-            bucket[eid] = {
-                "rule_count": len(idxs),
-                "sources": {rule_sources[i] for i in idxs},
-            }
+            visible = idxs - hidden_rows
+            if visible:
+                bucket[eid] = {
+                    "rule_count": len(visible),
+                    "sources": {rule_sources[i] for i in visible},
+                }
             per = exact_by_source.setdefault(eid, {})
             for i in idxs:
-                per[rule_sources[i]] = per.get(rule_sources[i], 0) + 1
+                key = f"{rule_sources[i]}{PORT_KEY_SUFFIX}" if i in hidden_rows else rule_sources[i]
+                per[key] = per.get(key, 0) + 1
 
         for eid in entity_names:
             dedicated = dedicated_idx.get(eid, set()) | title_hits.get(eid, set())
-            mention_counts[eid] = len(full_hits.get(eid, set()) - dedicated)
+            mention_counts[eid] = len(full_hits.get(eid, set()) - dedicated - hidden_rows)
             if dedicated:
                 _record_exact(eid, dedicated)
         # Tagged IDs outside the loaded catalog (rare, but rgroups is
@@ -410,11 +428,21 @@ class ActorScoreService:
         )
 
 
+def _key_counts(scope: CoverageScope, key: str) -> bool:
+    """Per-source map keys are plain sources, or "<source>~port" for a
+    linked port (#166), which counts only while its canonical source is
+    out of the scope."""
+    source, sep, _ = key.partition(PORT_KEY_SUFFIX)
+    if sep:
+        return scope.counts_source(source)
+    return scope.allows_source(source)
+
+
 def _sum_scoped(per_source: dict[str, dict[str, int]], scope: CoverageScope) -> dict[str, int]:
     return {
         tid: total
         for tid, per in per_source.items()
-        if (total := sum(n for s, n in per.items() if scope.allows_source(s))) > 0
+        if (total := sum(n for s, n in per.items() if _key_counts(scope, s))) > 0
     }
 
 
@@ -424,16 +452,21 @@ def _derive_scoped(base: ScoreBundle, scope: CoverageScope) -> ScoreBundle:
     when asked), every entity re-scored against them, Named counts
     narrowed to the same sources. Mentions are not source-scoped --
     a rule citing an actor is chatter about it whichever repo it sits
-    in -- and are copied through."""
+    in -- and are copied through. A linked port (#166) is skipped while
+    its canonical source is in the scope, so a Panther/PyPanther pair
+    counts once; a stack holding only the port still sees its rules."""
     counts = _sum_scoped(base.technique_rule_counts_by_source, scope)
     if scope.include_excluded:
         for tid, n in _sum_scoped(base.technique_excluded_by_source, scope).items():
             counts[tid] = counts.get(tid, 0) + n
     exact: dict[str, dict] = {}
     for eid, per in base.exact_by_source.items():
-        kept = {s: n for s, n in per.items() if scope.allows_source(s)}
+        kept = {s: n for s, n in per.items() if _key_counts(scope, s)}
         if kept:
-            exact[eid] = {"rule_count": sum(kept.values()), "sources": set(kept)}
+            exact[eid] = {
+                "rule_count": sum(kept.values()),
+                "sources": {s.partition(PORT_KEY_SUFFIX)[0] for s in kept},
+            }
     groups = {
         gid: _score_entity(g, counts, exact)
         for gid, g in mitre_service.get_all_groups().items()

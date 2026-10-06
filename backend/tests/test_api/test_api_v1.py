@@ -84,3 +84,11 @@ async def test_edge_cache_header_follows_the_prefix(client):
     for path in ("/api/v1/detections/statistics", "/api/detections/statistics"):
         r = await client.get(path)
         assert r.headers.get("cache-control", "").startswith("public, s-maxage=900"), path
+
+
+@pytest.mark.asyncio
+async def test_statistics_declare_ports(client):
+    # DX-10 / #166: the response model must declare `ports` or the home
+    # strip's disclosure of PyPanther ports silently disappears.
+    a = await client.get("/api/v1/detections/statistics")
+    assert a.status_code == 200 and a.json()["ports"] == {}

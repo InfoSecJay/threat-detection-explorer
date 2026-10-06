@@ -85,7 +85,12 @@ SCOPE_NOTES: dict[str, str] = {
         "policies/, queries/, data_models/, packs/ and correlation_rules/ are not "
         "detection rules. deprecated.txt stamps status=deprecated on listed rules."
     ),
-    "pypanther": "pypanther/rules/ Python rule classes on main; framework modules, tests and docs are not counted.",
+    "pypanther": (
+        "pypanther/rules/ Python rule classes on main; framework modules, tests and docs are not "
+        "counted. Every rule is a generated port of a panther-analysis rule (its id is the Panther "
+        "RuleID plus -prototype); each port is linked to its twin and the pair counts once in "
+        "coverage, actor and equivalence figures whenever panther is in scope."
+    ),
 }
 
 
@@ -129,6 +134,13 @@ async def get_methodology(db: AsyncSession = Depends(get_db)):
             "by modality (rule_modality), so each can be excluded with one "
             "filter; coverage figures leave out deprecated rules, alert "
             "forwarders and pure indicator matches.",
+            # DX-10 / #166: PyPanther re-ships panther-analysis; the
+            # headline counts both files, the math counts the pair once.
+            "PyPanther rules are generated ports of panther-analysis rules. "
+            "Each port is linked to its twin (duplicate_of) and the pair is "
+            "counted once in coverage, actor and equivalence figures whenever "
+            "Panther is in scope; the headline rule count still counts every "
+            "indexed file and discloses the ports.",
             "After every sync the upstream tree is re-fetched via the GitHub API "
             "and our discovered count is checked against it (alerting past 5% drift).",
         ],
