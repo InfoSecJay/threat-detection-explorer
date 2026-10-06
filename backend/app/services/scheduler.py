@@ -224,6 +224,16 @@ async def run_full_sync_job(
                 f"errors={total_errors}, duration={job.duration_seconds:.1f}s"
             )
 
+            # Duplicate pairs (DX-10 / #166): link each PyPanther port to
+            # its panther-analysis twin so the snapshots and scores below
+            # count the pair once. First of the post-sync passes because
+            # every other one reads the link; same isolation as the rest.
+            try:
+                from app.services.duplicates import write_duplicate_links
+                await write_duplicate_links(db)
+            except Exception as e:
+                logger.warning(f"Duplicate links pass failed: {e}", exc_info=True)
+
             # Daily MITRE coverage snapshot (issue #9): one
             # technique x source x rule_count row-set per day, feeding
             # the /trending/newly-covered diff. Same failure isolation

@@ -192,6 +192,12 @@ class Detection(Base):
     # in services/equivalents.py; the "has equivalent in" facet and the
     # `equiv:` query field filter on it.
     equivalent_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # DX-10 / #166: id of the canonical twin when this row is a port of
+    # another tracked repository's rule (PyPanther -> panther-analysis,
+    # paired on rule id). Written by the post-sync batch in
+    # services/duplicates.py; coverage, actor and equivalence math count
+    # the pair once (services/coverage_scope.py). NULL for every other row.
+    duplicate_of: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
 
     # Timestamps (sync timestamps)
     created_at: Mapped[datetime] = mapped_column(

@@ -25,9 +25,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from sqlalchemy import or_
+
 from app.models.detection import Detection
 from app.services.repository_sync import ALL_REPOSITORY_NAMES
 from app.services.taxonomy.canonical import COVERAGE_EXCLUDED_MODALITIES
+
+# Port sources (DX-10 / #166): a repository that re-packages another
+# tracked repository's rules one for one. PyPanther is panther-analysis
+# generated into Python classes; every pypanther rule id is the Panther
+# RuleID plus "-prototype" (595 of 595 on 2026-10-06). The nightly pass
+# in services/duplicates.py links each port row to its twin through
+# Detection.duplicate_of; the scope below decides when a port counts.
+PORT_SOURCES: dict[str, str] = {"pypanther": "panther"}
 
 
 @dataclass(frozen=True)
@@ -60,6 +70,17 @@ class CoverageScope:
 
     def allows_source(self, source: str) -> bool:
         return self.sources is None or source in self.sources
+
+    def hides_source(self, source: str) -> bool:
+        """A port source is hidden while its canonical source is in scope
+        (#166): the pair counts once, as the canonical rule. A reader
+        whose stack holds only the port still counts it."""
+        canonical = PORT_SOURCES.get(source)
+        return canonical is not None and self.allows_source(canonical)
+
+    def counts_source(self, source: str) -> bool:
+        """In scope and not hidden behind its canonical source."""
+        return self.allows_source(source) and not self.hides_source(source)
 
 
 DEFAULT_SCOPE = CoverageScope()
@@ -95,7 +116,30 @@ def coverage_conditions(scope: Optional[CoverageScope] = None) -> list:
         conds.append(Detection.rule_modality.notin_(sorted(COVERAGE_EXCLUDED_MODALITIES)))
     if scope.sources is not None:
         conds.append(Detection.source.in_(sorted(scope.sources)))
+    conds.extend(duplicate_conditions(scope))
     return conds
+
+
+def duplicate_conditions(scope: Optional[CoverageScope] = None) -> list:
+    """SQLAlchemy conditions that keep one row per duplicate pair (#166):
+    a linked port (``duplicate_of`` set) is dropped while its canonical
+    source is in ``scope``. An unlinked rule from a port source, and
+    every port under a stack without the canonical source, still count.
+    Row-level, so it composes with any other filter on the query."""
+    scope = scope or DEFAULT_SCOPE
+    hidden = sorted(s for s in PORT_SOURCES if scope.hides_source(s))
+    if not hidden:
+        return []
+    return [or_(Detection.duplicate_of.is_(None), Detection.source.notin_(hidden))]
+
+
+def is_hidden_duplicate(
+    source: str, duplicate_of: Optional[str], scope: Optional[CoverageScope] = None,
+) -> bool:
+    """Python twin of ``duplicate_conditions()`` for row scans."""
+    if not duplicate_of:
+        return False
+    return (scope or DEFAULT_SCOPE).hides_source(source)
 
 
 def counts_as_coverage(status: str | None, rule_modality: str | None) -> bool:
