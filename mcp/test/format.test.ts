@@ -164,3 +164,38 @@ describe("actorSummary", () => {
     expect(out.note).toContain("not that an environment detects it");
   });
 });
+
+describe("duplicate pair and content: snippet pass-through (#166, #167)", () => {
+  it("slimRule carries the port link and the snippet with its exclusion flag", () => {
+    const slim = slimRule({
+      ...ROW,
+      duplicate_of: "p1",
+      content_snippet: {
+        term: "citrix", before: 'not signer : "', match: "Citrix", after: ' Systems"',
+        field: "detection_logic", negated: true,
+      },
+    });
+    expect(slim.port_of).toEqual({ id: "p1", url: "https://detectionexplorer.io/detections/p1" });
+    expect(slim.content_match).toEqual({
+      context: 'not signer : "Citrix Systems"', match: "Citrix", field: "detection_logic", exclusion_only: true,
+    });
+    const plain = slimRule({
+      ...ROW,
+      content_snippet: { before: "a ", match: "b", after: " c", field: "raw_content", negated: false },
+    });
+    expect(plain.content_match).toEqual({ context: "a b c", match: "b", field: "raw_content" });
+    expect(slimRule(ROW)).not.toHaveProperty("port_of");
+    expect(slimRule(ROW)).not.toHaveProperty("content_match");
+  });
+
+  it("detectionDetail lists the other half of a pair", () => {
+    const out = detectionDetail(
+      { ...ROW, duplicate_links: [{ id: "py1", source: "pypanther", title: "T", relation: "port" }] },
+      false,
+    );
+    expect(out.same_rule).toEqual([
+      { relation: "port", id: "py1", source: "pypanther", title: "T", url: "https://detectionexplorer.io/detections/py1" },
+    ]);
+    expect(detectionDetail(ROW, false)).not.toHaveProperty("same_rule");
+  });
+});

@@ -48,6 +48,19 @@ export function capped<T>(items: T[] | undefined, max: number): { items: T[]; om
   return { items: list.slice(0, max), omitted: Math.max(0, list.length - max) };
 }
 
+/** Where a content: term hit (#167): one line of context, and whether the
+ *  term sits only inside an exclusion, in which case the rule does not
+ *  detect it. */
+function contentMatch(s: Json | undefined) {
+  if (!s || typeof s !== "object") return undefined;
+  return prune({
+    context: `${s.before ?? ""}${s.match ?? ""}${s.after ?? ""}`,
+    match: s.match,
+    field: s.field,
+    exclusion_only: s.negated ? true : undefined,
+  });
+}
+
 export function slimRule(r: Json) {
   const others = Array.isArray(r.equivalent_sources)
     ? r.equivalent_sources.filter((s: string) => s !== r.source)
@@ -68,6 +81,10 @@ export function slimRule(r: Json) {
     modified: day(r.rule_modified_date),
     quality: r.quality_score,
     same_behaviour_in: others,
+    // #166: a PyPanther port of a panther-analysis rule; coverage figures
+    // count the pair once, so do not count both when summarising.
+    port_of: r.duplicate_of ? { id: r.duplicate_of, url: ruleUrl(r.duplicate_of) } : undefined,
+    content_match: contentMatch(r.content_snippet),
     url: r.id ? ruleUrl(r.id) : undefined,
     upstream: r.source_rule_url,
   });
@@ -148,6 +165,12 @@ export function detectionDetail(d: Json, includeRaw: boolean) {
     created: day(d.rule_created_date),
     modified: day(d.rule_modified_date),
     last_synced: day(d.updated_at),
+    // #166: the other half of a Panther/PyPanther pair, both directions.
+    same_rule: Array.isArray(d.duplicate_links) && d.duplicate_links.length
+      ? d.duplicate_links.map((l: Json) => ({
+          relation: l.relation, id: l.id, source: l.source, title: l.title, url: ruleUrl(l.id),
+        }))
+      : undefined,
     url: ruleUrl(d.id),
     upstream_pinned: d.source_rule_url,
     upstream_latest: d.source_rule_url_latest,

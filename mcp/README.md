@@ -66,8 +66,8 @@ On Windows, if the client cannot find `npx`, use
 
 | Tool | What it answers |
 | --- | --- |
-| `search_detections` | Search with the site's query language (`tech:T1055 source:sigma`, `actor:APT29 AND sev:high`) plus filters; `no_equivalent_in` finds porting gaps. |
-| `get_detection` | One rule in full: logic, ATT&CK mapping, data sources, false positives, deploy prerequisites, extracted observables, pinned upstream link. |
+| `search_detections` | Search with the site's query language (`tech:T1055 source:sigma`, `actor:APT29 AND sev:high`) plus filters; `no_equivalent_in` finds porting gaps. Rows of a `content:` query carry `content_match` (where the term hit; `exclusion_only` when it sits inside an allowlist, so the rule does not detect it). |
+| `get_detection` | One rule in full: logic, ATT&CK mapping, data sources, false positives, deploy prerequisites, extracted observables, pinned upstream link, and `same_rule` for a Panther/PyPanther twin. |
 | `find_related_detections` | Same-behaviour rules in other repositories, gated on shared observables, with the reasons. |
 | `compare_detections` | Observable-level diff of 2 to 6 rules: shared, unique and excluded observables. |
 | `technique_coverage` | Rule counts per repository for one technique, the observables each vendor keys on, groups and software that use it. |
