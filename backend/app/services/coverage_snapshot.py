@@ -30,10 +30,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.coverage_snapshot import MitreCoverageSnapshot
 from app.models.detection import Detection
+from app.services.coverage_scope import coverage_conditions
 from app.services.mitre import mitre_service
 from app.utils.datetime_utils import to_utc_iso, utcnow
 
 logger = logging.getLogger(__name__)
+
+# DX-05 / #166 / #172: snapshots written from this date on count only the
+# rules that count as coverage everywhere else (coverage_conditions): no
+# hunting, building-block, passthrough or indicator-only rules, no
+# deprecated rules, no PyPanther port while Panther is indexed. Rows
+# before it were written with `status != deprecated` alone and are not
+# comparable, so every reader treats them as absent: newly-covered falls
+# back to its git-derived path and momentum to the oldest strict
+# snapshot (flagged) or insufficient history. Tests lift the cut-off
+# through the autouse fixture in tests/conftest.py.
+STRICT_SNAPSHOT_SINCE: date = date(2026, 10, 11)
+
+
+def comparable_since() -> date:
+    """First snapshot date whose rows a reader may compare against."""
+    return STRICT_SNAPSHOT_SINCE
 
 
 async def _current_counts(db: AsyncSession) -> dict[tuple[str, str], int]:
@@ -45,8 +62,10 @@ async def _current_counts(db: AsyncSession) -> dict[tuple[str, str], int]:
     rows = (
         await db.execute(
             select(Detection.source, Detection.mitre_techniques)
-            # Deprecated rules do not count toward coverage (teardown R11 / #109).
-            .where(Detection.status != "deprecated")
+            # The same rule as every other coverage figure (DX-05 / #147,
+            # #166, #172): deprecated, hunting, building-block, passthrough
+            # and indicator-only rules and hidden ports do not count.
+            .where(*coverage_conditions())
         )
     ).all()
     counts: dict[tuple[str, str], int] = defaultdict(int)
@@ -85,11 +104,16 @@ async def write_coverage_snapshot(db: AsyncSession) -> int:
 async def _baseline_snapshot(
     db: AsyncSession, cutoff: date
 ) -> tuple[Optional[date], dict[tuple[str, str], int]]:
-    """Newest snapshot taken ON OR BEFORE `cutoff`, as (date, counts)."""
+    """Newest comparable snapshot taken ON OR BEFORE `cutoff`, as
+    (date, counts). Snapshots before STRICT_SNAPSHOT_SINCE were written
+    with a looser rule and are skipped (#172)."""
     baseline_date = (
         await db.execute(
             select(MitreCoverageSnapshot.snapshot_date)
-            .where(MitreCoverageSnapshot.snapshot_date <= cutoff)
+            .where(
+                MitreCoverageSnapshot.snapshot_date <= cutoff,
+                MitreCoverageSnapshot.snapshot_date >= comparable_since(),
+            )
             .order_by(MitreCoverageSnapshot.snapshot_date.desc())
             .limit(1)
         )
@@ -171,7 +195,7 @@ async def compute_newly_covered(
                     Detection.source,
                     Detection.mitre_techniques,
                     Detection.rule_created_date,
-                ).where(Detection.status != "deprecated")
+                ).where(*coverage_conditions())
             )
         ).all()
         first_seen: dict[tuple[str, str], date] = {}

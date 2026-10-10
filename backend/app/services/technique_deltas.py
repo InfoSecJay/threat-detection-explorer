@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.coverage_snapshot import MitreCoverageSnapshot
+from app.services import coverage_snapshot as _snapshots
 
 
 async def _latest_snapshot_date(
@@ -51,6 +52,51 @@ async def _counts_on(db: AsyncSession, day: date) -> tuple[dict[str, int], dict[
     return dict(totals), dict(sources)
 
 
+async def comparable_baseline(
+    db: AsyncSession, latest: date, days: int,
+) -> tuple[Optional[date], bool]:
+    """The snapshot to diff `latest` against: the newest one at least
+    `days` old that is comparable (on or after STRICT_SNAPSHOT_SINCE,
+    #172). While strict history is shorter than the window, the oldest
+    comparable snapshot stands in and the second value is True so the
+    payload can say the window was truncated; None when nothing
+    comparable predates `latest`."""
+    since = _snapshots.comparable_since()
+    wanted = latest - timedelta(days=days)
+    row = (
+        await db.execute(
+            select(func.max(MitreCoverageSnapshot.snapshot_date)).where(
+                MitreCoverageSnapshot.snapshot_date <= wanted,
+                MitreCoverageSnapshot.snapshot_date >= since,
+            )
+        )
+    ).scalar()
+    if row is not None:
+        return row, False
+    # No comparable snapshot is old enough. If nothing at all is that old
+    # the history is simply short (insufficient_history, as before). If
+    # an older, pre-switch snapshot exists the cut-off is what removed
+    # it, so the oldest comparable one stands in, flagged.
+    any_old_enough = (
+        await db.execute(
+            select(func.count()).select_from(MitreCoverageSnapshot).where(
+                MitreCoverageSnapshot.snapshot_date <= wanted
+            )
+        )
+    ).scalar()
+    if not any_old_enough:
+        return None, False
+    oldest = (
+        await db.execute(
+            select(func.min(MitreCoverageSnapshot.snapshot_date)).where(
+                MitreCoverageSnapshot.snapshot_date >= since,
+                MitreCoverageSnapshot.snapshot_date < latest,
+            )
+        )
+    ).scalar()
+    return oldest, oldest is not None
+
+
 async def compute_technique_deltas(
     db: AsyncSession, days: int = 7, limit: int = 10,
 ) -> dict:
@@ -60,7 +106,7 @@ async def compute_technique_deltas(
             "days": days, "method": "no_data", "current_date": None,
             "baseline_date": None, "gainers": [], "losers": [],
         }
-    baseline = await _latest_snapshot_date(db, on_or_before=latest - timedelta(days=days))
+    baseline, truncated = await comparable_baseline(db, latest, days)
     if baseline is None:
         return {
             "days": days, "method": "insufficient_history",
@@ -89,7 +135,7 @@ async def compute_technique_deltas(
 
     gainers = sorted((e for e in entries if e["delta"] > 0), key=lambda e: (-e["delta"], e["technique_id"]))[:limit]
     losers = sorted((e for e in entries if e["delta"] < 0), key=lambda e: (e["delta"], e["technique_id"]))[:limit]
-    return {
+    out = {
         "days": days,
         "method": "snapshot",
         "current_date": latest.isoformat(),
@@ -97,3 +143,8 @@ async def compute_technique_deltas(
         "gainers": gainers,
         "losers": losers,
     }
+    if truncated:
+        # Strict history (#172) is shorter than the window: the diff runs
+        # from the oldest comparable snapshot instead.
+        out["baseline_truncated"] = True
+    return out

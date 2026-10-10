@@ -724,9 +724,11 @@ async def get_newly_covered(
     `method` tells the caller how the diff was computed: "snapshot"
     (exact — daily mitre_coverage_snapshot rows exist at least `days`
     back) or "rule_dates" (git-derived first-rule dates, used until
-    snapshot history accumulates). Sources onboarded inside the window
-    are listed under `new_sources` rather than flooding the
-    per-source list.
+    snapshot history accumulates). Snapshots count only rules that count
+    as coverage (DX-05, #166); rows from before 2026-10-11 used a looser
+    rule and are never used as a baseline (#172). Sources onboarded
+    inside the window are listed under `new_sources` rather than
+    flooding the per-source list.
     """
     from app.services.coverage_snapshot import compute_newly_covered
 

@@ -30,16 +30,14 @@ _SURFACES = {
 
 
 async def _momentum(db: AsyncSession, technique_id: str, days: int = 7) -> dict:
+    from app.services.technique_deltas import comparable_baseline
+
     latest = (await db.execute(select(func.max(MitreCoverageSnapshot.snapshot_date)))).scalar()
     if latest is None:
         return {"method": "no_data", "current": None, "baseline": None, "delta": None}
-    baseline_day = (
-        await db.execute(
-            select(func.max(MitreCoverageSnapshot.snapshot_date)).where(
-                MitreCoverageSnapshot.snapshot_date <= latest - timedelta(days=days)
-            )
-        )
-    ).scalar()
+    # Same baseline rule as /trending/techniques (#172): comparable
+    # snapshots only, the oldest one standing in while history is short.
+    baseline_day, truncated = await comparable_baseline(db, latest, days)
 
     async def total_on(day) -> int:
         return (
@@ -55,8 +53,11 @@ async def _momentum(db: AsyncSession, technique_id: str, days: int = 7) -> dict:
     if baseline_day is None:
         return {"method": "insufficient_history", "current": current, "baseline": None, "delta": None}
     baseline = await total_on(baseline_day)
-    return {"method": "snapshot", "current": current, "baseline": baseline, "delta": current - baseline,
-            "baseline_date": baseline_day.isoformat()}
+    out = {"method": "snapshot", "current": current, "baseline": baseline, "delta": current - baseline,
+           "baseline_date": baseline_day.isoformat()}
+    if truncated:
+        out["baseline_truncated"] = True
+    return out
 
 
 async def technique_profile(db: AsyncSession, technique_id: str, per_surface: int = 6) -> Optional[dict]:

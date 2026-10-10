@@ -93,3 +93,67 @@ async def test_route_limit_and_validation(client, db_session):
     assert len(data["gainers"]) == 1
     assert (await client.get("/api/trending/technique-deltas", params={"days": 0})).status_code == 422
     assert (await client.get("/api/trending/technique-deltas", params={"limit": 51})).status_code == 422
+
+
+# -- #172: pre-switch snapshots are never a baseline ----------------------------
+
+
+@pytest.mark.asyncio
+async def test_strict_cutoff_truncates_or_withholds_the_baseline(db_session, monkeypatch):
+    """Snapshots before STRICT_SNAPSHOT_SINCE were written with a looser
+    rule. With such history present, the diff runs from the oldest strict
+    snapshot and says so; with no strict snapshot before the latest, it
+    reports insufficient history instead of a false step."""
+    from app.services import coverage_snapshot
+
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", date(2026, 8, 27))
+    db_session.add_all([
+        _snap(date(2026, 8, 20), "T1059", "sigma", 9),   # loose: hunting rows inflated it
+        _snap(date(2026, 8, 28), "T1059", "sigma", 4),   # first strict snapshot
+        _snap(TODAY, "T1059", "sigma", 5),
+    ])
+    await db_session.commit()
+
+    out = await compute_technique_deltas(db_session, days=7)
+    assert out["method"] == "snapshot" and out["baseline_truncated"] is True
+    assert out["baseline_date"] == "2026-08-28"
+    assert out["gainers"] == [{
+        "technique_id": "T1059", "current": 5, "baseline": 4, "delta": 1,
+        "sources_added": [], "sources_removed": [],
+    }], "the loose 9 never becomes a baseline, so no phantom loss"
+
+    # Once strict history reaches the window, the normal baseline is used.
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", date(2026, 8, 1))
+    out = await compute_technique_deltas(db_session, days=7)
+    assert out["baseline_date"] == "2026-08-20" and "baseline_truncated" not in out
+
+
+@pytest.mark.asyncio
+async def test_strict_cutoff_with_only_the_latest_strict_is_insufficient(db_session, monkeypatch):
+    from app.services import coverage_snapshot
+
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", TODAY)
+    db_session.add_all([
+        _snap(date(2026, 8, 20), "T1059", "sigma", 9),
+        _snap(TODAY, "T1059", "sigma", 5),
+    ])
+    await db_session.commit()
+    out = await compute_technique_deltas(db_session, days=7)
+    assert out["method"] == "insufficient_history" and out["baseline_date"] is None
+
+
+@pytest.mark.asyncio
+async def test_technique_profile_momentum_follows_the_same_rule(db_session, monkeypatch):
+    from app.services import coverage_snapshot
+    from app.services.technique_profile import _momentum
+
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", date(2026, 8, 27))
+    db_session.add_all([
+        _snap(date(2026, 8, 20), "T1059", "sigma", 9),
+        _snap(date(2026, 8, 28), "T1059", "sigma", 4),
+        _snap(TODAY, "T1059", "sigma", 5),
+    ])
+    await db_session.commit()
+    m = await _momentum(db_session, "T1059", days=7)
+    assert (m["method"], m["baseline"], m["current"], m["delta"]) == ("snapshot", 4, 5, 1)
+    assert m["baseline_date"] == "2026-08-28" and m["baseline_truncated"] is True

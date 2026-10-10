@@ -26,6 +26,19 @@ def _deterministic_mitre_tactic_cache():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _unbounded_snapshot_history(monkeypatch):
+    """Coverage snapshots are comparable only from STRICT_SNAPSHOT_SINCE
+    (#172). Tests build snapshot rows at arbitrary past dates, so the
+    cut-off is lifted for every test; the #172 transition tests set it
+    back explicitly."""
+    from datetime import date
+
+    from app.services import coverage_snapshot
+
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", date.min)
+
+
 @pytest_asyncio.fixture
 async def db_session():
     """Create an in-memory database session for testing."""

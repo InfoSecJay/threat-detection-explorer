@@ -149,3 +149,65 @@ async def test_sources_filter_applies_to_source_list(db_session):
 
     got = await compute_newly_covered(db_session, days=30, sources=["splunk"])
     assert all(e["source"] == "splunk" for e in got["source_newly_covered"])
+
+
+# -- #172: the snapshot counts what counts as coverage --------------------------
+
+
+def _rule_x(rid: str, source: str, techniques: list[str], **kw):
+    r = _rule(rid, source, techniques)
+    for k, v in kw.items():
+        setattr(r, k, v)
+    return r
+
+
+@pytest.mark.asyncio
+async def test_snapshot_applies_the_coverage_rule(db_session):
+    """Hunting, passthrough, deprecated and a linked PyPanther port do not
+    count (DX-05 / #166); an unlinked pypanther rule and a plain rule do."""
+    db_session.add_all([
+        _rule("r1", "sigma", ["T1059"]),
+        _rule_x("h1", "elastic", ["T1059"], rule_modality="hunting"),
+        _rule_x("p1", "sentinel", ["T1059"], rule_modality="passthrough"),
+        _rule_x("d1", "splunk", ["T1059"], status="deprecated"),
+        _rule_x("pa", "panther", ["T1078"], rule_id="AWS.X"),
+        _rule_x("py", "pypanther", ["T1078"], rule_id="AWS.X-prototype", duplicate_of="pa"),
+        _rule_x("py2", "pypanther", ["T1110"], rule_id="AWS.Solo-prototype"),
+    ])
+    await db_session.commit()
+    n = await write_coverage_snapshot(db_session)
+    rows = (await db_session.execute(MitreCoverageSnapshot.__table__.select())).all()
+    counts = {(r.technique_id, r.source): r.rule_count for r in rows}
+    assert counts == {("T1059", "sigma"): 1, ("T1078", "panther"): 1, ("T1110", "pypanther"): 1}
+    assert n == 3
+
+
+@pytest.mark.asyncio
+async def test_pre_switch_baseline_falls_back_to_rule_dates(db_session, monkeypatch):
+    """A baseline snapshot older than STRICT_SNAPSHOT_SINCE is not
+    comparable: the diff uses the git-derived path and says so, and that
+    path applies the coverage rule too."""
+    from app.services import coverage_snapshot
+
+    today = utcnow().date()
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", today - timedelta(days=10))
+    db_session.add(MitreCoverageSnapshot(
+        snapshot_date=today - timedelta(days=40), technique_id="T1059", source="sigma", rule_count=2,
+    ))
+    recent = utcnow() - timedelta(days=5)
+    db_session.add_all([
+        _rule("r1", "sigma", ["T1059"], created=utcnow() - timedelta(days=400)),
+        _rule("r2", "sigma", ["T1651"], created=recent),
+        _rule_x("h1", "elastic", ["T1027"], created=recent, rule_modality="hunting"),
+    ])
+    await db_session.commit()
+
+    got = await compute_newly_covered(db_session, days=30)
+    assert got["method"] == "rule_dates" and got["baseline_date"] is None
+    ids = [e["technique_id"] for e in got["catalog_newly_covered"]]
+    assert ids == ["T1651"], "the hunting-only technique is not newly covered"
+
+    # With the cut-off before the baseline, the exact snapshot diff is back.
+    monkeypatch.setattr(coverage_snapshot, "STRICT_SNAPSHOT_SINCE", today - timedelta(days=50))
+    got = await compute_newly_covered(db_session, days=30)
+    assert got["method"] == "snapshot"
