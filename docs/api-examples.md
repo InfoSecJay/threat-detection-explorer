@@ -1,7 +1,7 @@
 # API worked examples
 
-Three copy-pasteable workflows against the live API (#92 / teardown
-S4.9). Base URL: `https://detectionexplorer.io/api/v1` (same data as the
+Copy-pasteable workflows against the live API (#92 / teardown S4.9;
+examples 4-7 added as the API grew). Base URL: `https://detectionexplorer.io/api/v1` (same data as the
 site; read-only; 40 requests per 10 seconds per IP at the edge).
 
 Interactive docs: https://detectionexplorer.io/api/docs (spec at `/api/openapi.json`).
@@ -143,3 +143,65 @@ curl -s "$API/detections?products=okta&sort_by=rule_created_date&limit=25"
 ---
 
 Questions or a workflow these don't cover: open an issue.
+
+---
+
+## 6. Where a term occurs in rule bodies, and whether it is excluded there
+
+Bare words never reach rule bodies; `content:` does. A `content:citrix`
+hit can be a rule that EXCLUDES Citrix (a signer or path allowlist)
+rather than one that detects it. Rows of a `content:` query carry
+`content_snippet` with the match in context and `negated` when the term
+sits only inside an exclusion (#167).
+
+```bash
+API="https://detectionexplorer.io/api/v1"
+
+curl -s "$API/detections?q=content:citrix&limit=100" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for r in d['items']:
+    s = r.get('content_snippet') or {}
+    flag = 'EXCLUDES' if s.get('negated') else 'detects '
+    ctx = (s.get('before', '') + '[' + s.get('match', '') + ']' + s.get('after', '')).replace('\n', ' ')
+    print(f\"{flag}  {r['source']:20s} {r['title'][:48]:48s} {ctx[-90:]}\")
+print(d['total'], 'rules mention it;', sum(1 for r in d['items'] if (r.get('content_snippet') or {}).get('negated')), 'only in an exclusion')
+"
+```
+
+The catalog page shows the same snippet under each row with an
+"excluded" badge; the `/query` reference documents the field.
+
+---
+
+## 7. Count a Panther/PyPanther pair once
+
+PyPanther re-ships panther-analysis as Python classes, so both files are
+indexed. Each port carries `duplicate_of` (the id of its Panther twin)
+and the detail response carries `duplicate_links` in both directions;
+coverage, actor and equivalence figures already count the pair once
+while Panther is in scope (#166). For your own counts:
+
+```bash
+API="https://detectionexplorer.io/api/v1"
+
+# Headline vs distinct rules
+curl -s "$API/detections/statistics" | python3 -c "
+import sys, json
+s = json.load(sys.stdin)
+ports = s.get('ports', {})
+print('indexed:', s['total'], '| re-shipped ports:', ports, '| distinct rules:', s['total'] - sum(ports.values()))
+"
+
+# A port and its twin
+ID=$(curl -s "$API/detections?sources=pypanther&limit=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
+curl -s "$API/detections/$ID" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d['source'], d['rule_id'], '->', [(l['relation'], l['source'], l['title']) for l in d['duplicate_links']])
+"
+```
+
+To skip ports in a list you fetch yourself, drop rows whose
+`duplicate_of` is set while you also hold the `panther` source; keep
+them when your stack has PyPanther alone.
