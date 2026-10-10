@@ -28,11 +28,12 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      {/* v7_startTransition: route changes render inside a React
-          transition, so the current page stays visible while a lazy
-          route's chunk downloads instead of the whole page being
-          swapped for the Suspense fallback (the "flicker"). */}
-      <BrowserRouter future={{ v7_startTransition: true }}>
+      {/* Route changes render inside a React transition (the v6
+          `v7_startTransition` opt-in, default since React Router 7), so
+          the current page stays visible while a lazy route's chunk
+          downloads instead of the whole page being swapped for the
+          Suspense fallback (the "flicker"). */}
+      <BrowserRouter>
         <MitreProvider>
           <App />
         </MitreProvider>
