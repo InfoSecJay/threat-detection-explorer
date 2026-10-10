@@ -201,6 +201,37 @@ def _migrate_sort_indexes(connection):
     ))
 
 
+def _migrate_trgm_indexes(connection):
+    """Trigram GIN indexes for the `content:` / `raw:` / `logic:` query
+    fields (body search). Those run `ILIKE '%term%'` over raw_content and
+    detection_logic, the one search path with no index: 1.2-2.3 s at the
+    origin per distinct term on 2026-10-10, against 0.2-0.4 s for every
+    other field. pg_trgm turns the same ILIKE into an index scan (the
+    count went from 480 ms to 5 ms on the 2026-09-27 snapshot; terms
+    under three characters still scan, as before).
+
+    Idempotent and Postgres-only; about 7 s and 50 MB on first run,
+    serialized with an advisory lock so the API and worker never build
+    it twice. The extension is created inside a savepoint: a role that
+    may not create extensions logs a warning and keeps the sequential
+    scan, without aborting the transaction the other migrations share.
+    """
+    if connection.engine.dialect.name != "postgresql":
+        return
+    connection.execute(text("SELECT pg_advisory_xact_lock(7331002)"))
+    try:
+        with connection.begin_nested():
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    except Exception as e:  # noqa: BLE001 -- privileges vary by host; the scan still works
+        logger.warning(f"pg_trgm unavailable, body search stays sequential: {e}")
+        return
+    for column in ("raw_content", "detection_logic"):
+        connection.execute(text(
+            f"CREATE INDEX IF NOT EXISTS ix_detections_{column}_trgm "
+            f"ON detections USING GIN ({column} gin_trgm_ops)"
+        ))
+
+
 # Marker present only in the v2 expression; its absence on an existing
 # column means the v1 vector and triggers a rebuild.
 _SEARCH_VECTOR_V2_MARKER = "regexp_replace"
@@ -287,3 +318,4 @@ async def init_db() -> None:
         await conn.run_sync(_migrate_widen_rule_id)
         await conn.run_sync(_migrate_search_vector)
         await conn.run_sync(_migrate_sort_indexes)
+        await conn.run_sync(_migrate_trgm_indexes)
