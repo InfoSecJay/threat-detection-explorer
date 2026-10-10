@@ -12,7 +12,7 @@ the whole table: sidebar facet counts, statistics, filter options,
 technique -> source coverage, actor rule matching. Recomputing those on
 every request meant 14-22 round trips or a full scan per page view.
 
-## Three layers
+## Four layers
 
 1. **Fewer round trips.** `SearchService.get_facets` groups sidebar
    dimensions by their effective filter set and fetches every needed
@@ -43,6 +43,14 @@ every request meant 14-22 round trips or a full scan per page view.
    the technique x data-source matrix (`/mitre/coverage-by-data-source`)
    and `sitemap.xml`.
 
+4. **Trigram indexes for body search** (`_migrate_trgm_indexes` in
+   `app/database.py`, 2026-10-10). The `content:` / `raw:` / `logic:`
+   query fields are `ILIKE '%term%'` over `raw_content` and
+   `detection_logic`; pg_trgm GIN indexes on both columns turn that into
+   an index scan (terms under three characters still scan). Built once
+   at startup (~7 s, ~50 MB), idempotent, skipped with a warning where
+   the role cannot create the extension.
+
 3. **Warm-up at startup** (`app/services/warmup.py`). A deploy empties
    the in-memory caches, so the lifespan starts a background task that
    rebuilds the hot entries plus the 15 largest-gap and 15 best-covered actor pages. Best
@@ -61,6 +69,7 @@ every request meant 14-22 round trips or a full scan per page view.
 | `GET /observables` (index) | 2.4 s | ~0.1 s |
 | `GET /trending/threats` | 0.50 s | ~0.1 s |
 | `GET /trending/summary` (cold) | 30 queries | 3 queries |
+| `GET /detections?q=content:<term>` (origin, each new term) | 1.2-2.3 s | 0.16-0.33 s |
 
 Cold (first-after-deploy) costs are unchanged; the warm-up exists so
 a visitor rarely sees them.
