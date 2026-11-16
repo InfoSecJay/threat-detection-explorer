@@ -43,7 +43,7 @@ export function McpServer() {
           >
             MCP
           </a>{' '}
-          client to the Detection Explorer corpus. Your assistant can search {ruleCount} rules from thirteen
+          client to the Detection Explorer corpus. Your assistant can search {ruleCount} rules from fourteen
           repositories, open and diff them observable by observable, find rules one vendor has and another lacks,
           and score ATT&amp;CK coverage for a threat actor against the repositories you actually run.
         </p>

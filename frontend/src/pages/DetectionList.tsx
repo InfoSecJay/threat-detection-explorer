@@ -76,7 +76,7 @@ function ApiUrlButton({ url }: { url: string }) {
 
 export function DetectionList() {
   // DX-18: every list route used to title as the bare site name.
-  useDocumentMeta('Detection rules', 'Search 15,000+ open-source detection rules across thirteen repositories, normalized to one schema and mapped to MITRE ATT&CK.');
+  useDocumentMeta('Detection rules', 'Search 15,000+ open-source detection rules across fourteen repositories, normalized to one schema and mapped to MITRE ATT&CK.');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);

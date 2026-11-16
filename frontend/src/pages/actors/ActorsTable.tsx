@@ -28,7 +28,7 @@ const TABLE_COLUMNS: {
   { key: 'gap_count', label: 'Gaps', sort: 'gap_count' },
   {
     key: 'weighted_coverage', label: 'Weighted cov.', sort: 'weighted_coverage',
-    title: 'Techniques with >=1 public rule from any of the 13 tracked sources, weighted so rare TTPs count more than ones nearly every actor uses',
+    title: 'Techniques with >=1 public rule from any of the 14 tracked sources, weighted so rare TTPs count more than ones nearly every actor uses',
   },
   // DX-08: same vocabulary as the detail page's toggle (Named / Mentions).
   { key: 'our_rule_count', label: 'Named', sort: 'our_rule_count', title: 'Rules built for this actor: ATT&CK-ID tagged, story-labeled, or named in the title' },

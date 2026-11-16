@@ -107,6 +107,14 @@ export const HOME_SOURCES = [
     repoUrl: 'https://github.com/panther-labs/pypanther',
     color: '#c026d3',
   },
+  {
+    id: 'gitlab' as const,
+    format: 'Markdown / Sigma',
+    name: 'GitLab',
+    description: 'GitLab TLDR - GitLab-authored Sigma rules for GitLab itself: threat detections over the audit, API and Rails request logs, and vulnerability detections for specific CVEs, each with sample events and a response guide.',
+    repoUrl: 'https://gitlab.com/gitlab-security-oss/tldr',
+    color: '#f43f5e',
+  },
 ];
 
 export type HomeSource = (typeof HOME_SOURCES)[number];

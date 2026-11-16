@@ -17,6 +17,7 @@ export const ALL_SOURCES = [
   'auth0',
   'panther',
   'pypanther',
+  'gitlab',
 ] as const;
 
 export type SourceName = (typeof ALL_SOURCES)[number];
@@ -35,6 +36,7 @@ export const sourceColors: Record<string, string> = {
   auth0: '#f59e0b',
   panther: '#d946ef',
   pypanther: '#c026d3',
+  gitlab: '#f43f5e',
 };
 
 export const sourceLabels: Record<string, string> = {
@@ -51,6 +53,7 @@ export const sourceLabels: Record<string, string> = {
   auth0: 'Auth0',
   panther: 'Panther',
   pypanther: 'PyPanther',
+  gitlab: 'GitLab',
 };
 
 /** Upstream rule licenses (#89 / teardown F14) -- shown on every rule
@@ -69,6 +72,7 @@ export const sourceLicenses: Record<string, { label: string; url: string; note?:
   pypanther: { label: 'Apache-2.0', url: 'https://github.com/panther-labs/pypanther/blob/main/LICENSE.txt' },
   okta: { label: 'Apache-2.0', url: 'https://github.com/okta/customer-detections/blob/main/LICENSE' },
   auth0: { label: 'Custom', url: 'https://github.com/auth0/auth0-customer-detections/blob/main/LICENSE' },
+  gitlab: { label: 'MIT', url: 'https://gitlab.com/gitlab-security-oss/tldr/-/blob/main/LICENSE' },
 };
 
 export const sourceLabelsShort: Record<string, string> = {
@@ -85,6 +89,7 @@ export const sourceLabelsShort: Record<string, string> = {
   auth0: 'AUTH0',
   panther: 'PANTHER',
   pypanther: 'PYPANTHER',
+  gitlab: 'GITLAB',
 };
 
 export const sourceTailwind: Record<string, string> = {
@@ -101,6 +106,7 @@ export const sourceTailwind: Record<string, string> = {
   auth0: 'border-amber-500 bg-amber-500/10',
   panther: 'border-fuchsia-500 bg-fuchsia-500/10',
   pypanther: 'border-fuchsia-600 bg-fuchsia-600/10',
+  gitlab: 'border-rose-500 bg-rose-500/10',
 };
 
 export const severityColors: Record<string, string> = {

@@ -86,11 +86,11 @@ describe('ActorDetail', () => {
     // The query carries the scope the page reads from the URL.
     expect(scopes[scopes.length - 1]).toEqual({ sources: ['sigma', 'elastic'], coverage: 'all' });
     // The hero labels the number with what it was scored against.
-    expect(getByTestId('hero-coverage-scope')).toHaveTextContent('2 of 13 sources, incl. hunting / passthrough rules');
+    expect(getByTestId('hero-coverage-scope')).toHaveTextContent('2 of 14 sources, incl. hunting / passthrough rules');
     // Only the stack's sources are shown as coverage cards; the rest are named as hidden.
     expect(getByTestId('cov-sigma')).toBeInTheDocument();
     expect(queryByTestId('cov-splunk')).toBeNull();
-    expect(getByText(/11 sources outside your stack hidden/)).toBeInTheDocument();
+    expect(getByText(/12 sources outside your stack hidden/)).toBeInTheDocument();
     expect(getByTestId('scope-src-sigma')).toHaveAttribute('aria-pressed', 'true');
     expect(getByTestId('scope-src-splunk')).toHaveAttribute('aria-pressed', 'false');
     expect(getByTestId('scope-coverage-toggle')).toBeChecked();

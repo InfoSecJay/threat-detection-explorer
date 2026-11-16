@@ -12,8 +12,11 @@ import { parseApiDate } from '../utils/dates';
 
 function commitUrl(repoUrl: string | null | undefined, sha: string): string | null {
   if (!repoUrl) return null;
-  const m = repoUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
-  return m ? `https://github.com/${m[1]}/${m[2]}/commit/${sha}` : null;
+  const m = repoUrl.match(/^https?:\/\/(github\.com|gitlab\.com)\/([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
+  if (!m) return null;
+  // gitlab.com routes repository views under /-/.
+  const route = m[1].toLowerCase() === 'gitlab.com' ? '-/commit' : 'commit';
+  return `https://${m[1].toLowerCase()}/${m[2]}/${m[3]}/${route}/${sha}`;
 }
 
 function relDate(iso: string): string {

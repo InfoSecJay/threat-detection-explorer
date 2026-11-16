@@ -75,7 +75,7 @@ export const WORKFLOWS: Array<{ title: string; prompt: string; tools: string[]; 
     title: 'Keep up with upstream',
     prompt: 'What changed in the public rule repositories this week? Summarise the new rules by technique.',
     tools: ['whats_new'],
-    why: 'All thirteen repositories sync nightly, and every rule is pinned to the upstream commit it came from.',
+    why: 'All fourteen repositories sync nightly, and every rule is pinned to the upstream commit it came from.',
   },
   {
     title: 'Export a Navigator layer',
@@ -102,8 +102,8 @@ export const TOOLS: Array<{ name: string; does: string }> = [
 
 export const DIFFERENCES: Array<{ title: string; body: string }> = [
   {
-    title: 'Thirteen repositories, one schema',
-    body: 'SigmaHQ, Elastic rules, hunting queries and protections, Splunk, Microsoft Sentinel, Panther, PyPanther, Sublime, Google SecOps, Okta, Auth0 and LOLRMM, normalized to the same platforms, data sources and event types.',
+    title: 'Fourteen repositories, one schema',
+    body: 'SigmaHQ, Elastic rules, hunting queries and protections, Splunk, Microsoft Sentinel, Panther, PyPanther, Sublime, Google SecOps, Okta, Auth0, LOLRMM and GitLab, normalized to the same platforms, data sources and event types.',
   },
   {
     title: 'Observables, not just tags',

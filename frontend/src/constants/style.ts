@@ -65,4 +65,5 @@ export const sourceTheme: Record<string, SourceTheme> = {
   auth0:               { name: 'Auth0',         dot: 'bg-amber-500',  text: 'text-amber-400',  border: 'border-amber-500/30',  bg: 'bg-amber-500/20' },
   panther:             { name: 'Panther',       dot: 'bg-fuchsia-500',text: 'text-fuchsia-400',border: 'border-fuchsia-500/30',bg: 'bg-fuchsia-500/20' },
   pypanther:           { name: 'PyPanther',     dot: 'bg-fuchsia-600',text: 'text-fuchsia-300',border: 'border-fuchsia-600/30',bg: 'bg-fuchsia-600/20' },
+  gitlab:              { name: 'GitLab',        dot: 'bg-rose-500',   text: 'text-rose-400',   border: 'border-rose-500/30',   bg: 'bg-rose-500/20' },
 };

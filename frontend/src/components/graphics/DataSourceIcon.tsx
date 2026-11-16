@@ -4,7 +4,7 @@ export function DataSourceIcon({
   className = '',
   size = 48
 }: {
-  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther';
+  source: 'sigma' | 'elastic' | 'splunk' | 'sublime' | 'elastic_protections' | 'lolrmm' | 'elastic_hunting' | 'sentinel' | 'google_secops' | 'okta' | 'auth0' | 'panther' | 'pypanther' | 'gitlab';
   className?: string;
   size?: number;
 }) {
@@ -22,6 +22,7 @@ export function DataSourceIcon({
     auth0: '#f59e0b',
     panther: '#d946ef',
     pypanther: '#c026d3',
+    gitlab: '#f43f5e',
   };
 
   const color = colors[source] || '#00ffcc';
@@ -215,6 +216,21 @@ export function DataSourceIcon({
           {/* Keyhole */}
           <circle cx="24" cy="29" r="2" fill={color} />
           <line x1="24" y1="29" x2="24" y2="34" stroke={color} strokeWidth="2" strokeLinecap="round" />
+        </g>
+      )}
+
+      {source === 'gitlab' && (
+        // GitLab TLDR - a branch merging back into the main line, with a
+        // marker on the merge point (detections over source-control activity)
+        <g filter={`url(#glow-${source})`}>
+          <line x1="17" y1="12" x2="17" y2="36" stroke={color} strokeWidth="2" strokeLinecap="round" />
+          <path
+            d="M17,18 Q31,18 31,26 Q31,32 17,32"
+            fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"
+          />
+          <circle cx="17" cy="12" r="3" fill="#0a0a0f" stroke={color} strokeWidth="2" />
+          <circle cx="31" cy="25" r="3" fill="#0a0a0f" stroke={color} strokeWidth="2" />
+          <circle cx="17" cy="36" r="3.5" fill={color} />
         </g>
       )}
 

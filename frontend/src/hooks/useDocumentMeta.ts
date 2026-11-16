@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 const SITE = 'Detection Explorer';
 const DEFAULT_DESCRIPTION =
-  'Open-source detection rules from thirteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on.';
+  'Open-source detection rules from fourteen repositories in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on.';
 
 /** Per-page <title> and meta description so shared links and search
  * results say what the page is. Restores the defaults on unmount. */

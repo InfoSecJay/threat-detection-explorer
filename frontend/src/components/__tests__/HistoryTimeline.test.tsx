@@ -35,6 +35,20 @@ describe('HistoryTimeline', () => {
     expect(links[0]).toHaveAttribute('href', 'https://github.com/SigmaHQ/sigma/commit/abc10000');
   });
 
+  it('links commits on gitlab.com through its /-/ route, and nowhere unknown', () => {
+    const touches = [touch(1, '2026-08-01T00:00:00Z')];
+    const { unmount } = render(
+      <HistoryTimeline touches={touches} createdDate="2026-08-01T00:00:00Z" repoUrl="https://gitlab.com/gitlab-security-oss/tldr.git" />,
+    );
+    expect(screen.getByTitle('Open the upstream commit')).toHaveAttribute(
+      'href', 'https://gitlab.com/gitlab-security-oss/tldr/-/commit/abc10000',
+    );
+    unmount();
+    // A host that merely contains the name is not that host.
+    render(<HistoryTimeline touches={touches} createdDate="2026-08-01T00:00:00Z" repoUrl="https://notgitlab.com/a/b.git" />);
+    expect(screen.queryByTitle('Open the upstream commit')).toBeNull();
+  });
+
   it('adds a Created entry from the rule date when history is capped', () => {
     const touches = Array.from({ length: 10 }, (_, i) => touch(i, `2026-0${(i % 8) + 1}-15T00:00:00Z`));
     render(<HistoryTimeline touches={touches} createdDate="2021-06-01T00:00:00Z" repoUrl={REPO} />);

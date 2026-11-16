@@ -47,7 +47,7 @@ describe('CoverageScopeBar + useCoverageScope', () => {
     expect(url).toContain('sigma');
     expect(url).toContain('sort=gap_count');
     expect(url).not.toContain('page=3');
-    expect(screen.getByTestId('label')).toHaveTextContent('12 of 13 sources');
+    expect(screen.getByTestId('label')).toHaveTextContent('13 of 14 sources');
     expect(screen.getByTestId('scope-src-splunk')).toHaveAttribute('aria-pressed', 'false');
     // Remembered for the next page.
     expect(JSON.parse(localStorage.getItem(SCOPE_STORAGE_KEY) ?? '{}').sources).not.toContain('splunk');
@@ -68,12 +68,12 @@ describe('CoverageScopeBar + useCoverageScope', () => {
     localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify({ sources: ['sigma', 'elastic'], coverage: 'strict' }));
     mount('/actors/G0016');
     expect(screen.getByTestId('url')).toHaveTextContent('sources=sigma%2Celastic');
-    expect(screen.getByTestId('label')).toHaveTextContent('2 of 13 sources');
+    expect(screen.getByTestId('label')).toHaveTextContent('2 of 14 sources');
   });
 
   it('unknown source names in the URL are ignored, and selecting every source is unscoped', () => {
     mount('/actors?sources=sigma,nope');
-    expect(screen.getByTestId('label')).toHaveTextContent('1 of 13 sources');
+    expect(screen.getByTestId('label')).toHaveTextContent('1 of 14 sources');
     fireEvent.click(screen.getByTestId('scope-all'));
     expect(screen.getByTestId('url').textContent).not.toContain('sources');
     expect(localStorage.getItem(SCOPE_STORAGE_KEY)).toBeNull();

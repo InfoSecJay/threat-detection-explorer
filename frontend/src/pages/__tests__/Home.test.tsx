@@ -109,8 +109,8 @@ describe('Home', () => {
   it('states scope in the hero and shows the four exact numbers', async () => {
     const { getByTestId, getByText } = renderPage();
     await waitFor(() => expect(getByTestId('stat-rules')).toHaveTextContent('15,682'));
-    expect(getByText(/15,682 detection rules from 13 open-source/)).toBeInTheDocument();
-    expect(getByTestId('stat-sources')).toHaveTextContent('13');
+    expect(getByText(/15,682 detection rules from 14 open-source/)).toBeInTheDocument();
+    expect(getByTestId('stat-sources')).toHaveTextContent('14');
     expect(getByTestId('stat-coverage')).toHaveTextContent('171 / 203');
     // Parent-only figure; the MITRE browser defaults to parents + subs,
     // so the label must name the denominator.

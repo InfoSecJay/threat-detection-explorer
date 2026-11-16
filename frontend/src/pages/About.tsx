@@ -134,9 +134,9 @@ export function About() {
               community-driven security repositories.
             </p>
             <p>
-              It aggregates detection content from thirteen repositories - SigmaHQ, Elastic (detection rules,
+              It aggregates detection content from fourteen repositories - SigmaHQ, Elastic (detection rules,
               hunting queries, endpoint protections), Splunk Security Content, Microsoft Sentinel, Google SecOps,
-              Sublime Security, LOLRMM, Okta, Auth0, Panther and pypanther - into one schema mapped to MITRE ATT&CK.
+              Sublime Security, LOLRMM, Okta, Auth0, Panther, pypanther and GitLab - into one schema mapped to MITRE ATT&CK.
             </p>
             <p>
               Beyond search and technique filtering, every rule&apos;s logic is parsed for the observables it keys on
