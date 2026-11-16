@@ -33,6 +33,7 @@ export const SOURCES = [
   "okta",
   "auth0",
   "lolrmm",
+  "gitlab",
 ] as const;
 
 const SEVERITIES = ["critical", "high", "medium", "low", "unknown"] as const;
@@ -91,7 +92,7 @@ export function createServer(client: DetectionExplorerClient): McpServer {
     { name: "detection-explorer", version: VERSION },
     {
       instructions:
-        "Detection Explorer indexes 15,000+ open-source detection rules from 13 repositories (Sigma, Elastic, Splunk, Microsoft Sentinel, Panther, Sublime, Google SecOps, Okta, Auth0, LOLRMM) in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on. " +
+        "Detection Explorer indexes 15,000+ open-source detection rules from 14 repositories (Sigma, Elastic, Splunk, Microsoft Sentinel, Panther, Sublime, Google SecOps, Okta, Auth0, LOLRMM, GitLab) in one schema, mapped to MITRE ATT&CK, with the observables each rule keys on. " +
         "Start with search_detections (call query_language for the field list), open rules with get_detection, and use find_related_detections / compare_detections to port or dedupe across vendors. " +
         "Coverage tools (technique_coverage, actor_coverage, coverage_gap) describe public rules, not any organisation's deployed detections. " +
         "The API is rate limited to 40 requests per 10 seconds; prefer one broad query over many narrow ones. Always give the user the detectionexplorer.io url of rules you cite.",

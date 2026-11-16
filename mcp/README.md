@@ -2,10 +2,10 @@
 
 An [MCP](https://modelcontextprotocol.io) server for
 [Detection Explorer](https://detectionexplorer.io): search, compare and map
-15,000+ open-source detection rules from 13 repositories (SigmaHQ, Elastic
+15,000+ open-source detection rules from 14 repositories (SigmaHQ, Elastic
 detection rules, hunting queries and protections, Splunk Security Content,
 Microsoft Sentinel, Panther, PyPanther, Sublime, Google SecOps, Okta, Auth0,
-LOLRMM), normalized into one schema, mapped to MITRE ATT&CK, with the
+LOLRMM, GitLab TLDR), normalized into one schema, mapped to MITRE ATT&CK, with the
 observables each rule keys on.
 
 It wraps the public, read-only
