@@ -128,6 +128,10 @@ class SigmaParser(BaseParser):
         "persistence": "TA0003",
         "privilege-escalation": "TA0004",
         "defense-evasion": "TA0005",
+        # ATT&CK v18 split Defense Evasion: TA0005 is now Stealth and
+        # TA0112 Defense Impairment. Both names are valid Sigma tags.
+        "stealth": "TA0005",
+        "defense-impairment": "TA0112",
         "credential-access": "TA0006",
         "discovery": "TA0007",
         "lateral-movement": "TA0008",

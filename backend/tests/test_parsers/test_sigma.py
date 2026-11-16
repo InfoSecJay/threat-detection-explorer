@@ -166,3 +166,17 @@ tags:
         assert "STEALTH" not in software
         assert "SPEARPHISHING" not in software
         assert "GOOGLE-WORKSPACE" not in groups
+
+
+def test_attack_v18_tactic_tags_are_tactics():
+    """ATT&CK v18 renamed TA0005 to Stealth and added TA0112 Defense
+    Impairment. Both spellings Sigma authors use must resolve, and the
+    tag must not be left behind as a free-form tag."""
+    from app.parsers.sigma import SigmaParser
+
+    parser = SigmaParser()
+    tags = ["attack.stealth", "attack.defense-impairment", "attack.defense_impairment", "attack.t1562.001"]
+    out = parser._extract_mitre_from_tags(tags)
+    assert out["tactics"] == ["TA0005", "TA0112"]
+    assert out["software"] == [] and out["groups"] == []
+    assert all(parser._is_mitre_tag(t) for t in tags)
