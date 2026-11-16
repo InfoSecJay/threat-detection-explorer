@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
 
 API_DESCRIPTION = """
 Read-only REST API behind [detectionexplorer.io](https://detectionexplorer.io):
-15,000+ open-source detection rules from thirteen repositories, normalized
+15,000+ open-source detection rules from fourteen repositories, normalized
 into one schema, mapped to MITRE ATT&CK, with the observables each rule
 keys on. No authentication.
 

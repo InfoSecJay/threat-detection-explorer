@@ -265,7 +265,10 @@ DATA_SOURCES: frozenset[str] = frozenset(
         "gcp_http_load_balancer",
         # ── DevOps additions (Panther onboarding) ───────────────────────────
         "github_webhook",
-        "gitlab_production",           # GitLab production/application logs
+        "gitlab_production",           # GitLab production_json.log (Rails controller requests)
+        "gitlab_api",                  # GitLab api_json.log / graphql_json.log (REST + GraphQL requests)
+        "gitlab_application",          # GitLab application_json.log / exceptions_json.log
+        "gitlab_service_logs",         # GitLab component logs: Workhorse, Gitaly, Sidekiq, Puma
         "atlassian_audit",
         "snyk_org_audit",
         "snyk_group_audit",
@@ -663,6 +666,9 @@ DATA_SOURCE_PLATFORMS: dict[str, frozenset[str]] = {
     "github_webhook": frozenset({"github"}),
     "gitlab_audit": frozenset({"gitlab"}),
     "gitlab_production": frozenset({"gitlab"}),
+    "gitlab_api": frozenset({"gitlab"}),
+    "gitlab_application": frozenset({"gitlab"}),
+    "gitlab_service_logs": frozenset({"gitlab"}),
     "bitbucket_audit": frozenset({"bitbucket"}),
     "atlassian_audit": frozenset({"atlassian"}),
     "snyk_org_audit": frozenset({"snyk"}),

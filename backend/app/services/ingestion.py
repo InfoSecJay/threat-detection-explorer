@@ -26,13 +26,14 @@ from app.parsers import (
     SigmaParser, ElasticParser, SplunkParser,
     SublimeParser, ElasticProtectionsParser, LOLRMMParser,
     ElasticHuntingParser, SentinelParser, GoogleSecOpsParser,
-    OktaParser, Auth0Parser, PantherParser, PyPantherParser, BaseParser
+    OktaParser, Auth0Parser, PantherParser, PyPantherParser, GitLabParser, BaseParser
 )
 from app.normalizers import (
     SigmaNormalizer, ElasticNormalizer, SplunkNormalizer,
     SublimeNormalizer, ElasticProtectionsNormalizer, LOLRMMNormalizer,
     ElasticHuntingNormalizer, SentinelNormalizer, GoogleSecOpsNormalizer,
     OktaNormalizer, Auth0Normalizer, PantherNormalizer, PyPantherNormalizer,
+    GitLabNormalizer,
     BaseNormalizer, NormalizedDetection
 )
 from app.services.quality_score import score_detection
@@ -104,6 +105,7 @@ class IngestionService:
             # pypanther parser needs discovery to read the LogType
             # enum module for attr -> value resolution.
             "pypanther": PyPantherParser(self.discovery),
+            "gitlab": GitLabParser(),
         }
 
         # Initialize normalizers — pass local repo paths so they can fall back
@@ -142,6 +144,10 @@ class IngestionService:
             "pypanther": PyPantherNormalizer(
                 settings.pypanther_repo_url,
                 settings.get_repo_path("pypanther"),
+            ),
+            "gitlab": GitLabNormalizer(
+                settings.gitlab_repo_url,
+                settings.get_repo_path("gitlab"),
             ),
         }
 
@@ -279,15 +285,17 @@ class IngestionService:
                 stats.skipped_by_filter += 1
                 continue
 
-            # Parse rule
+            # Parse the file. One rule for almost every format; a
+            # multi-rule file (GitLab TLDR) yields one ParsedRule per
+            # rule it carries.
             try:
                 _t = time.perf_counter()
-                parsed = parser.parse(relative_path, content)
+                parsed_rules = parser.parse_all(relative_path, content)
                 timings["parse"] += time.perf_counter() - _t
-                if isinstance(parsed, SkippedRule):
+                if isinstance(parsed_rules, SkippedRule):
                     stats.skipped_by_filter += 1
                     continue
-                if parsed is None:
+                if not parsed_rules:
                     stats.add_error(
                         file_path=relative_path,
                         stage=ErrorStage.PARSE,
@@ -295,7 +303,11 @@ class IngestionService:
                         severity=ErrorSeverity.WARNING
                     )
                     continue
-                stats.parsed += 1
+                stats.parsed += len(parsed_rules)
+                # `discovered` counts rules: every figure derived from it
+                # (success rate, the cleanup circuit breaker against the
+                # previous rule count) compares it with stored rows.
+                stats.discovered += len(parsed_rules) - 1
             except Exception as e:
                 stats.add_error(
                     file_path=relative_path,
@@ -306,79 +318,80 @@ class IngestionService:
                 )
                 continue
 
-            # Normalize rule
-            try:
-                _t = time.perf_counter()
-                normalized = normalizer.normalize(parsed)
-                # Rule history timeline (#127): last upstream touches of
-                # the file, from the clone, for every source.
-                normalizer.attach_upstream_history(normalized, str(parsed.file_path))
-                timings["normalize"] += time.perf_counter() - _t
-                stats.normalized += 1
+            for parsed in parsed_rules:
+                # Normalize rule
+                try:
+                    _t = time.perf_counter()
+                    normalized = normalizer.normalize(parsed)
+                    # Rule history timeline (#127): last upstream touches of
+                    # the file, from the clone, for every source.
+                    normalizer.attach_upstream_history(normalized, str(parsed.file_path))
+                    timings["normalize"] += time.perf_counter() - _t
+                    stats.normalized += 1
 
-                # Taxonomy coverage telemetry (Issue 2). Records whether
-                # the canonical resolver found a mapping for this rule,
-                # grouped by logsource fingerprint so drift reports
-                # collapse identical misses.
-                stats.record_taxonomy_result(
-                    matched=normalized.taxonomy_matched,
-                    fingerprint=normalized.taxonomy_fingerprint,
-                    rule_id=normalized.rule_id,
-                    source_file=normalized.source_file,
-                    title=normalized.title,
-                    has_data_source=any(
-                        ds and ds != "unknown" for ds in (normalized.data_sources or [])
-                    ),
-                )
+                    # Taxonomy coverage telemetry (Issue 2). Records whether
+                    # the canonical resolver found a mapping for this rule,
+                    # grouped by logsource fingerprint so drift reports
+                    # collapse identical misses.
+                    stats.record_taxonomy_result(
+                        matched=normalized.taxonomy_matched,
+                        fingerprint=normalized.taxonomy_fingerprint,
+                        rule_id=normalized.rule_id,
+                        source_file=normalized.source_file,
+                        title=normalized.title,
+                        has_data_source=any(
+                            ds and ds != "unknown" for ds in (normalized.data_sources or [])
+                        ),
+                    )
 
-                # Duplicate upstream rule_id inside this run: fall
-                # back to the path-hash id for the later file so both
-                # rows survive, and say so loudly (#86).
-                if normalized.id in seen_ids and normalized.legacy_id and normalized.legacy_id != normalized.id:
+                    # Duplicate upstream rule_id inside this run: fall
+                    # back to the path-hash id for the later file so both
+                    # rows survive, and say so loudly (#86).
+                    if normalized.id in seen_ids and normalized.legacy_id and normalized.legacy_id != normalized.id:
+                        stats.add_error(
+                            file_path=relative_path,
+                            stage=ErrorStage.NORMALIZE,
+                            message=(
+                                f"Duplicate upstream rule_id {normalized.rule_id!r}; "
+                                f"this file keeps its path-derived id"
+                            ),
+                            severity=ErrorSeverity.WARNING,
+                            dropped=False,
+                        )
+                        normalized.id = normalized.legacy_id
+                    seen_ids.add(normalized.id)
+                    if normalized.legacy_id and normalized.legacy_id != normalized.id:
+                        alias_rows[normalized.legacy_id] = (normalized.id, "legacy")
+                    rid_alias = (normalized.rule_id or "").strip() if isinstance(normalized.rule_id, str) else ""
+                    if rid_alias and rid_alias != normalized.id:
+                        alias_rows.setdefault(rid_alias, (normalized.id, "rule_id"))
+
+                    # Convert to database model
+                    detection = self._to_detection_model(normalized, run_id)
+                    rules_to_store.append(detection)
+                    elapsed = time.perf_counter() - rule_started
+                    if elapsed > slow_rule_seconds:
+                        logger.warning(f"{repo_name}: slow rule {relative_path} took {elapsed:.1f}s to parse + normalize")
+
+                    # Batch insert
+                    if len(rules_to_store) >= batch_size:
+                        _t = time.perf_counter()
+                        stored_count = await self._store_rules_safe(rules_to_store, stats)
+                        batch_seconds = time.perf_counter() - _t
+                        timings["store"] += batch_seconds
+                        if batch_seconds > slow_rule_seconds * batch_size / 10:
+                            logger.warning(f"{repo_name}: slow store batch of {len(rules_to_store)} rows took {batch_seconds:.1f}s")
+                        stats.stored += stored_count
+                        rules_to_store = []
+
+                except Exception as e:
                     stats.add_error(
                         file_path=relative_path,
                         stage=ErrorStage.NORMALIZE,
-                        message=(
-                            f"Duplicate upstream rule_id {normalized.rule_id!r}; "
-                            f"this file keeps its path-derived id"
-                        ),
-                        severity=ErrorSeverity.WARNING,
-                        dropped=False,
+                        message=f"Normalization exception: {type(e).__name__}: {str(e)}",
+                        details=traceback.format_exc(),
+                        severity=ErrorSeverity.ERROR
                     )
-                    normalized.id = normalized.legacy_id
-                seen_ids.add(normalized.id)
-                if normalized.legacy_id and normalized.legacy_id != normalized.id:
-                    alias_rows[normalized.legacy_id] = (normalized.id, "legacy")
-                rid_alias = (normalized.rule_id or "").strip() if isinstance(normalized.rule_id, str) else ""
-                if rid_alias and rid_alias != normalized.id:
-                    alias_rows.setdefault(rid_alias, (normalized.id, "rule_id"))
-
-                # Convert to database model
-                detection = self._to_detection_model(normalized, run_id)
-                rules_to_store.append(detection)
-                elapsed = time.perf_counter() - rule_started
-                if elapsed > slow_rule_seconds:
-                    logger.warning(f"{repo_name}: slow rule {relative_path} took {elapsed:.1f}s to parse + normalize")
-
-                # Batch insert
-                if len(rules_to_store) >= batch_size:
-                    _t = time.perf_counter()
-                    stored_count = await self._store_rules_safe(rules_to_store, stats)
-                    batch_seconds = time.perf_counter() - _t
-                    timings["store"] += batch_seconds
-                    if batch_seconds > slow_rule_seconds * batch_size / 10:
-                        logger.warning(f"{repo_name}: slow store batch of {len(rules_to_store)} rows took {batch_seconds:.1f}s")
-                    stats.stored += stored_count
-                    rules_to_store = []
-
-            except Exception as e:
-                stats.add_error(
-                    file_path=relative_path,
-                    stage=ErrorStage.NORMALIZE,
-                    message=f"Normalization exception: {type(e).__name__}: {str(e)}",
-                    details=traceback.format_exc(),
-                    severity=ErrorSeverity.ERROR
-                )
 
         # Store remaining rules
         if rules_to_store:

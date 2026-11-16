@@ -13,13 +13,13 @@
 
 ---
 
-Detection Explorer ingests and normalizes detection rules from 13 open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
+Detection Explorer ingests and normalizes detection rules from 14 open-source security content repositories into a unified schema, enabling cross-vendor comparison, MITRE ATT&CK coverage analysis, and coverage gap identification.
 
 ### Why?
 
 Detection engineers work across multiple rule formats daily — Sigma YAML, Elastic TOML, Splunk YAML — each with different schemas, severity levels, and metadata structures. Detection Explorer normalizes all of them into a single searchable interface so you can:
 
-- **Search & filter** across 13 sources with full-text search, severity, status, and MITRE tactic/technique filters
+- **Search & filter** across 14 sources with full-text search, severity, status, and MITRE tactic/technique filters
 - **Compare rules** observable by observable -- what each of 2-6 rules keys on, on which vendor field, and what it excludes
 - **Identify gaps** — find techniques covered by one vendor but missing from another
 - **Stay current** — sync and re-ingest to pull the latest rules from each repo
@@ -42,6 +42,7 @@ Detection engineers work across multiple rule formats daily — Sigma YAML, Elas
 | [Auth0 customer-detections](https://github.com/auth0/auth0-customer-detections) | YAML (Sigma + SPL) |
 | [Panther Labs](https://github.com/panther-labs/panther-analysis) | YAML metadata + Python detection |
 | [PyPanther](https://github.com/panther-labs/pypanther) | Python classes |
+| [GitLab TLDR](https://gitlab.com/gitlab-security-oss/tldr) | Markdown with embedded Sigma |
 
 ---
 
@@ -67,7 +68,7 @@ curl "https://detectionexplorer.io/api/v1/detections?sources=sigma&mitre_techniq
 # Corpus statistics (rule count per source, severity, status)
 curl "https://detectionexplorer.io/api/v1/detections/statistics"
 
-# Coverage for a MITRE technique across all 13 sources
+# Coverage for a MITRE technique across all 14 sources
 curl "https://detectionexplorer.io/api/v1/compare?technique=T1059.001"
 
 # Observable-level diff of two rules (same matrix as the /compare page)

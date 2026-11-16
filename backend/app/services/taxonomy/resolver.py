@@ -30,6 +30,7 @@ from app.services.taxonomy.vendors import (
     elastic,
     elastic_hunting,
     elastic_protections,
+    gitlab,
     google_secops,
     lolrmm,
     okta,
@@ -64,6 +65,7 @@ _VENDOR_RESOLVERS: dict[str, Callable[["ParsedRule"], dict]] = {
     # pypanther resolves LogType enums to the same string vocabulary
     # ("AWS.CloudTrail") at parse time -- same mapping applies.
     "pypanther": panther.resolve,
+    "gitlab": gitlab.resolve,
 }
 
 
@@ -225,4 +227,6 @@ def _compute_fingerprint(repo_name: str, parsed: "ParsedRule") -> str:
         return f"lolrmm:{ls.get('product') or '-'}"
     if repo_name == "sublime":
         return "sublime:email"
+    if repo_name == "gitlab":
+        return f"gitlab:{','.join(sorted(gitlab.services_of(parsed))) or '-'}"
     return f"{repo_name}:-"

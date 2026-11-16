@@ -78,6 +78,22 @@ class BaseParser(ABC):
         """
         pass
 
+    def parse_all(
+        self, file_path: Path, content: str,
+    ) -> "list[ParsedRule] | SkippedRule | None":
+        """Every rule a file holds. Ingestion calls this, not ``parse``.
+
+        Almost every format is one rule per file, so the default wraps
+        ``parse``. A parser whose files carry several independently
+        identified rules (GitLab TLDR: a multi-document Sigma fence per
+        Markdown file) overrides it. None and ``SkippedRule`` keep their
+        ``parse`` meaning for the whole file.
+        """
+        parsed = self.parse(file_path, content)
+        if parsed is None or isinstance(parsed, SkippedRule):
+            return parsed
+        return [parsed]
+
     @abstractmethod
     def can_parse(self, file_path: Path) -> bool:
         """Check if this parser can handle the given file.

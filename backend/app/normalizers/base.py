@@ -157,6 +157,12 @@ class NormalizedDetection:
     # Stable signature of the rule's logsource input — groups identical
     # unmapped rules in drift reports.
     taxonomy_fingerprint: str = ""
+    # Test material the upstream file carries OUTSIDE raw_content, for
+    # the hygiene scorer: "sample_events" (log events marked as expected
+    # match / no-match) and "atomic_test" (a documented procedure that
+    # triggers the rule). Set by sources whose raw_content is a slice of
+    # a larger document (GitLab TLDR); empty elsewhere. Not persisted.
+    test_evidence: list[str] = field(default_factory=list)
     # The v1 path-hash id (sha256 of source:file_path). Kept so ingest
     # can write a legacy alias for links shared before the
     # deterministic-id migration (#86). Set in __post_init__.

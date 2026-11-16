@@ -89,7 +89,7 @@ REEXEC_FLAG = "DEV_DB_REEXEC"
 SOURCES = (
     "sigma", "elastic", "elastic_hunting", "elastic_protections", "splunk",
     "sublime", "lolrmm", "sentinel", "google_secops", "okta", "auth0",
-    "panther", "pypanther",
+    "panther", "pypanther", "gitlab",
 )
 
 # Read routes hit once each, beyond the per-source detail sweep. Every

@@ -7,7 +7,7 @@ weight each technique by distinctiveness (`weight_t = log(N / n_t)`,
 computed by the MITRE service from the actor->technique matrix):
 
     covered(t)        = >=1 rule in the corpus tags technique t, from
-                        ANY of the 13 tracked sources ("Technique
+                        ANY of the 14 tracked sources ("Technique
                         overlap" match mode -- see DX-08 for why the
                         UI no longer calls this tier "coverage" bare)
     weighted_coverage = covered weight mass / total weight mass

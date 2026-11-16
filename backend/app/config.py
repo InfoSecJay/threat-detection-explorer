@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # Panther Labs pypanther -- the newer Pythonic framework: rules are
     # pure Python classes under pypanther/rules/ (issue #27)
     pypanther_repo_url: str = "https://github.com/panther-labs/pypanther.git"
+    # GitLab TLDR (Threat and vuLnerability Detection Rules) -- Sigma rules
+    # embedded in one Markdown file per detection. Hosted on gitlab.com,
+    # the only source that is not a GitHub repository.
+    gitlab_repo_url: str = "https://gitlab.com/gitlab-security-oss/tldr.git"
 
     # API settings
     # Versioned public surface (#92 / teardown S4.8). Routers mount here;

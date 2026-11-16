@@ -91,6 +91,8 @@ EXPECTED_LANGUAGES: dict[str, set[str]] = {
     # declarative rule have no .py; those show `panther_correlation`
     # or `panther` respectively.
     "panther":             {"python", "panther", "panther_correlation"},
+    # GitLab TLDR embeds Sigma documents in Markdown.
+    "gitlab":              {"sigma"},
 }
 
 # Sources where "no MITRE techniques" is expected behaviour, not a bug.

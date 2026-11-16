@@ -14,6 +14,7 @@ from app.parsers.okta import OktaParser
 from app.parsers.auth0 import Auth0Parser
 from app.parsers.panther import PantherParser
 from app.parsers.pypanther import PyPantherParser
+from app.parsers.gitlab import GitLabParser
 
 __all__ = [
     "BaseParser",
@@ -30,4 +31,6 @@ __all__ = [
     "OktaParser",
     "Auth0Parser",
     "PantherParser",
+    "PyPantherParser",
+    "GitLabParser",
 ]

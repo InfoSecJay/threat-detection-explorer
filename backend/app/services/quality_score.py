@@ -274,7 +274,11 @@ def _score_testability(n: "NormalizedDetection", skip: frozenset[str]) -> dict:
     refs = " ".join(r for r in (n.references or []) if isinstance(r, str))
     tags = " ".join(t for t in (n.tags or []) if isinstance(t, str))
     haystack = " ".join([refs, tags])
-    has_atomic = bool(_ATOMIC_RE.search(haystack))
+    # Test material the normalizer found in the upstream file but
+    # outside raw_content (GitLab TLDR keeps marked sample events and an
+    # atomic test beside the Sigma it embeds).
+    evidence = set(getattr(n, "test_evidence", None) or ())
+    has_atomic = bool(_ATOMIC_RE.search(haystack)) or "atomic_test" in evidence
 
     if "atomic" in skip:
         of -= 8
@@ -298,7 +302,7 @@ def _score_testability(n: "NormalizedDetection", skip: frozenset[str]) -> dict:
     if "embedded_tests" in skip:
         of -= 3
         _mark_na(na, "embedded_tests")
-    elif n.raw_content and _EMBEDDED_TESTS_RE.search(n.raw_content):
+    elif "sample_events" in evidence or (n.raw_content and _EMBEDDED_TESTS_RE.search(n.raw_content)):
         score += 3
     elif not has_atomic:
         issues.append("no embedded test cases")

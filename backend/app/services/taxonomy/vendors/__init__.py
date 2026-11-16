@@ -11,6 +11,7 @@ from app.services.taxonomy.vendors import (  # noqa: F401
     elastic,
     elastic_hunting,
     elastic_protections,
+    gitlab,
     google_secops,
     lolrmm,
     okta,

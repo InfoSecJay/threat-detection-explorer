@@ -1,0 +1,67 @@
+# GitLab TLDR detections -> canonical taxonomy mappings.
+#
+# Every rule is a Sigma document with `logsource.product: gitlab` and a
+# `service` naming the GitLab log file or component it reads. The service
+# is the only signal, so the mapping is keyed on it (lower-cased).
+#
+# Data sources follow the log families GitLab itself documents
+# (docs.gitlab.com/administration/logs):
+#   gitlab_audit         audit_json.log (and streamed audit events)
+#   gitlab_production    production_json.log -- Rails controller requests (web UI)
+#   gitlab_api           api_json.log, graphql_json.log -- REST and GraphQL requests
+#   gitlab_application   application_json.log, exceptions_json.log -- Rails
+#                        application messages and tracked exceptions
+#   gitlab_service_logs  Workhorse, Gitaly, Sidekiq, Puma -- component
+#                        process logs outside Rails' structured request logs
+#
+# Event types stay coarse on purpose (docs/taxonomy.md section 1): the
+# log file says "a request" or "an audit record", not what the request
+# did. The process-level logs get `audit_event`, the coarse value for a
+# channel that mixes event kinds.
+
+by_service:
+  audit_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_audit]
+    event_types: [audit_event]
+  production_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_production]
+    event_types: [http_request]
+  api_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_api]
+    event_types: [api_call]
+  graphql_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_api]
+    event_types: [api_call]
+  application_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_application]
+    event_types: [audit_event]
+  exceptions_json.log:
+    platforms: [gitlab]
+    data_sources: [gitlab_application]
+    event_types: [audit_event]
+  workhorse:
+    platforms: [gitlab]
+    data_sources: [gitlab_service_logs]
+    event_types: [http_request]
+  gitaly:
+    platforms: [gitlab]
+    data_sources: [gitlab_service_logs]
+    event_types: [audit_event]
+  sidekiq:
+    platforms: [gitlab]
+    data_sources: [gitlab_service_logs]
+    event_types: [audit_event]
+  puma_stderr:
+    platforms: [gitlab]
+    data_sources: [gitlab_service_logs]
+    event_types: [audit_event]
+
+# A service this file does not list yet: the rule is still a GitLab
+# rule, but it gets no data source, so the drift report names it.
+default:
+  platforms: [gitlab]

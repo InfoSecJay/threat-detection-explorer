@@ -40,6 +40,7 @@ ALL_REPOSITORY_NAMES: list[str] = [
     "auth0",
     "panther",
     "pypanther",
+    "gitlab",
 ]
 
 # Branch per source lives in upstream_refs.REPO_BRANCHES (DX-15 / #157),
@@ -155,6 +156,10 @@ class RepositorySyncService:
         "pypanther": {
             "url": settings.pypanther_repo_url,
             "name": "pypanther",
+        },
+        "gitlab": {
+            "url": settings.gitlab_repo_url,
+            "name": "gitlab",
         },
     }
 

@@ -92,6 +92,16 @@ class RuleDiscoveryService:
             "include_patterns": ["pypanther/rules/**/*.py"],
             "exclude_dirs": ["tests", "test", "deprecated", ".git"],
         },
+        "gitlab": {
+            # GitLab TLDR: one Markdown file per detection under
+            # Detections/platforms/GitLab/<Threat|Vulnerability> Detections/,
+            # each embedding one or more Sigma documents (the parser
+            # yields one rule per document). Scoped to the GitLab
+            # platform directory; docs/, skills/ and the repo-root
+            # Markdown are not detections.
+            "include_patterns": ["Detections/platforms/GitLab/**/*.md"],
+            "exclude_dirs": ["tests", "test", "deprecated", ".git"],
+        },
         "panther": {
             # Panther rules live one level under `rules/<vendor_rules>/`
             # as YAML+Python sibling pairs. Two nested subdirs exist

@@ -38,6 +38,7 @@ REPO_BRANCHES: dict[str, str] = {
     "auth0": "main",
     "panther": "develop",
     "pypanther": "main",
+    "gitlab": "main",
 }
 
 _PINNED_BLOB = re.compile(r"/blob/([0-9a-f]{40})/")

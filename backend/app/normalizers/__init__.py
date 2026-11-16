@@ -14,6 +14,7 @@ from app.normalizers.okta import OktaNormalizer
 from app.normalizers.auth0 import Auth0Normalizer
 from app.normalizers.panther import PantherNormalizer
 from app.normalizers.pypanther import PyPantherNormalizer
+from app.normalizers.gitlab import GitLabNormalizer
 
 __all__ = [
     "BaseNormalizer",
@@ -30,4 +31,6 @@ __all__ = [
     "OktaNormalizer",
     "Auth0Normalizer",
     "PantherNormalizer",
+    "PyPantherNormalizer",
+    "GitLabNormalizer",
 ]

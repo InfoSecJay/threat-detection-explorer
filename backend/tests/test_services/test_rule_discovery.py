@@ -522,3 +522,36 @@ def test_all_sources_have_discovery_patterns():
         f"DISCOVERY_PATTERNS: {missing}. New sources must be added to "
         f"both lists."
     )
+
+
+# -- GitLab TLDR -------------------------------------------------------------
+
+
+def test_discover_gitlab(discovery):
+    """GitLab TLDR detections are Markdown files under
+    Detections/platforms/GitLab/<kind>/ (directory names with spaces).
+    The repo is mostly Markdown that is NOT a detection: docs/, skills/,
+    README, CONTRACT. None of it may be picked up."""
+    service, build_repo = discovery
+    build_repo("gitlab", [
+        "Detections/platforms/GitLab/Threat Detections/deploy_key_created.md",
+        "Detections/platforms/GitLab/Threat Detections/2FA_disabled_for_an_account.md",
+        "Detections/platforms/GitLab/Vulnerability Detections/ci_regexp_guard_rejection.md",
+        # Traps.
+        "Detections/.gitkeep",
+        "Detections/platforms/GitLab/Threat Detections/notes.yml",
+        "Detections/platforms/Other/Threat Detections/x.md",
+        "README.md",
+        "CONTRIBUTING.md",
+        "docs/CONTRACT.md",
+        "docs/catalog.md",
+        "skills/tldr/references/deploying-detections.md",
+        "tests/fixtures/Detections/platforms/GitLab/Threat Detections/fixture.md",
+    ])
+    found = {str(p).replace("\\", "/") for p in service.discover_rules("gitlab")}
+
+    assert found == {
+        "Detections/platforms/GitLab/Threat Detections/deploy_key_created.md",
+        "Detections/platforms/GitLab/Threat Detections/2FA_disabled_for_an_account.md",
+        "Detections/platforms/GitLab/Vulnerability Detections/ci_regexp_guard_rejection.md",
+    }

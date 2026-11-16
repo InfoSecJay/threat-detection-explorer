@@ -48,6 +48,7 @@ LICENSES: dict[str, dict] = {
     "pypanther": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/panther-labs/pypanther/blob/main/LICENSE.txt"},
     "okta": {"spdx": "Apache-2.0", "name": "Apache License 2.0", "url": "https://github.com/okta/customer-detections/blob/main/LICENSE"},
     "auth0": {"spdx": "Custom", "name": "Custom license (see repo)", "url": "https://github.com/auth0/auth0-customer-detections/blob/main/LICENSE"},
+    "gitlab": {"spdx": "MIT", "name": "MIT License", "url": "https://gitlab.com/gitlab-security-oss/tldr/-/blob/main/LICENSE"},
 }
 
 # The human half of the methodology: WHY the globs are what they are.
@@ -84,6 +85,13 @@ SCOPE_NOTES: dict[str, str] = {
         "rules/ YAML+Python pairs on the develop branch, counted once per YAML. "
         "policies/, queries/, data_models/, packs/ and correlation_rules/ are not "
         "detection rules. deprecated.txt stamps status=deprecated on listed rules."
+    ),
+    "gitlab": (
+        "Detections/platforms/GitLab/ on main: one Markdown file per detection, each embedding one or "
+        "more Sigma documents. Every Sigma document (rule or correlation) has its own upstream id and "
+        "is counted once, so the count is higher than the number of files. Base rules shipped at "
+        "informational level for a correlation to count are flagged is_building_block. docs/, skills/ "
+        "and the repository tooling are not detections."
     ),
     "pypanther": (
         "pypanther/rules/ Python rule classes on main; framework modules, tests and docs are not "

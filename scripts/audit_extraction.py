@@ -118,6 +118,9 @@ EXTRACTOR_STATUS: dict[str, str] = {
     # the ast-walking extract_panther_fields (issue #6).
     "panther":             "have_extractor",
     "pypanther":           "have_extractor",
+    # GitLab TLDR rules are Sigma; the shared Sigma extractor runs with
+    # a GitLab field-type table applied in the normalizer.
+    "gitlab":              "have_extractor",
 }
 
 SOURCES = list(EXTRACTOR_STATUS.keys())

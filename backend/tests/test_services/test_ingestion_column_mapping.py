@@ -22,7 +22,7 @@ from app.normalizers.base import NormalizedDetection
 from app.services.ingestion import IngestionService
 
 # NormalizedDetection fields that intentionally do NOT persist.
-NOT_PERSISTED = {"taxonomy_matched", "taxonomy_fingerprint"}
+NOT_PERSISTED = {"taxonomy_matched", "taxonomy_fingerprint", "test_evidence"}
 
 
 def _sentinel(field: dataclasses.Field):

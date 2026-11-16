@@ -16,7 +16,7 @@ holds. What gets a source accepted:
 - **Real detection rules** -- alerting/correlation logic, not IOC
   feeds, hunting notebooks, or config baselines.
 - **Maintained** -- commits within the last year.
-- **Distinct signal** -- coverage the existing thirteen sources do not
+- **Distinct signal** -- coverage the existing fourteen sources do not
   already provide.
 
 ## Report a wrong extraction or mapping

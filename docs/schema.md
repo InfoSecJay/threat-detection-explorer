@@ -50,8 +50,8 @@ groups of fields:
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | `str` (36) | Deterministic permalink id (#86): UUIDv5 over `source + upstream rule_id` when the vendor publishes one (survives file moves and rebuilds), else sha256 of `source + source_file`. Legacy path-hash ids and upstream rule ids resolve via `detection_aliases` with a 301. Drives upserts. |
-| `source` | enum | One of `sigma`, `elastic`, `splunk`, `sublime`, `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`, `google_secops`, `okta`, `auth0`. |
-| `source_file` | `str` | Path within the source repo (e.g. `rules/windows/process_creation/foo.yml`). |
+| `source` | enum | One of `sigma`, `elastic`, `splunk`, `sublime`, `elastic_protections`, `lolrmm`, `elastic_hunting`, `sentinel`, `google_secops`, `okta`, `auth0`, `panther`, `pypanther`, `gitlab` (`ALL_REPOSITORY_NAMES` in `repository_sync.py` is authoritative). |
+| `source_file` | `str` | Path within the source repo (e.g. `rules/windows/process_creation/foo.yml`). Not unique: a `gitlab` file embeds several Sigma documents and each is its own row. |
 | `source_repo_url` | `str` | Canonical URL of the source repo. |
 | `source_rule_url` | `str?` | Deep link to the rule file at the right vendor branch (e.g. `master`, `develop`). |
 | `rule_id` | `str?` | The vendor's own internal id — Sigma `id:`, Elastic `rule_id`, Splunk `id`, Sublime/Sentinel/LOLRMM equivalents. Often a UUID. |

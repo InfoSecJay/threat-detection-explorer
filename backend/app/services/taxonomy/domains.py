@@ -221,7 +221,10 @@ _DOMAIN_SOURCES: dict[str, frozenset[str]] = {
     "email": frozenset({
         "email_message_metadata", "proofpoint_event", "sublime_message_event", "m365_exchange_audit", "m365_defender",
     }),
-    "devops": frozenset({"bitbucket_audit", "atlassian_audit", "gitlab_production"})
+    "devops": frozenset({
+        "bitbucket_audit", "atlassian_audit", "gitlab_production", "gitlab_api", "gitlab_application",
+        "gitlab_service_logs",
+    })
     | _prefixed("github_", "gitlab_audit", "snyk_"),
     "data": frozenset({"databricks_audit", "database_logs"}) | _prefixed("snowflake_", "mongodb_"),
     # Generic application logs (Sigma app frameworks, SAP, Sentinel custom

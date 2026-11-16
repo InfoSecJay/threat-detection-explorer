@@ -174,7 +174,7 @@ async def prerender_technique(technique_id: str):
     desc = (info.get("description") or "").strip()
     body = f"""<h1>{escape(tid)} — {escape(name)}</h1>
 <p>{escape(desc[:1200])}</p>
-<p>Cross-vendor detection rules for this ATT&amp;CK technique, normalized from thirteen open-source repositories.</p>"""
+<p>Cross-vendor detection rules for this ATT&amp;CK technique, normalized from fourteen open-source repositories.</p>"""
     return _page(
         f"{tid} {name}",
         desc or f"Detection rules for ATT&CK technique {tid}",
@@ -212,7 +212,7 @@ async def prerender_actor(actor_id: str):
 async def prerender_home(db: AsyncSession = Depends(get_db)):
     total = (await db.execute(select(func.count()).select_from(Detection))).scalar() or 0
     desc = (
-        f"{total:,} open-source detection rules from thirteen repositories -- Sigma, Elastic, Splunk, "
+        f"{total:,} open-source detection rules from fourteen repositories -- Sigma, Elastic, Splunk, "
         "Sentinel, Panther, Sublime and more -- normalized into one schema, mapped to MITRE ATT&CK, "
         "with the observables each rule keys on."
     )
@@ -304,7 +304,7 @@ async def prerender_methodology(db: AsyncSession = Depends(get_db)):
             "</tr>"
         )
     desc = (
-        "How Detection Explorer counts rules: for each of the thirteen upstream repositories, the "
+        "How Detection Explorer counts rules: for each of the fourteen upstream repositories, the "
         "branch and pinned commit, the discovery scope, the license, and the decisions that move the number."
     )
     body = f"""<h1>Methodology</h1>
@@ -363,7 +363,7 @@ async def prerender_mcp(db: AsyncSession = Depends(get_db)):
     """The MCP server page (#92 S4.10): what it answers and how to install it."""
     total = (await db.execute(select(func.count()).select_from(Detection))).scalar() or 0
     desc = (
-        f"Connect Claude, Cursor or VS Code to {total:,} open-source detection rules from thirteen "
+        f"Connect Claude, Cursor or VS Code to {total:,} open-source detection rules from fourteen "
         "repositories: search, observable-level diffs, cross-vendor porting gaps and ATT&CK actor "
         "coverage through the detection-explorer-mcp server. No account or API key."
     )
